@@ -1,7 +1,8 @@
 from openai import OpenAI
 import os
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key="sk-XXXX")
 
 SYSTEM_PROMPT = """
 You are a polite English-speaking from UK tenant trying to get a landlord’s phone number 
