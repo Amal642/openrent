@@ -1,0 +1,16 @@
+[project]
+name = "openrent-agent"
+version = "0.1.0"
+description = "AI automation bot for OpenRent"
+authors = [
+    {name = "BBB"}
+]
+dependencies = [
+    "playwright",
+    "python-dotenv",
+    "sqlalchemy",
+    "asyncpg"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]

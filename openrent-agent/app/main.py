@@ -1,19 +1,19 @@
 import asyncio
-from playwright.async_api import async_playwright
-
+from app.browser.launcher import launch_browser
 from app.browser.auth import login
-from app.config import EMAIL, PASSWORD
 
 async def main():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False, slow_mo=500)
-        page = await browser.new_page()
+    playwright, browser, context, page = await launch_browser()
 
-        await login(page, EMAIL, PASSWORD)
+    try:
+        await login(page, context)
 
-        print("Login successful")
+        print("System ready for next steps")
 
+    finally:
         await browser.close()
+        await playwright.stop()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
