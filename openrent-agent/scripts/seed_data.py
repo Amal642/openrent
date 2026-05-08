@@ -11,7 +11,12 @@ import os
 account = create_account(
     email=os.getenv("EMAIL"),
     password=os.getenv("PASSWORD"),
-    session_file="sessions/account_1.json"
+    session_file="sessions/account_1.json",
+
+
+    initial_message="""Hi, I’m Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.
+Could you please share your phone number?
+Thanks so much!"""
 )
 
 # Create search profile

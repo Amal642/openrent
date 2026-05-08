@@ -24,6 +24,8 @@ class Account(Base):
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
 
+    initial_message = Column(Text, nullable=True)
+
     session_file = Column(String)
 
     proxy_server = Column(String, nullable=True)
@@ -83,6 +85,8 @@ class Listing(Base):
     property_url = Column(String, nullable=False)
 
     search_profile_id = Column(Integer, ForeignKey("search_profiles.id"))
+
+    message_url = Column(String, nullable=True)
 
     contacted = Column(Boolean, default=False)
 

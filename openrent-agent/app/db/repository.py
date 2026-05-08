@@ -5,20 +5,21 @@ from app.db.models import (
     Listing,
     Conversation,
     Message
+
 )
 from datetime import datetime
 
 
 # ---------------- ACCOUNTS ----------------
 
-def create_account(email, password, session_file, proxy_server=None, proxy_username=None, proxy_password=None):
+def create_account(email, password, session_file, initial_message, proxy_server=None, proxy_username=None, proxy_password=None):
     db = SessionLocal()
 
     account = Account(
         email=email,
         password=password,
         session_file=session_file,
-
+        initial_message=initial_message,
         proxy_server=proxy_server,
         proxy_username=proxy_username,
         proxy_password=proxy_password
@@ -169,3 +170,73 @@ def mark_listing_failed(listing_id):
         db.commit()
 
     db.close()
+def save_message_url(
+    listing_id,
+    message_url
+):
+
+    db = SessionLocal()
+
+    listing = db.query(Listing).filter(
+        Listing.id == listing_id
+    ).first()
+
+    if listing:
+        listing.message_url = message_url
+        db.commit()
+
+    db.close()
+def can_send_message(account_id):
+
+    db = SessionLocal()
+
+    account = db.query(Account).filter(
+        Account.id == account_id
+    ).first()
+
+    if not account:
+        db.close()
+        return False
+
+    allowed = (
+        account.messages_sent_today <
+        account.daily_limit
+    )
+
+    db.close()
+
+    return allowed
+def increment_message_count(account_id):
+
+    db = SessionLocal()
+
+    account = db.query(Account).filter(
+        Account.id == account_id
+    ).first()
+
+    if account:
+        account.messages_sent_today += 1
+        db.commit()
+
+    db.close()
+def create_conversation(
+    thread_id,
+    listing_id
+):
+
+    db = SessionLocal()
+
+    conversation = Conversation(
+        thread_id=thread_id,
+        listing_id=listing_id
+    )
+
+    db.add(conversation)
+
+    db.commit()
+
+    db.refresh(conversation)
+
+    db.close()
+
+    return conversation
