@@ -133,3 +133,6 @@ htmlcov/
 *.bak
 *.tmp
 *.temp
+
+
+sessions/
