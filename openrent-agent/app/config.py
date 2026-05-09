@@ -7,6 +7,8 @@ class Settings:
     EMAIL = os.getenv("EMAIL")
     PASSWORD = os.getenv("PASSWORD")
 
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
     DATABASE_URL = os.getenv("DATABASE_URL")
 
     HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
