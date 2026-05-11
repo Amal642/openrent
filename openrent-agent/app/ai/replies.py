@@ -1,7 +1,17 @@
 from openai import OpenAI
+from openai import (
+    RateLimitError,
+    APIError,
+    APITimeoutError
+)
 
 from app.config import settings
-
+from app.ai.prompts import (
+    build_reply_prompt
+)
+from app.ai.validators import (
+    is_valid_reply
+)
 
 client = OpenAI(
     api_key=settings.OPENAI_API_KEY
@@ -27,49 +37,74 @@ def format_conversation(messages):
 
 def generate_reply(messages):
 
-    conversation = format_conversation(
-        messages
-    )
+    try:
 
-    prompt = f"""
-You are assisting a tenant searching for rental properties in the UK.
+        conversation = format_conversation(
+            messages
+        )
 
-Your role:
-- Reply naturally and politely
-- Sound human
-- Keep replies concise
-- Maintain conversation continuity
-- Do not sound robotic
-- Never mention being an AI
-- Never over-explain
-- Never generate fake information
-- Focus on arranging viewings and progressing the conversation
-- Sound like a genuine tenant
+        prompt = build_reply_prompt(
+            conversation
+        )
 
-Conversation:
-{conversation}
+        response = client.chat.completions.create(
 
-Generate the next reply ONLY.
-"""
+            model="gpt-4.1-mini",
 
-    response = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
 
-        model="gpt-4.1-mini",
+            temperature=0.7
+        )
 
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
+        reply = (
+            response.choices[0]
+            .message.content
+            .strip()
+        )
 
-        temperature=0.7
-    )
+        if not is_valid_reply(reply):
 
-    reply = (
-        response.choices[0]
-        .message.content
-        .strip()
-    )
+            print(
+                "Invalid AI reply detected"
+            )
 
-    return reply
+            return None
+
+        return reply
+
+    except RateLimitError:
+
+        print(
+            "OpenAI rate limit hit"
+        )
+
+        return None
+
+    except APITimeoutError:
+
+        print(
+            "OpenAI timeout"
+        )
+
+        return None
+
+    except APIError as e:
+
+        print(
+            f"OpenAI API error: {e}"
+        )
+
+        return None
+
+    except Exception as e:
+
+        print(
+            f"AI reply generation failed: {e}"
+        )
+
+        return None

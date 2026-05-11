@@ -23,6 +23,11 @@ from app.openrent.messaging import (
     send_initial_message
 )
 
+from app.utils.human import random_sleep
+
+from app.utils.logger import logger
+
+from app.openrent.landlords import landlord_is_agent
 
 async def main():
 
@@ -30,6 +35,7 @@ async def main():
 
     if not accounts:
         print("No accounts found")
+        logger.warning("No active accounts found in database")
         return
 
     account = accounts[0]
@@ -38,6 +44,7 @@ async def main():
 
     if not listings:
         print("No listings to process")
+        logger.warning("No listings to process")
         return
 
     playwright, browser, context, page = await launch_browser(account)
@@ -52,6 +59,22 @@ async def main():
 
                 await open_listing(page, listing)
 
+                await random_sleep(2, 5)
+                is_agent = await landlord_is_agent(
+                    page
+                )
+
+                if is_agent:
+
+                    logger.info(
+                        "Skipping agent landlord"
+                    )
+
+                    mark_listing_failed(
+                        listing.id
+                    )
+
+                    continue
                 message_link = await get_message_link(page)
 
                 contactable = message_link is not None
@@ -60,6 +83,7 @@ async def main():
                     f"Listing {listing.listing_id} "
                     f"contactable: {contactable}"
                 )
+                logger.info(f"Listing {listing.listing_id} contactable: {contactable}")
 
                 if not contactable:
                     continue
@@ -67,6 +91,7 @@ async def main():
                 if not can_send_message(account.id):
 
                     print("Daily limit reached")
+                    logger.exception(f"Daily limit reached for account {account.id}")
                     break
 
                 full_url = f"https://www.openrent.co.uk{message_link}"
@@ -77,6 +102,7 @@ async def main():
                 )
 
                 print("Message route saved:", full_url)
+                logger.info(f"Message route saved: {full_url}")
 
                 final_url = await send_initial_message(
                     page=page,
@@ -87,6 +113,7 @@ async def main():
                 thread_id = extract_thread_id(final_url)
 
                 print("Extracted thread ID:", thread_id)
+                logger.info(f"Extracted thread ID: {thread_id}")
 
                 mark_listing_contacted(
                     listing.id,
@@ -110,6 +137,7 @@ async def main():
             except Exception as e:
 
                 print("Processing failed:", e)
+                logger.exception(f"Processing failed for listing {listing.id}: {e}")
 
                 mark_listing_failed(listing.id)
 

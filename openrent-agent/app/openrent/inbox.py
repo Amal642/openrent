@@ -269,10 +269,24 @@ async def send_reply(
 
     await textarea.wait_for()
 
+    # Check disabled state
+    disabled = await textarea.get_attribute(
+        "disabled"
+    )
+
+    if disabled is not None:
+
+        print(
+            "\nReply box disabled. "
+            "Skipping thread."
+        )
+
+        return False
+
     # Click textarea
     await textarea.click()
 
-    # Type like human
+    # Type naturally
     await textarea.type(
         reply_text,
         delay=30
@@ -280,70 +294,61 @@ async def send_reply(
 
     print("\nAI reply inserted")
 
-    # Wait for frontend JS
-    await page.wait_for_timeout(2000)
+    await page.wait_for_timeout(1500)
 
     submit_button = page.locator(
         "#send-message-button"
     )
 
-    # Check disabled state
-    disabled = await submit_button.get_attribute(
+    # Verify button enabled
+    button_disabled = await submit_button.get_attribute(
         "disabled"
     )
 
-    print(
-        "Button disabled state:",
-        disabled
-    )
-
-    # If still disabled → trigger input event
-    if disabled is not None:
+    if button_disabled is not None:
 
         print(
-            "Triggering manual input event..."
+            "Send button disabled. "
+            "Skipping send."
         )
 
-        await page.evaluate("""
-        () => {
-
-            const textarea = document.querySelector(
-                '#message-compose-textarea'
-            );
-
-            textarea.dispatchEvent(
-                new Event('input', {
-                    bubbles: true
-                })
-            );
-
-            textarea.dispatchEvent(
-                new Event('change', {
-                    bubbles: true
-                })
-            );
-        }
-        """)
-
-        await page.wait_for_timeout(2000)
-
-    # Recheck disabled state
-    disabled = await submit_button.get_attribute(
-        "disabled"
-    )
-
-    print(
-        "Final button disabled state:",
-        disabled
-    )
-
-    if disabled is not None:
-
-        raise Exception(
-            "Send button still disabled"
-        )
+        return False
 
     # TEST MODE
     # await submit_button.click()
 
-    print("\nAI reply ready")
+    print("AI reply ready")
+
+    return True
+
+async def can_reply(page):
+
+    textarea = page.locator(
+        "#message-compose-textarea"
+    )
+
+    await textarea.wait_for()
+
+    disabled = await textarea.get_attribute(
+        "disabled"
+    )
+
+    return disabled is None
+
+def get_latest_landlord_message(
+    messages
+):
+
+    landlord_messages = [
+
+        msg["message"]
+
+        for msg in messages
+
+        if msg["sender"] == "landlord"
+    ]
+
+    if not landlord_messages:
+        return None
+
+    return landlord_messages[-1]

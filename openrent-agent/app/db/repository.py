@@ -240,3 +240,200 @@ def create_conversation(
     db.close()
 
     return conversation
+
+def update_conversation_status(
+    thread_id,
+    status
+):
+
+    db = SessionLocal()
+
+    conversation = db.query(
+        Conversation
+    ).filter(
+        Conversation.thread_id == thread_id
+    ).first()
+
+    if conversation:
+
+        conversation.status = status
+
+        db.commit()
+
+    db.close()
+
+def save_phone_number(
+    thread_id,
+    phone
+):
+
+    db = SessionLocal()
+
+    conversation = db.query(
+        Conversation
+    ).filter(
+        Conversation.thread_id == thread_id
+    ).first()
+
+    if conversation:
+
+        conversation.extracted_phone = phone
+
+        conversation.status = "PHONE_ACQUIRED"
+
+        db.commit()
+
+    db.close()
+
+def save_ai_reply(
+    thread_id,
+    reply
+):
+
+    db = SessionLocal()
+
+    conversation = db.query(
+        Conversation
+    ).filter(
+        Conversation.thread_id == thread_id
+    ).first()
+
+    if conversation:
+
+        conversation.last_ai_reply = reply
+
+        conversation.status = "AI_REPLIED"
+
+        db.commit()
+
+    db.close()
+
+def get_conversation_by_thread_id(
+    thread_id
+):
+
+    db = SessionLocal()
+
+    conversation = db.query(
+        Conversation
+    ).filter(
+        Conversation.thread_id == thread_id
+    ).first()
+
+    db.close()
+
+    return conversation
+
+def update_last_processed_message(
+    thread_id,
+    message
+):
+
+    db = SessionLocal()
+
+    conversation = db.query(
+        Conversation
+    ).filter(
+        Conversation.thread_id == thread_id
+    ).first()
+
+    if conversation:
+
+        conversation.last_processed_message = message
+
+        db.commit()
+
+    db.close()
+
+def phone_exists(phone):
+
+    db = SessionLocal()
+
+    exists = db.query(
+        Conversation
+    ).filter(
+        Conversation.extracted_phone == phone
+    ).first()
+
+    db.close()
+
+    return exists is not None
+
+def get_or_create_landlord(profile_url):
+    db = SessionLocal()
+    landlord = db.query(Landlord).filter(Landlord.profile_url == profile_url).first()
+    if landlord:
+        db.close()
+        return landlord
+
+    landlord = Landlord(profile_url=profile_url)
+    db.add(landlord)
+    db.commit()
+    db.refresh(landlord)
+    db.close()
+    return landlord
+
+
+def update_landlord_scan(profile_url, property_count, is_agent):
+    db = SessionLocal()
+    landlord = db.query(Landlord).filter(Landlord.profile_url == profile_url).first()
+    if landlord is None:
+        landlord = Landlord(profile_url=profile_url)
+        db.add(landlord)
+
+    landlord.property_count = property_count
+    landlord.is_agent = is_agent
+    landlord.last_checked_at = datetime.utcnow()
+    db.commit()
+    db.refresh(landlord)
+    db.close()
+    return landlord
+
+
+def attach_landlord_to_listing(listing_id, landlord_id):
+    db = SessionLocal()
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if listing:
+        listing.landlord_id = landlord_id
+        db.commit()
+    db.close()
+
+
+def mark_listing_skipped_agent(listing_id, property_count=None):
+    db = SessionLocal()
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if listing:
+        listing.skip_reason = "agent"
+        listing.processing_failed = True
+        listing.last_processed_at = datetime.utcnow()
+        db.commit()
+    db.close()
+
+def get_dashboard_leads(status=None):
+    db = SessionLocal()
+
+    query = (
+        db.query(Conversation, Listing)
+        .join(Listing, Conversation.listing_id == Listing.id)
+    )
+
+    if status and status != "ALL":
+        query = query.filter(Conversation.status == status)
+
+    rows = []
+
+    for conversation, listing in query.order_by(Conversation.created_at.desc()).all():
+        rows.append({
+            "thread_id": conversation.thread_id,
+            "listing_id": listing.listing_id,
+            "property_url": listing.property_url,
+            "status": conversation.status,
+            "phone": conversation.extracted_phone or "",
+            "last_processed_message": conversation.last_processed_message or "",
+            "last_ai_reply": conversation.last_ai_reply or "",
+            "created_at": conversation.created_at,
+            "last_message_at": conversation.last_message_at,
+        })
+
+    db.close()
+    return rows

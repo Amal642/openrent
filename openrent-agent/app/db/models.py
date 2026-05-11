@@ -86,6 +86,9 @@ class Listing(Base):
 
     search_profile_id = Column(Integer, ForeignKey("search_profiles.id"))
 
+    landlord_id = Column(Integer, ForeignKey("landlords.id"), nullable=True)
+
+
     message_url = Column(String, nullable=True)
 
     contacted = Column(Boolean, default=False)
@@ -94,16 +97,19 @@ class Listing(Base):
 
     processing_failed = Column(Boolean, default=False)
 
+    skip_reason = Column(String, nullable=True)
+
     thread_id = Column(String, nullable=True)
 
     first_seen = Column(DateTime, default=datetime.utcnow)
 
     last_processed_at = Column(DateTime, nullable=True)
-
     # relationships
     search_profile = relationship("SearchProfile", back_populates="listings")
 
     conversations = relationship("Conversation", back_populates="listing")
+
+    landlord = relationship("Landlord", back_populates="listings")
 
 
 # ---------------- CONVERSATIONS ----------------
@@ -119,7 +125,7 @@ class Conversation(Base):
 
     phone_found = Column(Boolean, default=False)
 
-    extracted_phone = Column(String, nullable=True)
+    extracted_phone = Column(String, unique=True, nullable=True)
 
     closed = Column(Boolean, default=False)
 
@@ -128,6 +134,25 @@ class Conversation(Base):
     last_message_at = Column(DateTime, default=datetime.utcnow)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    status = Column(
+    String,
+    default="NEW_REPLY"
+    )
+
+    extracted_phone = Column(
+        String,
+        nullable=True
+    )
+
+    last_ai_reply = Column(
+        Text,
+        nullable=True
+    )
+    last_processed_message = Column(
+    Text,
+    nullable=True
+    )
 
     # relationships
     listing = relationship("Listing", back_populates="conversations")
@@ -152,3 +177,14 @@ class Message(Base):
 
     # relationships
     conversation = relationship("Conversation", back_populates="messages")
+
+class Landlord(Base):
+    __tablename__ = "landlords"
+
+    id = Column(Integer, primary_key=True)
+    profile_url = Column(String, unique=True, nullable=False)
+    property_count = Column(Integer, default=0)
+    is_agent = Column(Boolean, default=False)
+    last_checked_at = Column(DateTime, default=datetime.utcnow)
+
+    listings = relationship("Listing", back_populates="landlord")

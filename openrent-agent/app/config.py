@@ -20,4 +20,6 @@ class Settings:
     PROXY_USERNAME = os.getenv("PROXY_USERNAME")
     PROXY_PASSWORD = os.getenv("PROXY_PASSWORD")
 
+    AI_AUTOSEND: bool = False
+
 settings = Settings()

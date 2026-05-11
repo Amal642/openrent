@@ -1,5 +1,8 @@
 from openai import OpenAI
 from app.config import settings
+from app.ai.prompts import (
+    build_phone_extraction_prompt
+)
 
 import re
 
@@ -36,19 +39,9 @@ def ai_extract_phone(messages):
 
     text = "\n".join(messages)
 
-    prompt = f"""
-You are extracting landlord phone numbers.
-
-Conversation:
-{text}
-
-Rules:
-- Only extract landlord phone number
-- Ignore tenant/user numbers
-- Reconstruct fragmented numbers
-- Return ONLY the phone number
-- If no number exists return: NONE
-"""
+    prompt = build_phone_extraction_prompt(
+        text
+    )
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
