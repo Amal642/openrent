@@ -123,14 +123,43 @@ def create_listing(
     db.close()
 
     return listing
-def get_uncontacted_listings(limit=5):
+def get_uncontacted_listings(
+    account_id,
+    limit=5
+):
 
     db = SessionLocal()
 
-    listings = db.query(Listing).filter(
-        Listing.message_sent == False,
-        Listing.processing_failed == False
-    ).limit(limit).all()
+    listings = (
+
+        db.query(Listing)
+
+        .join(
+            SearchProfile,
+            Listing.search_profile_id
+            ==
+            SearchProfile.id
+        )
+
+        .filter(
+
+            SearchProfile.account_id
+            ==
+            account_id,
+
+            Listing.message_sent
+            ==
+            False,
+
+            Listing.processing_failed
+            ==
+            False
+        )
+
+        .limit(limit)
+
+        .all()
+    )
 
     db.close()
 
@@ -261,6 +290,18 @@ def update_conversation_status(
         db.commit()
 
     db.close()
+def save_conversation_error(thread_id, reason):
+    db = SessionLocal()
+    conversation = db.query(Conversation).filter(
+        Conversation.thread_id == thread_id
+    ).first()
+
+    if conversation:
+        conversation.ai_error_reason = reason
+        db.commit()
+
+    db.close()
+
 
 def save_phone_number(
     thread_id,
@@ -306,6 +347,15 @@ def save_ai_reply(
 
         db.commit()
 
+    db.close()
+
+def mark_listing_skipped(listing_id, reason="SKIPPED"):
+    db = SessionLocal()
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if listing:
+        listing.skip_reason = reason
+        listing.processing_failed = True
+        db.commit()
     db.close()
 
 def get_conversation_by_thread_id(

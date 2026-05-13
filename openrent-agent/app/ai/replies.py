@@ -1,110 +1,60 @@
+import time
+
 from openai import OpenAI
-from openai import (
-    RateLimitError,
-    APIError,
-    APITimeoutError
-)
+from openai import RateLimitError, APIError, APITimeoutError
 
 from app.config import settings
-from app.ai.prompts import (
-    build_reply_prompt
-)
-from app.ai.validators import (
-    is_valid_reply
-)
+from app.ai.prompts import build_reply_prompt
+from app.ai.validators import is_valid_reply
+from app.utils.logger import logger
+
 
 client = OpenAI(
-    api_key=settings.OPENAI_API_KEY
+    api_key=settings.OPENAI_API_KEY,
+    timeout=25.0
 )
 
 
 def format_conversation(messages):
-
     lines = []
-
     for msg in messages:
-
-        sender = msg["sender"]
-
-        text = msg["message"]
-
-        lines.append(
-            f"{sender.upper()}: {text}"
-        )
-
+        lines.append(f"{msg['sender'].upper()}: {msg['message']}")
     return "\n".join(lines)
 
 
-def generate_reply(messages):
+def generate_reply(messages, retries=3, base_delay=2):
+    conversation = format_conversation(messages)
+    prompt = build_reply_prompt(conversation)
 
-    try:
+    last_error = None
 
-        conversation = format_conversation(
-            messages
-        )
-
-        prompt = build_reply_prompt(
-            conversation
-        )
-
-        response = client.chat.completions.create(
-
-            model="gpt-4.1-mini",
-
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-
-            temperature=0.7
-        )
-
-        reply = (
-            response.choices[0]
-            .message.content
-            .strip()
-        )
-
-        if not is_valid_reply(reply):
-
-            print(
-                "Invalid AI reply detected"
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
             )
 
-            return None
+            reply = response.choices[0].message.content.strip()
 
-        return reply
+            if not is_valid_reply(reply):
+                logger.warning("Invalid AI reply generated")
+                return None, "invalid_ai_reply"
 
-    except RateLimitError:
+            return reply, None
 
-        print(
-            "OpenAI rate limit hit"
-        )
+        except (RateLimitError, APITimeoutError, APIError) as e:
+            last_error = str(e)
+            logger.warning(
+                f"OpenAI reply attempt {attempt}/{retries} failed: {e}"
+            )
+            if attempt < retries:
+                time.sleep(base_delay * attempt)
 
-        return None
+        except Exception as e:
+            last_error = str(e)
+            logger.exception(f"Unexpected AI reply error: {e}")
+            break
 
-    except APITimeoutError:
-
-        print(
-            "OpenAI timeout"
-        )
-
-        return None
-
-    except APIError as e:
-
-        print(
-            f"OpenAI API error: {e}"
-        )
-
-        return None
-
-    except Exception as e:
-
-        print(
-            f"AI reply generation failed: {e}"
-        )
-
-        return None
+    return None, last_error or "ai_reply_failed"

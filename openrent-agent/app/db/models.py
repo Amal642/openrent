@@ -153,6 +153,9 @@ class Conversation(Base):
     Text,
     nullable=True
     )
+    
+    ai_error_reason = Column(Text, nullable=True)
+
 
     # relationships
     listing = relationship("Listing", back_populates="conversations")
