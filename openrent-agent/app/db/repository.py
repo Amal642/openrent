@@ -463,8 +463,10 @@ def get_dashboard_leads(status=None):
     db = SessionLocal()
 
     query = (
-        db.query(Conversation, Listing)
+        db.query(Conversation, Listing, SearchProfile, Account)
         .join(Listing, Conversation.listing_id == Listing.id)
+        .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+        .join(Account, SearchProfile.account_id == Account.id)
     )
 
     if status and status != "ALL":
@@ -472,11 +474,20 @@ def get_dashboard_leads(status=None):
 
     rows = []
 
-    for conversation, listing in query.order_by(Conversation.created_at.desc()).all():
+    for conversation, listing, search_profile, account in query.order_by(Conversation.created_at.desc()).all():
         rows.append({
             "thread_id": conversation.thread_id,
             "listing_id": listing.listing_id,
             "property_url": listing.property_url,
+            "account_id": account.id,
+            "account_email": account.email,
+            "search_profile_id": search_profile.id,
+            "location": search_profile.location,
+            "price_min": search_profile.price_min,
+            "price_max": search_profile.price_max,
+            "bedrooms_min": search_profile.bedrooms_min,
+            "bedrooms_max": search_profile.bedrooms_max,
+            "pets_allowed": search_profile.pets_allowed,
             "status": conversation.status,
             "phone": conversation.extracted_phone or "",
             "last_processed_message": conversation.last_processed_message or "",
@@ -487,3 +498,119 @@ def get_dashboard_leads(status=None):
 
     db.close()
     return rows
+
+
+def get_dashboard_search_profiles():
+    db = SessionLocal()
+
+    profiles = (
+        db.query(SearchProfile, Account)
+        .join(Account, SearchProfile.account_id == Account.id)
+        .order_by(SearchProfile.created_at.desc())
+        .all()
+    )
+
+    rows = []
+
+    for profile, account in profiles:
+        rows.append({
+            "id": profile.id,
+            "account_id": account.id,
+            "account_email": account.email,
+            "location": profile.location,
+            "price_min": profile.price_min,
+            "price_max": profile.price_max,
+            "bedrooms_min": profile.bedrooms_min,
+            "bedrooms_max": profile.bedrooms_max,
+            "pets_allowed": profile.pets_allowed,
+            "active": profile.active,
+            "created_at": profile.created_at,
+        })
+
+    db.close()
+    return rows
+
+
+def get_dashboard_search_profile(profile_id):
+    db = SessionLocal()
+
+    row = (
+        db.query(SearchProfile, Account)
+        .join(Account, SearchProfile.account_id == Account.id)
+        .filter(SearchProfile.id == profile_id)
+        .first()
+    )
+
+    if not row:
+        db.close()
+        return None
+
+    profile, account = row
+
+    result = {
+        "id": profile.id,
+        "account_id": account.id,
+        "account_email": account.email,
+        "location": profile.location,
+        "price_min": profile.price_min,
+        "price_max": profile.price_max,
+        "bedrooms_min": profile.bedrooms_min,
+        "bedrooms_max": profile.bedrooms_max,
+        "pets_allowed": profile.pets_allowed,
+        "active": profile.active,
+        "created_at": profile.created_at,
+    }
+
+    db.close()
+    return result
+
+
+def update_search_profile(
+    profile_id,
+    account_id=None,
+    location=None,
+    price_min=None,
+    price_max=None,
+    bedrooms_min=None,
+    bedrooms_max=None,
+    pets_allowed=None,
+    active=None
+):
+    db = SessionLocal()
+
+    profile = db.query(SearchProfile).filter(
+        SearchProfile.id == profile_id
+    ).first()
+
+    if not profile:
+        db.close()
+        return None
+
+    if account_id is not None:
+        profile.account_id = account_id
+    if location is not None:
+        profile.location = location
+    if price_min is not None:
+        profile.price_min = price_min
+    if price_max is not None:
+        profile.price_max = price_max
+    if bedrooms_min is not None:
+        profile.bedrooms_min = bedrooms_min
+    if bedrooms_max is not None:
+        profile.bedrooms_max = bedrooms_max
+    if pets_allowed is not None:
+        profile.pets_allowed = pets_allowed
+    if active is not None:
+        profile.active = active
+
+    db.commit()
+    db.close()
+
+    return get_dashboard_search_profile(profile_id)
+
+
+def deactivate_search_profile(profile_id):
+    return update_search_profile(
+        profile_id=profile_id,
+        active=False
+    )
