@@ -61,6 +61,8 @@ class SearchProfile(Base):
     bedrooms_min = Column(Integer)
     bedrooms_max = Column(Integer)
 
+    area = Column(Integer)  
+
     pets_allowed = Column(Boolean, default=False)
 
     active = Column(Boolean, default=True)

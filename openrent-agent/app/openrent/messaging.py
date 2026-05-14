@@ -6,6 +6,33 @@ async def open_listing(page, listing):
 
     await page.wait_for_load_state("networkidle")
 
+async def get_existing_thread_id(page):
+
+    try:
+
+        banner = page.locator(
+            "text=You have already enquired about this property"
+        )
+
+        if await banner.count() == 0:
+            return None
+
+        message_link = page.locator(
+            'a[href^="/messages/"]'
+        ).first
+
+        href = await message_link.get_attribute("href")
+
+        if not href:
+            return None
+
+        return extract_thread_id(href)
+
+    except Exception as e:
+
+        print("Existing thread detection failed:", e)
+
+        return None
 
 async def get_message_link(page):
 

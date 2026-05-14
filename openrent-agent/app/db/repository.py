@@ -53,6 +53,7 @@ def create_search_profile(
     price_max,
     bedrooms_min,
     bedrooms_max,
+    area,
     pets_allowed=False
 ):
     db = SessionLocal()
@@ -64,6 +65,7 @@ def create_search_profile(
         price_max=price_max,
         bedrooms_min=bedrooms_min,
         bedrooms_max=bedrooms_max,
+        area=area,
         pets_allowed=pets_allowed
     )
 

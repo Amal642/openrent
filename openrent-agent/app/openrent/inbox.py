@@ -1,5 +1,8 @@
 import math
 import re
+from time import sleep
+
+from app.utils.human import random_sleep
 
 
 BASE_URL = "https://www.openrent.co.uk/myenquiries"
@@ -135,6 +138,7 @@ async def get_all_reply_threads(page):
             processed.add(thread_id)
 
             all_threads.append(thread)
+        await random_sleep(2, 5)
 
     return all_threads
 

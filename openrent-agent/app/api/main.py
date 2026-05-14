@@ -19,6 +19,7 @@ class SearchProfilePayload(BaseModel):
     price_max: int
     bedrooms_min: int
     bedrooms_max: int
+    area: int
     pets_allowed: bool = False
     active: bool = True
 
@@ -104,6 +105,7 @@ def api_create_search_profile(payload: SearchProfilePayload):
         price_max=payload.price_max,
         bedrooms_min=payload.bedrooms_min,
         bedrooms_max=payload.bedrooms_max,
+        area=payload.area,
         pets_allowed=payload.pets_allowed
     )
 
@@ -127,6 +129,7 @@ def api_update_search_profile(
         price_max=payload.price_max,
         bedrooms_min=payload.bedrooms_min,
         bedrooms_max=payload.bedrooms_max,
+        area=payload.area,
         pets_allowed=payload.pets_allowed,
         active=payload.active
     )

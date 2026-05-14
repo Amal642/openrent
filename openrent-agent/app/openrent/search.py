@@ -20,6 +20,7 @@ def build_search_url(profile):
         "prices_max": profile.price_max,
         "bedrooms_min": profile.bedrooms_min,
         "bedrooms_max": profile.bedrooms_max,
+        "area": profile.area
     }
 
     # Optional filters
