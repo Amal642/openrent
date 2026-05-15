@@ -121,9 +121,7 @@ async def get_all_reply_threads(page):
     print(f"\nTotal inbox pages: {total_pages}\n")
 
     for page_num in range(total_pages):
-
         start = page_num * 10
-
         await open_inbox_page(page, start=start)
 
         threads = await extract_reply_threads(page)
@@ -205,37 +203,6 @@ async def extract_conversation(page):
             print("Failed parsing message:", e)
 
     return results
-
-
-
-def extract_phone_number(messages):
-
-    combined_text = "\n".join(
-        msg["message"]
-        for msg in messages
-    )
-
-    # Remove spaces and symbols for detection
-    cleaned = re.sub(r"[^\d+]", "", combined_text)
-
-    # UK phone detection
-    patterns = [
-
-        r"(\+44\d{10,12})",
-
-        r"(07\d{9})",
-
-        r"(447\d{9})"
-    ]
-
-    for pattern in patterns:
-
-        match = re.search(pattern, cleaned)
-
-        if match:
-            return match.group(1)
-
-    return None
 
 def should_ai_reply(messages):
 

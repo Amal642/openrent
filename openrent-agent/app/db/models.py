@@ -24,7 +24,7 @@ class Account(Base):
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
 
-    initial_message = Column(Text, nullable=True)
+ok    initial_message = Column(Text, nullable=True)
 
     session_file = Column(String)
 

@@ -3,3 +3,7 @@ python-dotenv
 sqlalchemy
 asyncpg
 Flask
+pytest
+fastapi
+uvicorn
+openai

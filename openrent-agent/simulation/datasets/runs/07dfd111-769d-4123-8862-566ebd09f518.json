@@ -1,0 +1,128 @@
+{
+  "session_id": "07dfd111-769d-4123-8862-566ebd09f518",
+  "scenario_id": "screening-before-phone",
+  "actor_id": "landlord-default",
+  "policy_id": "production-policy-v1",
+  "deterministic_seed": 42,
+  "max_turns": 1,
+  "transcript": [
+    {
+      "speaker": "actor",
+      "message": "Hi, thanks for your message. Are you working at the moment and when would you be looking to move?",
+      "turn_index": 0,
+      "source_event": "ACTOR_RESPONDED"
+    }
+  ],
+  "events": [
+    {
+      "event_type": "SCENARIO_STARTED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T10:32:43.156680+00:00",
+      "payload": {
+        "scenario_id": "screening-before-phone",
+        "policy_id": "production-policy-v1",
+        "actor_id": "landlord-default"
+      }
+    },
+    {
+      "event_type": "ACTOR_RESPONDED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T10:32:43.156680+00:00",
+      "payload": {
+        "speaker": "Mr Patel",
+        "message": "Hi, thanks for your message. Are you working at the moment and when would you be looking to move?"
+      }
+    },
+    {
+      "event_type": "REPLY_GENERATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T10:32:43.158971+00:00",
+      "payload": {
+        "reply_text": null,
+        "model": "gpt-4.1-mini",
+        "temperature": 0.0,
+        "valid": false,
+        "error": "The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable",
+        "token_usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "total_tokens": 0
+        }
+      }
+    },
+    {
+      "event_type": "EVALUATION_COMPLETED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T10:32:43.158971+00:00",
+      "payload": {
+        "score": 0.0,
+        "passed": false,
+        "failure_types": [
+          "ignored_question",
+          "low_trust"
+        ]
+      }
+    },
+    {
+      "event_type": "SESSION_FINISHED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T10:32:43.158971+00:00",
+      "payload": {
+        "session_id": "07dfd111-769d-4123-8862-566ebd09f518",
+        "run_duration_ms": 1
+      }
+    }
+  ],
+  "evaluation": {
+    "evaluator_id": "heuristic-v1",
+    "score": 0.0,
+    "passed": false,
+    "dimension_scores": {
+      "answered_actor_question": 0.0,
+      "asked_for_phone": 0.0,
+      "captured_phone": 0.0,
+      "trust_progress": 0.0
+    },
+    "failure_types": [
+      "ignored_question",
+      "low_trust"
+    ],
+    "rationale": "Heuristic evaluation based on answer quality, phone progress, and trust.",
+    "evaluation_timing_ms": 0
+  },
+  "runtime_context": {
+    "session_id": "07dfd111-769d-4123-8862-566ebd09f518",
+    "current_turn": 1,
+    "memory": {},
+    "extracted_entities": {},
+    "trust_score": 0.35,
+    "flags": {
+      "deterministic": true
+    },
+    "metrics": {
+      "rng_preview": 655,
+      "prompt_size_chars": 1498,
+      "completion_size_chars": 0
+    },
+    "deterministic_seed": 42,
+    "goal_progress": {},
+    "last_agent_response": {
+      "reply_text": null,
+      "model": "gpt-4.1-mini",
+      "temperature": 0.0,
+      "error": "The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable"
+    },
+    "last_actor_response": "Hi, thanks for your message. Are you working at the moment and when would you be looking to move?"
+  },
+  "replay_output": "Simulation Replay\n=================\n\nTranscript\n----------\nACTOR: Hi, thanks for your message. Are you working at the moment and when would you be looking to move?\n\nEvaluation\n----------\nscore=0.0\npassed=False\nfailures=ignored_question, low_trust\n\nEvents\n------\n2026-05-15T10:32:43.156680+00:00 [SCENARIO_STARTED] {'scenario_id': 'screening-before-phone', 'policy_id': 'production-policy-v1', 'actor_id': 'landlord-default'}\n2026-05-15T10:32:43.156680+00:00 [ACTOR_RESPONDED] {'speaker': 'Mr Patel', 'message': 'Hi, thanks for your message. Are you working at the moment and when would you be looking to move?'}\n2026-05-15T10:32:43.158971+00:00 [REPLY_GENERATED] {'reply_text': None, 'model': 'gpt-4.1-mini', 'temperature': 0.0, 'valid': False, 'error': 'The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable', 'token_usage': {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}}\n2026-05-15T10:32:43.158971+00:00 [EVALUATION_COMPLETED] {'score': 0.0, 'passed': False, 'failure_types': ['ignored_question', 'low_trust']}\n2026-05-15T10:32:43.158971+00:00 [SESSION_FINISHED] {'session_id': '07dfd111-769d-4123-8862-566ebd09f518', 'run_duration_ms': 1}",
+  "observability": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "generation_latency_ms": 1,
+    "evaluation_timing_ms": 0,
+    "run_duration_ms": 1,
+    "prompt_size_chars": 1498,
+    "completion_size_chars": 0
+  }
+}

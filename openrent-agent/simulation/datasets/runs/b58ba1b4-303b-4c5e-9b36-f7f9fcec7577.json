@@ -1,0 +1,123 @@
+{
+  "session_id": "b58ba1b4-303b-4c5e-9b36-f7f9fcec7577",
+  "mode": "interactive",
+  "start_mode": "agent_starts",
+  "scenario_id": "screening-before-phone",
+  "actor_id": "human-actor",
+  "policy_id": "production-policy-v1",
+  "deterministic_seed": 0,
+  "max_turns": 999,
+  "transcript": [
+    {
+      "speaker": "agent",
+      "message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!",
+      "turn_index": 0,
+      "source_event": "AGENT_INITIAL_MESSAGE_SENT"
+    }
+  ],
+  "events": [
+    {
+      "event_type": "SCENARIO_STARTED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T17:03:52.545300+00:00",
+      "payload": {
+        "scenario_id": "screening-before-phone",
+        "policy_id": "production-policy-v1",
+        "actor_id": "human-actor",
+        "mode": "interactive",
+        "start_mode": "agent_starts"
+      }
+    },
+    {
+      "event_type": "AGENT_INITIAL_MESSAGE_SENT",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T17:03:52.545300+00:00",
+      "payload": {
+        "message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!",
+        "source": "fixture"
+      }
+    },
+    {
+      "event_type": "MEMORY_UPDATED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T17:03:52.545300+00:00",
+      "payload": {
+        "trust_score": 0.35,
+        "goal_progress": {},
+        "extracted_entities": {},
+        "initial_agent_message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!"
+      }
+    },
+    {
+      "event_type": "EVALUATION_COMPLETED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T17:03:52.546378+00:00",
+      "payload": {
+        "score": 0.3,
+        "passed": false,
+        "failure_types": [
+          "failed_phone_capture"
+        ]
+      }
+    },
+    {
+      "event_type": "SESSION_FINISHED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T17:03:52.546378+00:00",
+      "payload": {
+        "session_id": "b58ba1b4-303b-4c5e-9b36-f7f9fcec7577",
+        "run_duration_ms": 2,
+        "mode": "interactive"
+      }
+    }
+  ],
+  "evaluation": {
+    "evaluator_id": "heuristic-v1",
+    "score": 0.3,
+    "passed": false,
+    "dimension_scores": {
+      "answered_actor_question": 0.0,
+      "asked_for_phone": 1.0,
+      "captured_phone": 0.0,
+      "trust_progress": 1.0
+    },
+    "failure_types": [
+      "failed_phone_capture"
+    ],
+    "rationale": "Heuristic evaluation based on answer quality, phone progress, and trust.",
+    "evaluation_timing_ms": 0
+  },
+  "runtime_context": {
+    "session_id": "b58ba1b4-303b-4c5e-9b36-f7f9fcec7577",
+    "current_turn": 0,
+    "memory": {
+      "initial_agent_message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!"
+    },
+    "extracted_entities": {},
+    "trust_score": 0.35,
+    "flags": {
+      "deterministic": false,
+      "interactive": true,
+      "start_mode": "agent_starts",
+      "initial_message_source": "fixture"
+    },
+    "metrics": {
+      "interactive_turns": 0
+    },
+    "deterministic_seed": 0,
+    "goal_progress": {},
+    "last_agent_response": null,
+    "last_actor_response": null
+  },
+  "replay_output": "Simulation Replay\n=================\n\nTranscript\n----------\nAGENT: Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!\n\nEvaluation\n----------\nscore=0.3\npassed=False\nfailures=failed_phone_capture\n\nEvents\n------\n2026-05-15T17:03:52.545300+00:00 [SCENARIO_STARTED] {'scenario_id': 'screening-before-phone', 'policy_id': 'production-policy-v1', 'actor_id': 'human-actor', 'mode': 'interactive', 'start_mode': 'agent_starts'}\n2026-05-15T17:03:52.545300+00:00 [AGENT_INITIAL_MESSAGE_SENT] {'message': \"Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\\nCould you please share your phone number?\\nThanks so much!\", 'source': 'fixture'}\n2026-05-15T17:03:52.545300+00:00 [MEMORY_UPDATED] {'trust_score': 0.35, 'goal_progress': {}, 'extracted_entities': {}, 'initial_agent_message': \"Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\\nCould you please share your phone number?\\nThanks so much!\"}\n2026-05-15T17:03:52.546378+00:00 [EVALUATION_COMPLETED] {'score': 0.3, 'passed': False, 'failure_types': ['failed_phone_capture']}\n2026-05-15T17:03:52.546378+00:00 [SESSION_FINISHED] {'session_id': 'b58ba1b4-303b-4c5e-9b36-f7f9fcec7577', 'run_duration_ms': 2, 'mode': 'interactive'}",
+  "observability": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "generation_latency_ms": 0,
+    "evaluation_timing_ms": 0,
+    "run_duration_ms": 2,
+    "prompt_size_chars": 0,
+    "completion_size_chars": 0
+  }
+}

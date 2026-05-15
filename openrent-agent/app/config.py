@@ -21,5 +21,15 @@ class Settings:
     PROXY_PASSWORD = os.getenv("PROXY_PASSWORD")
 
     AI_AUTOSEND: bool = False
+    OPENAI_REPLY_MODEL = os.getenv("OPENAI_REPLY_MODEL", "gpt-4.1-mini")
+    OPENAI_REPLY_TEMPERATURE = float(
+        os.getenv("OPENAI_REPLY_TEMPERATURE", "0.7")
+    )
+    SIMULATION_DEFAULT_TEMPERATURE = float(
+        os.getenv("SIMULATION_DEFAULT_TEMPERATURE", "0")
+    )
+    SIMULATION_MAX_FOLLOWUPS = int(
+        os.getenv("SIMULATION_MAX_FOLLOWUPS", "1")
+    )
 
 settings = Settings()

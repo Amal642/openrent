@@ -1,0 +1,166 @@
+{
+  "session_id": "364e7103-4b78-46a5-a042-a0e14b8f5869",
+  "scenario_id": "screening-before-phone",
+  "actor_id": "landlord-default",
+  "policy_id": "production-policy-v1",
+  "deterministic_seed": 42,
+  "max_turns": 3,
+  "transcript": [
+    {
+      "speaker": "actor",
+      "message": "Hi, thanks for your message. Are you working at the moment and when would you be looking to move?",
+      "turn_index": 0,
+      "source_event": "ACTOR_RESPONDED"
+    },
+    {
+      "speaker": "agent",
+      "message": "Hi, thanks for getting back to me. I\u2019m currently working, and I\u2019m flexible with the move-in date. Could I please have your phone number to discuss the details more easily?",
+      "turn_index": 1,
+      "source_event": "REPLY_GENERATED"
+    },
+    {
+      "speaker": "actor",
+      "message": "Sounds good. You can call me on 07123456789 this evening and we can discuss a viewing.",
+      "turn_index": 1,
+      "source_event": "ACTOR_RESPONDED"
+    }
+  ],
+  "events": [
+    {
+      "event_type": "SCENARIO_STARTED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T16:06:36.563244+00:00",
+      "payload": {
+        "scenario_id": "screening-before-phone",
+        "policy_id": "production-policy-v1",
+        "actor_id": "landlord-default"
+      }
+    },
+    {
+      "event_type": "ACTOR_RESPONDED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T16:06:36.563244+00:00",
+      "payload": {
+        "speaker": "Mr Patel",
+        "message": "Hi, thanks for your message. Are you working at the moment and when would you be looking to move?"
+      }
+    },
+    {
+      "event_type": "REPLY_GENERATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:06:40.509038+00:00",
+      "payload": {
+        "reply_text": "Hi, thanks for getting back to me. I\u2019m currently working, and I\u2019m flexible with the move-in date. Could I please have your phone number to discuss the details more easily?",
+        "model": "gpt-4.1-mini",
+        "temperature": 0.0,
+        "valid": true,
+        "error": null,
+        "token_usage": {
+          "prompt_tokens": 308,
+          "completion_tokens": 38,
+          "total_tokens": 346
+        }
+      }
+    },
+    {
+      "event_type": "MEMORY_UPDATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:06:40.509038+00:00",
+      "payload": {
+        "trust_score": 0.7,
+        "goal_progress": {
+          "phone_shared": true
+        }
+      }
+    },
+    {
+      "event_type": "ACTOR_RESPONDED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:06:40.509038+00:00",
+      "payload": {
+        "speaker": "Mr Patel",
+        "message": "Sounds good. You can call me on 07123456789 this evening and we can discuss a viewing."
+      }
+    },
+    {
+      "event_type": "PHONE_DETECTED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:06:40.509038+00:00",
+      "payload": {
+        "phone": "07123456789"
+      }
+    },
+    {
+      "event_type": "EVALUATION_COMPLETED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:06:40.509038+00:00",
+      "payload": {
+        "score": 1.0,
+        "passed": true,
+        "failure_types": []
+      }
+    },
+    {
+      "event_type": "SESSION_FINISHED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:06:40.509038+00:00",
+      "payload": {
+        "session_id": "364e7103-4b78-46a5-a042-a0e14b8f5869",
+        "run_duration_ms": 3944
+      }
+    }
+  ],
+  "evaluation": {
+    "evaluator_id": "heuristic-v1",
+    "score": 1.0,
+    "passed": true,
+    "dimension_scores": {
+      "answered_actor_question": 1.0,
+      "asked_for_phone": 1.0,
+      "captured_phone": 1.0,
+      "trust_progress": 1.0
+    },
+    "failure_types": [],
+    "rationale": "Heuristic evaluation based on answer quality, phone progress, and trust.",
+    "evaluation_timing_ms": 0
+  },
+  "runtime_context": {
+    "session_id": "364e7103-4b78-46a5-a042-a0e14b8f5869",
+    "current_turn": 1,
+    "memory": {},
+    "extracted_entities": {
+      "phone": "07123456789"
+    },
+    "trust_score": 0.7,
+    "flags": {
+      "deterministic": true
+    },
+    "metrics": {
+      "rng_preview": 655,
+      "prompt_size_chars": 1498,
+      "completion_size_chars": 171
+    },
+    "deterministic_seed": 42,
+    "goal_progress": {
+      "phone_shared": true
+    },
+    "last_agent_response": {
+      "reply_text": "Hi, thanks for getting back to me. I\u2019m currently working, and I\u2019m flexible with the move-in date. Could I please have your phone number to discuss the details more easily?",
+      "model": "gpt-4.1-mini",
+      "temperature": 0.0,
+      "error": null
+    },
+    "last_actor_response": "Sounds good. You can call me on 07123456789 this evening and we can discuss a viewing."
+  },
+  "replay_output": "Simulation Replay\n=================\n\nTranscript\n----------\nACTOR: Hi, thanks for your message. Are you working at the moment and when would you be looking to move?\nAGENT: Hi, thanks for getting back to me. I\u2019m currently working, and I\u2019m flexible with the move-in date. Could I please have your phone number to discuss the details more easily?\nACTOR: Sounds good. You can call me on 07123456789 this evening and we can discuss a viewing.\n\nEvaluation\n----------\nscore=1.0\npassed=True\n\nEvents\n------\n2026-05-15T16:06:36.563244+00:00 [SCENARIO_STARTED] {'scenario_id': 'screening-before-phone', 'policy_id': 'production-policy-v1', 'actor_id': 'landlord-default'}\n2026-05-15T16:06:36.563244+00:00 [ACTOR_RESPONDED] {'speaker': 'Mr Patel', 'message': 'Hi, thanks for your message. Are you working at the moment and when would you be looking to move?'}\n2026-05-15T16:06:40.509038+00:00 [REPLY_GENERATED] {'reply_text': 'Hi, thanks for getting back to me. I\u2019m currently working, and I\u2019m flexible with the move-in date. Could I please have your phone number to discuss the details more easily?', 'model': 'gpt-4.1-mini', 'temperature': 0.0, 'valid': True, 'error': None, 'token_usage': {'prompt_tokens': 308, 'completion_tokens': 38, 'total_tokens': 346}}\n2026-05-15T16:06:40.509038+00:00 [MEMORY_UPDATED] {'trust_score': 0.7, 'goal_progress': {'phone_shared': True}}\n2026-05-15T16:06:40.509038+00:00 [ACTOR_RESPONDED] {'speaker': 'Mr Patel', 'message': 'Sounds good. You can call me on 07123456789 this evening and we can discuss a viewing.'}\n2026-05-15T16:06:40.509038+00:00 [PHONE_DETECTED] {'phone': '07123456789'}\n2026-05-15T16:06:40.509038+00:00 [EVALUATION_COMPLETED] {'score': 1.0, 'passed': True, 'failure_types': []}\n2026-05-15T16:06:40.509038+00:00 [SESSION_FINISHED] {'session_id': '364e7103-4b78-46a5-a042-a0e14b8f5869', 'run_duration_ms': 3944}",
+  "observability": {
+    "prompt_tokens": 308,
+    "completion_tokens": 38,
+    "total_tokens": 346,
+    "generation_latency_ms": 3944,
+    "evaluation_timing_ms": 0,
+    "run_duration_ms": 3944,
+    "prompt_size_chars": 1498,
+    "completion_size_chars": 171
+  }
+}

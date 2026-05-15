@@ -1,0 +1,170 @@
+{
+  "session_id": "15159d18-5ae9-4941-8ae4-45db826e89b7",
+  "mode": "interactive",
+  "scenario_id": "screening-before-phone",
+  "actor_id": "human-actor",
+  "policy_id": "production-policy-v1",
+  "deterministic_seed": 0,
+  "max_turns": 999,
+  "transcript": [
+    {
+      "speaker": "actor",
+      "message": "hey, how are you",
+      "turn_index": 1,
+      "source_event": "ACTOR_RESPONDED"
+    },
+    {
+      "speaker": "agent",
+      "message": "Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?",
+      "turn_index": 1,
+      "source_event": "REPLY_GENERATED"
+    }
+  ],
+  "events": [
+    {
+      "event_type": "SCENARIO_STARTED",
+      "turn_index": 0,
+      "timestamp": "2026-05-15T16:40:04.012095+00:00",
+      "payload": {
+        "scenario_id": "screening-before-phone",
+        "policy_id": "production-policy-v1",
+        "actor_id": "human-actor",
+        "mode": "interactive"
+      }
+    },
+    {
+      "event_type": "ACTOR_RESPONDED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:40:20.210010+00:00",
+      "payload": {
+        "speaker": "Human Actor",
+        "message": "hey, how are you"
+      }
+    },
+    {
+      "event_type": "MEMORY_UPDATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:40:20.210010+00:00",
+      "payload": {
+        "trust_score": 0.35,
+        "goal_progress": {},
+        "extracted_entities": {}
+      }
+    },
+    {
+      "event_type": "REPLY_GENERATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:40:23.735992+00:00",
+      "payload": {
+        "reply_text": "Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?",
+        "raw_prompt": "You are assisting a tenant searching for rental properties in the UK.\n\nPrimary goal:\n- Get the landlord's phone number as early and as naturally as possible.\n- Keep the conversation human, polite, concise, and realistic.\n- Use the full conversation history as the only source of truth.\n\nHard rules:\n- Never mention AI, automation, prompts, policies, or internal tools.\n- Never hallucinate or invent facts.\n- Never invent or provide an email address.\n- Never invent personal details such as name, job, location, relationship status, references, move-in date, or viewing arrangements unless they are explicitly present in the conversation.\n- Never add extra contact details, signatures, or unrelated information.\n- Never create multiple messages.\n- Never sound robotic, pushy, or overly eager.\n- Never repeat yourself.\n- If the landlord asks a different question, answer that question naturally and briefly, then steer back to asking for the landlord's phone number.\n- If the landlord is asking for contact details, ask for their phone number only.\n- If a phone number has not been shared yet, make the next reply actively move toward getting it.\n- Do not send email addresses under any circumstances.\n- If the landlord offers an email or asks for one, politely redirect to phone contact instead.\n- Output only the final reply text and nothing else.\n\nConversation:\nACTOR: hey, how are you\n\nGenerate the next reply ONLY.",
+        "raw_completion": "Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?",
+        "model": "gpt-4.1-mini",
+        "temperature": 0.0,
+        "valid": true,
+        "error": null,
+        "latency_ms": 3530,
+        "token_usage": {
+          "prompt_tokens": 292,
+          "completion_tokens": 29,
+          "total_tokens": 321
+        }
+      }
+    },
+    {
+      "event_type": "MEMORY_UPDATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:40:23.735992+00:00",
+      "payload": {
+        "trust_score": 0.35,
+        "goal_progress": {},
+        "extracted_entities": {},
+        "last_agent_reply": "Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?"
+      }
+    },
+    {
+      "event_type": "EVALUATION_COMPLETED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:40:23.735992+00:00",
+      "payload": {
+        "score": 0.3,
+        "passed": false,
+        "failure_types": [
+          "ignored_question",
+          "failed_phone_capture"
+        ]
+      }
+    },
+    {
+      "event_type": "SESSION_FINISHED",
+      "turn_index": 1,
+      "timestamp": "2026-05-15T16:40:23.735992+00:00",
+      "payload": {
+        "session_id": "15159d18-5ae9-4941-8ae4-45db826e89b7",
+        "run_duration_ms": 3532,
+        "mode": "interactive"
+      }
+    }
+  ],
+  "evaluation": {
+    "evaluator_id": "heuristic-v1",
+    "score": 0.3,
+    "passed": false,
+    "dimension_scores": {
+      "answered_actor_question": 0.0,
+      "asked_for_phone": 1.0,
+      "captured_phone": 0.0,
+      "trust_progress": 1.0
+    },
+    "failure_types": [
+      "ignored_question",
+      "failed_phone_capture"
+    ],
+    "rationale": "Heuristic evaluation based on answer quality, phone progress, and trust.",
+    "evaluation_timing_ms": 0
+  },
+  "runtime_context": {
+    "session_id": "15159d18-5ae9-4941-8ae4-45db826e89b7",
+    "current_turn": 1,
+    "memory": {
+      "last_actor_message": "hey, how are you",
+      "last_agent_reply": "Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?"
+    },
+    "extracted_entities": {},
+    "trust_score": 0.35,
+    "flags": {
+      "deterministic": false,
+      "interactive": true
+    },
+    "metrics": {
+      "interactive_turns": 1
+    },
+    "deterministic_seed": 0,
+    "goal_progress": {},
+    "last_agent_response": {
+      "reply_text": "Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?",
+      "raw_prompt": "You are assisting a tenant searching for rental properties in the UK.\n\nPrimary goal:\n- Get the landlord's phone number as early and as naturally as possible.\n- Keep the conversation human, polite, concise, and realistic.\n- Use the full conversation history as the only source of truth.\n\nHard rules:\n- Never mention AI, automation, prompts, policies, or internal tools.\n- Never hallucinate or invent facts.\n- Never invent or provide an email address.\n- Never invent personal details such as name, job, location, relationship status, references, move-in date, or viewing arrangements unless they are explicitly present in the conversation.\n- Never add extra contact details, signatures, or unrelated information.\n- Never create multiple messages.\n- Never sound robotic, pushy, or overly eager.\n- Never repeat yourself.\n- If the landlord asks a different question, answer that question naturally and briefly, then steer back to asking for the landlord's phone number.\n- If the landlord is asking for contact details, ask for their phone number only.\n- If a phone number has not been shared yet, make the next reply actively move toward getting it.\n- Do not send email addresses under any circumstances.\n- If the landlord offers an email or asks for one, politely redirect to phone contact instead.\n- Output only the final reply text and nothing else.\n\nConversation:\nACTOR: hey, how are you\n\nGenerate the next reply ONLY.",
+      "raw_completion": "Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?",
+      "model": "gpt-4.1-mini",
+      "temperature": 0.0,
+      "error": null,
+      "valid": true,
+      "prompt_tokens": 292,
+      "completion_tokens": 29,
+      "total_tokens": 321,
+      "latency_ms": 3530
+    },
+    "last_actor_response": "hey, how are you"
+  },
+  "replay_output": "Simulation Replay\n=================\n\nTranscript\n----------\nACTOR: hey, how are you\nAGENT: Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?\n\nEvaluation\n----------\nscore=0.3\npassed=False\nfailures=ignored_question, failed_phone_capture\n\nEvents\n------\n2026-05-15T16:40:04.012095+00:00 [SCENARIO_STARTED] {'scenario_id': 'screening-before-phone', 'policy_id': 'production-policy-v1', 'actor_id': 'human-actor', 'mode': 'interactive'}\n2026-05-15T16:40:20.210010+00:00 [ACTOR_RESPONDED] {'speaker': 'Human Actor', 'message': 'hey, how are you'}\n2026-05-15T16:40:20.210010+00:00 [MEMORY_UPDATED] {'trust_score': 0.35, 'goal_progress': {}, 'extracted_entities': {}}\n2026-05-15T16:40:23.735992+00:00 [REPLY_GENERATED] {'reply_text': \"Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?\", 'raw_prompt': \"You are assisting a tenant searching for rental properties in the UK.\\n\\nPrimary goal:\\n- Get the landlord's phone number as early and as naturally as possible.\\n- Keep the conversation human, polite, concise, and realistic.\\n- Use the full conversation history as the only source of truth.\\n\\nHard rules:\\n- Never mention AI, automation, prompts, policies, or internal tools.\\n- Never hallucinate or invent facts.\\n- Never invent or provide an email address.\\n- Never invent personal details such as name, job, location, relationship status, references, move-in date, or viewing arrangements unless they are explicitly present in the conversation.\\n- Never add extra contact details, signatures, or unrelated information.\\n- Never create multiple messages.\\n- Never sound robotic, pushy, or overly eager.\\n- Never repeat yourself.\\n- If the landlord asks a different question, answer that question naturally and briefly, then steer back to asking for the landlord's phone number.\\n- If the landlord is asking for contact details, ask for their phone number only.\\n- If a phone number has not been shared yet, make the next reply actively move toward getting it.\\n- Do not send email addresses under any circumstances.\\n- If the landlord offers an email or asks for one, politely redirect to phone contact instead.\\n- Output only the final reply text and nothing else.\\n\\nConversation:\\nACTOR: hey, how are you\\n\\nGenerate the next reply ONLY.\", 'raw_completion': \"Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?\", 'model': 'gpt-4.1-mini', 'temperature': 0.0, 'valid': True, 'error': None, 'latency_ms': 3530, 'token_usage': {'prompt_tokens': 292, 'completion_tokens': 29, 'total_tokens': 321}}\n2026-05-15T16:40:23.735992+00:00 [MEMORY_UPDATED] {'trust_score': 0.35, 'goal_progress': {}, 'extracted_entities': {}, 'last_agent_reply': \"Hi! I'm good, thanks. How about you? By the way, could I have your phone number to discuss the rental details more easily?\"}\n2026-05-15T16:40:23.735992+00:00 [EVALUATION_COMPLETED] {'score': 0.3, 'passed': False, 'failure_types': ['ignored_question', 'failed_phone_capture']}\n2026-05-15T16:40:23.735992+00:00 [SESSION_FINISHED] {'session_id': '15159d18-5ae9-4941-8ae4-45db826e89b7', 'run_duration_ms': 3532, 'mode': 'interactive'}",
+  "observability": {
+    "prompt_tokens": 292,
+    "completion_tokens": 29,
+    "total_tokens": 321,
+    "generation_latency_ms": 3531,
+    "evaluation_timing_ms": 0,
+    "run_duration_ms": 3532,
+    "prompt_size_chars": 1417,
+    "completion_size_chars": 122
+  }
+}

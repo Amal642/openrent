@@ -20,10 +20,6 @@ from app.ai.replies import (
     generate_reply
 )
 
-from app.openrent.inbox import (
-    send_reply
-)
-
 from app.utils.human import random_sleep
 
 from app.config import settings
@@ -44,7 +40,6 @@ from app.db.status import (
     AI_FAILED,
     AI_REPLIED,
 )
-
 async def process_account_replies(
     account,
     page
