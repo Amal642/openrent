@@ -153,6 +153,36 @@ class Conversation(Base):
     
     ai_error_reason = Column(Text, nullable=True)
 
+    conversation_stage = Column(
+    String,
+    default="NEW_LEAD"
+    )
+
+    viewing_datetime = Column(
+        DateTime,
+        nullable=True
+    )
+
+    last_stage_change = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    phone_requested_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+    viewing_confirmed = Column(
+        Boolean,
+        default=False
+    )
+
+    viewing_cancelled = Column(
+        Boolean,
+        default=False
+    )
+
 
     # relationships
     listing = relationship("Listing", back_populates="conversations")

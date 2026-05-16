@@ -45,3 +45,61 @@ Conversation:
 
 Generate the next reply ONLY.
 """.strip()
+
+def build_initial_enquiry_prompt(
+    property_data: dict,
+    household: dict,
+    names: dict,
+    professions: dict
+) -> str:
+
+    return f"""
+You are helping a tenant write a short and natural UK rental enquiry.
+
+Use the following names for the enquiry:
+- Husband: {names.get("husband")}
+- Wife: {names.get("wife")}
+
+- Professions: {professions.get("husband")} and {professions.get("wife")}
+
+Property Details:
+- Bedrooms: {property_data.get("bedrooms")}
+- Rent PCM: £{property_data.get("rent_pcm")}
+
+Household:
+- Description: {household.get("description")}
+- Occupants: {household.get("occupants")}
+
+Rules:
+- Keep it short and human.
+- Sound genuinely interested.
+- Mention stable employment naturally.
+- Mention the household naturally.
+- Ask politely about viewing availability.
+- Do not mention AI.
+- Do not invent dramatic stories.
+- Do not include phone numbers or email addresses.
+- Do not sound overly enthusiastic or robotic.
+- Maximum 120 words.
+
+Return ONLY the message text.
+""".strip()
+
+def names_generator() -> str:
+    return f"""
+Generate realistic British first-name pairs for husbands and wives that sound natural for modern UK citizens.
+
+Requirements:
+
+Only output first names (no surnames).
+Use authentic UK-style names commonly used in England, Scotland, Wales, and multicultural Britain.
+Names should sound believable for adults aged 35–55.
+Avoid celebrity names, fantasy names, or overly old-fashioned names.
+Mix traditional and modern British names.
+
+Output format:
+
+Husband: James
+Wife: Sophie
+""".strip()
+

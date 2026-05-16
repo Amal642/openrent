@@ -8,16 +8,16 @@ The PDF is the manual SOP given to human workers. The automation is supposed to 
 
 ## Step-by-Step Mapping
 
-### 1. Login and Search
+### 1. Login and Search ✅
 | PDF | Code | Status |
 |-----|------|--------|
 | Login to OpenRent via email/password | `app/browser/auth.py` | OK |
 | Search by area name | `app/openrent/search.py` — builds URL from `SearchProfile.location` | OK |
-| Filter: 1–5 bed, min £1300, radius 5-6km | `SearchProfile` model + URL params | OK — but radius is stored as `area` column, unclear if it maps to km correctly |
+| Filter: 1–5 bed, min £1300, radius 5-6km | `SearchProfile` model + URL params | OK — but radius is stored as `area` column, unclear if it maps to km correctly | [area=km] ✅
 
 ---
 
-### 2. Agent Detection
+### 2. Agent Detection ✅
 | PDF | Code | Status |
 |-----|------|--------|
 | Click landlord profile → "My Properties" | `app/openrent/landlords.py` | OK |
@@ -25,7 +25,7 @@ The PDF is the manual SOP given to human workers. The automation is supposed to 
 
 ---
 
-### 3. Sending the Initial Message
+### 3. Sending the Initial Message ✅
 
 The PDF describes **two distinct form types** that can appear when clicking "Message Landlord":
 
@@ -36,7 +36,7 @@ Two fields:
 
 Then click **"Request Viewing"**.
 
-#### Type 2 — Advanced Screening Form
+#### Type 2 — Advanced Screening Form 
 Additional fields on top of Type 1:
 - **Screening questions** (Yes/No):
   1. Are you a student? → **No**
@@ -137,13 +137,13 @@ The PDF defines a weekly rotation:
 
 ---
 
-### 7. Daily Targets and Limits
+### 7. Daily Targets and Limits 
 
 | PDF | Code | Status |
 |-----|------|--------|
 | 8 properties per account per session | `account.daily_limit` defaults to 8 | OK |
 | 16 total per person (phone + laptop) | Multi-account workers run in parallel | OK |
-| Min 3 phone number leads per day | No tracking of daily lead count | **MISSING — no daily lead target alert** |
+| Min 3 phone number leads per day | No tracking of daily lead count | **MISSING — no daily lead target alert** | 
 
 ---
 

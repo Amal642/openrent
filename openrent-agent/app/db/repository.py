@@ -169,6 +169,14 @@ def mark_listing_failed(listing_id):
 
             db.commit()
 
+def mark_listing_skipped(listing_id):
+    with session_scope() as db:
+        listing = db.query(Listing).filter(Listing.id == listing_id).first()
+
+        if listing:
+            listing.processing_failed = True
+            db.commit()
+
 
 def save_message_url(
     listing_id,
@@ -214,7 +222,8 @@ def create_conversation(
     with session_scope() as db:
         conversation = Conversation(
             thread_id=thread_id,
-            listing_id=listing_id
+            listing_id=listing_id,
+            conversation_stage="NEW_LEAD"
         )
 
         db.add(conversation)
@@ -223,7 +232,82 @@ def create_conversation(
 
         return conversation
 
+def save_viewing_datetime(
+    thread_id,
+    viewing_datetime
+):
 
+    with session_scope() as db:
+
+        conversation = db.query(
+            Conversation
+        ).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+
+            conversation.viewing_datetime = (
+                viewing_datetime
+            )
+
+            conversation.viewing_confirmed = True
+
+            conversation.last_stage_change = (
+                datetime.utcnow()
+            )
+
+            db.commit()
+
+def mark_viewing_cancelled(
+    thread_id
+):
+
+    with session_scope() as db:
+
+        conversation = db.query(
+            Conversation
+        ).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+
+            conversation.viewing_cancelled = True
+
+            conversation.conversation_stage = (
+                "VIEWING_CANCELLED"
+            )
+
+            conversation.last_stage_change = (
+                datetime.utcnow()
+            )
+
+            db.commit()
+
+def mark_phone_requested(
+    thread_id
+):
+
+    with session_scope() as db:
+
+        conversation = db.query(
+            Conversation
+        ).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+
+            conversation.phone_requested_at = (
+                datetime.utcnow()
+            )
+
+            conversation.conversation_stage = (
+                "CONTACT_REQUESTED"
+            )
+
+            db.commit()
 def update_conversation_status(
     thread_id,
     status

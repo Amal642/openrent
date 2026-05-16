@@ -9,13 +9,65 @@ from app.utils.logger import (
 )
 
 
-async def extract_landlord_id(page):
+async def extract_property_id(
+    property_url
+):
+
+    match = re.search(
+        r"/(\d+)$",
+        property_url
+    )
+
+    if not match:
+        return None
+
+    return match.group(1)
+
+
+async def extract_landlord_id(
+    page,
+    property_url
+):
+
+    property_id = await extract_property_id(
+        property_url
+    )
+
+    if not property_id:
+
+        logger.warning(
+            "No property ID found"
+        )
+
+        return None
+
+    rent_info_url = (
+        "https://www.openrent.co.uk/"
+        f"rent/rentnowinfo/{property_id}"
+    )
+
+    logger.info(
+        f"Opening rent info page: "
+        f"{rent_info_url}"
+    )
+
+    await random_sleep(2, 5)
+
+    await page.goto(
+        rent_info_url
+    )
+
+    await random_sleep(3, 6)
 
     landlord_link = await page.query_selector(
         'a[href*="/account/view/"]'
     )
 
     if not landlord_link:
+
+        logger.warning(
+            "No landlord profile link found"
+        )
 
         return None
 
@@ -24,7 +76,6 @@ async def extract_landlord_id(page):
     )
 
     if not href:
-
         return None
 
     match = re.search(
@@ -34,9 +85,20 @@ async def extract_landlord_id(page):
 
     if not match:
 
+        logger.warning(
+            "Could not extract landlord ID"
+        )
+
         return None
 
-    return match.group(1)
+    landlord_id = match.group(1)
+
+    logger.info(
+        f"Landlord ID found: "
+        f"{landlord_id}"
+    )
+
+    return landlord_id
 
 
 async def get_landlord_property_count(
@@ -65,7 +127,7 @@ async def get_landlord_property_count(
         'a[href^="/property-to-rent/"]'
     )
 
-    property_ids = set()
+    property_links = set()
 
     for link in links:
 
@@ -76,9 +138,9 @@ async def get_landlord_property_count(
         if not href:
             continue
 
-        property_ids.add(href)
+        property_links.add(href)
 
-    count = len(property_ids)
+    count = len(property_links)
 
     logger.info(
         f"Landlord {landlord_id} "
@@ -90,11 +152,13 @@ async def get_landlord_property_count(
 
 async def landlord_is_agent(
     page,
-    threshold=5
+    property_url,
+    threshold=3
 ):
 
     landlord_id = await extract_landlord_id(
-        page
+        page,
+        property_url
     )
 
     if not landlord_id:
@@ -110,4 +174,11 @@ async def landlord_is_agent(
         landlord_id
     )
 
-    return count >= threshold
+    is_agent = count > threshold
+
+    logger.info(
+        f"Agent check result: "
+        f"{is_agent}"
+    )
+
+    return is_agent

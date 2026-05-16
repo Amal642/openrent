@@ -1,4 +1,4 @@
-from app.db.repository import (save_phone_number,save_ai_reply,update_conversation_status,get_conversation_by_thread_id,update_last_processed_message,phone_exists,update_landlord_scan,attach_landlord_to_listing,mark_listing_skipped_agent  )
+from app.db.repository import (update_conversation_stage, save_phone_number, save_ai_reply, update_conversation_status, get_conversation_by_thread_id, update_last_processed_message, phone_exists, update_landlord_scan, attach_landlord_to_listing, mark_listing_skipped_agent)
 
 
 from app.openrent.inbox import (
@@ -10,6 +10,10 @@ from app.openrent.inbox import (
     can_reply,
     get_latest_landlord_message,
     send_reply
+)
+
+from app.ai.stages import (
+    detect_stage
 )
 
 from app.ai.extractors import (
@@ -207,8 +211,23 @@ async def process_account_replies(
                     )
 
                     continue
+            stage = detect_stage(
+                messages
+            )
+
+            if stage:
+
+                print(
+                    f"Detected stage: {stage}"
+                )
+
+                update_conversation_stage(
+                    thread_id,
+                    stage
+                )
 
             if should_ai_reply(messages):
+                
 
                 reply_allowed = await can_reply(
                     page
@@ -236,7 +255,8 @@ async def process_account_replies(
                 logger.info(f"Generating AI reply for thread {thread_id}")
 
                 reply,error = generate_reply(
-                    messages
+                    messages,
+                    stage=stage
                 )
                 if not reply or error:
 

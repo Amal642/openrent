@@ -5,6 +5,7 @@ from app.db.repository import (
     get_uncontacted_listings,
     mark_listing_contacted,
     mark_listing_failed,
+    mark_listing_skipped,
     save_message_url,
     can_send_message,
     increment_message_count,
@@ -18,7 +19,12 @@ from app.openrent.messaging import (
     can_contact_landlord,
     get_message_link,
     send_initial_message,
-    get_existing_thread_id
+    get_existing_thread_id,
+    extract_listing_metadata
+)
+
+from app.ai.replies import (
+    generate_initial_property_message
 )
 
 from app.db.repository import update_conversation_status
@@ -84,7 +90,8 @@ async def process_account_listings(
 
             await random_sleep(2, 5)
             is_agent = await landlord_is_agent(
-                page
+                page,
+                listing.property_url,
             )
 
             if is_agent:
@@ -93,11 +100,22 @@ async def process_account_listings(
                     "Skipping agent landlord"
                 )
 
-                mark_listing_failed(
+                mark_listing_skipped(
                     listing.id
                 )
 
                 continue
+            # reopen original listing page
+            await open_listing(page, listing)
+
+            await random_sleep(2, 4)
+            
+            metadata = await extract_listing_metadata(
+                page
+            )
+
+            print("Listing metadata:", metadata)
+
             message_link = await get_message_link(page)
 
             contactable = message_link is not None
@@ -109,6 +127,9 @@ async def process_account_listings(
             logger.info(f"Listing {listing.listing_id} contactable: {contactable}")
 
             if not contactable:
+                mark_listing_failed(
+                    listing.id
+                )
                 continue
 
             if not can_send_message(account.id):
@@ -127,10 +148,32 @@ async def process_account_listings(
             print("Message route saved:", full_url)
             logger.info(f"Message route saved: {full_url}")
 
+            message_text, error = (
+                generate_initial_property_message(
+                    metadata
+                )
+            )
+
+            if not message_text:
+
+                logger.warning(
+                    f"Failed generating message: {error}"
+                )
+
+                mark_listing_failed(
+                    listing.id
+                )
+
+                continue
+
+            print("Generated message:")
+            print(message_text)
+
             final_url = await send_initial_message(
                 page=page,
                 message_url=full_url,
-                message_text=account.initial_message
+                message_text=account.initial_message,
+                metadata=metadata
             )
 
             thread_id = extract_thread_id(final_url)
