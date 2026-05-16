@@ -54,8 +54,8 @@ The PDF is the manual SOP given to human workers. The automation is supposed to 
 |-----|------|--------|
 | Dynamic message based on bedroom count | `generate_household()` maps bedrooms → household at `replies.py:58` | **FIXED** |
 | Fictional names (husband + wife) | `generate_names()` calls AI to generate a name pair | **FIXED** |
-| Believable jobs | `get_random_job()` called at `replies.py:134` | **BROKEN** — `professions = {get_random_job()}` creates a **set**, not a dict. `build_initial_enquiry_prompt` then calls `professions.get("husband")` → `AttributeError: 'set' object has no attribute 'get'` — crashes every initial message |
-| Persona fields stored on Account | `Account` model | **NOT DONE** — `persona_name`, `persona_partner_name`, `persona_job`, `persona_partner_job`, `home_city` columns not added to `Account` |
+| Believable jobs | `get_random_job()` called at `replies.py:134` | **BROKEN** — `professions = {get_random_job()}` creates a **set**, not a dict. `build_initial_enquiry_prompt` then calls `professions.get("husband")` → `AttributeError: 'set' object has no attribute 'get'` — crashes every initial message | DONE
+| Persona fields stored on Account | `Account` model | **NOT DONE** — `persona_name`, `persona_partner_name`, `persona_job`, `persona_partner_job`, `home_city` columns not added to `Account` | - Doubt
 
 ---
 
@@ -148,7 +148,7 @@ The PDF is the manual SOP given to human workers. The automation is supposed to 
 ### P0 — Runtime crashes (break existing functionality)
 1. Fix `professions` set → dict bug in `replies.py:134`
 2. Fix `build_reply_prompt` signature in `prompts.py:18` to accept `stage`
-3. Uncomment `submit_button.click()` in `inbox.py:303`
+3. Uncomment `submit_button.click()` in `inbox.py:303
 
 ### P1 — Core business logic wrong
 4. Rewrite `build_reply_prompt` to use stage-aware strategy:

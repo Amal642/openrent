@@ -132,7 +132,7 @@ def generate_initial_property_message(
         metadata.get("bedrooms", 1)
     )
     professions = {
-        get_random_job()
+        "husband": get_random_job()
     }
     names = generate_names()
     prompt = build_initial_enquiry_prompt(
