@@ -8,7 +8,8 @@ from app.openrent.inbox import (
     extract_conversation,
     should_ai_reply,
     can_reply,
-    get_latest_landlord_message
+    get_latest_landlord_message,
+    send_reply
 )
 
 from app.ai.extractors import (
@@ -18,10 +19,6 @@ from app.ai.extractors import (
 
 from app.ai.replies import (
     generate_reply
-)
-
-from app.openrent.inbox import (
-    send_reply
 )
 
 from app.utils.human import random_sleep
@@ -238,10 +235,10 @@ async def process_account_replies(
                 print("\nGenerating AI reply...")
                 logger.info(f"Generating AI reply for thread {thread_id}")
 
-                reply = generate_reply(
+                reply,error = generate_reply(
                     messages
                 )
-                if not reply:
+                if not reply or error:
 
                     print(
                         "\nAI reply generation failed"
@@ -304,4 +301,3 @@ async def process_account_replies(
             )
             logger.exception(f"Failed processing thread {thread_id}: {e}")
             update_conversation_status(thread_id, AI_FAILED)
-

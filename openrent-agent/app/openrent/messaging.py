@@ -104,9 +104,6 @@ async def send_initial_message(
     if not submit_button:
         raise Exception("Correct submit button not found")
 
-    if not submit_button:
-        raise Exception("Submit button not found")
-
     button_text = await submit_button.inner_text()
 
     print(f"Found submit button: {button_text}")

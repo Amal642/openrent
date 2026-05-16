@@ -1,6 +1,4 @@
 import math
-import re
-from time import sleep
 
 from app.utils.human import random_sleep
 
@@ -120,7 +118,22 @@ async def get_all_reply_threads(page):
 
     print(f"\nTotal inbox pages: {total_pages}\n")
 
-    for page_num in range(total_pages):
+    threads = await extract_reply_threads(page)
+
+    for thread in threads:
+
+        thread_id = thread["thread_id"]
+
+        if thread_id in processed:
+            continue
+
+        processed.add(thread_id)
+
+        all_threads.append(thread)
+
+    await random_sleep(2, 5)
+
+    for page_num in range(1, total_pages):
 
         start = page_num * 10
 
@@ -205,37 +218,6 @@ async def extract_conversation(page):
             print("Failed parsing message:", e)
 
     return results
-
-
-
-def extract_phone_number(messages):
-
-    combined_text = "\n".join(
-        msg["message"]
-        for msg in messages
-    )
-
-    # Remove spaces and symbols for detection
-    cleaned = re.sub(r"[^\d+]", "", combined_text)
-
-    # UK phone detection
-    patterns = [
-
-        r"(\+44\d{10,12})",
-
-        r"(07\d{9})",
-
-        r"(447\d{9})"
-    ]
-
-    for pattern in patterns:
-
-        match = re.search(pattern, cleaned)
-
-        if match:
-            return match.group(1)
-
-    return None
 
 def should_ai_reply(messages):
 

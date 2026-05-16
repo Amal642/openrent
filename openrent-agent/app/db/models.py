@@ -142,11 +142,6 @@ class Conversation(Base):
     default="NEW_REPLY"
     )
 
-    extracted_phone = Column(
-        String,
-        nullable=True
-    )
-
     last_ai_reply = Column(
         Text,
         nullable=True

@@ -23,10 +23,10 @@ Thanks so much!"""
 # Create search profile
 create_search_profile(
     account_id=account_1.id,
-    location="buckingham palace greater london",
+    location="Victoria, Cornwall",
     price_min=500,
     price_max=800,
-    bedrooms_min=2,
+    bedrooms_min=1,
     bedrooms_max=4,
     area=10,
     pets_allowed=True
