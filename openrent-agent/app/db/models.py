@@ -183,6 +183,16 @@ class Conversation(Base):
         default=False
     )
 
+    cancel_required = Column(
+    Boolean,
+    default=True
+    )
+
+    cancellation_sent_at = Column(
+        DateTime,
+        nullable=True
+    )
+
 
     # relationships
     listing = relationship("Listing", back_populates="conversations")

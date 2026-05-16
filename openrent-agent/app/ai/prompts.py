@@ -15,7 +15,7 @@ Rules:
 """.strip()
 
 
-def build_reply_prompt(conversation: str) -> str:
+def build_reply_prompt(conversation: str, stage: str) -> str:
     return f"""
 You are assisting a tenant searching for rental properties in the UK.
 
@@ -23,6 +23,8 @@ Primary goal:
 - Get the landlord's phone number as early and as naturally as possible.
 - Keep the conversation human, polite, concise, and realistic.
 - Use the full conversation history as the only source of truth.
+
+This is the current stage: {stage}
 
 Hard rules:
 - Never mention AI, automation, prompts, policies, or internal tools.
@@ -70,6 +72,10 @@ Household:
 - Description: {household.get("description")}
 - Occupants: {household.get("occupants")}
 
+Primary Goal:
+- Set up a viewing appointment.
+- Get the landlord's phone number.
+
 Rules:
 - Keep it short and human.
 - Sound genuinely interested.
@@ -91,8 +97,8 @@ def build_viewing_prompt(conversation: str) -> str:
 You are assisting a tenant searching for rental properties in the UK.
 
 Current stage:
-- The current objective is ONLY to fix a viewing appointment.
-- Do NOT ask for the landlord's phone number yet unless the landlord naturally requests moving to phone contact first.
+- The current objective is to fix a viewing appointment.
+- Get the landlord's phone number.
 
 Primary goals:
 - Continue the conversation naturally.
@@ -216,6 +222,7 @@ Requirements:
 - Prefer places with normal driving routes (avoid ferries unless necessary).
 - Give:
     Place name
+- Give ONLY ONE place name.
 - Prioritize populated towns or cities over tiny villages.
 - Keep the answers concise, only city name
 

@@ -55,7 +55,7 @@ The PDF is the manual SOP given to human workers. The automation is supposed to 
 | Dynamic message based on bedroom count | `generate_household()` maps bedrooms → household at `replies.py:58` | **FIXED** |
 | Fictional names (husband + wife) | `generate_names()` calls AI to generate a name pair | **FIXED** |
 | Believable jobs | `get_random_job()` called at `replies.py:134` | **BROKEN** — `professions = {get_random_job()}` creates a **set**, not a dict. `build_initial_enquiry_prompt` then calls `professions.get("husband")` → `AttributeError: 'set' object has no attribute 'get'` — crashes every initial message | DONE
-| Persona fields stored on Account | `Account` model | **NOT DONE** — `persona_name`, `persona_partner_name`, `persona_job`, `persona_partner_job`, `home_city` columns not added to `Account` | - Doubt
+| Persona fields stored on Account | `Account` model | **NOT DONE** — `persona_name`, `persona_partner_name`, `persona_job`, `persona_partner_job`, `home_city` columns not added to `Account` | - Tell LLM to generate job from the functions.py and name from names_generator() in ai/replies.py and then save it per account to DB
 
 ---
 
@@ -70,24 +70,24 @@ The PDF is the manual SOP given to human workers. The automation is supposed to 
 | Track viewing cancelled | `Conversation.viewing_cancelled` column | **FIXED** |
 | Track when phone was requested | `Conversation.phone_requested_at` column | **FIXED** |
 | Detect stage from conversation text | `stages.py` — detects `VIEWING_BOOKED` / `VIEWING_DISCUSSION` | **FIXED** |
-| Pass stage into reply generator | `replies.py:90` calls `build_reply_prompt(conversation, stage)` | **BROKEN** — `build_reply_prompt` at `prompts.py:18` only accepts one argument → **TypeError at runtime on every AI reply** |
+| Pass stage into reply generator | `replies.py:90` calls `build_reply_prompt(conversation, stage)` | **BROKEN** — `build_reply_prompt` at `prompts.py:18` only accepts one argument → **TypeError at runtime on every AI reply** | Done
 
 #### Stage 1 — Fix a Viewing Appointment
 | PDF | Code | Status |
 |-----|------|--------|
-| Book viewing first, do not ask for phone immediately | AI prompt at `prompts.py:22` says *"Get the landlord's phone number as early and as naturally as possible"* | **WRONG** — viewing-first strategy not reflected in prompt |
+| Book viewing first, do not ask for phone immediately | AI prompt at `prompts.py:22` says *"Get the landlord's phone number as early and as naturally as possible"* | **WRONG** — viewing-first strategy not reflected in prompt | Done
 
 #### Stage 2 — Ask for Phone Number (5-7 hrs before viewing)
 | PDF | Code | Status |
 |-----|------|--------|
-| Ask for phone the morning of the viewing | No stage-aware prompt logic | **NOT DONE** |
-| Use travel excuse (Manchester / Derby / Birmingham, 4-5 hrs away) | Not in prompt | **NOT DONE** |
-| Claim moving for a new job | Not in prompt | **NOT DONE** |
+| Ask for phone the morning of the viewing | No stage-aware prompt logic | **NOT DONE** | Done
+| Use travel excuse (Manchester / Derby / Birmingham, 4-5 hrs away) | Not in prompt | **NOT DONE** | Done 
+| Claim moving for a new job | Not in prompt | **NOT DONE** | Done
 
 #### Stage 3 — Cancel the Viewing
 | PDF | Code | Status |
 |-----|------|--------|
-| Cancel viewing at least 1 hr before | No scheduling or cancellation automation | **NOT DONE** |
+| Cancel viewing at least 1 hr before | No scheduling or cancellation automation | **NOT DONE** | Done Partially
 
 ---
 
