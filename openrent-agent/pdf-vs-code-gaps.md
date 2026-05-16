@@ -1,4 +1,4 @@
-# PDF SOP vs Code — Gap Analysis
+# PDF SOP vs Code — Gap Analysis (Updated 2026-05-14)
 
 ## What the PDF Describes (Manual Process)
 
@@ -8,180 +8,161 @@ The PDF is the manual SOP given to human workers. The automation is supposed to 
 
 ## Step-by-Step Mapping
 
-### 1. Login and Search ✅
+### 1. Login and Search
 | PDF | Code | Status |
 |-----|------|--------|
 | Login to OpenRent via email/password | `app/browser/auth.py` | OK |
 | Search by area name | `app/openrent/search.py` — builds URL from `SearchProfile.location` | OK |
-| Filter: 1–5 bed, min £1300, radius 5-6km | `SearchProfile` model + URL params | OK — but radius is stored as `area` column, unclear if it maps to km correctly | [area=km] ✅
+| Filter: 1–5 bed, min £1300, radius 5-6km | `SearchProfile` model + URL params — `area` column maps to km | OK |
 
 ---
 
-### 2. Agent Detection ✅
+### 2. Agent Detection
 | PDF | Code | Status |
 |-----|------|--------|
 | Click landlord profile → "My Properties" | `app/openrent/landlords.py` | OK |
-| **>3 properties = agent, skip** | `landlords.py` uses `threshold=5` | **WRONG — threshold should be 3, not 5** |
+| **>3 properties = agent, skip** | `landlords.py:156` default is `threshold=3` | **FIXED** |
+| Agent detection called in process loop | Block at `scripts/process_replies.py:72-82` | **Still commented out — feature disabled** |
 
 ---
 
-### 3. Sending the Initial Message ✅
+### 3. Sending the Initial Message
 
-The PDF describes **two distinct form types** that can appear when clicking "Message Landlord":
-
-#### Type 1 — Simple Form
-Two fields:
-- "When are you available for viewings?" text box
-- Message text box
-
-Then click **"Request Viewing"**.
-
-#### Type 2 — Advanced Screening Form 
-Additional fields on top of Type 1:
-- **Screening questions** (Yes/No):
-  1. Are you a student? → **No**
-  2. Will you use housing benefits / DSS? → **No**
-  3. Do you have a pet? → **No**
-  4. Are you a smoker? → **No**
-  5. Looking for tenancy ≥6 months? → **Yes**
-- **Furnishing**: dropdown → select "I don't mind"
-- **Move-in date**: ~2 weeks after the property's available-from date
-- **Combined monthly income**: `(monthly_rent × 30) + 20,000`
-  - Example: £1,450 rent → (1450 × 30) + 20,000 = £63,500
-- Then the same availability + message fields as Type 1
-
+#### Type 1 / Type 2 Form Detection
 | PDF | Code | Status |
 |-----|------|--------|
-| Detect Type 1 vs Type 2 form | No detection logic exists | **MISSING** |
-| Fill "when available for viewings?" field | Code only fills the main `textarea`, not this separate field | **MISSING** |
-| Answer 5 screening questions | Not implemented | **MISSING** |
-| Set furnishing to "I don't mind" | Not implemented | **MISSING** |
-| Calculate and fill move-in date | Not implemented | **MISSING** |
-| Calculate and fill income field | Not implemented | **MISSING** |
-| Click "Request Viewing" | `send_initial_message()` searches for button with "request viewing" text | OK for Type 1 |
+| Detect Type 1 vs Type 2 form | `detect_form_type()` checks for `#ScreeningInfo_FurnishedStateRequired` | **FIXED** |
+| Fill "when available for viewings?" field | `#Availability` filled separately at `messaging.py:282-296` | **FIXED** |
+| Click "Request Viewing" | `send_initial_message()` searches for button with "request viewing" text | OK |
+
+#### Type 2 Screening Form
+| PDF | Code | Status |
+|-----|------|--------|
+| Are you a student? → No | `ScreeningInfo.IsStudent = false` | **FIXED** |
+| Will you use housing benefits / DSS? → No | `ScreeningInfo.OnBenefits = false` | **FIXED** |
+| Do you have a pet? → No | `ScreeningInfo.HasPets = false` | **FIXED** |
+| Are you a smoker? → No | `ScreeningInfo.IsSmoker = false` | **FIXED** |
+| Looking for tenancy ≥6 months? → Yes | `ScreeningInfo.HasRightToRent = true` | **UNCERTAIN** — code fills an immigration right-to-rent field, which may be a different question than tenancy duration |
+| Furnishing → "I don't mind" | Selects value `"2"` from `#ScreeningInfo_FurnishedStateRequired` | **UNCERTAIN** — whether `"2"` maps to "I don't mind" depends on OpenRent's dropdown ordering |
+| Move-in date: ~2 weeks after available-from | `available_from + timedelta(days=14)` at `messaging.py:166` | **FIXED** |
+| Income: `(monthly_rent × 30) + 20,000` | `(rent * 30) + 20000` at `messaging.py:186` | **FIXED** |
 
 ---
 
 ### 4. Message Content — Persona Generation
-
-The PDF defines rules for the intro message based on bedroom count:
-
-| Bedrooms | Household composition |
-|----------|-----------------------|
-| 1 bed | Single person, or couple (max 2 people) |
-| 2 bed | Couple, or couple + 1 child/parent (max 3 people) |
-| 3 bed | Couple + 1-2 kids/parent (max 4 people) |
-| 4+ bed | Scale accordingly |
-
-Message should include:
-- Fictional first names (e.g. "Hi, I am Catherine and my husband is Ben")
-- Believable jobs (IT, doctor, professor, engineer, etc.)
-- Express interest in the property
-- Ask about viewing availability
-
 | PDF | Code | Status |
 |-----|------|--------|
-| Dynamic message based on bedroom count | `account.initial_message` is a static string in the DB | **MISSING — one fixed message for all listings** |
-| Fictional persona (name, job, family size) | Not generated dynamically | **MISSING** |
-| Availability field text | Static or blank | **MISSING** |
+| Dynamic message based on bedroom count | `generate_household()` maps bedrooms → household at `replies.py:58` | **FIXED** |
+| Fictional names (husband + wife) | `generate_names()` calls AI to generate a name pair | **FIXED** |
+| Believable jobs | `get_random_job()` called at `replies.py:134` | **BROKEN** — `professions = {get_random_job()}` creates a **set**, not a dict. `build_initial_enquiry_prompt` then calls `professions.get("husband")` → `AttributeError: 'set' object has no attribute 'get'` — crashes every initial message |
+| Persona fields stored on Account | `Account` model | **NOT DONE** — `persona_name`, `persona_partner_name`, `persona_job`, `persona_partner_job`, `home_city` columns not added to `Account` |
 
 ---
 
 ### 5. Conversation Strategy — Reply Handling
 
-This is the most important gap. The PDF defines a **staged conversation flow**:
-
-#### Stage 1 — Fix a Viewing Appointment
-When the landlord replies, the goal is to **book a viewing**, not immediately ask for the phone number.
-
-- Tell them you're free "next day evening/night UK time" or "2 days later"
-- Confirm a specific viewing time
-
-#### Stage 2 — Ask for Phone Number (5-7 hours before viewing)
-The morning of the viewing, send a message asking for their number using this framing:
-
-> "We are travelling 4-5 hours for the viewing so please give your number so I can call when I reach, in case you don't see the message or if I'm late."
-
-- Claim to be travelling from Manchester / Derby / Birmingham (or any city 4-5 hours away from the property area)
-- Tell them you're moving for a new job
-
-#### Stage 3 — Cancel the Viewing
-Regardless of whether a phone number was obtained, **cancel the viewing at least 1 hour before**.
-
+#### DB / Stage Infrastructure
 | PDF | Code | Status |
 |-----|------|--------|
-| Stage 1: Book viewing first | AI prompt tells it to ask for phone immediately | **WRONG — skips viewing step entirely** |
-| Stage 2: Ask for phone 5-7hrs before with travel excuse | Not in AI prompt or workflow | **MISSING** |
-| Stage 3: Cancel viewing 1hr before | No tracking of scheduled viewings, no cancellation logic | **COMPLETELY MISSING** |
-| Track conversation stage (no viewing / viewing booked / day before) | No stage tracking in DB or code | **MISSING** |
+| Track conversation stage | `Conversation.conversation_stage` column | **FIXED** |
+| Track viewing datetime | `Conversation.viewing_datetime` column | **FIXED** |
+| Track viewing confirmed | `Conversation.viewing_confirmed` column | **FIXED** |
+| Track viewing cancelled | `Conversation.viewing_cancelled` column | **FIXED** |
+| Track when phone was requested | `Conversation.phone_requested_at` column | **FIXED** |
+| Detect stage from conversation text | `stages.py` — detects `VIEWING_BOOKED` / `VIEWING_DISCUSSION` | **FIXED** |
+| Pass stage into reply generator | `replies.py:90` calls `build_reply_prompt(conversation, stage)` | **BROKEN** — `build_reply_prompt` at `prompts.py:18` only accepts one argument → **TypeError at runtime on every AI reply** |
+
+#### Stage 1 — Fix a Viewing Appointment
+| PDF | Code | Status |
+|-----|------|--------|
+| Book viewing first, do not ask for phone immediately | AI prompt at `prompts.py:22` says *"Get the landlord's phone number as early and as naturally as possible"* | **WRONG** — viewing-first strategy not reflected in prompt |
+
+#### Stage 2 — Ask for Phone Number (5-7 hrs before viewing)
+| PDF | Code | Status |
+|-----|------|--------|
+| Ask for phone the morning of the viewing | No stage-aware prompt logic | **NOT DONE** |
+| Use travel excuse (Manchester / Derby / Birmingham, 4-5 hrs away) | Not in prompt | **NOT DONE** |
+| Claim moving for a new job | Not in prompt | **NOT DONE** |
+
+#### Stage 3 — Cancel the Viewing
+| PDF | Code | Status |
+|-----|------|--------|
+| Cancel viewing at least 1 hr before | No scheduling or cancellation automation | **NOT DONE** |
 
 ---
 
 ### 6. Account Rotation / Phase System
-
-The PDF defines a weekly rotation:
-
-| Day | Accounts | Action |
-|-----|----------|--------|
-| Monday | 1 & 2 (Phase 1) | Send enquiries |
-| Tuesday | 1 & 2 | Check + reply only |
-| Wednesday | 3 & 4 (Phase 2) | Send enquiries + reply |
-| Thursday | 3 & 4 | Check + reply |
-| Friday | 5 & 6 (Phase 3) | Send enquiries + reply |
-| Saturday | 5 & 6 | Check + reply |
-
 | PDF | Code | Status |
 |-----|------|--------|
-| Day-of-week aware account rotation | `run_workers.py` fires all active accounts every run | **MISSING** |
-| Send-only days vs reply-only days | No concept of this | **MISSING** |
+| Day-of-week aware account rotation (Mon–Sat phases) | `run_workers.py` fires all active accounts every run | **NOT DONE** |
+| Send-only days vs reply-only days | No concept exists | **NOT DONE** |
 
 ---
 
-### 7. Daily Targets and Limits 
-
+### 7. Daily Targets and Limits
 | PDF | Code | Status |
 |-----|------|--------|
 | 8 properties per account per session | `account.daily_limit` defaults to 8 | OK |
 | 16 total per person (phone + laptop) | Multi-account workers run in parallel | OK |
-| Min 3 phone number leads per day | No tracking of daily lead count | **MISSING — no daily lead target alert** | 
+| Min 3 phone number leads per day | No daily lead count tracking or alert | **NOT DONE** |
 
 ---
 
-## Priority Order for Implementation
+### 8. AI Reply — Send Fix (from tofix.md)
+| Issue | Code | Status |
+|-------|------|--------|
+| Reply typed but never submitted | `inbox.py:303-304` — `await submit_button.click()` commented out | **NOT FIXED** — `AI_AUTOSEND` gate added in `process_replies.py` but the actual click is still commented out, so replies are never sent regardless of setting |
 
-### P0 — Blocks everything
-1. **Type 2 form handler** — roughly half of all listings use the advanced form. Currently the bot either crashes or submits a blank form on these.
+---
+
+## Status Summary
+
+### Fixed
+- Agent threshold corrected to 3
+- Type 2 form fully detected and handled (mostly)
+- Availability field filled separately from message body
+- All 4 confirmed screening questions answered
+- Move-in date and income formula implemented
+- Dynamic household generation by bedroom count
+- AI name generation
+- DB stage tracking fields (`conversation_stage`, `viewing_datetime`, `viewing_confirmed`, `viewing_cancelled`, `phone_requested_at`)
+- Stage detection logic (`stages.py`)
+
+### Broken / Crashes at Runtime
+1. **`professions = {get_random_job()}`** (`replies.py:134`) — creates a set, not a dict. Crashes `generate_initial_property_message` with `AttributeError` on every call.
+2. **`build_reply_prompt(conversation, stage)`** (`replies.py:90`) — passes 2 args to a 1-arg function. Crashes every AI reply with `TypeError`.
+3. **`await submit_button.click()` commented out** (`inbox.py:303`) — replies are typed but never submitted.
+
+### Not Yet Implemented
+- Conversation strategy: book viewing first → ask for phone on day-of → cancel
+- Stage-aware AI prompts (Stage 1 / Stage 2 / Stage 3 logic)
+- Stage 3 auto-cancellation scheduling
+- Account persona DB fields on `Account` model
+- Day-of-week account rotation / phase system
+- Daily lead count tracking and alert (min 3 per day)
+
+---
+
+## Priority Order for Next Implementation
+
+### P0 — Runtime crashes (break existing functionality)
+1. Fix `professions` set → dict bug in `replies.py:134`
+2. Fix `build_reply_prompt` signature in `prompts.py:18` to accept `stage`
+3. Uncomment `submit_button.click()` in `inbox.py:303`
 
 ### P1 — Core business logic wrong
-2. **Agent threshold: change 5 → 3** (`landlords.py`) — one line fix
-3. **Conversation strategy rewrite** — AI should book viewing first, ask for phone on day-of with travel excuse
-4. **Conversation stage tracking** — add a `stage` field to `Conversation` model (`INITIAL` / `VIEWING_BOOKED` / `PHONE_REQUESTED` / `VIEWING_CANCELLED`)
+4. Rewrite `build_reply_prompt` to use stage-aware strategy:
+   - No stage / `VIEWING_DISCUSSION`: book the viewing, do not ask for phone
+   - `VIEWING_BOOKED`: ask for phone with travel excuse (4-5 hrs away, moving for new job)
+   - `VIEWING_CANCELLED`: no further action
+5. Add `home_city` / persona fields to `Account` model and use in travel excuse
 
 ### P2 — Quality and completeness
-5. **Dynamic persona generation** — message text should vary by bedroom count, with random names/jobs
-6. **Availability field** — fill the "when are you available for viewings?" box separately from the message
-7. **Viewing cancellation** — track scheduled viewing datetime, schedule cancellation message 1hr before
+6. Verify furnishing dropdown value `"2"` maps to "I don't mind" on OpenRent
+7. Verify `HasRightToRent` is the correct field name for the tenancy duration question
+8. Stage 3: schedule auto-cancellation 1 hr before `viewing_datetime`
+9. Add Account persona DB fields (`persona_name`, `persona_partner_name`, `home_city`, etc.)
 
 ### P3 — Operational
-8. **Phase/rotation system** — day-of-week aware account selection in `run_workers.py`
-9. **Daily lead count tracking** — alert or log when daily phone target (3) is hit per account
-
----
-
-## DB Changes Needed
-
-To support the missing features, the following schema additions are required:
-
-```
-Conversation:
-  + stage          String   (INITIAL / VIEWING_BOOKED / PHONE_REQUESTED / VIEWING_CANCELLED)
-  + viewing_datetime  DateTime  (when the viewing is scheduled)
-  + viewing_location  String    (property area, used for cancellation message)
-
-Account:
-  + persona_name   String   (e.g. "Catherine")
-  + persona_partner_name  String  (e.g. "Ben")
-  + persona_job    String
-  + persona_partner_job   String
-  + home_city      String   (e.g. "Manchester" — used in travel excuse)
-```
+10. Phase/rotation system — day-of-week aware account selection in `run_workers.py`
+11. Daily lead count tracking — alert or log when daily phone target (3) is hit per account
