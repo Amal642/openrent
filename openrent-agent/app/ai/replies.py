@@ -4,7 +4,12 @@ from openai import OpenAI
 from openai import RateLimitError, APIError, APITimeoutError
 
 from app.config import settings
-from app.ai.prompts import (build_reply_prompt,build_initial_enquiry_prompt,names_generator)
+from app.ai.prompts import (
+    build_cancel_viewing_prompt,
+    build_initial_enquiry_prompt,
+    build_reply_prompt,
+    names_generator,
+)
 from app.ai.validators import is_valid_reply
 from app.utils.logger import logger
 from app.ai.functions import get_random_job
@@ -82,12 +87,21 @@ def generate_names():
         ],
         temperature=0.7,
     )
-    return response.choices[0].message.content.strip()
+    content = response.choices[0].message.content.strip()
+    names = {}
+    for line in content.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip().lower()
+        if key in ("husband", "wife"):
+            names[key] = value.strip()
+    return names or {"husband": "James", "wife": "Sophie"}
 
 
-def generate_reply(messages, stage=None, retries=3, base_delay=2):
+def generate_reply(messages, stage=None, persona=None, retries=3, base_delay=2):
     conversation = format_conversation(messages)
-    prompt = build_reply_prompt(conversation, stage)
+    prompt = build_reply_prompt(conversation, stage, persona=persona)
 
     last_error = None
 
@@ -122,8 +136,42 @@ def generate_reply(messages, stage=None, retries=3, base_delay=2):
 
     return None, last_error or "ai_reply_failed"
 
+
+def generate_cancellation_message(messages=None, retries=3, base_delay=2):
+    conversation = format_conversation(messages or [])
+    prompt = build_cancel_viewing_prompt(conversation)
+
+    last_error = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.6,
+            )
+            reply = response.choices[0].message.content.strip()
+            if not is_valid_reply(reply):
+                return None, "invalid_cancellation_reply"
+            return reply, None
+        except (RateLimitError, APITimeoutError, APIError) as e:
+            last_error = str(e)
+            logger.warning(
+                f"Cancellation message attempt {attempt}/{retries} failed: {e}"
+            )
+            if attempt < retries:
+                time.sleep(base_delay * attempt)
+        except Exception as e:
+            last_error = str(e)
+            logger.exception(f"Unexpected cancellation message error: {e}")
+            break
+
+    return None, last_error or "cancellation_reply_failed"
+
+
 def generate_initial_property_message(
     metadata,
+    persona=None,
     retries=3,
     base_delay=2
 ):
@@ -131,10 +179,21 @@ def generate_initial_property_message(
     household = generate_household(
         metadata.get("bedrooms", 1)
     )
-    professions = {
-        "husband": get_random_job()
-    }
-    names = generate_names()
+    if persona:
+        professions = {
+            "husband": persona.get("persona_job") or get_random_job(),
+            "wife": persona.get("persona_partner_job") or get_random_job(),
+        }
+        names = {
+            "husband": persona.get("persona_name"),
+            "wife": persona.get("persona_partner_name"),
+        }
+    else:
+        professions = {
+            "husband": get_random_job(),
+            "wife": get_random_job(),
+        }
+        names = generate_names()
     prompt = build_initial_enquiry_prompt(
         metadata,
         household,

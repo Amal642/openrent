@@ -39,6 +39,18 @@ class Account(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    persona_name = Column(String, nullable=True)
+    persona_partner_name = Column(String, nullable=True)
+    persona_job = Column(String, nullable=True)
+    persona_partner_job = Column(String, nullable=True)
+    home_city = Column(String, nullable=True)
+
+    worker_status = Column(String, default="idle")
+    worker_last_heartbeat = Column(DateTime, nullable=True)
+    worker_last_error = Column(Text, nullable=True)
+    current_worker_phase = Column(String, default="idle")
+    last_login_at = Column(DateTime, nullable=True)
+
     # relationships
     search_profiles = relationship("SearchProfile", back_populates="account")
 
@@ -106,6 +118,8 @@ class Listing(Base):
     first_seen = Column(DateTime, default=datetime.utcnow)
 
     last_processed_at = Column(DateTime, nullable=True)
+    processing_owner = Column(String, nullable=True)
+    processing_started_at = Column(DateTime, nullable=True)
     # relationships
     search_profile = relationship("SearchProfile", back_populates="listings")
 
@@ -189,6 +203,13 @@ class Conversation(Base):
     )
 
     cancellation_sent_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+    processing_owner = Column(String, nullable=True)
+
+    processing_started_at = Column(
         DateTime,
         nullable=True
     )

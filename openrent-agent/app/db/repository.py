@@ -1,5 +1,6 @@
 from contextlib import contextmanager
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 
 from app.db.connection import SessionLocal
 from app.db.models import (
@@ -7,8 +8,10 @@ from app.db.models import (
     Conversation,
     Landlord,
     Listing,
+    Message,
     SearchProfile,
 )
+from app.db.status import VIEWING_CANCELLED
 
 
 @contextmanager
@@ -44,9 +47,161 @@ def create_account(email, password, session_file, initial_message, proxy_server=
         return account
 
 
+def update_account(
+    account_id,
+    email=None,
+    password=None,
+    session_file=None,
+    initial_message=None,
+    daily_limit=None,
+    active=None,
+):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return None
+
+        if email is not None:
+            account.email = email
+        if password is not None:
+            account.password = password
+        if session_file is not None:
+            account.session_file = session_file
+        if initial_message is not None:
+            account.initial_message = initial_message
+        if daily_limit is not None:
+            account.daily_limit = daily_limit
+        if active is not None:
+            account.active = active
+
+        db.commit()
+
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        return serialize_account(account) if account else None
+
+
+def _parse_generated_names(names_text):
+    names = {}
+
+    if isinstance(names_text, dict):
+        return names_text
+
+    for line in str(names_text or "").splitlines():
+        match = re.match(r"\s*(husband|wife)\s*:\s*(.+?)\s*$", line, re.I)
+        if match:
+            names[match.group(1).lower()] = match.group(2).strip()
+
+    words = re.findall(r"[A-Za-z][A-Za-z'-]+", str(names_text or ""))
+    if "husband" not in names and words:
+        names["husband"] = words[0]
+    if "wife" not in names and len(words) > 1:
+        names["wife"] = words[1]
+
+    return names
+
+
+def ensure_account_persona(account_or_id):
+    account_id = getattr(account_or_id, "id", account_or_id)
+
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return None
+
+        missing = any(
+            getattr(account, field) in (None, "")
+            for field in (
+                "persona_name",
+                "persona_partner_name",
+                "persona_job",
+                "persona_partner_job",
+                "home_city",
+            )
+        )
+
+        if missing:
+            try:
+                from app.ai.functions import get_random_job
+                from app.ai.replies import generate_names
+
+                generated_names = _parse_generated_names(generate_names())
+                persona_job = get_random_job()
+                partner_job = get_random_job()
+            except Exception:
+                generated_names = {"husband": "James", "wife": "Sophie"}
+                persona_job = "Software Engineer"
+                partner_job = "Chartered Accountant"
+            account.persona_name = account.persona_name or generated_names.get("husband") or "James"
+            account.persona_partner_name = (
+                account.persona_partner_name
+                or generated_names.get("wife")
+                or "Sophie"
+            )
+            account.persona_job = account.persona_job or persona_job
+            account.persona_partner_job = account.persona_partner_job or partner_job
+            account.home_city = account.home_city or "Manchester"
+            db.commit()
+
+        return {
+            "persona_name": account.persona_name,
+            "persona_partner_name": account.persona_partner_name,
+            "persona_job": account.persona_job,
+            "persona_partner_job": account.persona_partner_job,
+            "home_city": account.home_city,
+        }
+
+
+def serialize_account(account):
+    persona = ensure_account_persona(account.id)
+
+    return {
+        "id": account.id,
+        "email": account.email,
+        "daily_limit": account.daily_limit,
+        "messages_sent_today": account.messages_sent_today,
+        "active": account.active,
+        "created_at": account.created_at,
+        "persona_name": persona["persona_name"] if persona else None,
+        "persona_partner_name": persona["persona_partner_name"] if persona else None,
+        "persona_job": persona["persona_job"] if persona else None,
+        "persona_partner_job": persona["persona_partner_job"] if persona else None,
+        "home_city": persona["home_city"] if persona else None,
+        "worker_status": account.worker_status or "idle",
+        "worker_last_heartbeat": account.worker_last_heartbeat,
+        "worker_last_error": account.worker_last_error,
+        "current_worker_phase": account.current_worker_phase or "idle",
+        "last_login_at": account.last_login_at,
+    }
+
+
 def get_active_accounts():
     with session_scope() as db:
-        return db.query(Account).filter(Account.active == True).all()
+        accounts = db.query(Account).filter(Account.active == True).all()
+        for account in accounts:
+            ensure_account_persona(account.id)
+        return accounts
+
+
+def get_dashboard_accounts():
+    with session_scope() as db:
+        accounts = db.query(Account).order_by(Account.created_at.desc()).all()
+        return [serialize_account(account) for account in accounts]
+
+
+def update_account_worker_state(account_id, status, phase=None, error=None):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return
+
+        account.worker_status = status
+        account.worker_last_heartbeat = datetime.utcnow()
+        account.current_worker_phase = phase or account.current_worker_phase
+        account.worker_last_error = error
+        if status in ("running", "idle"):
+            account.last_login_at = account.last_login_at or datetime.utcnow()
+        db.commit()
 
 
 # ---------------- SEARCH PROFILES ----------------
@@ -139,6 +294,46 @@ def get_uncontacted_listings(
         )
 
 
+def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30):
+    stale_before = datetime.utcnow() - timedelta(minutes=stale_minutes)
+
+    with session_scope() as db:
+        listings = (
+            db.query(Listing)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .filter(
+                SearchProfile.account_id == account_id,
+                Listing.message_sent == False,
+                Listing.processing_failed == False,
+                (
+                    (Listing.processing_owner == None)
+                    | (Listing.processing_started_at < stale_before)
+                ),
+            )
+            .limit(limit)
+            .all()
+        )
+
+        for listing in listings:
+            listing.processing_owner = worker_id
+            listing.processing_started_at = datetime.utcnow()
+
+        db.commit()
+        return listings
+
+
+def release_listing_claim(listing_id, worker_id=None):
+    with session_scope() as db:
+        listing = db.query(Listing).filter(Listing.id == listing_id).first()
+        if not listing:
+            return
+        if worker_id and listing.processing_owner not in (None, worker_id):
+            return
+        listing.processing_owner = None
+        listing.processing_started_at = None
+        db.commit()
+
+
 def mark_listing_contacted(
     listing_id,
     thread_id=None
@@ -153,6 +348,8 @@ def mark_listing_contacted(
             listing.message_sent = True
             listing.thread_id = thread_id
             listing.last_processed_at = datetime.utcnow()
+            listing.processing_owner = None
+            listing.processing_started_at = None
 
             db.commit()
 
@@ -166,6 +363,8 @@ def mark_listing_failed(listing_id):
         if listing:
             listing.processing_failed = True
             listing.last_processed_at = datetime.utcnow()
+            listing.processing_owner = None
+            listing.processing_started_at = None
 
             db.commit()
 
@@ -175,6 +374,8 @@ def mark_listing_skipped(listing_id):
 
         if listing:
             listing.processing_failed = True
+            listing.processing_owner = None
+            listing.processing_started_at = None
             db.commit()
 
 
@@ -217,7 +418,7 @@ def increment_message_count(account_id):
 
 def create_conversation(
     thread_id,
-    listing_id
+    listing_id=None
 ):
     with session_scope() as db:
         conversation = Conversation(
@@ -231,6 +432,96 @@ def create_conversation(
         db.refresh(conversation)
 
         return conversation
+
+
+def get_or_create_conversation(thread_id, listing_id=None):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+            return conversation
+
+        conversation = Conversation(
+            thread_id=thread_id,
+            listing_id=listing_id,
+            conversation_stage="NEW_LEAD",
+        )
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
+        return conversation
+
+
+def claim_conversation(thread_id, worker_id, stale_minutes=20):
+    stale_before = datetime.utcnow() - timedelta(minutes=stale_minutes)
+
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if not conversation:
+            conversation = Conversation(
+                thread_id=thread_id,
+                conversation_stage="NEW_REPLY",
+            )
+            db.add(conversation)
+            db.flush()
+
+        if (
+            conversation.processing_owner
+            and conversation.processing_owner != worker_id
+            and conversation.processing_started_at
+            and conversation.processing_started_at >= stale_before
+        ):
+            db.rollback()
+            return False
+
+        conversation.processing_owner = worker_id
+        conversation.processing_started_at = datetime.utcnow()
+        db.commit()
+        return True
+
+
+def release_conversation_claim(thread_id, worker_id=None):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+        if not conversation:
+            return
+        if worker_id and conversation.processing_owner not in (None, worker_id):
+            return
+        conversation.processing_owner = None
+        conversation.processing_started_at = None
+        db.commit()
+
+
+def save_message(thread_id, direction, content, created_at=None):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if not conversation:
+            conversation = Conversation(
+                thread_id=thread_id,
+                conversation_stage="NEW_REPLY",
+            )
+            db.add(conversation)
+            db.flush()
+
+        message = Message(
+            conversation_id=conversation.id,
+            direction=direction,
+            content=content,
+            created_at=created_at or datetime.utcnow(),
+        )
+        conversation.last_message_at = message.created_at
+        db.add(message)
+        db.commit()
 
 def save_viewing_datetime(
     thread_id,
@@ -252,6 +543,7 @@ def save_viewing_datetime(
             )
 
             conversation.viewing_confirmed = True
+            conversation.conversation_stage = "VIEWING_BOOKED"
 
             conversation.last_stage_change = (
                 datetime.utcnow()
@@ -274,9 +566,10 @@ def mark_viewing_cancelled(
         if conversation:
 
             conversation.viewing_cancelled = True
+            conversation.cancellation_sent_at = datetime.utcnow()
 
             conversation.conversation_stage = (
-                "VIEWING_CANCELLED"
+                VIEWING_CANCELLED
             )
 
             conversation.last_stage_change = (
@@ -306,7 +599,21 @@ def mark_phone_requested(
             conversation.conversation_stage = (
                 "CONTACT_REQUESTED"
             )
+            conversation.last_stage_change = datetime.utcnow()
 
+            db.commit()
+
+
+def update_conversation_stage(thread_id, stage):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+            if conversation.conversation_stage != stage:
+                conversation.conversation_stage = stage
+                conversation.last_stage_change = datetime.utcnow()
             db.commit()
 def update_conversation_status(
     thread_id,
@@ -348,6 +655,7 @@ def save_phone_number(
 
         if conversation:
             conversation.extracted_phone = phone
+            conversation.phone_found = True
             conversation.status = "PHONE_ACQUIRED"
             db.commit()
 
@@ -376,6 +684,8 @@ def mark_listing_skipped(listing_id, reason="SKIPPED"):
         if listing:
             listing.skip_reason = reason
             listing.processing_failed = True
+            listing.processing_owner = None
+            listing.processing_started_at = None
             db.commit()
 
 
@@ -470,7 +780,66 @@ def mark_listing_skipped_agent(listing_id, property_count=None):
             listing.skip_reason = "agent"
             listing.processing_failed = True
             listing.last_processed_at = datetime.utcnow()
+            listing.processing_owner = None
+            listing.processing_started_at = None
             db.commit()
+
+
+def get_due_viewing_cancellations(account_id=None, hours_before=5, limit=25):
+    cutoff = datetime.utcnow() + timedelta(hours=hours_before)
+
+    with session_scope() as db:
+        query = (
+            db.query(Conversation, Listing, SearchProfile, Account)
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .join(Account, SearchProfile.account_id == Account.id)
+            .filter(
+                Conversation.viewing_datetime != None,
+                Conversation.viewing_datetime <= cutoff,
+                Conversation.viewing_datetime > datetime.utcnow(),
+                Conversation.viewing_cancelled == False,
+                Conversation.cancel_required == True,
+                Conversation.cancellation_sent_at == None,
+            )
+            .order_by(Conversation.viewing_datetime.asc())
+            .limit(limit)
+        )
+
+        if account_id is not None:
+            query = query.filter(Account.id == account_id)
+
+        return [
+            {
+                "thread_id": conversation.thread_id,
+                "viewing_datetime": conversation.viewing_datetime,
+                "property_url": listing.property_url,
+                "location": search_profile.location,
+                "account_id": account.id,
+                "conversation_stage": conversation.conversation_stage,
+            }
+            for conversation, listing, search_profile, account in query.all()
+        ]
+
+
+def count_phones_today(account_id=None):
+    start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    with session_scope() as db:
+        query = (
+            db.query(Conversation)
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .filter(
+                Conversation.extracted_phone != None,
+                Conversation.last_message_at >= start,
+            )
+        )
+
+        if account_id is not None:
+            query = query.filter(SearchProfile.account_id == account_id)
+
+        return query.count()
 
 
 def get_dashboard_leads(status=None):
@@ -488,6 +857,7 @@ def get_dashboard_leads(status=None):
         rows = []
 
         for conversation, listing, search_profile, account in query.order_by(Conversation.created_at.desc()).all():
+            persona = ensure_account_persona(account.id)
             rows.append({
                 "thread_id": conversation.thread_id,
                 "listing_id": listing.listing_id,
@@ -502,9 +872,26 @@ def get_dashboard_leads(status=None):
                 "bedrooms_max": search_profile.bedrooms_max,
                 "pets_allowed": search_profile.pets_allowed,
                 "status": conversation.status,
+                "conversation_stage": conversation.conversation_stage,
+                "viewing_datetime": conversation.viewing_datetime,
+                "viewing_confirmed": conversation.viewing_confirmed,
+                "viewing_cancelled": conversation.viewing_cancelled,
+                "cancel_required": conversation.cancel_required,
+                "cancellation_sent_at": conversation.cancellation_sent_at,
+                "phone_requested_at": conversation.phone_requested_at,
+                "last_stage_change": conversation.last_stage_change,
                 "phone": conversation.extracted_phone or "",
                 "last_processed_message": conversation.last_processed_message or "",
                 "last_ai_reply": conversation.last_ai_reply or "",
+                "persona_name": persona["persona_name"] if persona else account.persona_name,
+                "persona_partner_name": (
+                    persona["persona_partner_name"] if persona else account.persona_partner_name
+                ),
+                "persona_job": persona["persona_job"] if persona else account.persona_job,
+                "persona_partner_job": (
+                    persona["persona_partner_job"] if persona else account.persona_partner_job
+                ),
+                "home_city": persona["home_city"] if persona else account.home_city,
                 "created_at": conversation.created_at,
                 "last_message_at": conversation.last_message_at,
             })
@@ -579,6 +966,7 @@ def update_search_profile(
     bedrooms_min=None,
     bedrooms_max=None,
     pets_allowed=None,
+    area=None,
     active=None
 ):
     with session_scope() as db:
@@ -601,6 +989,8 @@ def update_search_profile(
             profile.bedrooms_min = bedrooms_min
         if bedrooms_max is not None:
             profile.bedrooms_max = bedrooms_max
+        if area is not None:
+            profile.area = area
         if pets_allowed is not None:
             profile.pets_allowed = pets_allowed
         if active is not None:

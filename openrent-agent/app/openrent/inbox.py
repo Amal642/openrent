@@ -300,10 +300,9 @@ async def send_reply(
 
         return False
 
-    # TEST MODE
-    # await submit_button.click()
+    await submit_button.click()
 
-    print("AI reply ready")
+    print("AI reply sent")
 
     return True
 

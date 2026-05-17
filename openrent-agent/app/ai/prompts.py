@@ -15,12 +15,22 @@ Rules:
 """.strip()
 
 
-def build_reply_prompt(conversation: str, stage: str) -> str:
+def build_reply_prompt(conversation: str, stage: str, persona: dict | None = None) -> str:
+    if stage == "VIEWING_BOOKED":
+        return build_phone_request_prompt(
+            conversation,
+            place=(persona or {}).get("home_city") or "Manchester",
+            viewing_location="the viewing",
+        )
+
+    if stage == "VIEWING_CANCELLED":
+        return build_cancel_viewing_prompt(conversation)
+
     return f"""
 You are assisting a tenant searching for rental properties in the UK.
 
 Primary goal:
-- Get the landlord's phone number as early and as naturally as possible.
+- Arrange a viewing and ask for phone number naturally don't force the landlord
 - Keep the conversation human, polite, concise, and realistic.
 - Use the full conversation history as the only source of truth.
 
@@ -35,9 +45,8 @@ Hard rules:
 - Never create multiple messages.
 - Never sound robotic, pushy, or overly eager.
 - Never repeat yourself.
-- If the landlord asks a different question, answer that question naturally and briefly, then steer back to asking for the landlord's phone number.
-- If the landlord is asking for contact details, ask for their phone number only.
-- If a phone number has not been shared yet, make the next reply actively move toward getting it.
+- If the landlord asks a different question, answer that question naturally and briefly, then steer back to arranging the viewing.
+- If the landlord asks for contact details before a viewing is booked, keep the reply focused on confirming a viewing time.
 - Do not send email addresses under any circumstances.
 - If the landlord offers an email or asks for one, politely redirect to phone contact instead.
 - Output only the final reply text and nothing else.
@@ -62,7 +71,8 @@ Use the following names for the enquiry:
 - Husband: {names.get("husband")}
 - Wife: {names.get("wife")}
 
-- Professions: {professions.get("husband")}
+- Husband job: {professions.get("husband")}
+- Wife job: {professions.get("wife")}
 
 Property Details:
 - Bedrooms: {property_data.get("bedrooms")}
@@ -74,7 +84,7 @@ Household:
 
 Primary Goal:
 - Set up a viewing appointment.
-- Get the landlord's phone number.
+- Sound genuinely interested in the property, and ask for the landlord's phone number naturally.
 
 Rules:
 - Keep it short and human.
@@ -128,7 +138,7 @@ Behavior rules:
   - "Would around 6:30pm tomorrow evening suit you?"
 
 Important:
-- The ONLY objective right now is successfully arranging the viewing.
+- The ONLY objective right now is successfully arranging the viewing, and getting the landlord's phone number.
 - Output ONLY the final reply text.
 - No explanations.
 - No quotation marks.
@@ -256,4 +266,3 @@ Output format:
 Husband: James
 Wife: Sophie
 """.strip()
-

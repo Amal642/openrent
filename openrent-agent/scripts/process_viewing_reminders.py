@@ -1,93 +1,105 @@
-from datetime import (
-    datetime,
-    timedelta
-)
-
-from app.db.session import (
-    session_scope
-)
-
-from app.models import (
-    Conversation
-)
-
-from app.ai.replies import (
-    generate_cancellation_message
-)
-
+from app.ai.replies import generate_cancellation_message
 from app.db.repository import (
-    update_conversation_stage
+    claim_conversation,
+    get_due_viewing_cancellations,
+    mark_viewing_cancelled,
+    release_conversation_claim,
+    save_message,
+    update_conversation_status,
 )
+from app.db.status import AI_FAILED, VIEWING_CANCELLED
+from app.openrent.inbox import extract_conversation, open_thread, send_reply
+from app.utils.human import random_sleep
+from app.utils.logger import logger
+from app.db.repository import get_active_accounts, update_account_worker_state
 
-from app.ai.replies import (
-    send_reply
-)
+
+async def process_account_viewing_reminders(account, page, worker_id=None):
+    owner = worker_id or f"account-{account.id}"
+    due_viewings = get_due_viewing_cancellations(account_id=account.id)
+
+    if not due_viewings:
+        logger.info(f"No due viewing cancellations for {account.email}")
+        return
+
+    logger.info(
+        f"Found {len(due_viewings)} due viewing cancellations for {account.email}"
+    )
+
+    for viewing in due_viewings:
+        thread_id = viewing["thread_id"]
+
+        try:
+            if not claim_conversation(thread_id, owner):
+                logger.info(f"Cancellation skipped for claimed thread {thread_id}")
+                continue
+
+            await open_thread(page, thread_id)
+            messages = await extract_conversation(page)
+
+            message, error = generate_cancellation_message(messages)
+            if not message or error:
+                logger.warning(
+                    f"Cancellation generation failed for {thread_id}: {error}"
+                )
+                update_conversation_status(thread_id, AI_FAILED)
+                continue
+
+            sent = await send_reply(page, message)
+            if not sent:
+                logger.warning(f"Cancellation send failed for {thread_id}")
+                update_conversation_status(thread_id, AI_FAILED)
+                continue
+
+            save_message(thread_id, "outbound", message)
+            mark_viewing_cancelled(thread_id)
+            update_conversation_status(thread_id, VIEWING_CANCELLED)
+
+            logger.info(f"Cancelled viewing for thread {thread_id}")
+            await random_sleep(2, 5)
+
+        except Exception as exc:
+            logger.exception(f"Cancellation failed for {thread_id}: {exc}")
+            update_conversation_status(thread_id, AI_FAILED)
+
+        finally:
+            release_conversation_claim(thread_id, owner)
 
 
 async def process_viewing_reminders():
+    accounts = get_active_accounts()
 
-    with session_scope() as db:
+    for account in accounts:
+        playwright = None
+        browser = None
+        phase = "cancellations_only"
 
-        now = datetime.utcnow()
-
-        upcoming = db.query(
-            Conversation
-        ).filter(
-
-            Conversation.viewing_datetime != None,
-
-            Conversation.viewing_cancelled == False,
-
-            Conversation.cancel_required == True
-
-        ).all()
-
-        for conversation in upcoming:
-
-            viewing_time = (
-                conversation.viewing_datetime
+        try:
+            update_account_worker_state(account.id, "running", phase=phase)
+            playwright, browser, context, page = await launch_browser(account)
+            await login(page, context, account)
+            await process_account_viewing_reminders(account, page)
+        except Exception as exc:
+            logger.exception(
+                f"Standalone viewing reminder worker failed for {account.email}: {exc}"
             )
+            update_account_worker_state(
+                account.id,
+                "error",
+                phase=phase,
+                error=str(exc),
+            )
+        finally:
+            if browser:
+                await browser.close()
+            if playwright:
+                await playwright.stop()
+            update_account_worker_state(account.id, "idle", phase=phase)
 
-            if not viewing_time:
-                continue
 
-            # cancel ~5hr before
+if __name__ == "__main__":
+    asyncio.run(process_viewing_reminders())
+import asyncio
 
-            if (
-                viewing_time - now
-            ) <= timedelta(hours=5):
-
-                try:
-
-                    message = (
-                        generate_cancellation_message()
-                    )
-
-                    await send_reply(
-                        thread_id=conversation.thread_id,
-                        message=message
-                    )
-
-                    conversation.viewing_cancelled = True
-
-                    conversation.cancellation_sent_at = (
-                        now
-                    )
-
-                    update_conversation_stage(
-                        conversation.thread_id,
-                        "VIEWING_CANCELLED"
-                    )
-
-                    db.commit()
-
-                    print(
-                        f"Cancelled viewing "
-                        f"{conversation.thread_id}"
-                    )
-
-                except Exception as e:
-
-                    print(
-                        f"Cancellation failed: {e}"
-                    )
+from app.browser.auth import login
+from app.browser.launcher import launch_browser

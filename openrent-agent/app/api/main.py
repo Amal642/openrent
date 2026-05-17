@@ -1,15 +1,22 @@
-from fastapi import FastAPI
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from fastapi import BackgroundTasks, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.db.repository import (
+    get_dashboard_accounts,
     get_dashboard_leads,
-    get_active_accounts,
     get_dashboard_search_profiles,
+    create_account,
     create_search_profile,
+    update_account,
     update_search_profile,
-    deactivate_search_profile
+    deactivate_search_profile,
+    update_conversation_status,
 )
+from app.db.status import CLOSED, SKIPPED
 
 
 class SearchProfilePayload(BaseModel):
@@ -21,6 +28,15 @@ class SearchProfilePayload(BaseModel):
     bedrooms_max: int
     area: int
     pets_allowed: bool = False
+    active: bool = True
+
+
+class AccountPayload(BaseModel):
+    email: str
+    password: str = ""
+    session_file: str = "session.json"
+    initial_message: str = ""
+    daily_limit: int = 8
     active: bool = True
 
 app = FastAPI(
@@ -62,31 +78,43 @@ def api_leads(
 
 @app.get("/api/accounts")
 def api_accounts():
+    return get_dashboard_accounts()
 
-    accounts = get_active_accounts()
 
-    results = []
+@app.post("/api/accounts/{account_id}/run")
+def api_run_account(account_id: int, background_tasks: BackgroundTasks):
+    from app.workers.account_worker import run_one_account_by_id
 
-    for account in accounts:
+    background_tasks.add_task(run_one_account_by_id, account_id)
+    return {"status": "queued", "account_id": account_id}
 
-        results.append({
 
-            "id": account.id,
+@app.post("/api/accounts")
+def api_create_account(payload: AccountPayload):
+    account = create_account(
+        email=payload.email,
+        password=payload.password,
+        session_file=payload.session_file,
+        initial_message=payload.initial_message,
+    )
+    return update_account(
+        account.id,
+        daily_limit=payload.daily_limit,
+        active=payload.active,
+    )
 
-            "email": account.email,
 
-            "daily_limit": account.daily_limit,
-
-            "messages_sent_today": (
-                account.messages_sent_today
-            ),
-
-            "active": account.active,
-
-            "created_at": account.created_at
-        })
-
-    return results
+@app.patch("/api/accounts/{account_id}")
+def api_update_account(account_id: int, payload: AccountPayload):
+    return update_account(
+        account_id=account_id,
+        email=payload.email,
+        password=payload.password or None,
+        session_file=payload.session_file,
+        initial_message=payload.initial_message,
+        daily_limit=payload.daily_limit,
+        active=payload.active,
+    )
 
 
 @app.get("/api/search-profiles")
@@ -141,3 +169,106 @@ def api_delete_search_profile(profile_id: int):
     return deactivate_search_profile(
         profile_id=profile_id
     )
+
+
+@app.post("/api/leads/{thread_id}/complete")
+def api_complete_lead(thread_id: str):
+    update_conversation_status(thread_id, CLOSED)
+    return {"thread_id": thread_id, "status": CLOSED}
+
+
+@app.post("/api/leads/{thread_id}/skip")
+def api_skip_lead(thread_id: str):
+    update_conversation_status(thread_id, SKIPPED)
+    return {"thread_id": thread_id, "status": SKIPPED}
+
+
+@app.get("/api/metrics")
+def api_metrics():
+    leads = get_dashboard_leads()
+    accounts = get_dashboard_accounts()
+    today = datetime.utcnow().date()
+
+    phones_today = [
+        lead for lead in leads
+        if lead.get("phone")
+        and lead.get("last_message_at")
+        and lead["last_message_at"].date() == today
+    ]
+
+    by_day = {}
+    for lead in leads:
+        created_at = lead.get("created_at")
+        if not created_at:
+            continue
+        day = created_at.date().isoformat()
+        by_day.setdefault(
+            day,
+            {"date": day, "leads": 0, "replies": 0, "phones": 0, "failures": 0},
+        )
+        by_day[day]["leads"] += 1
+        if lead.get("last_processed_message"):
+            by_day[day]["replies"] += 1
+        if lead.get("phone"):
+            by_day[day]["phones"] += 1
+        if lead.get("status") == "AI_FAILED":
+            by_day[day]["failures"] += 1
+
+    for offset in range(13, -1, -1):
+        day = (datetime.utcnow().date() - timedelta(days=offset)).isoformat()
+        by_day.setdefault(
+            day,
+            {"date": day, "leads": 0, "replies": 0, "phones": 0, "failures": 0},
+        )
+
+    return {
+        "total_leads": len(leads),
+        "total_phones": len([lead for lead in leads if lead.get("phone")]),
+        "phones_today": len(phones_today),
+        "daily_phone_target": 3,
+        "active_accounts": len([account for account in accounts if account.get("active")]),
+        "series": [by_day[day] for day in sorted(by_day.keys())[-14:]],
+    }
+
+
+@app.get("/api/logs")
+def api_logs(limit: int = 250):
+    log_path = Path("logs/openrent.log")
+    if not log_path.exists():
+        return []
+
+    lines = log_path.read_text(errors="ignore").splitlines()[-limit:]
+    results = []
+    for idx, line in enumerate(lines):
+        parts = [part.strip() for part in line.split("|", 2)]
+        if len(parts) == 3:
+            created_at, level, message = parts
+        else:
+            created_at, level, message = datetime.utcnow().isoformat(), "INFO", line
+
+        category = "worker"
+        lower = message.lower()
+        if "openai" in lower or "ai" in lower:
+            category = "ai"
+        elif "login" in lower:
+            category = "login"
+        elif "retry" in lower:
+            category = "retry"
+        elif "agent" in lower:
+            category = "agent_skip"
+
+        level = level.lower()
+        if level == "warning":
+            level = "warn"
+        if level not in {"info", "warn", "error"}:
+            level = "info"
+
+        results.append({
+            "id": f"log-{idx}",
+            "level": level,
+            "category": category,
+            "message": message,
+            "created_at": created_at,
+        })
+
+    return results

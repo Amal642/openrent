@@ -4,8 +4,34 @@ from sqlalchemy import inspect, text
 
 
 REQUIRED_COLUMNS = {
+    "accounts": {
+        "persona_name": "VARCHAR",
+        "persona_partner_name": "VARCHAR",
+        "persona_job": "VARCHAR",
+        "persona_partner_job": "VARCHAR",
+        "home_city": "VARCHAR",
+        "worker_status": "VARCHAR DEFAULT 'idle'",
+        "worker_last_heartbeat": "DATETIME",
+        "worker_last_error": "TEXT",
+        "current_worker_phase": "VARCHAR DEFAULT 'idle'",
+        "last_login_at": "DATETIME",
+    },
+    "listings": {
+        "processing_owner": "VARCHAR",
+        "processing_started_at": "DATETIME",
+    },
     "conversations": {
         "ai_error_reason": "TEXT",
+        "conversation_stage": "VARCHAR DEFAULT 'NEW_LEAD'",
+        "viewing_datetime": "DATETIME",
+        "last_stage_change": "DATETIME",
+        "phone_requested_at": "DATETIME",
+        "viewing_confirmed": "BOOLEAN DEFAULT 0",
+        "viewing_cancelled": "BOOLEAN DEFAULT 0",
+        "cancel_required": "BOOLEAN DEFAULT 1",
+        "cancellation_sent_at": "DATETIME",
+        "processing_owner": "VARCHAR",
+        "processing_started_at": "DATETIME",
     },
 }
 

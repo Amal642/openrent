@@ -9,7 +9,11 @@ from app.db.repository import (
     save_message_url,
     can_send_message,
     increment_message_count,
-    get_conversation_by_thread_id
+    get_conversation_by_thread_id,
+    claim_uncontacted_listings,
+    ensure_account_persona,
+    release_listing_claim,
+    save_message,
 )
 
 from app.openrent.popups import (close_popups, handle_confirmation_popups)
@@ -37,12 +41,18 @@ from app.openrent.landlords import landlord_is_agent
 
 async def process_account_listings(
     account,
-    page
+    page,
+    worker_id=None
 ):
 
    
 
-    listings = get_uncontacted_listings(account.id, limit=5)
+    persona = ensure_account_persona(account.id)
+    listings = claim_uncontacted_listings(
+        account.id,
+        worker_id or f"account-{account.id}",
+        limit=5
+    )
 
     if not listings:
         print("No listings to process")
@@ -150,7 +160,8 @@ async def process_account_listings(
 
             message_text, error = (
                 generate_initial_property_message(
-                    metadata
+                    metadata,
+                    persona=persona
                 )
             )
 
@@ -172,7 +183,7 @@ async def process_account_listings(
             final_url = await send_initial_message(
                 page=page,
                 message_url=full_url,
-                message_text=account.initial_message,
+                message_text=message_text,
                 metadata=metadata
             )
 
@@ -195,6 +206,7 @@ async def process_account_listings(
                     listing_id=listing.id
                 )
                 update_conversation_status(thread_id, "INITIAL_MESSAGE_SENT")
+                save_message(thread_id, "outbound", message_text)
 
                 print("Conversation created")
                 await handle_confirmation_popups(page)
@@ -209,4 +221,8 @@ async def process_account_listings(
             logger.exception(f"Processing failed for listing {listing.id}: {e}")
 
             mark_listing_failed(listing.id)
-
+        finally:
+            release_listing_claim(
+                listing.id,
+                worker_id or f"account-{account.id}"
+            )

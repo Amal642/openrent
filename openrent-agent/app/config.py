@@ -20,6 +20,7 @@ class Settings:
     PROXY_USERNAME = os.getenv("PROXY_USERNAME")
     PROXY_PASSWORD = os.getenv("PROXY_PASSWORD")
 
-    AI_AUTOSEND: bool = True
+    AI_AUTOSEND: bool = os.getenv("AI_AUTOSEND", "true").lower() == "true"
+    WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
 
 settings = Settings()

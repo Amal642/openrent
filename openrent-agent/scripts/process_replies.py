@@ -1,4 +1,22 @@
-from app.db.repository import (update_conversation_stage, save_phone_number, save_ai_reply, update_conversation_status, get_conversation_by_thread_id, update_last_processed_message, phone_exists, update_landlord_scan, attach_landlord_to_listing, mark_listing_skipped_agent)
+from app.db.repository import (
+    claim_conversation,
+    ensure_account_persona,
+    release_conversation_claim,
+    save_ai_reply,
+    save_message,
+    save_phone_number,
+    update_conversation_stage,
+    update_conversation_status,
+    get_conversation_by_thread_id,
+    update_last_processed_message,
+    phone_exists,
+    update_landlord_scan,
+    attach_landlord_to_listing,
+    mark_listing_skipped_agent,
+    mark_phone_requested,
+    save_viewing_datetime,
+    count_phones_today,
+)
 
 
 from app.openrent.inbox import (
@@ -13,7 +31,8 @@ from app.openrent.inbox import (
 )
 
 from app.ai.stages import (
-    detect_stage
+    detect_stage,
+    extract_viewing_datetime,
 )
 
 from app.ai.extractors import (
@@ -48,7 +67,8 @@ from app.db.status import (
 
 async def process_account_replies(
     account,
-    page
+    page,
+    worker_id=None
 ):
 
 
@@ -62,10 +82,16 @@ async def process_account_replies(
     logger.info(f"Found {len(threads)} reply threads")
 
     for thread in threads:
+        thread_id = None
 
         try:
 
             thread_id = thread["thread_id"]
+            owner = worker_id or f"account-{account.id}"
+
+            if not claim_conversation(thread_id, owner):
+                logger.info(f"Thread {thread_id} already claimed. Skipping.")
+                continue
 
             await open_thread(page, thread_id)
 
@@ -166,6 +192,11 @@ async def process_account_replies(
                     thread_id,
                     phone
                 )
+                phones_today = count_phones_today(account.id)
+                if phones_today >= 3:
+                    logger.info(
+                        f"Daily phone target reached for {account.email}: {phones_today}/3"
+                    )
                 update_last_processed_message(
                     thread_id,
                     latest_landlord_message
@@ -209,6 +240,11 @@ async def process_account_replies(
                         thread_id,
                         phone
                     )
+                    phones_today = count_phones_today(account.id)
+                    if phones_today >= 3:
+                        logger.info(
+                            f"Daily phone target reached for {account.email}: {phones_today}/3"
+                        )
 
                     continue
             stage = detect_stage(
@@ -225,6 +261,10 @@ async def process_account_replies(
                     thread_id,
                     stage
                 )
+                if stage == "VIEWING_BOOKED":
+                    viewing_datetime = extract_viewing_datetime(messages)
+                    if viewing_datetime:
+                        save_viewing_datetime(thread_id, viewing_datetime)
 
             if should_ai_reply(messages):
                 
@@ -256,7 +296,8 @@ async def process_account_replies(
 
                 reply,error = generate_reply(
                     messages,
-                    stage=stage
+                    stage=stage,
+                    persona=ensure_account_persona(account.id)
                 )
                 if not reply or error:
 
@@ -291,6 +332,9 @@ async def process_account_replies(
                         page,
                         reply
                     )
+                    save_message(thread_id, "outbound", reply)
+                    if stage == "VIEWING_BOOKED":
+                        mark_phone_requested(thread_id)
 
                 else:
 
@@ -320,4 +364,11 @@ async def process_account_replies(
                 e
             )
             logger.exception(f"Failed processing thread {thread_id}: {e}")
-            update_conversation_status(thread_id, AI_FAILED)
+            if thread_id:
+                update_conversation_status(thread_id, AI_FAILED)
+        finally:
+            if thread_id:
+                release_conversation_claim(
+                    thread_id,
+                    worker_id or f"account-{account.id}"
+                )
