@@ -1,23 +1,33 @@
+import re
 import time
 
-from openai import OpenAI
-from openai import RateLimitError, APIError, APITimeoutError
+from openai import APIError, APITimeoutError, OpenAI, RateLimitError
 
-from app.config import settings
 from app.ai.prompts import (
     build_cancel_viewing_prompt,
+    build_drive_distance,
     build_initial_enquiry_prompt,
     build_reply_prompt,
     names_generator,
 )
 from app.ai.validators import is_valid_reply
+from app.config import settings
 from app.utils.logger import logger
-from app.ai.functions import get_random_job
 
 client = OpenAI(
     api_key=settings.OPENAI_API_KEY,
-    timeout=25.0
+    timeout=25.0,
 )
+
+FALLBACK_DISTANT_LOCATIONS = [
+    "Manchester",
+    "Derby",
+    "Birmingham",
+    "Leicester",
+    "Nottingham",
+    "Liverpool",
+    "Sheffield",
+]
 
 
 def format_conversation(messages):
@@ -26,54 +36,6 @@ def format_conversation(messages):
         lines.append(f"{msg['sender'].upper()}: {msg['message']}")
     return "\n".join(lines)
 
-import random
-
-
-HOUSEHOLDS = {
-    1: [
-        {
-            "occupants": 1,
-            "description": "single working professional"
-        }
-    ],
-
-    2: [
-        {
-            "occupants": 2,
-            "description": "professional couple"
-        }
-    ],
-
-    3: [
-        {
-            "occupants": 3,
-            "description": "couple with one child"
-        }
-    ],
-
-    4: [
-        {
-            "occupants": 4,
-            "description": "family of four"
-        }
-    ]
-}
-
-
-def generate_household(
-    bedrooms
-):
-
-    if bedrooms <= 1:
-        return random.choice(HOUSEHOLDS[1])
-
-    if bedrooms == 2:
-        return random.choice(HOUSEHOLDS[2])
-
-    if bedrooms == 3:
-        return random.choice(HOUSEHOLDS[3])
-
-    return random.choice(HOUSEHOLDS[4])
 
 def generate_names():
     prompt = names_generator()
@@ -82,7 +44,7 @@ def generate_names():
         messages=[
             {
                 "role": "user",
-                "content": prompt
+                "content": prompt,
             }
         ],
         temperature=0.7,
@@ -99,9 +61,87 @@ def generate_names():
     return names or {"husband": "James", "wife": "Sophie"}
 
 
-def generate_reply(messages, stage=None, persona=None, retries=3, base_delay=2):
+def _fallback_distant_location(property_location):
+    if not property_location:
+        return "Manchester"
+
+    index = sum(ord(char) for char in property_location) % len(FALLBACK_DISTANT_LOCATIONS)
+    return FALLBACK_DISTANT_LOCATIONS[index]
+
+
+def _normalize_place_name(raw_value):
+    if not raw_value:
+        return None
+
+    line = str(raw_value).splitlines()[0].strip()
+    line = re.sub(r"^[^A-Za-z]+", "", line)
+    line = re.sub(r"[^A-Za-z' -]", "", line)
+    line = re.sub(r"\s+", " ", line).strip()
+
+    if not line:
+        return None
+
+    words = line.split()
+    if len(words) > 3:
+        words = words[:3]
+
+    return " ".join(word.capitalize() if word.islower() else word for word in words)
+
+
+def generate_distant_location(property_location: str, retries=3, base_delay=2) -> str:
+    prompt = build_drive_distance(property_location)
+    fallback = _fallback_distant_location(property_location)
+    last_error = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+            )
+            place = _normalize_place_name(
+                response.choices[0].message.content.strip()
+            )
+            if place:
+                return place
+            last_error = "empty_place_response"
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            last_error = str(exc)
+            logger.warning(
+                f"Distant location attempt {attempt}/{retries} failed: {exc}"
+            )
+            if attempt < retries:
+                time.sleep(base_delay * attempt)
+        except Exception as exc:
+            last_error = str(exc)
+            logger.exception(f"Unexpected distant location error: {exc}")
+            break
+
+    logger.warning(
+        f"Using fallback distant location for '{property_location}': {fallback} ({last_error})"
+    )
+    return fallback
+
+
+def generate_reply(
+    messages,
+    stage=None,
+    persona=None,
+    property_location=None,
+    retries=3,
+    base_delay=2,
+):
     conversation = format_conversation(messages)
-    prompt = build_reply_prompt(conversation, stage, persona=persona)
+    place = None
+    if stage == "VIEWING_BOOKED":
+        place = generate_distant_location(property_location or "")
+    prompt = build_reply_prompt(
+        conversation,
+        stage,
+        persona=persona,
+        place=place,
+    )
 
     last_error = None
 
@@ -121,17 +161,17 @@ def generate_reply(messages, stage=None, persona=None, retries=3, base_delay=2):
 
             return reply, None
 
-        except (RateLimitError, APITimeoutError, APIError) as e:
-            last_error = str(e)
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            last_error = str(exc)
             logger.warning(
-                f"OpenAI reply attempt {attempt}/{retries} failed: {e}"
+                f"OpenAI reply attempt {attempt}/{retries} failed: {exc}"
             )
             if attempt < retries:
                 time.sleep(base_delay * attempt)
 
-        except Exception as e:
-            last_error = str(e)
-            logger.exception(f"Unexpected AI reply error: {e}")
+        except Exception as exc:
+            last_error = str(exc)
+            logger.exception(f"Unexpected AI reply error: {exc}")
             break
 
     return None, last_error or "ai_reply_failed"
@@ -154,16 +194,16 @@ def generate_cancellation_message(messages=None, retries=3, base_delay=2):
             if not is_valid_reply(reply):
                 return None, "invalid_cancellation_reply"
             return reply, None
-        except (RateLimitError, APITimeoutError, APIError) as e:
-            last_error = str(e)
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            last_error = str(exc)
             logger.warning(
-                f"Cancellation message attempt {attempt}/{retries} failed: {e}"
+                f"Cancellation message attempt {attempt}/{retries} failed: {exc}"
             )
             if attempt < retries:
                 time.sleep(base_delay * attempt)
-        except Exception as e:
-            last_error = str(e)
-            logger.exception(f"Unexpected cancellation message error: {e}")
+        except Exception as exc:
+            last_error = str(exc)
+            logger.exception(f"Unexpected cancellation message error: {exc}")
             break
 
     return None, last_error or "cancellation_reply_failed"
@@ -173,89 +213,55 @@ def generate_initial_property_message(
     metadata,
     persona=None,
     retries=3,
-    base_delay=2
+    base_delay=2,
 ):
-
-    household = generate_household(
-        metadata.get("bedrooms", 1)
-    )
-    if persona:
-        professions = {
-            "husband": persona.get("persona_job") or get_random_job(),
-            "wife": persona.get("persona_partner_job") or get_random_job(),
-        }
-        names = {
-            "husband": persona.get("persona_name"),
-            "wife": persona.get("persona_partner_name"),
-        }
-    else:
-        professions = {
-            "husband": get_random_job(),
-            "wife": get_random_job(),
-        }
-        names = generate_names()
     prompt = build_initial_enquiry_prompt(
         metadata,
-        household,
-        names,
-        professions
+        persona or {
+            "persona_name": "James",
+            "persona_partner_name": "Sophie",
+            "persona_job": "Software Engineer",
+            "persona_partner_job": "Project Coordinator",
+            "household_description": "professional couple",
+            "message_tone": "brief, casual, realistic",
+        },
     )
 
     last_error = None
 
     for attempt in range(1, retries + 1):
-
         try:
-
             response = client.chat.completions.create(
                 model="gpt-4.1-mini",
-
                 messages=[
                     {
                         "role": "user",
-                        "content": prompt
+                        "content": prompt,
                     }
                 ],
-
                 temperature=0.8,
             )
 
-            reply = (
-                response
-                .choices[0]
-                .message.content
-                .strip()
-            )
+            reply = response.choices[0].message.content.strip()
 
             if len(reply) < 20:
                 return None, "short_reply"
 
             return reply, None
 
-        except (
-            RateLimitError,
-            APITimeoutError,
-            APIError
-        ) as e:
-
-            last_error = str(e)
-
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            last_error = str(exc)
             logger.warning(
-                f"Initial message generation failed "
-                f"{attempt}/{retries}: {e}"
+                f"Initial message generation failed {attempt}/{retries}: {exc}"
             )
-
             if attempt < retries:
                 time.sleep(base_delay * attempt)
-
-        except Exception as e:
-
-            last_error = str(e)
-
+        except Exception as exc:
+            last_error = str(exc)
             logger.exception(
-                f"Unexpected initial message error: {e}"
+                f"Unexpected initial message error: {exc}"
             )
-
             break
 
     return None, last_error
+

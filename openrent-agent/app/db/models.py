@@ -44,6 +44,7 @@ class Account(Base):
     persona_job = Column(String, nullable=True)
     persona_partner_job = Column(String, nullable=True)
     home_city = Column(String, nullable=True)
+    persona_type = Column(String, nullable=True)
 
     worker_status = Column(String, default="idle")
     worker_last_heartbeat = Column(DateTime, nullable=True)

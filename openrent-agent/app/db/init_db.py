@@ -10,6 +10,7 @@ REQUIRED_COLUMNS = {
         "persona_job": "VARCHAR",
         "persona_partner_job": "VARCHAR",
         "home_city": "VARCHAR",
+        "persona_type": "VARCHAR",
         "worker_status": "VARCHAR DEFAULT 'idle'",
         "worker_last_heartbeat": "DATETIME",
         "worker_last_error": "TEXT",

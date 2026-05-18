@@ -1,17 +1,22 @@
+import asyncio
+
 from app.ai.replies import generate_cancellation_message
+from app.browser.auth import login
+from app.browser.launcher import launch_browser
 from app.db.repository import (
     claim_conversation,
+    get_active_accounts,
     get_due_viewing_cancellations,
     mark_viewing_cancelled,
     release_conversation_claim,
     save_message,
+    update_account_worker_state,
     update_conversation_status,
 )
 from app.db.status import AI_FAILED, VIEWING_CANCELLED
 from app.openrent.inbox import extract_conversation, open_thread, send_reply
 from app.utils.human import random_sleep
 from app.utils.logger import logger
-from app.db.repository import get_active_accounts, update_account_worker_state
 
 
 async def process_account_viewing_reminders(account, page, worker_id=None):
@@ -99,7 +104,3 @@ async def process_viewing_reminders():
 
 if __name__ == "__main__":
     asyncio.run(process_viewing_reminders())
-import asyncio
-
-from app.browser.auth import login
-from app.browser.launcher import launch_browser

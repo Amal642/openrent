@@ -12,6 +12,7 @@ from app.db.models import (
     SearchProfile,
 )
 from app.db.status import VIEWING_CANCELLED
+from app.ai.personas import get_persona_template, materialize_persona, select_persona
 
 
 @contextmanager
@@ -55,6 +56,7 @@ def update_account(
     initial_message=None,
     daily_limit=None,
     active=None,
+    persona_type=None,
 ):
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
@@ -73,9 +75,17 @@ def update_account(
             account.daily_limit = daily_limit
         if active is not None:
             account.active = active
+        if persona_type is not None:
+            account.persona_type = persona_type
 
         db.commit()
 
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        return serialize_account(account) if account else None
+
+
+def get_account(account_id):
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
         return serialize_account(account) if account else None
@@ -109,46 +119,56 @@ def ensure_account_persona(account_or_id):
         if not account:
             return None
 
+        template = get_persona_template(account.persona_type) if account.persona_type else None
+        partner_required = bool(template and template["names"]["partner"])
         missing = any(
             getattr(account, field) in (None, "")
             for field in (
+                "persona_type",
                 "persona_name",
-                "persona_partner_name",
                 "persona_job",
-                "persona_partner_job",
                 "home_city",
             )
         )
+        if partner_required:
+            missing = missing or any(
+                getattr(account, field) in (None, "")
+                for field in (
+                    "persona_partner_name",
+                    "persona_partner_job",
+                )
+            )
 
         if missing:
-            try:
-                from app.ai.functions import get_random_job
-                from app.ai.replies import generate_names
-
-                generated_names = _parse_generated_names(generate_names())
-                persona_job = get_random_job()
-                partner_job = get_random_job()
-            except Exception:
-                generated_names = {"husband": "James", "wife": "Sophie"}
-                persona_job = "Software Engineer"
-                partner_job = "Chartered Accountant"
-            account.persona_name = account.persona_name or generated_names.get("husband") or "James"
-            account.persona_partner_name = (
-                account.persona_partner_name
-                or generated_names.get("wife")
-                or "Sophie"
+            selected = (
+                materialize_persona(template)
+                if template
+                else select_persona()
             )
-            account.persona_job = account.persona_job or persona_job
-            account.persona_partner_job = account.persona_partner_job or partner_job
-            account.home_city = account.home_city or "Manchester"
+            account.persona_type = account.persona_type or selected["persona_type"]
+            account.persona_name = account.persona_name or selected["persona_name"]
+            account.persona_partner_name = (
+                account.persona_partner_name or selected["persona_partner_name"]
+            )
+            account.persona_job = account.persona_job or selected["persona_job"]
+            account.persona_partner_job = (
+                account.persona_partner_job or selected["persona_partner_job"]
+            )
+            account.home_city = account.home_city or selected["home_city"]
             db.commit()
 
+        template = get_persona_template(account.persona_type) or {}
+
         return {
+            "persona_type": account.persona_type,
             "persona_name": account.persona_name,
             "persona_partner_name": account.persona_partner_name,
             "persona_job": account.persona_job,
             "persona_partner_job": account.persona_partner_job,
             "home_city": account.home_city,
+            "household_description": template.get("household_description"),
+            "message_tone": template.get("message_tone"),
+            "display_name": template.get("display_name"),
         }
 
 
@@ -158,6 +178,8 @@ def serialize_account(account):
     return {
         "id": account.id,
         "email": account.email,
+        "session_file": account.session_file,
+        "initial_message": account.initial_message,
         "daily_limit": account.daily_limit,
         "messages_sent_today": account.messages_sent_today,
         "active": account.active,
@@ -167,6 +189,10 @@ def serialize_account(account):
         "persona_job": persona["persona_job"] if persona else None,
         "persona_partner_job": persona["persona_partner_job"] if persona else None,
         "home_city": persona["home_city"] if persona else None,
+        "persona_type": persona["persona_type"] if persona else None,
+        "household_description": persona["household_description"] if persona else None,
+        "message_tone": persona["message_tone"] if persona else None,
+        "persona_label": persona["display_name"] if persona else None,
         "worker_status": account.worker_status or "idle",
         "worker_last_heartbeat": account.worker_last_heartbeat,
         "worker_last_error": account.worker_last_error,
@@ -233,6 +259,45 @@ def create_search_profile(
         db.refresh(profile)
 
         return profile
+
+
+def delete_account(account_id):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return False
+
+        profiles = (
+            db.query(SearchProfile)
+            .filter(SearchProfile.account_id == account_id)
+            .all()
+        )
+
+        for profile in profiles:
+            listings = (
+                db.query(Listing)
+                .filter(Listing.search_profile_id == profile.id)
+                .all()
+            )
+            for listing in listings:
+                conversations = (
+                    db.query(Conversation)
+                    .filter(Conversation.listing_id == listing.id)
+                    .all()
+                )
+                for conversation in conversations:
+                    (
+                        db.query(Message)
+                        .filter(Message.conversation_id == conversation.id)
+                        .delete(synchronize_session=False)
+                    )
+                    db.delete(conversation)
+                db.delete(listing)
+            db.delete(profile)
+
+        db.delete(account)
+        db.commit()
+        return True
 
 
 def get_search_profiles(account_id):
@@ -842,6 +907,19 @@ def count_phones_today(account_id=None):
         return query.count()
 
 
+def get_thread_property_location(thread_id):
+    with session_scope() as db:
+        row = (
+            db.query(SearchProfile.location)
+            .join(Listing, Listing.search_profile_id == SearchProfile.id)
+            .join(Conversation, Conversation.listing_id == Listing.id)
+            .filter(Conversation.thread_id == thread_id)
+            .first()
+        )
+
+        return row[0] if row else None
+
+
 def get_dashboard_leads(status=None):
     with session_scope() as db:
         query = (
@@ -870,6 +948,7 @@ def get_dashboard_leads(status=None):
                 "price_max": search_profile.price_max,
                 "bedrooms_min": search_profile.bedrooms_min,
                 "bedrooms_max": search_profile.bedrooms_max,
+                "area": search_profile.area,
                 "pets_allowed": search_profile.pets_allowed,
                 "status": conversation.status,
                 "conversation_stage": conversation.conversation_stage,
@@ -892,6 +971,9 @@ def get_dashboard_leads(status=None):
                     persona["persona_partner_job"] if persona else account.persona_partner_job
                 ),
                 "home_city": persona["home_city"] if persona else account.home_city,
+                "persona_type": persona["persona_type"] if persona else account.persona_type,
+                "household_description": persona["household_description"] if persona else None,
+                "message_tone": persona["message_tone"] if persona else None,
                 "created_at": conversation.created_at,
                 "last_message_at": conversation.last_message_at,
             })
@@ -920,6 +1002,7 @@ def get_dashboard_search_profiles():
                 "price_max": profile.price_max,
                 "bedrooms_min": profile.bedrooms_min,
                 "bedrooms_max": profile.bedrooms_max,
+                "area": profile.area,
                 "pets_allowed": profile.pets_allowed,
                 "active": profile.active,
                 "created_at": profile.created_at,
@@ -951,6 +1034,7 @@ def get_dashboard_search_profile(profile_id):
             "price_max": profile.price_max,
             "bedrooms_min": profile.bedrooms_min,
             "bedrooms_max": profile.bedrooms_max,
+            "area": profile.area,
             "pets_allowed": profile.pets_allowed,
             "active": profile.active,
             "created_at": profile.created_at,

@@ -3,7 +3,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
 
-engine = create_engine(settings.DATABASE_URL)
+DATABASE_URL = settings.DATABASE_URL or "sqlite:///openrent.db"
+
+engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
     autocommit=False,

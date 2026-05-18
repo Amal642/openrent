@@ -3,6 +3,7 @@ ALTER TABLE accounts ADD COLUMN persona_partner_name VARCHAR;
 ALTER TABLE accounts ADD COLUMN persona_job VARCHAR;
 ALTER TABLE accounts ADD COLUMN persona_partner_job VARCHAR;
 ALTER TABLE accounts ADD COLUMN home_city VARCHAR;
+ALTER TABLE accounts ADD COLUMN persona_type VARCHAR;
 ALTER TABLE accounts ADD COLUMN worker_status VARCHAR DEFAULT 'idle';
 ALTER TABLE accounts ADD COLUMN worker_last_heartbeat DATETIME;
 ALTER TABLE accounts ADD COLUMN worker_last_error TEXT;

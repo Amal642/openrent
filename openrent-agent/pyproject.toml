@@ -9,7 +9,9 @@ dependencies = [
     "playwright",
     "python-dotenv",
     "sqlalchemy",
-    "asyncpg"
+    "asyncpg",
+    "fastapi",
+    "uvicorn"
 ]
 
 [tool.setuptools.packages.find]

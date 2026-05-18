@@ -1,20 +1,25 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from app.db.init_db import init_db
 from app.db.repository import (
+    create_account,
+    create_search_profile,
+    deactivate_search_profile,
+    delete_account,
+    get_account,
     get_dashboard_accounts,
     get_dashboard_leads,
     get_dashboard_search_profiles,
-    create_account,
-    create_search_profile,
     update_account,
-    update_search_profile,
-    deactivate_search_profile,
     update_conversation_status,
+    update_search_profile,
 )
 from app.db.status import CLOSED, SKIPPED
 
@@ -31,7 +36,7 @@ class SearchProfilePayload(BaseModel):
     active: bool = True
 
 
-class AccountPayload(BaseModel):
+class AccountCreatePayload(BaseModel):
     email: str
     password: str = ""
     session_file: str = "session.json"
@@ -39,41 +44,77 @@ class AccountPayload(BaseModel):
     daily_limit: int = 8
     active: bool = True
 
+
+class AccountUpdatePayload(BaseModel):
+    email: str | None = None
+    password: str | None = None
+    session_file: str | None = None
+    initial_message: str | None = None
+    daily_limit: int | None = None
+    active: bool | None = None
+
+@asynccontextmanager
+async def lifespan(app_instance):
+    init_db()
+    yield
+
+
 app = FastAPI(
-    title="OpenRent Automation API"
+    title="OpenRent Automation API",
+    lifespan=lifespan,
 )
 
-# Allow frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-
     allow_credentials=True,
-
     allow_methods=["*"],
-
     allow_headers=["*"],
 )
 
+FRONTEND_DIST = (
+    Path(__file__).resolve().parents[2]
+    / "frontend"
+    / "openrent-command-center"
+    / "dist"
+)
 
-@app.get("/")
+
+def _require_account(account_id: int):
+    account = get_account(account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return account
+
+
+def _serve_frontend_asset(full_path: str = "index.html"):
+    target = (FRONTEND_DIST / full_path).resolve()
+    if FRONTEND_DIST.exists() and target.exists() and target.is_file():
+        return FileResponse(target)
+
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+
+    return JSONResponse(
+        {
+            "status": "frontend_not_built",
+            "message": "Build frontend/openrent-command-center to serve the dashboard.",
+        },
+        status_code=503,
+    )
+
+
+@app.get("/api/health")
 def health():
-
     return {
         "status": "running"
     }
 
 
 @app.get("/api/leads")
-def api_leads(
-    status: str = None
-):
-
-    leads = get_dashboard_leads(
-        status=status
-    )
-
-    return leads
+def api_leads(status: str = None):
+    return get_dashboard_leads(status=status)
 
 
 @app.get("/api/accounts")
@@ -83,6 +124,7 @@ def api_accounts():
 
 @app.post("/api/accounts/{account_id}/run")
 def api_run_account(account_id: int, background_tasks: BackgroundTasks):
+    _require_account(account_id)
     from app.workers.account_worker import run_one_account_by_id
 
     background_tasks.add_task(run_one_account_by_id, account_id)
@@ -90,7 +132,7 @@ def api_run_account(account_id: int, background_tasks: BackgroundTasks):
 
 
 @app.post("/api/accounts")
-def api_create_account(payload: AccountPayload):
+def api_create_account(payload: AccountCreatePayload):
     account = create_account(
         email=payload.email,
         password=payload.password,
@@ -105,27 +147,50 @@ def api_create_account(payload: AccountPayload):
 
 
 @app.patch("/api/accounts/{account_id}")
-def api_update_account(account_id: int, payload: AccountPayload):
-    return update_account(
+def api_update_account(account_id: int, payload: AccountUpdatePayload):
+    _require_account(account_id)
+    account = update_account(
         account_id=account_id,
         email=payload.email,
-        password=payload.password or None,
+        password=payload.password,
         session_file=payload.session_file,
         initial_message=payload.initial_message,
         daily_limit=payload.daily_limit,
         active=payload.active,
     )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return account
+
+
+@app.post("/api/accounts/{account_id}/toggle")
+def api_toggle_account(account_id: int):
+    account = _require_account(account_id)
+    updated = update_account(
+        account_id=account_id,
+        active=not account["active"],
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return updated
+
+
+@app.delete("/api/accounts/{account_id}")
+def api_delete_account(account_id: int):
+    _require_account(account_id)
+    deleted = delete_account(account_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"account_id": account_id, "deleted": True}
 
 
 @app.get("/api/search-profiles")
 def api_search_profiles():
-
     return get_dashboard_search_profiles()
 
 
 @app.post("/api/search-profiles")
 def api_create_search_profile(payload: SearchProfilePayload):
-
     profile = create_search_profile(
         account_id=payload.account_id,
         location=payload.location,
@@ -134,22 +199,18 @@ def api_create_search_profile(payload: SearchProfilePayload):
         bedrooms_min=payload.bedrooms_min,
         bedrooms_max=payload.bedrooms_max,
         area=payload.area,
-        pets_allowed=payload.pets_allowed
+        pets_allowed=payload.pets_allowed,
     )
 
     return update_search_profile(
         profile_id=profile.id,
-        active=payload.active
+        active=payload.active,
     )
 
 
 @app.patch("/api/search-profiles/{profile_id}")
-def api_update_search_profile(
-    profile_id: int,
-    payload: SearchProfilePayload
-):
-
-    return update_search_profile(
+def api_update_search_profile(profile_id: int, payload: SearchProfilePayload):
+    profile = update_search_profile(
         profile_id=profile_id,
         account_id=payload.account_id,
         location=payload.location,
@@ -159,16 +220,19 @@ def api_update_search_profile(
         bedrooms_max=payload.bedrooms_max,
         area=payload.area,
         pets_allowed=payload.pets_allowed,
-        active=payload.active
+        active=payload.active,
     )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Search profile not found")
+    return profile
 
 
 @app.delete("/api/search-profiles/{profile_id}")
 def api_delete_search_profile(profile_id: int):
-
-    return deactivate_search_profile(
-        profile_id=profile_id
-    )
+    profile = deactivate_search_profile(profile_id=profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Search profile not found")
+    return profile
 
 
 @app.post("/api/leads/{thread_id}/complete")
@@ -272,3 +336,15 @@ def api_logs(limit: int = 250):
         })
 
     return results
+
+
+@app.get("/")
+def dashboard_index():
+    return _serve_frontend_asset()
+
+
+@app.get("/{full_path:path}")
+def dashboard_asset(full_path: str):
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found")
+    return _serve_frontend_asset(full_path)

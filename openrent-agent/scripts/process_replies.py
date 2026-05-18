@@ -16,6 +16,7 @@ from app.db.repository import (
     mark_phone_requested,
     save_viewing_datetime,
     count_phones_today,
+    get_thread_property_location,
 )
 
 
@@ -297,7 +298,8 @@ async def process_account_replies(
                 reply,error = generate_reply(
                     messages,
                     stage=stage,
-                    persona=ensure_account_persona(account.id)
+                    persona=ensure_account_persona(account.id),
+                    property_location=get_thread_property_location(thread_id),
                 )
                 if not reply or error:
 
@@ -328,10 +330,18 @@ async def process_account_replies(
                     print("\nAUTO-SEND ENABLED")
                     logger.info(f"Auto-send enabled for thread {thread_id}")
 
-                    await send_reply(
+                    sent = await send_reply(
                         page,
                         reply
                     )
+                    if not sent:
+                        logger.warning(f"Reply send failed for thread {thread_id}")
+                        update_conversation_status(
+                            thread_id,
+                            AI_FAILED
+                        )
+                        continue
+
                     save_message(thread_id, "outbound", reply)
                     if stage == "VIEWING_BOOKED":
                         mark_phone_requested(thread_id)
