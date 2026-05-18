@@ -1,192 +1,229 @@
-# To Fix — Audit Issues
+# To Fix - Current Audit Issues
 
 ## Critical
 
-### 1. `generate_reply()` tuple never unpacked
-**File:** `scripts/process_replies.py:241-244`
+### 1. Standalone viewing-cancellation worker can crash at runtime
+**File:** `scripts/process_viewing_reminders.py`
 
-`generate_reply()` always returns a `(reply, error)` tuple. The caller treats it as a plain string:
+The module calls:
 
 ```python
-reply = generate_reply(messages)
-if not reply:   # tuple is always truthy — never fires
+if __name__ == "__main__":
+    asyncio.run(process_viewing_reminders())
 ```
 
-When it "works", `reply` is `("Hi there...", None)` — that tuple representation gets saved to the DB and typed literally into the message box.
+before importing `asyncio`, `login`, and `launch_browser`.
 
-**Fix:** Unpack the return value:
-```python
-reply, error = generate_reply(messages)
-if not reply:
-    # handle error
-```
+`process_viewing_reminders()` uses `launch_browser()` and `login()`, so running this file directly can fail with `NameError` depending on execution order.
+
+**Fix:**
+- Move all imports to the top of the file.
+- Keep the `if __name__ == "__main__":` block at the very end after imports and function definitions.
 
 ---
 
-### 2. AI reply never actually sent
-**File:** `app/openrent/inbox.py:321-324`
+### 2. Failed reply sends are still recorded as successful
+**File:** `scripts/process_replies.py`
 
-Submit button click is commented out and never re-enabled:
+The code does:
 
 ```python
-# TEST MODE
-# await submit_button.click()
-print("AI reply ready")
-return True
+await send_reply(page, reply)
+save_message(thread_id, "outbound", reply)
+update_conversation_status(thread_id, AI_REPLIED)
 ```
 
-Every `AI_REPLIED` status in the DB is a lie — the system types the reply but never submits it.
+But `send_reply()` returns `False` when the textarea or send button is disabled. That return value is ignored. If sending fails, the DB still records the message as sent and marks the thread `AI_REPLIED`.
 
-**Fix:** Uncomment `await submit_button.click()` and remove the TEST MODE comment.
+**Fix:**
+- Capture the return value from `send_reply()`.
+- Only call `save_message()`, `save_ai_reply()`, `mark_phone_requested()`, and `update_conversation_status(..., AI_REPLIED)` if the send actually succeeds.
+- Record a failure status when the UI send fails.
 
 ---
 
-### 3. Duplicate column drops `unique=True` constraint
-**File:** `app/db/models.py:130` and `145-148`
+### 3. Reply strategy still asks for phone too early
+**Files:** `app/ai/prompts.py`
 
-`extracted_phone` is defined twice on the `Conversation` model. The second definition overwrites the first, silently dropping `unique=True`:
+The SOP says:
+- book the viewing first
+- ask for phone only after the viewing is booked
 
-```python
-extracted_phone = Column(String, unique=True, nullable=True)  # line 130 — overwritten
-...
-extracted_phone = Column(String, nullable=True)               # line 145 — wins
-```
+Current prompts still violate that:
+- `build_initial_enquiry_prompt()` tells the model to ask for the landlord's phone number in the first message.
+- `build_reply_prompt()` for non-booked stages says to "Arrange a viewing and ask for phone number naturally".
 
-No DB-level uniqueness is enforced. The app-level `phone_exists()` check is the only guard, and it's a race condition under concurrent workers.
+This means the stage-aware behavior is only partially implemented.
 
-**Fix:** Remove the second definition (lines 145-148). Keep the one on line 130 with `unique=True`.
+**Fix:**
+- Remove phone-number requests from the initial enquiry prompt.
+- Remove phone-number requests from non-booked reply stages.
+- Keep phone asking only in the `VIEWING_BOOKED` path.
 
 ---
 
-### 4. `Landlord` model not imported in repository.py (dormant)
-**File:** `app/db/repository.py:1-9`
+### 4. Stage detection and viewing-time extraction are too unreliable for automation
+**File:** `app/ai/stages.py`
 
-`get_or_create_landlord()` and `update_landlord_scan()` reference the `Landlord` model but it is not in the import block. Currently safe because the call sites in `process_replies.py` are commented out — enabling agent-filtering logic would immediately crash with `NameError`.
+Problems:
+- `detect_stage()` scans the entire conversation history, so one old "confirmed" or "see you" can keep a thread in `VIEWING_BOOKED` forever.
+- `extract_viewing_datetime()` grabs the first time-like token anywhere in the thread, not necessarily the booked appointment.
 
-**Fix:** Add `Landlord` to the import:
-```python
-from app.db.models import (
-    Account,
-    SearchProfile,
-    Listing,
-    Conversation,
-    Message,
-    Landlord  # add this
-)
-```
+This can produce:
+- wrong `conversation_stage`
+- wrong `viewing_datetime`
+- mistimed phone requests
+- mistimed cancellations
+
+**Fix:**
+- Base stage detection on recent landlord/user turns, not the whole thread blindly.
+- Extract viewing time from the specific booking exchange, not the first regex hit in the full conversation.
+- Add tests covering re-scheduling, old booked messages, and multiple times in one thread.
 
 ---
 
 ## High
 
-### 5. All repository functions leak DB sessions on exception
-**File:** `app/db/repository.py` — every function
+### 5. Bedroom detection is semantically wrong on many listings
+**File:** `app/openrent/messaging.py`
 
-No `try/finally` anywhere. Pattern throughout:
+`extract_listing_metadata()` currently prefers:
+
 ```python
-db = SessionLocal()
-# ... operations that can throw ...
-db.close()  # never reached if exception occurs
+r"Max Tenants:</span>\s*(\d+)"
 ```
 
-Under production load, exceptions will exhaust the connection pool and hang the app.
+and uses that as `bedrooms`.
 
-**Fix:** Wrap every function body with `try/finally`, or use a context manager:
-```python
-db = SessionLocal()
-try:
-    # ... operations ...
-    db.commit()
-    return result
-finally:
-    db.close()
-```
+`Max Tenants` is not the same as bedroom count. That will feed the wrong value into `generate_household()` and produce the wrong persona/household wording.
+
+**Fix:**
+- Parse actual bedroom count first.
+- Treat max tenants as a separate field if needed, not as `bedrooms`.
 
 ---
 
-### 6. Phone regex misses spaced UK numbers — most phones are skipped
-**File:** `app/ai/extractors.py:15-35`
+### 6. Two Type 2 form mappings are still unverified and may be wrong
+**File:** `app/openrent/messaging.py`
 
-Pattern `07\d{9}` requires 9 digits immediately after `07`. Real messages contain `07777 123 456` or `07777-123-456`. The function doesn't strip non-digit characters before matching, so the majority of valid UK numbers fail regex and fall through to the slower, costlier AI extraction.
+Unresolved mappings:
+- `ScreeningInfo.HasRightToRent = true` is being used for the SOP item "tenancy >= 6 months", but that field name sounds like immigration status, not tenancy duration.
+- Furnishing uses `value="2"` with no proof that it means "I don't mind".
 
-Compare to the unused implementation in `app/openrent/inbox.py:218-220` which correctly does:
-```python
-cleaned = re.sub(r"[^\d+]", "", combined_text)
-```
+These are not patched; they are only hardcoded guesses.
 
-**Fix:** Pre-clean the text in `regex_extract_phone()`:
-```python
-def regex_extract_phone(messages):
-    combined = "\n".join(messages)
-    cleaned = re.sub(r"[^\d+]", "", combined)  # strip spaces/dashes
-    patterns = [...]
-    for pattern in patterns:
-        match = re.search(pattern, cleaned)
-        ...
-```
+**Fix:**
+- Verify the actual OpenRent field names/options against the live form or a captured DOM snapshot.
+- Replace magic values with selectors based on actual labels if possible.
+- Document the confirmed mapping in code comments.
 
 ---
 
-### 7. `ai_extract_phone()` has no error handling
-**File:** `app/ai/extractors.py:38-68`
+### 7. Daily phone-target tracking can undercount real leads
+**File:** `app/db/repository.py`
 
-The OpenAI call has no try/except, no retry, no timeout. Any API error (rate limit, timeout, network blip) raises an unhandled exception. The outer try/except in `process_replies.py:299` catches it but marks the thread `AI_FAILED` with no context — indistinguishable from a logic failure.
+`count_phones_today()` filters by:
 
-Compare to `generate_reply()` which has proper 3-attempt retry with exponential backoff.
+```python
+Conversation.last_message_at >= start
+```
 
-**Fix:** Add retry logic or at minimum a try/except that returns `None` on API errors, same pattern as `generate_reply()`.
+But `save_phone_number()` does not update `last_message_at`. If a phone is extracted today from an older thread, it may not count toward today's target.
+
+**Fix:**
+- Track phone acquisition time explicitly, e.g. `phone_found_at`.
+- Or update a dedicated timestamp when `save_phone_number()` runs.
+- Count daily leads using that timestamp instead of `last_message_at`.
+
+---
+
+### 8. Agent-detection failure defaults to contacting the landlord
+**File:** `app/openrent/landlords.py`
+
+If landlord ID extraction fails, `landlord_is_agent()` returns `False`, which means "not an agent". Operationally that is unsafe: scraping failure becomes permission to contact.
+
+**Fix:**
+- Return a tri-state result (`agent`, `not_agent`, `unknown`) or raise a handled exception.
+- Decide explicitly whether `unknown` should skip or retry rather than silently proceed.
 
 ---
 
 ## Medium
 
-### 8. Inbox page 0 fetched twice on every run
-**File:** `app/openrent/inbox.py:117-127`
+### 9. `send_initial_message()` is brittle around textarea/button selection
+**File:** `app/openrent/messaging.py`
 
-Page 0 is loaded before the loop to get the total page count, then loaded again on the first loop iteration (`page_num=0`, `start=0`):
+Problems:
+- It grabs the first `textarea` on the page.
+- It only submits buttons containing `"request viewing"`.
+- The fallback textarea lookup repeats the same selector and adds no resilience.
 
-```python
-await open_inbox_page(page, start=0)       # fetch page 0
-total_pages = await get_total_pages(page)
-for page_num in range(total_pages):
-    start = page_num * 10
-    await open_inbox_page(page, start=start)  # fetches page 0 again first
-    threads = await extract_reply_threads(page)
-```
+This is fragile if OpenRent changes markup or if there are multiple textareas/buttons.
 
-**Fix:** Extract threads from the already-loaded first page before entering the loop, then loop from page 1 onwards.
+**Fix:**
+- Use more specific selectors for the message box.
+- Broaden submit detection to support alternate button text if OpenRent changes wording.
+- Remove duplicate fallback code and replace it with meaningful locator logic.
+
+---
+
+### 10. Skipped listings are marked as processing failures
+**Files:** `scripts/process_listings.py`, `app/db/repository.py`
+
+Agent skips and generic skips currently set `processing_failed = True`.
+
+That mixes business-rule skips with actual failures, which pollutes reporting and makes retry logic harder to reason about.
+
+**Fix:**
+- Separate skip state from failure state.
+- Use `skip_reason` plus a non-failure terminal state for agents/non-contactable cases as appropriate.
+
+---
+
+### 11. Test coverage is effectively absent for the audited paths
+**Files:** `tests/*`, `scripts/test_*.py`
+
+Current state:
+- several test files are empty
+- `pytest -q` fails during collection because `scripts/test_inbox.py` and `scripts/test_search.py` cannot import `app`
+
+That means there is no reliable regression suite for the messaging, stage, and reminder logic.
+
+**Fix:**
+- Fix test import/package configuration so `pytest` can run.
+- Add focused tests for:
+  - stage detection
+  - viewing datetime extraction
+  - prompt stage behavior
+  - phone lead counting
+  - send-failure handling
 
 ---
 
 ## Low
 
-### 9. Duplicate import of `send_reply`
-**File:** `scripts/process_replies.py:4-25`
+### 12. `process_replies.py` has stale imports and commented-out dead paths
+**File:** `scripts/process_replies.py`
 
-`send_reply` is imported from `app.openrent.inbox` twice — once in the first import block and again on line 23.
+The file imports items that are currently unused and contains a block of commented-out landlord/agent logic. It makes the control flow harder to review and hides what is actually live.
 
-**Fix:** Remove the duplicate import.
+**Fix:**
+- Remove unused imports.
+- Delete dead commented-out code or move it into a tracked backlog item if it is still planned.
 
 ---
 
-### 10. Unreachable dead code — duplicate submit button check
-**File:** `app/openrent/messaging.py:104-108`
+### 13. Logging severity is inconsistent in a few places
+**File:** `scripts/process_listings.py`
+
+Example:
 
 ```python
-if not submit_button:
-    raise Exception("Correct submit button not found")
-
-if not submit_button:   # identical check, unreachable
-    raise Exception("Submit button not found")
+logger.exception(f"Daily limit reached for account {account.id}")
 ```
 
-**Fix:** Delete lines 107-108.
+That is not an exception condition; it is normal flow. Using `logger.exception()` produces misleading stack traces/noise.
 
----
+**Fix:**
+- Replace normal-flow `logger.exception()` calls with `logger.info()` or `logger.warning()` as appropriate.
 
-### 11. Two phone extraction implementations — one unused, one buggy
-**Files:** `app/openrent/inbox.py:211-238` and `app/ai/extractors.py:15-35`
-
-Two separate `extract_phone_number` functions exist. The one in `inbox.py` pre-strips non-digit characters (correct). The one in `extractors.py` doesn't (buggy — see issue #6). The correct `inbox.py` version is never called anywhere.
-
-**Fix:** Delete the function in `inbox.py:211-238` after fixing `extractors.py` (issue #6). One implementation, done correctly.
