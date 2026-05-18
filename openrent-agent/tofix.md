@@ -50,7 +50,7 @@ The SOP says:
 - ask for phone only after the viewing is booked
 
 Current prompts still violate that:
-- `build_initial_enquiry_prompt()` tells the model to ask for the landlord's phone number in the first message.
+- `build_initial_enquiry_prompt()` includes phone-number-asking language, meaning the model may ask for it during the initial enquiry before any viewing is booked.
 - `build_reply_prompt()` for non-booked stages says to "Arrange a viewing and ask for phone number naturally".
 
 This means the stage-aware behavior is only partially implemented.
