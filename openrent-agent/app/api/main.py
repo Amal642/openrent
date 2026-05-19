@@ -64,6 +64,7 @@ class SimulationRunPayload(BaseModel):
     initial_message_source: str | None = None
     account_id: int | None = None
     initial_message: str | None = None
+    conversation_design_id: str | None = None
 
 
 class InteractiveStartPayload(BaseModel):
@@ -73,10 +74,18 @@ class InteractiveStartPayload(BaseModel):
     initial_message_source: str | None = None
     account_id: int | None = None
     initial_message: str | None = None
+    conversation_design_id: str | None = None
 
 
 class InteractiveMessagePayload(BaseModel):
     message: str
+
+
+class CompareDesignsPayload(BaseModel):
+    scenario_id: str | None = None
+    initial_landlord_message: str | None = None
+    conversation_design_ids: list[str]
+    max_turns: int = 1
 
 @asynccontextmanager
 async def lifespan(app_instance):
@@ -377,6 +386,33 @@ def simulation_run(payload: SimulationRunPayload):
         initial_message_source=payload.initial_message_source,
         account_id=payload.account_id,
         initial_message=payload.initial_message,
+        conversation_design_id=payload.conversation_design_id,
+    )
+
+
+@app.get("/simulation/conversation-designs")
+def simulation_conversation_designs():
+    from simulation.conversation_designs import list_conversation_designs
+
+    return list_conversation_designs()
+
+
+@app.get("/simulation/scenarios")
+def simulation_scenarios():
+    from simulation.scenario_library import list_conversation_scenarios
+
+    return list_conversation_scenarios()
+
+
+@app.post("/simulation/compare-designs")
+def simulation_compare_designs(payload: CompareDesignsPayload):
+    from simulation.compare import compare_conversation_designs
+
+    return compare_conversation_designs(
+        scenario_id=payload.scenario_id,
+        initial_landlord_message=payload.initial_landlord_message,
+        conversation_design_ids=payload.conversation_design_ids,
+        max_turns=payload.max_turns,
     )
 
 
@@ -412,6 +448,7 @@ def simulation_interactive_start(payload: InteractiveStartPayload):
         initial_message_source=payload.initial_message_source,
         account_id=payload.account_id,
         initial_message=payload.initial_message,
+        conversation_design_id=payload.conversation_design_id,
     )
 
 

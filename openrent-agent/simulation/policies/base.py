@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass
 class AgentPolicy:
     policy_id: str
     model: str
     temperature: float
+    conversation_design_id: str | None = None
+    conversation_design: dict | None = None
+    persona: dict | None = None
     allow_phone_request: bool = True
     allow_negotiation: bool = False
     max_followups: int = 1

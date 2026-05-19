@@ -1,79 +1,65 @@
 # OpenRent Agent
 
-OpenRent Agent automates the OpenRent workflow with Playwright browser control, a FastAPI backend, OpenAI-generated messaging, and a React command center for operations.
+OpenRent Agent is a FastAPI, Playwright, OpenAI, and React project for managing OpenRent outreach, replies, lead status, and simulation-based conversation testing.
+
+The current development focus is the simulation lab: a separate UI for testing landlord conversations, comparing AI conversation designs, and auditing how the model progresses toward viewing coordination and phone-number capture.
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| API + dashboard serving | FastAPI |
-| Browser automation | Playwright |
-| Database | SQLAlchemy |
-| AI messaging | OpenAI API |
-| Frontend | React + Vite |
-| Config | python-dotenv |
+| Area | Technology |
+| --- | --- |
+| API | FastAPI |
+| Automation | Playwright |
+| Database | SQLAlchemy + SQLite/Postgres |
+| AI replies | OpenAI API |
+| Main dashboard | React + Vite |
+| Simulation lab | React + Vite |
+| Tests | pytest |
 
 ## Project Layout
 
 ```text
 openrent-agent/
-├── app/
-│   ├── ai/                # prompts, personas, reply generation
-│   ├── api/               # FastAPI app
-│   ├── browser/           # Playwright launch + login
-│   ├── db/                # models, repository, init_db
-│   ├── dashboard/         # legacy Flask/Jinja dashboard
-│   └── openrent/          # platform interactions
-├── frontend/
-│   └── openrent-command-center/   # React/Vite command center
-├── scripts/
-│   ├── process_listings.py
-│   ├── process_replies.py
-│   ├── process_viewing_reminders.py
-│   ├── run_workers.py
-│   └── run_dashboard.py   # legacy Flask entrypoint
-└── tests/
+  app/
+    ai/                         Prompt and reply generation
+    api/                        FastAPI application
+    browser/                    Playwright browser/session helpers
+    db/                         Database models and repository
+    openrent/                   OpenRent platform workflow code
+  frontend/
+    openrent-command-center/    Main operations dashboard
+    simulation-lab/             Conversation testing and audit UI
+  scripts/                      Worker and one-off operational scripts
+  simulation/
+    compare.py                  Compare conversation designs
+    conversation_designs.py     Design metadata: names, opening messages, success/failure criteria
+    conversation_state.py       Deterministic transcript state analyzer
+    scenario_library.py         Reusable landlord test scenarios
+    evaluators/                 Heuristic scorecards
+    sessions/                   Session artifacts, store, transcript models
+    templates/                  Initial-message providers
+  tests/
 ```
 
-## Prerequisites
+## Setup
 
-- Python 3.11+
-- Node.js 18+
-- An OpenAI API key
-- Chromium installed through Playwright
-
-## Install
+From `openrent-agent/`:
 
 ```powershell
-cd openrent-agent
 python -m pip install -r requirements.txt
-python -m pip install sqlalchemy fastapi uvicorn playwright
 playwright install chromium
 ```
 
-## Environment
-
-Create `.env` in `openrent-agent/`.
-
-Minimum local setup:
+Create `.env` from `.env.example` and set at least:
 
 ```env
 DATABASE_URL=sqlite:///openrent.db
 OPENAI_API_KEY=sk-...
 HEADLESS=false
 AI_AUTOSEND=false
-WORKER_TICK_SECONDS=300
 ```
 
-Notes:
-
-- `DATABASE_URL` can be SQLite for local use or Postgres for production.
-- `HEADLESS=false` is recommended while testing Playwright flows.
-- `AI_AUTOSEND=false` is recommended while validating prompts and reply behavior.
-
-## Running
-
-### 1. Start the API and dashboard
+## Run API
 
 From `openrent-agent/`:
 
@@ -81,48 +67,108 @@ From `openrent-agent/`:
 uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open:
+Useful endpoints:
 
 ```text
-http://127.0.0.1:8000
+GET  /api/health
+GET  /simulation/conversation-designs
+GET  /simulation/scenarios
+POST /simulation/compare-designs
+POST /simulation/interactive/start
+POST /simulation/interactive/{session_id}/message
 ```
 
-This serves the built React command center from `frontend/openrent-command-center/dist`.
+## Run Simulation Lab
 
-### 2. Run the React app in dev mode
-
-If you want live frontend development instead of serving the built files:
+From `openrent-agent/frontend/simulation-lab/`:
 
 ```powershell
-cd frontend\openrent-command-center
 npm install
 npm run dev
 ```
 
-Then open the Vite URL, usually:
+Open the Vite URL, usually:
 
 ```text
-http://127.0.0.1:5174
+http://127.0.0.1:5173
 ```
 
-The Vite dev server proxies `/api` to `http://127.0.0.1:8000`.
+The simulation lab supports:
 
-### 3. Run the workers
+- Audit mode for client/tester-facing transcript review.
+- Dev mode for internal logs, prompts, completions, runtime context, and event timelines.
+- Interactive sessions where the AI starts as the renter and testers reply as the landlord.
+- Conversation design selection, including `viewing_first_v1` and `phone_first_v1`.
+- Compare mode for running the same landlord scenario against multiple AI designs.
+- Conversation state tracking for viewing progress, screening, coordination, early phone asks, refusals, and stalls.
 
-In another terminal:
+## Conversation Design Testing
+
+**AI reply behavior** (the rules that control how the AI responds during a conversation) lives exclusively in:
+
+```text
+app/ai/prompts.py  →  _DESIGN_RULES dict
+```
+
+Each conversation design has its reply rules embedded there, keyed by design ID. This is the single source of truth for AI behavior in the simulation lab.
+
+**Conversation design metadata** (names, opening messages, success/failure criteria) lives in:
+
+```text
+simulation/conversation_designs.py
+```
+
+This file defines what each design is called and how sessions start — it does not control how the AI replies.
+
+Static landlord scenarios live in:
+
+```text
+simulation/scenario_library.py
+```
+
+Current seeded scenarios:
+
+- `normal_viewing_offer`
+- `screening_before_viewing`
+- `phone_refusal_before_viewing`
+- `asks_for_tenant_phone_early`
+- `vague_landlord_reply`
+- `viewing_confirmed_then_coordination`
+
+The current preferred strategy is `viewing_first_v1`:
+
+- Move toward arranging a viewing first.
+- Answer screening questions naturally and briefly.
+- Do not ask for phone before viewing progress.
+- Ask for phone only when coordination is reasonable.
+- Sound like a real person texting — never robotic or scripted.
+
+## Run Main Dashboard
+
+From `openrent-agent/frontend/openrent-command-center/`:
 
 ```powershell
-cd openrent-agent
+npm install
+npm run dev
+```
+
+For production serving, build the dashboard and run the FastAPI app:
+
+```powershell
+npm run build
+cd ..\..
+uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+## Run Workers
+
+From `openrent-agent/`:
+
+```powershell
 python scripts\run_workers.py
 ```
 
-This runs per-account workers for:
-
-- listing processing
-- reply processing
-- viewing reminder cancellations
-
-### 4. Run one-off scripts
+One-off scripts:
 
 ```powershell
 python scripts\process_listings.py
@@ -130,57 +176,31 @@ python scripts\process_replies.py
 python scripts\process_viewing_reminders.py
 ```
 
-## Database
+## Tests
 
-The FastAPI app initializes the schema on startup automatically.
-
-If you want to initialize it manually:
+Backend simulation/API tests:
 
 ```powershell
-python -m app.db.init_db
+pytest openrent-agent/tests/simulation openrent-agent/tests/test_simulation_api.py openrent-agent/tests/test_prompt_persona_flow.py
 ```
 
-## Testing
-
-Run the focused tests added for the current command center and prompt flow:
+Simulation lab build:
 
 ```powershell
-pytest -q tests\test_prompt_persona_flow.py tests\test_api_command_center.py
-```
-
-Build the frontend:
-
-```powershell
-cd frontend\openrent-command-center
+cd openrent-agent/frontend/simulation-lab
 npm run build
 ```
 
-## Current UI
+Main dashboard build:
 
-The React command center includes:
+```powershell
+cd openrent-agent/frontend/openrent-command-center
+npm run build
+```
 
-- Accounts
-  - create
-  - edit
-  - delete
-  - toggle active
-  - run account
-- Search Profiles
-  - create
-  - edit
-  - deactivate
-- Leads
-  - filter by status
-  - mark complete
-  - mark skipped
-- Metrics
-  - summary cards
-  - 14-day chart
-- Logs
-  - recent operational log stream
+## Notes
 
-## Important Notes
-
-- `app/dashboard/` and `scripts/run_dashboard.py` are legacy Flask/Jinja dashboard code. The primary UI is now the FastAPI-served React command center.
-- The API expects valid OpenRent account records in the database before the workers can do useful work.
-- The frontend folder `frontend/openrent-command-center` is currently tracked oddly in git in the parent repo. That does not block local running, but it may affect committing from the parent repository until the git metadata is cleaned up.
+- The simulation lab is intentionally separate from the main operations dashboard.
+- Generated simulation run artifacts and frontend dependency folders should not be committed.
+- Testers are currently treated as trusted users, so the lab can show shared session history.
+- Dev mode may expose prompts, completions, event logs, and runtime context. Use audit mode for client-facing testing.

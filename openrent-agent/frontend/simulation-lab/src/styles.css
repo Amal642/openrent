@@ -319,6 +319,10 @@ p {
   margin-bottom: 16px;
 }
 
+.metric-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .metric-card {
   display: grid;
   gap: 6px;
@@ -336,6 +340,55 @@ p {
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.design-check-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-bright);
+}
+
+.compare-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.compare-card {
+  background: #11161d;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.mini-transcript {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-transcript p {
+  color: var(--text-bright);
+}
+
+.signal-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signal-pill {
+  padding: 4px 8px;
+  border: 1px solid rgba(126, 231, 135, 0.25);
+  border-radius: 999px;
+  background: rgba(126, 231, 135, 0.08);
+  color: #b9f6c1;
+  font-size: 12px;
 }
 
 @media (max-width: 980px) {

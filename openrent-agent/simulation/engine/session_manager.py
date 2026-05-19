@@ -2,6 +2,8 @@ import re
 import time
 
 from app.ai.replies import generate_reply_result
+from simulation.conversation_designs import get_conversation_design
+from simulation.conversation_state import analyze_conversation_state
 from simulation.evaluators.heuristic import HeuristicEvaluator
 from simulation.observability.metrics import MetricsCollector
 from simulation.observability.token_usage import usage_from_result
@@ -154,6 +156,12 @@ def build_session(
     observability,
 ):
     transcript = project_transcript(event_bus.events)
+    design_id = context.flags.get("conversation_design_id")
+    design = get_conversation_design(design_id)
+    conversation_state = analyze_conversation_state(
+        transcript,
+        design.design_id,
+    ).to_dict()
     replay_output = format_replay(
         event_bus.events,
         transcript,
@@ -165,6 +173,8 @@ def build_session(
         start_mode=scenario.start_mode,
         initial_message_source=context.flags.get("initial_message_source"),
         initial_message=context.memory.get("initial_agent_message"),
+        conversation_design_id=design.design_id,
+        conversation_design_name=design.name,
         scenario_id=scenario.scenario_id,
         actor_id=actor.profile.actor_id,
         policy_id=policy.policy_id,
@@ -173,6 +183,7 @@ def build_session(
         transcript=transcript,
         events=event_bus.events,
         evaluation=evaluation,
+        conversation_state=conversation_state,
         runtime_context=context.snapshot(),
         replay_output=replay_output,
         observability=observability,

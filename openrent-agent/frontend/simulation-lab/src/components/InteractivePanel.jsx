@@ -7,6 +7,7 @@ const DEFAULT_FORM = {
   policy_id: "production-policy-v1",
   start_mode: "agent_starts",
   initial_message_source: "fixture",
+  conversation_design_id: "viewing_first_v1",
   account_id: "",
   initial_message: "",
 };
@@ -16,6 +17,7 @@ export default function InteractivePanel({
   onStart,
   onSend,
   auditMode = false,
+  conversationDesigns = [],
 }) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [message, setMessage] = useState("");
@@ -49,6 +51,7 @@ export default function InteractivePanel({
           form.start_mode === "agent_starts" && form.initial_message
             ? form.initial_message
             : undefined,
+        conversation_design_id: form.conversation_design_id,
       });
     } catch (startError) {
       setError(startError.message);
@@ -81,8 +84,25 @@ export default function InteractivePanel({
           <form className="stack" onSubmit={handleStart}>
             <div className="status">
               Start a shared audit session. The AI sends the opening tenant message first,
-              then respond as the landlord to test how the model handles phone-number capture.
+              then respond as the landlord to test the selected conversation design.
             </div>
+            <label className="field">
+              <span>Conversation Design</span>
+              <select
+                name="conversation_design_id"
+                value={form.conversation_design_id}
+                onChange={updateField}
+              >
+                {(conversationDesigns.length
+                  ? conversationDesigns
+                  : [{ id: "viewing_first_v1", name: "Viewing first" }]
+                ).map((design) => (
+                  <option key={design.id} value={design.id}>
+                    {design.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button className="primary-button" type="submit" disabled={starting}>
               {starting ? "Starting..." : "Start Audit Session"}
             </button>
@@ -106,6 +126,23 @@ export default function InteractivePanel({
                 <option value="production-policy-v1">production-policy-v1</option>
                 <option value="minimal-policy-v1">minimal-policy-v1</option>
                 <option value="aggressive-followup-v1">aggressive-followup-v1</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Conversation Design</span>
+              <select
+                name="conversation_design_id"
+                value={form.conversation_design_id}
+                onChange={updateField}
+              >
+                {(conversationDesigns.length
+                  ? conversationDesigns
+                  : [{ id: "viewing_first_v1", name: "Viewing first" }]
+                ).map((design) => (
+                  <option key={design.id} value={design.id}>
+                    {design.name}
+                  </option>
+                ))}
               </select>
             </label>
             {form.start_mode === "agent_starts" ? (

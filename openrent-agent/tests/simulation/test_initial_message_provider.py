@@ -14,7 +14,8 @@ from simulation.templates.initial_message_provider import (
 def test_fixture_initial_message_provider_returns_deterministic_message():
     provider = FixtureInitialMessageProvider()
 
-    assert "Could you please share your phone number?" in provider.get_message()
+    assert "arrange a viewing" in provider.get_message()
+    assert "phone number" not in provider.get_message()
     assert provider.source == "fixture"
 
 

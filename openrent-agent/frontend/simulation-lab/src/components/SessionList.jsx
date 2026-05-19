@@ -46,8 +46,8 @@ export default function SessionList({
               </div>
             </div>
             <div className="session-meta">
-              <span>{session.scenario_id}</span>
-              <span>{session.policy_id}</span>
+              <span>{session.conversation_design_name || session.scenario_id}</span>
+              <span>{auditMode ? "AI test" : session.policy_id}</span>
             </div>
             <div className="session-meta">
               <span>

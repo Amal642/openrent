@@ -6,6 +6,7 @@ export default function EvaluationScorecard({
   failureTypes,
   auditMode = false,
   phoneCaptured = false,
+  conversationDesignName,
 }) {
   if (!evaluation) {
     return (
@@ -29,6 +30,10 @@ export default function EvaluationScorecard({
         <div className="metric-card">
           <span>Phone Captured</span>
           <strong>{phoneCaptured ? "yes" : "no"}</strong>
+        </div>
+        <div className="metric-card">
+          <span>Design</span>
+          <strong>{conversationDesignName || "n/a"}</strong>
         </div>
         {!auditMode ? (
           <>

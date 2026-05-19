@@ -14,6 +14,11 @@ from simulation.engine.session_manager import (
     update_context_from_agent_message,
     update_context_from_actor_message,
 )
+from simulation.conversation_designs import (
+    VIEWING_FIRST_V1,
+    default_simulation_persona,
+    get_conversation_design,
+)
 from simulation.lab import DEFAULT_POLICY_ID, DEFAULT_SCENARIO_ID, _resolve_policy, _resolve_scenario
 from simulation.sessions.event_models import SimulationEvent
 from simulation.sessions.store import JSONSessionStore
@@ -51,14 +56,23 @@ def start_interactive_session(
     initial_message_source: str | None = None,
     account_id: int | None = None,
     initial_message: str | None = None,
+    conversation_design_id: str | None = None,
     store: JSONSessionStore | None = None,
 ) -> dict:
+    conversation_design = get_conversation_design(
+        conversation_design_id or VIEWING_FIRST_V1,
+    )
+    persona = default_simulation_persona()
     scenario = _resolve_scenario(
         scenario_id or DEFAULT_SCENARIO_ID,
         INTERACTIVE_MAX_TURNS,
         start_mode,
     )
-    policy = _resolve_policy(policy_id or DEFAULT_POLICY_ID)
+    policy = _resolve_policy(
+        policy_id or DEFAULT_POLICY_ID,
+        conversation_design=conversation_design,
+        persona=persona,
+    )
     actor = HumanActor()
     initial_message_provider = None
     if scenario.start_mode == "agent_starts":
@@ -66,6 +80,7 @@ def start_interactive_session(
             source=initial_message_source,
             account_id=account_id,
             initial_message=initial_message,
+            conversation_design_id=conversation_design.design_id,
         )
     context = RuntimeContext(
         session_id=str(uuid.uuid4()),
@@ -74,6 +89,9 @@ def start_interactive_session(
     context.flags["deterministic"] = False
     context.flags["interactive"] = True
     context.flags["start_mode"] = scenario.start_mode
+    context.flags["conversation_design_id"] = conversation_design.design_id
+    context.flags["conversation_design_name"] = conversation_design.name
+    context.memory["persona"] = persona
     if initial_message_provider is not None:
         context.flags["initial_message_source"] = initial_message_provider.source
     context.metrics["interactive_turns"] = 0
@@ -91,6 +109,7 @@ def start_interactive_session(
             "actor_id": actor.profile.actor_id,
             "mode": "interactive",
             "start_mode": scenario.start_mode,
+            "conversation_design_id": conversation_design.design_id,
         },
     )
     if initial_message_provider is not None:
@@ -159,7 +178,23 @@ def submit_interactive_message(
         session["max_turns"],
         session.get("start_mode", "actor_starts"),
     )
-    policy = _resolve_policy(session["policy_id"])
+    conversation_design = get_conversation_design(
+        session.get("conversation_design_id")
+        or session.get("runtime_context", {})
+        .get("flags", {})
+        .get("conversation_design_id")
+    )
+    persona = (
+        session.get("runtime_context", {})
+        .get("memory", {})
+        .get("persona")
+        or default_simulation_persona()
+    )
+    policy = _resolve_policy(
+        session["policy_id"],
+        conversation_design=conversation_design,
+        persona=persona,
+    )
     actor = HumanActor()
     context = RuntimeContext.from_snapshot(session.get("runtime_context"))
     event_bus = _restore_event_bus(session.get("events"))

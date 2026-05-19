@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 
 import {
+  compareDesigns,
+  fetchConversationDesigns,
   fetchInteractiveSession,
   fetchResults,
+  fetchScenarios,
   fetchSession,
   fetchSessions,
   runSimulation,
@@ -10,6 +13,8 @@ import {
   startInteractiveSession,
 } from "./api";
 import EvaluationScorecard from "./components/EvaluationScorecard";
+import CompareDesignsPanel from "./components/CompareDesignsPanel";
+import ConversationStatePanel from "./components/ConversationStatePanel";
 import EventTimeline from "./components/EventTimeline";
 import InteractivePanel from "./components/InteractivePanel";
 import PromptCompletionInspector from "./components/PromptCompletionInspector";
@@ -30,6 +35,8 @@ export default function App() {
   const [selectedResults, setSelectedResults] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [conversationDesigns, setConversationDesigns] = useState([]);
+  const [conversationScenarios, setConversationScenarios] = useState([]);
 
   const isAuditMode = viewerMode === "audit";
   const filteredSessions = sessions.filter((session) => {
@@ -111,6 +118,12 @@ export default function App() {
 
   useEffect(() => {
     refreshSessions();
+    fetchConversationDesigns()
+      .then(setConversationDesigns)
+      .catch(() => setConversationDesigns([]));
+    fetchScenarios()
+      .then(setConversationScenarios)
+      .catch(() => setConversationScenarios([]));
   }, []);
 
   useEffect(() => {
@@ -203,8 +216,16 @@ export default function App() {
               onStart={handleStartInteractive}
               onSend={handleSendInteractive}
               auditMode={isAuditMode}
+              conversationDesigns={conversationDesigns}
             />
           )}
+          {isAuditMode ? (
+            <CompareDesignsPanel
+              conversationDesigns={conversationDesigns}
+              conversationScenarios={conversationScenarios}
+              onCompare={compareDesigns}
+            />
+          ) : null}
           <SessionList
             sessions={filteredSessions}
             selectedSessionId={selectedSessionId}
@@ -229,7 +250,15 @@ export default function App() {
             failureTypes={selectedResults?.failure_types}
             auditMode={isAuditMode}
             phoneCaptured={phoneCaptured}
+            conversationDesignName={selectedSession?.conversation_design_name}
           />
+          {isAuditMode ? (
+            <ConversationStatePanel
+              conversationState={
+                selectedSession?.conversation_state || selectedResults?.conversation_state
+              }
+            />
+          ) : null}
           {!isAuditMode ? (
             <>
               <RuntimeContextPanel runtimeContext={selectedSession?.runtime_context} />

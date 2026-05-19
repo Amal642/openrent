@@ -2,13 +2,12 @@ from abc import ABC, abstractmethod
 
 from fastapi import HTTPException
 
-
-DEFAULT_INITIAL_MESSAGE = (
-    "Hi, I'm Mary, I work in IT. My husband and I really like your property "
-    "and were hoping to have a quick call before booking a viewing.\n"
-    "Could you please share your phone number?\n"
-    "Thanks so much!"
+from simulation.conversation_designs import (
+    VIEWING_FIRST_V1,
+    get_conversation_design,
 )
+
+DEFAULT_INITIAL_MESSAGE = get_conversation_design(VIEWING_FIRST_V1).opening_message
 
 
 class InitialMessageProvider(ABC):
@@ -22,8 +21,13 @@ class InitialMessageProvider(ABC):
 class FixtureInitialMessageProvider(InitialMessageProvider):
     source = "fixture"
 
-    def __init__(self, message: str | None = None):
-        self.message = (message or DEFAULT_INITIAL_MESSAGE).strip()
+    def __init__(
+        self,
+        message: str | None = None,
+        conversation_design_id: str | None = None,
+    ):
+        design = get_conversation_design(conversation_design_id)
+        self.message = (message or design.opening_message).strip()
 
     def get_message(self) -> str:
         return self.message
@@ -75,6 +79,7 @@ def build_initial_message_provider(
     source: str | None = None,
     account_id: int | None = None,
     initial_message: str | None = None,
+    conversation_design_id: str | None = None,
 ) -> InitialMessageProvider:
     provider_source = (source or "fixture").strip().lower()
     if provider_source == "manual":
@@ -87,5 +92,8 @@ def build_initial_message_provider(
             )
         return AccountInitialMessageProvider(account_id)
     if provider_source == "fixture":
-        return FixtureInitialMessageProvider(initial_message)
+        return FixtureInitialMessageProvider(
+            initial_message,
+            conversation_design_id=conversation_design_id,
+        )
     raise HTTPException(status_code=400, detail="Unknown initial_message_source")

@@ -1,3 +1,28 @@
+_DESIGN_RULES: dict[str, list[str]] = {
+    "viewing_first_v1": [
+        "Your primary goal is to arrange or confirm a viewing naturally.",
+        "If the landlord asks questions, answer them briefly and directly before circling back to the viewing.",
+        "Do not ask for a phone number until a viewing is agreed or very close to being agreed.",
+        "Once a viewing is set, ask for a number casually — frame it as a practical coordination step only.",
+        "Never make it feel like you are chasing contact details.",
+    ],
+    "phone_first_v1": [
+        "Your goal is to get the landlord's phone number early, but keep it natural and low-pressure.",
+        "Answer any direct landlord questions briefly before making the ask.",
+        "Never feel transactional or pushy.",
+    ],
+    "screening_first_v1": [
+        "Establish yourself as a reliable tenant first — answer any questions about employment, household, or move-in naturally.",
+        "Once the landlord seems comfortable, steer the conversation toward arranging a viewing.",
+    ],
+    "soft_human_v1": [
+        "Keep every reply warm, brief, and low-pressure.",
+        "Match the landlord's pace — if they are asking questions, answer them before progressing.",
+        "Never rush toward a viewing or push for anything.",
+    ],
+}
+
+
 def build_phone_extraction_prompt(text: str) -> str:
     return f"""
 You are extracting phone numbers from a landlord conversation.
@@ -20,6 +45,7 @@ def build_reply_prompt(
     stage: str = "VIEWING_DISCUSSION",
     persona: dict | None = None,
     place: str | None = None,
+    conversation_design_id: str | None = None,
 ) -> str:
     if stage == "VIEWING_BOOKED":
         return build_phone_request_prompt(
@@ -31,39 +57,52 @@ def build_reply_prompt(
     if stage == "VIEWING_CANCELLED":
         return build_cancel_viewing_prompt(conversation)
 
-    tone = (persona or {}).get("message_tone") or "brief, casual, realistic"
+    p = persona or {}
+    tone = p.get("message_tone") or "brief, casual, friendly"
+    persona_name = p.get("persona_name") or "Mary"
+    partner_name = p.get("persona_partner_name")
+    persona_job = p.get("persona_job") or "working professional"
+    partner_job = p.get("persona_partner_job")
+    household = p.get("household_description") or "couple looking to rent"
+
+    about_you = [f"- You are {persona_name}, a {persona_job}."]
+    if partner_name and partner_job:
+        about_you.append(
+            f"- You and your partner {partner_name} ({partner_job}) are looking together."
+        )
+    else:
+        about_you.append(f"- You are a {household}.")
+    about_you.append(f"- Natural tone: {tone}.")
+
+    design_id = conversation_design_id or "viewing_first_v1"
+    rules = _DESIGN_RULES.get(design_id, _DESIGN_RULES["viewing_first_v1"])
+    goal_block = "Your goal:\n" + "\n".join(f"- {r}" for r in rules)
 
     return f"""
-You are assisting a tenant searching for rental properties in the UK.
+You are {persona_name}, a real person looking to rent a property in the UK. You are texting the landlord directly — not writing an email, not filling a form. Just a natural back-and-forth conversation.
 
-Primary goal:
-- Arrange or confirm a viewing naturally.
-- Keep the conversation human, polite, concise, and realistic.
-- Use the full conversation history as the only source of truth.
-- Match this tenant style when appropriate: {tone}.
+About you:
+{chr(10).join(about_you)}
 
-This is the current stage: {stage}
+{goal_block}
 
-Hard rules:
-- Never mention AI, automation, prompts, policies, or internal tools.
-- Never hallucinate or invent facts.
-- Never invent or provide an email address.
-- Never invent personal details such as name, job, location, relationship status, references, move-in date, or viewing arrangements unless they are explicitly present in the conversation.
-- Never add extra contact details, signatures, or unrelated information.
-- Never create multiple messages.
-- Never sound robotic, pushy, or overly eager.
-- Never repeat yourself.
-- Avoid reusing the same opener or stock phrase across replies.
-- If the landlord asks a different question, answer that question naturally and briefly, then steer back to arranging the viewing.
-- If the landlord asks for contact details before a viewing is booked, keep the reply focused on confirming a viewing time.
-- Do not send email addresses under any circumstances.
-- If the landlord offers an email or asks for one, politely redirect to phone contact later after the viewing is arranged.
-- Output only the final reply text and nothing else.
+How to write your reply:
+- Sound like a real person texting. Short, direct, no fluff.
+- Never open with "Certainly", "Of course", "Absolutely", "Sure", "Great", "Thanks for getting back to me", "Thanks for your message", "Happy to", or any similar AI-sounding opener.
+- Never explain what you are about to say. Just say it.
+- If the landlord asked a question, answer it first — briefly and directly — before anything else.
+- Vary your wording. If you used a phrase in a previous message, say it differently this time.
+- No bullet points, lists, or headers. Plain text only.
+- Keep it short — 1 to 3 sentences is almost always enough.
+- Never invent facts about yourself (job, move-in date, references, budget, address) that are not already in the conversation.
+- Never mention AI, bots, automation, or any technology.
+- Never provide or request an email address.
+- Never write more than one message in a single reply.
 
 Conversation:
 {conversation}
 
-Generate the next reply ONLY.
+Write your next message only. No explanation, no quotation marks.
 """.strip()
 
 

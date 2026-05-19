@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime, timezone
 import uuid
 from pathlib import Path
@@ -9,6 +10,11 @@ from simulation.engine.deterministic import build_rng
 from simulation.engine.event_bus import EventBus
 from simulation.engine.orchestrator import SimulationOrchestrator
 from simulation.engine.runtime_context import RuntimeContext
+from simulation.conversation_designs import (
+    VIEWING_FIRST_V1,
+    default_simulation_persona,
+    get_conversation_design,
+)
 from simulation.policies.aggressive_followup import AggressiveFollowupPolicy
 from simulation.policies.minimal_policy import MinimalPolicy
 from simulation.policies.production_policy import ProductionPolicy
@@ -82,10 +88,25 @@ def _resolve_actor(actor_id: str):
     return builder()
 
 
-def _resolve_policy(policy_id: str):
+def _resolve_policy(
+    policy_id: str,
+    *,
+    conversation_design=None,
+    persona: dict | None = None,
+):
     builder = POLICY_BUILDERS.get(policy_id)
     if builder is None:
         raise HTTPException(status_code=400, detail="Unknown policy_id")
+    if builder is ProductionPolicy:
+        return builder(
+            conversation_design_id=(
+                conversation_design.design_id if conversation_design else None
+            ),
+            conversation_design=(
+                asdict(conversation_design) if conversation_design else None
+            ),
+            persona=persona,
+        )
     return builder()
 
 
@@ -100,20 +121,30 @@ def run_simulation_session(
     initial_message_source: str | None = None,
     account_id: int | None = None,
     initial_message: str | None = None,
+    conversation_design_id: str | None = None,
 ) -> dict:
+    conversation_design = get_conversation_design(
+        conversation_design_id or VIEWING_FIRST_V1,
+    )
+    persona = default_simulation_persona()
     scenario = _resolve_scenario(
         scenario_id or DEFAULT_SCENARIO_ID,
         max_turns,
         start_mode,
     )
     actor = _resolve_actor(actor_id or DEFAULT_ACTOR_ID)
-    policy = _resolve_policy(policy_id or DEFAULT_POLICY_ID)
+    policy = _resolve_policy(
+        policy_id or DEFAULT_POLICY_ID,
+        conversation_design=conversation_design,
+        persona=persona,
+    )
     initial_message_provider = None
     if scenario.start_mode == "agent_starts":
         initial_message_provider = build_initial_message_provider(
             source=initial_message_source,
             account_id=account_id,
             initial_message=initial_message,
+            conversation_design_id=conversation_design.design_id,
         )
 
     context = RuntimeContext(
@@ -122,6 +153,9 @@ def run_simulation_session(
     )
     context.flags["deterministic"] = True
     context.flags["start_mode"] = scenario.start_mode
+    context.flags["conversation_design_id"] = conversation_design.design_id
+    context.flags["conversation_design_name"] = conversation_design.name
+    context.memory["persona"] = persona
     if initial_message_provider is not None:
         context.flags["initial_message_source"] = initial_message_provider.source
     context.metrics["rng_preview"] = build_rng(seed).randint(1, 1000)
@@ -163,6 +197,8 @@ def list_simulation_sessions(store: JSONSessionStore | None = None) -> list[dict
                 "mode": session.get("mode", "simulation"),
                 "start_mode": session.get("start_mode", "actor_starts"),
                 "initial_message_source": session.get("initial_message_source"),
+                "conversation_design_id": session.get("conversation_design_id"),
+                "conversation_design_name": session.get("conversation_design_name"),
                 "scenario_id": session.get("scenario_id"),
                 "actor_id": session.get("actor_id"),
                 "policy_id": session.get("policy_id"),
@@ -196,6 +232,7 @@ def get_simulation_results(
     return {
         "session_id": session.get("session_id"),
         "evaluation": evaluation,
+        "conversation_state": session.get("conversation_state") or {},
         "observability": session.get("observability") or {},
         "failure_types": evaluation.get("failure_types") or [],
     }

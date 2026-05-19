@@ -95,6 +95,182 @@ def test_simulation_run_endpoint_supports_agent_starts(monkeypatch, tmp_path):
     assert payload["transcript"][0]["speaker"] == "agent"
 
 
+def test_interactive_start_accepts_conversation_design(monkeypatch, tmp_path):
+    from simulation import interactive as interactive_module
+    from simulation.sessions import store as session_store_module
+
+    class TmpStore(session_store_module.JSONSessionStore):
+        def __init__(self):
+            super().__init__(base_dir=str(tmp_path))
+
+    monkeypatch.setattr(interactive_module, "JSONSessionStore", TmpStore)
+
+    client = TestClient(app)
+    response = client.post(
+        "/simulation/interactive/start",
+        json={"conversation_design_id": "viewing_first_v1"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["conversation_design_id"] == "viewing_first_v1"
+    assert payload["conversation_design_name"] == "Viewing first"
+    assert "arrange a viewing" in payload["initial_message"]
+    assert "phone number" not in payload["initial_message"]
+
+
+def test_compare_designs_returns_result_for_each_selected_design(monkeypatch):
+    from app.ai import replies
+
+    monkeypatch.setattr(replies, "_default_completion_create", _fake_completion_create)
+
+    client = TestClient(app)
+    landlord_message = "Can you tell me about your work and when you want to view?"
+    response = client.post(
+        "/simulation/compare-designs",
+        json={
+            "initial_landlord_message": landlord_message,
+            "conversation_design_ids": ["viewing_first_v1", "phone_first_v1"],
+            "max_turns": 1,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["initial_landlord_message"] == landlord_message
+    assert len(payload["results"]) == 2
+    assert {result["design_id"] for result in payload["results"]} == {
+        "viewing_first_v1",
+        "phone_first_v1",
+    }
+
+
+def test_simulation_scenarios_endpoint_returns_seeded_scenarios():
+    client = TestClient(app)
+    response = client.get("/simulation/scenarios")
+
+    assert response.status_code == 200
+    payload = response.json()
+    scenario_ids = {scenario["scenario_id"] for scenario in payload}
+    assert "normal_viewing_offer" in scenario_ids
+    assert "screening_before_viewing" in scenario_ids
+    assert "viewing_confirmed_then_coordination" in scenario_ids
+
+
+def test_compare_designs_accepts_scenario_id(monkeypatch):
+    from app.ai import replies
+
+    monkeypatch.setattr(replies, "_default_completion_create", _fake_completion_create)
+
+    client = TestClient(app)
+    response = client.post(
+        "/simulation/compare-designs",
+        json={
+            "scenario_id": "normal_viewing_offer",
+            "conversation_design_ids": ["viewing_first_v1"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["scenario_id"] == "normal_viewing_offer"
+    assert payload["scenario_name"] == "Normal viewing offer"
+    assert payload["initial_landlord_message"] == (
+        "Hi Mary, yes viewing is possible. Are you free tomorrow evening?"
+    )
+    assert payload["results"][0]["scenario_id"] == "normal_viewing_offer"
+    assert payload["results"][0]["scenario_name"] == "Normal viewing offer"
+
+
+def test_compare_designs_custom_message_overrides_scenario(monkeypatch):
+    from app.ai import replies
+
+    monkeypatch.setattr(replies, "_default_completion_create", _fake_completion_create)
+
+    client = TestClient(app)
+    custom_message = "Custom landlord message for this one run."
+    response = client.post(
+        "/simulation/compare-designs",
+        json={
+            "scenario_id": "normal_viewing_offer",
+            "initial_landlord_message": custom_message,
+            "conversation_design_ids": ["viewing_first_v1"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["scenario_id"] is None
+    assert payload["scenario_name"] == "Custom message"
+    assert payload["initial_landlord_message"] == custom_message
+    assert payload["results"][0]["initial_landlord_message"] == custom_message
+
+
+def test_compare_designs_uses_same_landlord_message_across_designs(monkeypatch):
+    from app.ai import replies
+
+    monkeypatch.setattr(replies, "_default_completion_create", _fake_completion_create)
+
+    client = TestClient(app)
+    landlord_message = "Please book a viewing first. I cannot share my number yet."
+    response = client.post(
+        "/simulation/compare-designs",
+        json={
+            "initial_landlord_message": landlord_message,
+            "conversation_design_ids": ["viewing_first_v1", "phone_first_v1"],
+        },
+    )
+
+    assert response.status_code == 200
+    for result in response.json()["results"]:
+        landlord_turns = [
+            turn for turn in result["transcript"] if turn["speaker"] == "actor"
+        ]
+        assert landlord_turns[0]["message"] == landlord_message
+
+
+def test_compare_designs_viewing_first_opener_delays_phone(monkeypatch):
+    from app.ai import replies
+
+    monkeypatch.setattr(replies, "_default_completion_create", _fake_completion_create)
+
+    client = TestClient(app)
+    response = client.post(
+        "/simulation/compare-designs",
+        json={"conversation_design_ids": ["viewing_first_v1"]},
+    )
+
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    opener = result["transcript"][0]["message"]
+    assert "arrange a viewing" in opener
+    assert "phone number" not in opener
+
+
+def test_compare_designs_scorecard_fields_include_viewing_and_phone(monkeypatch):
+    from app.ai import replies
+
+    monkeypatch.setattr(replies, "_default_completion_create", _fake_completion_create)
+
+    client = TestClient(app)
+    response = client.post(
+        "/simulation/compare-designs",
+        json={"conversation_design_ids": ["viewing_first_v1", "phone_first_v1"]},
+    )
+
+    assert response.status_code == 200
+    for result in response.json()["results"]:
+        assert "viewing_progressed" in result
+        assert "phone_captured" in result
+        assert "viewing_confirmed" in result
+        assert "conversation_state" in result
+        assert "signals" in result["conversation_state"]
+        assert "scenario_id" in result
+        assert "scenario_name" in result
+        assert "failure_reasons" in result
+        assert "success_signals" in result
+
+
 def test_simulation_session_listing_and_detail_endpoints(monkeypatch, tmp_path):
     from app.ai import replies
     from simulation.engine import orchestrator as orchestrator_module
@@ -119,7 +295,7 @@ def test_simulation_session_listing_and_detail_endpoints(monkeypatch, tmp_path):
     sessions = list_response.json()
     assert len(sessions) == 1
     assert sessions[0]["session_id"] == session_id
-    assert sessions[0]["score"] == 1.0
+    assert sessions[0]["score"] == 0.8
     assert sessions[0]["run_duration_ms"] is not None
     assert sessions[0]["created_at"]
 
@@ -159,7 +335,7 @@ def test_simulation_results_endpoint_returns_evaluation_and_observability(
     payload = response.json()
     assert payload["session_id"] == session_id
     assert payload["evaluation"]["passed"] is True
-    assert payload["failure_types"] == []
+    assert payload["failure_types"] == ["asked_phone_before_viewing_progress"]
     assert payload["observability"]["run_duration_ms"] is not None
 
 

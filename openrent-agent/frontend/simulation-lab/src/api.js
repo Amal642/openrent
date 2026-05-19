@@ -47,6 +47,21 @@ export function fetchResults(sessionId) {
   return request(`/simulation/results/${sessionId}`);
 }
 
+export function fetchConversationDesigns() {
+  return request("/simulation/conversation-designs");
+}
+
+export function fetchScenarios() {
+  return request("/simulation/scenarios");
+}
+
+export function compareDesigns(payload) {
+  return request("/simulation/compare-designs", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function startInteractiveSession(payload) {
   return request("/simulation/interactive/start", {
     method: "POST",

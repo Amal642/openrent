@@ -27,6 +27,7 @@ class EvaluationResult:
     failure_types: list[str]
     rationale: str
     evaluation_timing_ms: int
+    conversation_state: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -36,6 +37,8 @@ class SimulationSession:
     start_mode: str
     initial_message_source: str | None
     initial_message: str | None
+    conversation_design_id: str | None
+    conversation_design_name: str | None
     scenario_id: str
     actor_id: str
     policy_id: str
@@ -44,6 +47,7 @@ class SimulationSession:
     transcript: list
     events: list
     evaluation: EvaluationResult
+    conversation_state: dict
     runtime_context: dict
     replay_output: str
     observability: dict = field(default_factory=dict)
