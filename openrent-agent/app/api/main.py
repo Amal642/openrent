@@ -53,6 +53,31 @@ class AccountUpdatePayload(BaseModel):
     daily_limit: int | None = None
     active: bool | None = None
 
+
+class SimulationRunPayload(BaseModel):
+    seed: int = 42
+    max_turns: int = 1
+    scenario_id: str | None = None
+    actor_id: str | None = None
+    policy_id: str | None = None
+    start_mode: str = "agent_starts"
+    initial_message_source: str | None = None
+    account_id: int | None = None
+    initial_message: str | None = None
+
+
+class InteractiveStartPayload(BaseModel):
+    scenario_id: str | None = None
+    policy_id: str | None = None
+    start_mode: str = "agent_starts"
+    initial_message_source: str | None = None
+    account_id: int | None = None
+    initial_message: str | None = None
+
+
+class InteractiveMessagePayload(BaseModel):
+    message: str
+
 @asynccontextmanager
 async def lifespan(app_instance):
     init_db()
@@ -336,6 +361,75 @@ def api_logs(limit: int = 250):
         })
 
     return results
+
+
+@app.post("/simulation/run")
+def simulation_run(payload: SimulationRunPayload):
+    from simulation.lab import run_simulation_session
+
+    return run_simulation_session(
+        seed=payload.seed,
+        max_turns=payload.max_turns,
+        scenario_id=payload.scenario_id,
+        actor_id=payload.actor_id,
+        policy_id=payload.policy_id,
+        start_mode=payload.start_mode,
+        initial_message_source=payload.initial_message_source,
+        account_id=payload.account_id,
+        initial_message=payload.initial_message,
+    )
+
+
+@app.get("/simulation/sessions")
+def simulation_sessions():
+    from simulation.lab import list_simulation_sessions
+
+    return list_simulation_sessions()
+
+
+@app.get("/simulation/sessions/{session_id}")
+def simulation_session_detail(session_id: str):
+    from simulation.lab import get_simulation_session
+
+    return get_simulation_session(session_id)
+
+
+@app.get("/simulation/results/{session_id}")
+def simulation_results(session_id: str):
+    from simulation.lab import get_simulation_results
+
+    return get_simulation_results(session_id)
+
+
+@app.post("/simulation/interactive/start")
+def simulation_interactive_start(payload: InteractiveStartPayload):
+    from simulation.interactive import start_interactive_session
+
+    return start_interactive_session(
+        scenario_id=payload.scenario_id,
+        policy_id=payload.policy_id,
+        start_mode=payload.start_mode,
+        initial_message_source=payload.initial_message_source,
+        account_id=payload.account_id,
+        initial_message=payload.initial_message,
+    )
+
+
+@app.get("/simulation/interactive/{session_id}")
+def simulation_interactive_detail(session_id: str):
+    from simulation.interactive import get_interactive_session
+
+    return get_interactive_session(session_id)
+
+
+@app.post("/simulation/interactive/{session_id}/message")
+def simulation_interactive_message(
+    session_id: str,
+    payload: InteractiveMessagePayload,
+):
+    from simulation.interactive import submit_interactive_message
+
+    return submit_interactive_message(session_id, payload.message)
 
 
 @app.get("/")

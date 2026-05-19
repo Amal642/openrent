@@ -17,7 +17,7 @@ Rules:
 
 def build_reply_prompt(
     conversation: str,
-    stage: str,
+    stage: str = "VIEWING_DISCUSSION",
     persona: dict | None = None,
     place: str | None = None,
 ) -> str:

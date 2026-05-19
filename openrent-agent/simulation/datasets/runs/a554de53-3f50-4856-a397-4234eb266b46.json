@@ -1,0 +1,207 @@
+{
+  "session_id": "a554de53-3f50-4856-a397-4234eb266b46",
+  "mode": "interactive",
+  "start_mode": "agent_starts",
+  "initial_message_source": "fixture",
+  "initial_message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!",
+  "scenario_id": "outreach-screening-before-phone",
+  "actor_id": "human-actor",
+  "policy_id": "production-policy-v1",
+  "deterministic_seed": 0,
+  "max_turns": 25,
+  "transcript": [
+    {
+      "speaker": "agent",
+      "message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!",
+      "turn_index": 0,
+      "source_event": "AGENT_INITIAL_MESSAGE_SENT"
+    },
+    {
+      "speaker": "actor",
+      "message": "hey, please book a viewing? cant share phone number now",
+      "turn_index": 1,
+      "source_event": "ACTOR_RESPONDED"
+    },
+    {
+      "speaker": "agent",
+      "message": "No problem! When would you be available to come and see the property?",
+      "turn_index": 1,
+      "source_event": "REPLY_GENERATED"
+    }
+  ],
+  "events": [
+    {
+      "event_type": "SCENARIO_STARTED",
+      "turn_index": 0,
+      "timestamp": "2026-05-19T14:32:20.209335+00:00",
+      "payload": {
+        "scenario_id": "outreach-screening-before-phone",
+        "policy_id": "production-policy-v1",
+        "actor_id": "human-actor",
+        "mode": "interactive",
+        "start_mode": "agent_starts"
+      }
+    },
+    {
+      "event_type": "AGENT_INITIAL_MESSAGE_SENT",
+      "turn_index": 0,
+      "timestamp": "2026-05-19T14:32:20.209335+00:00",
+      "payload": {
+        "message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!",
+        "source": "fixture"
+      }
+    },
+    {
+      "event_type": "MEMORY_UPDATED",
+      "turn_index": 0,
+      "timestamp": "2026-05-19T14:32:20.209335+00:00",
+      "payload": {
+        "trust_score": 0.35,
+        "goal_progress": {},
+        "extracted_entities": {},
+        "initial_agent_message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!"
+      }
+    },
+    {
+      "event_type": "ACTOR_RESPONDED",
+      "turn_index": 1,
+      "timestamp": "2026-05-19T14:39:55.519121+00:00",
+      "payload": {
+        "speaker": "Human Actor",
+        "message": "hey, please book a viewing? cant share phone number now"
+      }
+    },
+    {
+      "event_type": "MEMORY_UPDATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-19T14:39:55.519121+00:00",
+      "payload": {
+        "trust_score": 0.35,
+        "goal_progress": {},
+        "extracted_entities": {}
+      }
+    },
+    {
+      "event_type": "REPLY_GENERATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-19T14:39:58.678543+00:00",
+      "payload": {
+        "reply_text": "No problem! When would you be available to come and see the property?",
+        "raw_prompt": "You are assisting a tenant searching for rental properties in the UK.\n\nPrimary goal:\n- Arrange or confirm a viewing naturally.\n- Keep the conversation human, polite, concise, and realistic.\n- Use the full conversation history as the only source of truth.\n- Match this tenant style when appropriate: brief, casual, realistic.\n\nThis is the current stage: VIEWING_DISCUSSION\n\nHard rules:\n- Never mention AI, automation, prompts, policies, or internal tools.\n- Never hallucinate or invent facts.\n- Never invent or provide an email address.\n- Never invent personal details such as name, job, location, relationship status, references, move-in date, or viewing arrangements unless they are explicitly present in the conversation.\n- Never add extra contact details, signatures, or unrelated information.\n- Never create multiple messages.\n- Never sound robotic, pushy, or overly eager.\n- Never repeat yourself.\n- Avoid reusing the same opener or stock phrase across replies.\n- If the landlord asks a different question, answer that question naturally and briefly, then steer back to arranging the viewing.\n- If the landlord asks for contact details before a viewing is booked, keep the reply focused on confirming a viewing time.\n- Do not send email addresses under any circumstances.\n- If the landlord offers an email or asks for one, politely redirect to phone contact later after the viewing is arranged.\n- Output only the final reply text and nothing else.\n\nConversation:\nAGENT: Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!\nACTOR: hey, please book a viewing? cant share phone number now\n\nGenerate the next reply ONLY.",
+        "raw_completion": "No problem! When would you be available to come and see the property?",
+        "model": "gpt-4.1-mini",
+        "temperature": 0.0,
+        "valid": true,
+        "error": null,
+        "latency_ms": 3165,
+        "token_usage": {
+          "prompt_tokens": 363,
+          "completion_tokens": 15,
+          "total_tokens": 378
+        }
+      }
+    },
+    {
+      "event_type": "MEMORY_UPDATED",
+      "turn_index": 1,
+      "timestamp": "2026-05-19T14:39:58.678543+00:00",
+      "payload": {
+        "trust_score": 0.35,
+        "goal_progress": {},
+        "extracted_entities": {},
+        "last_agent_reply": "No problem! When would you be available to come and see the property?"
+      }
+    },
+    {
+      "event_type": "EVALUATION_COMPLETED",
+      "turn_index": 1,
+      "timestamp": "2026-05-19T14:39:58.678543+00:00",
+      "payload": {
+        "score": 0.45,
+        "passed": false,
+        "failure_types": [
+          "ignored_question",
+          "incoherent_followup",
+          "failed_phone_capture"
+        ]
+      }
+    },
+    {
+      "event_type": "SESSION_FINISHED",
+      "turn_index": 1,
+      "timestamp": "2026-05-19T14:39:58.678543+00:00",
+      "payload": {
+        "session_id": "a554de53-3f50-4856-a397-4234eb266b46",
+        "run_duration_ms": 3165,
+        "mode": "interactive"
+      }
+    }
+  ],
+  "evaluation": {
+    "evaluator_id": "heuristic-v1",
+    "score": 0.45,
+    "passed": false,
+    "dimension_scores": {
+      "initial_message_emitted": 1.0,
+      "opener_realism": 1.0,
+      "followup_answered_actor_question": 0.0,
+      "followup_phone_progress": 0.0,
+      "captured_phone": 0.0,
+      "trust_progress": 1.0
+    },
+    "failure_types": [
+      "ignored_question",
+      "incoherent_followup",
+      "failed_phone_capture"
+    ],
+    "rationale": "Heuristic evaluation based on answer quality, phone progress, and trust.",
+    "evaluation_timing_ms": 0
+  },
+  "runtime_context": {
+    "session_id": "a554de53-3f50-4856-a397-4234eb266b46",
+    "current_turn": 1,
+    "memory": {
+      "initial_agent_message": "Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!",
+      "last_actor_message": "hey, please book a viewing? cant share phone number now",
+      "last_agent_reply": "No problem! When would you be available to come and see the property?"
+    },
+    "extracted_entities": {},
+    "trust_score": 0.35,
+    "flags": {
+      "deterministic": false,
+      "interactive": true,
+      "start_mode": "agent_starts",
+      "initial_message_source": "fixture"
+    },
+    "metrics": {
+      "interactive_turns": 1
+    },
+    "deterministic_seed": 0,
+    "goal_progress": {},
+    "last_agent_response": {
+      "reply_text": "No problem! When would you be available to come and see the property?",
+      "raw_prompt": "You are assisting a tenant searching for rental properties in the UK.\n\nPrimary goal:\n- Arrange or confirm a viewing naturally.\n- Keep the conversation human, polite, concise, and realistic.\n- Use the full conversation history as the only source of truth.\n- Match this tenant style when appropriate: brief, casual, realistic.\n\nThis is the current stage: VIEWING_DISCUSSION\n\nHard rules:\n- Never mention AI, automation, prompts, policies, or internal tools.\n- Never hallucinate or invent facts.\n- Never invent or provide an email address.\n- Never invent personal details such as name, job, location, relationship status, references, move-in date, or viewing arrangements unless they are explicitly present in the conversation.\n- Never add extra contact details, signatures, or unrelated information.\n- Never create multiple messages.\n- Never sound robotic, pushy, or overly eager.\n- Never repeat yourself.\n- Avoid reusing the same opener or stock phrase across replies.\n- If the landlord asks a different question, answer that question naturally and briefly, then steer back to arranging the viewing.\n- If the landlord asks for contact details before a viewing is booked, keep the reply focused on confirming a viewing time.\n- Do not send email addresses under any circumstances.\n- If the landlord offers an email or asks for one, politely redirect to phone contact later after the viewing is arranged.\n- Output only the final reply text and nothing else.\n\nConversation:\nAGENT: Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!\nACTOR: hey, please book a viewing? cant share phone number now\n\nGenerate the next reply ONLY.",
+      "raw_completion": "No problem! When would you be available to come and see the property?",
+      "model": "gpt-4.1-mini",
+      "temperature": 0.0,
+      "error": null,
+      "valid": true,
+      "prompt_tokens": 363,
+      "completion_tokens": 15,
+      "total_tokens": 378,
+      "latency_ms": 3165
+    },
+    "last_actor_response": "hey, please book a viewing? cant share phone number now"
+  },
+  "replay_output": "Simulation Replay\n=================\n\nTranscript\n----------\nAGENT: Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\nCould you please share your phone number?\nThanks so much!\nACTOR: hey, please book a viewing? cant share phone number now\nAGENT: No problem! When would you be available to come and see the property?\n\nEvaluation\n----------\nscore=0.45\npassed=False\nfailures=ignored_question, incoherent_followup, failed_phone_capture\n\nEvents\n------\n2026-05-19T14:32:20.209335+00:00 [SCENARIO_STARTED] {'scenario_id': 'outreach-screening-before-phone', 'policy_id': 'production-policy-v1', 'actor_id': 'human-actor', 'mode': 'interactive', 'start_mode': 'agent_starts'}\n2026-05-19T14:32:20.209335+00:00 [AGENT_INITIAL_MESSAGE_SENT] {'message': \"Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\\nCould you please share your phone number?\\nThanks so much!\", 'source': 'fixture'}\n2026-05-19T14:32:20.209335+00:00 [MEMORY_UPDATED] {'trust_score': 0.35, 'goal_progress': {}, 'extracted_entities': {}, 'initial_agent_message': \"Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\\nCould you please share your phone number?\\nThanks so much!\"}\n2026-05-19T14:39:55.519121+00:00 [ACTOR_RESPONDED] {'speaker': 'Human Actor', 'message': 'hey, please book a viewing? cant share phone number now'}\n2026-05-19T14:39:55.519121+00:00 [MEMORY_UPDATED] {'trust_score': 0.35, 'goal_progress': {}, 'extracted_entities': {}}\n2026-05-19T14:39:58.678543+00:00 [REPLY_GENERATED] {'reply_text': 'No problem! When would you be available to come and see the property?', 'raw_prompt': \"You are assisting a tenant searching for rental properties in the UK.\\n\\nPrimary goal:\\n- Arrange or confirm a viewing naturally.\\n- Keep the conversation human, polite, concise, and realistic.\\n- Use the full conversation history as the only source of truth.\\n- Match this tenant style when appropriate: brief, casual, realistic.\\n\\nThis is the current stage: VIEWING_DISCUSSION\\n\\nHard rules:\\n- Never mention AI, automation, prompts, policies, or internal tools.\\n- Never hallucinate or invent facts.\\n- Never invent or provide an email address.\\n- Never invent personal details such as name, job, location, relationship status, references, move-in date, or viewing arrangements unless they are explicitly present in the conversation.\\n- Never add extra contact details, signatures, or unrelated information.\\n- Never create multiple messages.\\n- Never sound robotic, pushy, or overly eager.\\n- Never repeat yourself.\\n- Avoid reusing the same opener or stock phrase across replies.\\n- If the landlord asks a different question, answer that question naturally and briefly, then steer back to arranging the viewing.\\n- If the landlord asks for contact details before a viewing is booked, keep the reply focused on confirming a viewing time.\\n- Do not send email addresses under any circumstances.\\n- If the landlord offers an email or asks for one, politely redirect to phone contact later after the viewing is arranged.\\n- Output only the final reply text and nothing else.\\n\\nConversation:\\nAGENT: Hi, I'm Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.\\nCould you please share your phone number?\\nThanks so much!\\nACTOR: hey, please book a viewing? cant share phone number now\\n\\nGenerate the next reply ONLY.\", 'raw_completion': 'No problem! When would you be available to come and see the property?', 'model': 'gpt-4.1-mini', 'temperature': 0.0, 'valid': True, 'error': None, 'latency_ms': 3165, 'token_usage': {'prompt_tokens': 363, 'completion_tokens': 15, 'total_tokens': 378}}\n2026-05-19T14:39:58.678543+00:00 [MEMORY_UPDATED] {'trust_score': 0.35, 'goal_progress': {}, 'extracted_entities': {}, 'last_agent_reply': 'No problem! When would you be available to come and see the property?'}\n2026-05-19T14:39:58.678543+00:00 [EVALUATION_COMPLETED] {'score': 0.45, 'passed': False, 'failure_types': ['ignored_question', 'incoherent_followup', 'failed_phone_capture']}\n2026-05-19T14:39:58.678543+00:00 [SESSION_FINISHED] {'session_id': 'a554de53-3f50-4856-a397-4234eb266b46', 'run_duration_ms': 3165, 'mode': 'interactive'}",
+  "observability": {
+    "prompt_tokens": 363,
+    "completion_tokens": 15,
+    "total_tokens": 378,
+    "generation_latency_ms": 3165,
+    "evaluation_timing_ms": 0,
+    "run_duration_ms": 3165,
+    "prompt_size_chars": 1760,
+    "completion_size_chars": 69
+  }
+}

@@ -8,6 +8,7 @@ class Settings:
     PASSWORD = os.getenv("PASSWORD")
 
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_REPLY_MODEL = os.getenv("OPENAI_REPLY_MODEL", "gpt-4.1-mini")
 
     DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -22,5 +23,11 @@ class Settings:
 
     AI_AUTOSEND: bool = os.getenv("AI_AUTOSEND", "true").lower() == "true"
     WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
+    SIMULATION_DEFAULT_TEMPERATURE = float(
+        os.getenv("SIMULATION_DEFAULT_TEMPERATURE", "0.0")
+    )
+    SIMULATION_MAX_FOLLOWUPS = int(
+        os.getenv("SIMULATION_MAX_FOLLOWUPS", "1")
+    )
 
 settings = Settings()
