@@ -164,10 +164,10 @@ async def landlord_is_agent(
     if not landlord_id:
 
         logger.warning(
-            "No landlord ID found"
+            "No landlord ID found; agent status unknown"
         )
 
-        return False
+        return None
 
     count = await get_landlord_property_count(
         page,

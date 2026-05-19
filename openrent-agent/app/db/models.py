@@ -45,6 +45,12 @@ class Account(Base):
     persona_partner_job = Column(String, nullable=True)
     home_city = Column(String, nullable=True)
     persona_type = Column(String, nullable=True)
+    mobile_number = Column(String, nullable=True)
+    phone_fetching_type = Column(String, nullable=True)
+    message_strategy = Column(String, nullable=True)
+    escalation_behavior = Column(String, nullable=True)
+    conversation_goal = Column(String, nullable=True)
+    conversation_style = Column(String, nullable=True)
 
     worker_status = Column(String, default="idle")
     worker_last_heartbeat = Column(DateTime, nullable=True)
@@ -143,6 +149,9 @@ class Conversation(Base):
     phone_found = Column(Boolean, default=False)
 
     extracted_phone = Column(String, unique=True, nullable=True)
+    phone_found_at = Column(DateTime, nullable=True)
+    phone_number_shared_at = Column(DateTime, nullable=True)
+    landlord_asked_phone_at = Column(DateTime, nullable=True)
 
     closed = Column(Boolean, default=False)
 
@@ -214,6 +223,10 @@ class Conversation(Base):
         DateTime,
         nullable=True
     )
+
+    landlord_attitude = Column(String, default="responsive")
+
+    conversation_style = Column(String, nullable=True)
 
 
     # relationships

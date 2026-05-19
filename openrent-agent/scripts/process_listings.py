@@ -88,7 +88,8 @@ async def process_account_listings(
 
                     create_conversation(
                         thread_id=existing_thread_id,
-                        listing_id=listing.id
+                        listing_id=listing.id,
+                        conversation_style=persona.get("conversation_style"),
                     )
 
                     update_conversation_status(
@@ -104,6 +105,16 @@ async def process_account_listings(
                 listing.property_url,
             )
 
+            if is_agent is None:
+                logger.warning(
+                    "Skipping listing because landlord agent status is unknown"
+                )
+                mark_listing_skipped(
+                    listing.id,
+                    reason="agent_status_unknown",
+                )
+                continue
+
             if is_agent:
 
                 logger.info(
@@ -111,7 +122,8 @@ async def process_account_listings(
                 )
 
                 mark_listing_skipped(
-                    listing.id
+                    listing.id,
+                    reason="agent",
                 )
 
                 continue
@@ -137,15 +149,16 @@ async def process_account_listings(
             logger.info(f"Listing {listing.listing_id} contactable: {contactable}")
 
             if not contactable:
-                mark_listing_failed(
-                    listing.id
+                mark_listing_skipped(
+                    listing.id,
+                    reason="not_contactable",
                 )
                 continue
 
             if not can_send_message(account.id):
 
                 print("Daily limit reached")
-                logger.exception(f"Daily limit reached for account {account.id}")
+                logger.info(f"Daily limit reached for account {account.id}")
                 break
 
             full_url = f"https://www.openrent.co.uk{message_link}"
@@ -203,7 +216,8 @@ async def process_account_listings(
 
                 create_conversation(
                     thread_id=thread_id,
-                    listing_id=listing.id
+                    listing_id=listing.id,
+                    conversation_style=persona.get("conversation_style"),
                 )
                 update_conversation_status(thread_id, "INITIAL_MESSAGE_SENT")
                 save_message(thread_id, "outbound", message_text)

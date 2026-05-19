@@ -43,6 +43,13 @@ class AccountCreatePayload(BaseModel):
     initial_message: str = ""
     daily_limit: int = 8
     active: bool = True
+    mobile_number: str | None = None
+    persona_type: str | None = None
+    phone_fetching_type: str | None = None
+    message_strategy: str | None = None
+    escalation_behavior: str | None = None
+    conversation_goal: str | None = None
+    conversation_style: str | None = None
 
 
 class AccountUpdatePayload(BaseModel):
@@ -52,6 +59,13 @@ class AccountUpdatePayload(BaseModel):
     initial_message: str | None = None
     daily_limit: int | None = None
     active: bool | None = None
+    mobile_number: str | None = None
+    persona_type: str | None = None
+    phone_fetching_type: str | None = None
+    message_strategy: str | None = None
+    escalation_behavior: str | None = None
+    conversation_goal: str | None = None
+    conversation_style: str | None = None
 
 
 class SimulationRunPayload(BaseModel):
@@ -172,11 +186,25 @@ def api_create_account(payload: AccountCreatePayload):
         password=payload.password,
         session_file=payload.session_file,
         initial_message=payload.initial_message,
+        mobile_number=payload.mobile_number,
+        persona_type=payload.persona_type,
+        phone_fetching_type=payload.phone_fetching_type,
+        message_strategy=payload.message_strategy,
+        escalation_behavior=payload.escalation_behavior,
+        conversation_goal=payload.conversation_goal,
+        conversation_style=payload.conversation_style,
     )
     return update_account(
         account.id,
         daily_limit=payload.daily_limit,
         active=payload.active,
+        mobile_number=payload.mobile_number,
+        persona_type=payload.persona_type,
+        phone_fetching_type=payload.phone_fetching_type,
+        message_strategy=payload.message_strategy,
+        escalation_behavior=payload.escalation_behavior,
+        conversation_goal=payload.conversation_goal,
+        conversation_style=payload.conversation_style,
     )
 
 
@@ -191,6 +219,13 @@ def api_update_account(account_id: int, payload: AccountUpdatePayload):
         initial_message=payload.initial_message,
         daily_limit=payload.daily_limit,
         active=payload.active,
+        mobile_number=payload.mobile_number,
+        persona_type=payload.persona_type,
+        phone_fetching_type=payload.phone_fetching_type,
+        message_strategy=payload.message_strategy,
+        escalation_behavior=payload.escalation_behavior,
+        conversation_goal=payload.conversation_goal,
+        conversation_style=payload.conversation_style,
     )
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -290,8 +325,8 @@ def api_metrics():
     phones_today = [
         lead for lead in leads
         if lead.get("phone")
-        and lead.get("last_message_at")
-        and lead["last_message_at"].date() == today
+        and lead.get("phone_found_at")
+        and lead["phone_found_at"].date() == today
     ]
 
     by_day = {}
@@ -308,7 +343,12 @@ def api_metrics():
         if lead.get("last_processed_message"):
             by_day[day]["replies"] += 1
         if lead.get("phone"):
-            by_day[day]["phones"] += 1
+            phone_day = (lead.get("phone_found_at") or created_at).date().isoformat()
+            by_day.setdefault(
+                phone_day,
+                {"date": phone_day, "leads": 0, "replies": 0, "phones": 0, "failures": 0},
+            )
+            by_day[phone_day]["phones"] += 1
         if lead.get("status") == "AI_FAILED":
             by_day[day]["failures"] += 1
 

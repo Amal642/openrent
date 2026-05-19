@@ -11,6 +11,13 @@ from app.ai.prompts import (
     build_reply_prompt,
     names_generator,
 )
+from app.ai.conversation_memory import (
+    latest_landlord_asked_for_phone,
+    outbound_count,
+    phone_shared_state,
+    viewing_requested,
+)
+from app.ai.personas import generate_phone_share_reply
 from app.ai.validators import is_valid_reply
 from app.config import settings
 from app.utils.logger import logger
@@ -163,10 +170,25 @@ def generate_reply(
     stage=None,
     persona=None,
     property_location=None,
+    conversation=None,
+    landlord_attitude=None,
+    conversation_style=None,
     retries=3,
     base_delay=2,
 ):
+    conversation_state = conversation
     conversation = format_conversation(messages)
+    landlord_asked_number = latest_landlord_asked_for_phone(messages)
+    number_shared = phone_shared_state(messages, persona, conversation=conversation_state)
+    sent_count = outbound_count(messages)
+
+    if landlord_asked_number and not number_shared:
+        phone_reply = generate_phone_share_reply(
+            persona,
+            landlord_attitude=landlord_attitude or "responsive",
+        )
+        if phone_reply:
+            return phone_reply, None
 
     def build_prompt(conversation_text: str) -> str:
         place = None
@@ -177,6 +199,12 @@ def generate_reply(
             stage or "VIEWING_DISCUSSION",
             persona=persona,
             place=place,
+            landlord_attitude=landlord_attitude,
+            conversation_style=conversation_style,
+            viewing_requested=viewing_requested(messages),
+            phone_number_shared=number_shared,
+            landlord_asked_for_number=landlord_asked_number,
+            outbound_count=sent_count,
         )
 
     result = generate_reply_result(

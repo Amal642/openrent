@@ -4,6 +4,7 @@ from datetime import datetime
 from app.db.repository import (
     get_active_accounts
 )
+from app.db.init_db import init_db
 
 from app.workers.account_worker import (
     run_account_worker
@@ -16,6 +17,7 @@ from app.config import settings
 
 
 async def main():
+    init_db()
     while True:
         await run_once()
         await asyncio.sleep(settings.WORKER_TICK_SECONDS)

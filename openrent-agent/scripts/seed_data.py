@@ -12,7 +12,9 @@ account_1 = create_account(
     email=os.getenv("EMAIL_1"),
     password=os.getenv("PASSWORD_1"),
     session_file="sessions/account_1.json",
-    # mobile_number=os.getenv("MOBILE_1"),
+    mobile_number=os.getenv("MOBILE_1"),
+    phone_fetching_type=os.getenv("PHONE_FETCHING_TYPE_1", "delayed"),
+    conversation_style=os.getenv("CONVERSATION_STYLE_1", "friendly_viewing"),
 
     initial_message="""Hi, I’m Mary, I work in IT. My husband and I really like your property and were hoping to have a quick call before booking a viewing.
 Could you please share your phone number?

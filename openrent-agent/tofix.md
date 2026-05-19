@@ -42,25 +42,7 @@ But `send_reply()` returns `False` when the textarea or send button is disabled.
 
 ---
 
-### 3. Reply strategy still asks for phone too early
-**Files:** `app/ai/prompts.py`
 
-The SOP says:
-- book the viewing first
-- ask for phone only after the viewing is booked
-
-Current prompts still violate that:
-- `build_initial_enquiry_prompt()` includes phone-number-asking language, meaning the model may ask for it during the initial enquiry before any viewing is booked.
-- `build_reply_prompt()` for non-booked stages says to "Arrange a viewing and ask for phone number naturally".
-
-This means the stage-aware behavior is only partially implemented.
-
-**Fix:**
-- Remove phone-number requests from the initial enquiry prompt.
-- Remove phone-number requests from non-booked reply stages.
-- Keep phone asking only in the `VIEWING_BOOKED` path.
-
----
 
 ### 4. Stage detection and viewing-time extraction are too unreliable for automation
 **File:** `app/ai/stages.py`
@@ -79,6 +61,7 @@ This can produce:
 - Base stage detection on recent landlord/user turns, not the whole thread blindly.
 - Extract viewing time from the specific booking exchange, not the first regex hit in the full conversation.
 - Add tests covering re-scheduling, old booked messages, and multiple times in one thread.
+- use prompt if required here
 
 ---
 
@@ -103,21 +86,7 @@ and uses that as `bedrooms`.
 
 ---
 
-### 6. Two Type 2 form mappings are still unverified and may be wrong
-**File:** `app/openrent/messaging.py`
 
-Unresolved mappings:
-- `ScreeningInfo.HasRightToRent = true` is being used for the SOP item "tenancy >= 6 months", but that field name sounds like immigration status, not tenancy duration.
-- Furnishing uses `value="2"` with no proof that it means "I don't mind".
-
-These are not patched; they are only hardcoded guesses.
-
-**Fix:**
-- Verify the actual OpenRent field names/options against the live form or a captured DOM snapshot.
-- Replace magic values with selectors based on actual labels if possible.
-- Document the confirmed mapping in code comments.
-
----
 
 ### 7. Daily phone-target tracking can undercount real leads
 **File:** `app/db/repository.py`
