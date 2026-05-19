@@ -81,39 +81,45 @@ async def extract_listing_metadata(page):
 
             available_from = datetime.utcnow()
 
-    # ---------------- BEDROOMS ----------------
+    # ---------------- BEDROOMS / TENANTS ----------------
 
     bedrooms = 1
+    max_tenants = None
 
-    room_match = re.search(
-        r"Max Tenants:</span>\s*(\d+)",
-        content
+    bedroom_patterns = (
+        r"(\d+)\s*(?:bed|bedroom|bedrooms)\b",
+        r"Bedrooms?</span>\s*(?:</[^>]+>\s*)*(\d+)",
+        r"Bedrooms?</[^>]*>\s*<[^>]*>\s*(\d+)",
     )
 
-    if room_match:
-
-        bedrooms = int(
-            room_match.group(1)
-        )
-
-    else:
-
+    for pattern in bedroom_patterns:
         bed_match = re.search(
-            r"(\d+)\s*Bed",
+            pattern,
             content,
-            re.IGNORECASE
+            re.IGNORECASE | re.DOTALL
         )
-
         if bed_match:
-
             bedrooms = int(
                 bed_match.group(1)
             )
+            break
+
+    tenants_match = re.search(
+        r"Max Tenants:</span>\s*(\d+)",
+        content,
+        re.IGNORECASE
+    )
+
+    if tenants_match:
+        max_tenants = int(
+            tenants_match.group(1)
+        )
 
     return {
         "rent_pcm": rent_pcm,
         "available_from": available_from,
-        "bedrooms": bedrooms
+        "bedrooms": bedrooms,
+        "max_tenants": max_tenants,
     }
 
 async def detect_form_type(page):
@@ -297,20 +303,12 @@ async def send_initial_message(
 
     # ---------------- MESSAGE ----------------
 
-    textarea = await page.query_selector(
-        "textarea"
-    )
+    textarea = await find_message_textarea(page)
 
     if not textarea:
-
-        textarea = await page.query_selector(
-            "textarea"
+        raise Exception(
+            "Message textarea not found"
         )
-
-        if not textarea:
-            raise Exception(
-                "Message textarea not found"
-            )
 
     # await textarea.fill(
     #     message_text
@@ -339,32 +337,7 @@ async def send_initial_message(
 
     # ---------------- SUBMIT ----------------
 
-    buttons = await page.query_selector_all(
-        "button[type='submit']"
-    )
-
-    submit_button = None
-
-    for button in buttons:
-
-        try:
-
-            text = await button.inner_text()
-
-            text = text.strip().lower()
-
-            print(
-                "Found submit candidate:",
-                text
-            )
-
-            if "request viewing" in text:
-
-                submit_button = button
-                break
-
-        except:
-            continue
+    submit_button = await find_submit_button(page)
 
     if not submit_button:
 
@@ -385,6 +358,57 @@ async def send_initial_message(
     print("Final URL:", final_url)
 
     return final_url
+
+
+async def find_message_textarea(page):
+    selectors = [
+        'textarea[name*="Message" i]',
+        'textarea[id*="Message" i]',
+        'textarea[placeholder*="message" i]',
+        "form textarea",
+        "textarea",
+    ]
+
+    for selector in selectors:
+        element = await page.query_selector(selector)
+        if element:
+            return element
+
+    return None
+
+
+async def find_submit_button(page):
+    button_text_markers = [
+        "request viewing",
+        "send enquiry",
+        "send message",
+        "message landlord",
+        "submit",
+        "send",
+    ]
+
+    buttons = await page.query_selector_all(
+        "button[type='submit'], input[type='submit'], button"
+    )
+
+    for button in buttons:
+        try:
+            text = await button.inner_text()
+            if not text:
+                text = await button.get_attribute("value") or ""
+            text = text.strip().lower()
+
+            print(
+                "Found submit candidate:",
+                text
+            )
+
+            if any(marker in text for marker in button_text_markers):
+                return button
+        except Exception:
+            continue
+
+    return None
 
 def extract_thread_id(url):
 

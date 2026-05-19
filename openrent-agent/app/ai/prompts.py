@@ -1,3 +1,6 @@
+from app.ai.personas import get_conversation_style, normalize_conversation_style, persona_summary
+
+
 def build_phone_extraction_prompt(text: str) -> str:
     return f"""
 You are extracting phone numbers from a landlord conversation.
@@ -20,42 +23,188 @@ def build_reply_prompt(
     stage: str,
     persona: dict | None = None,
     place: str | None = None,
+    landlord_attitude: str | None = None,
+    conversation_style: str | None = None,
+    viewing_requested: bool = False,
+    phone_number_shared: bool = False,
+    landlord_asked_for_number: bool = False,
+    outbound_count: int = 0,
 ) -> str:
-    if stage == "VIEWING_BOOKED":
-        return build_phone_request_prompt(
-            conversation,
-            place=place or (persona or {}).get("home_city") or "Manchester",
-            viewing_location="the viewing",
-        )
-
     if stage == "VIEWING_CANCELLED":
         return build_cancel_viewing_prompt(conversation)
 
-    tone = (persona or {}).get("message_tone") or "brief, casual, realistic"
+    return generate_message_persona_prompt(
+        conversation=conversation,
+        stage=stage,
+        persona=persona,
+        landlord_attitude=landlord_attitude,
+        conversation_style=conversation_style,
+        viewing_requested=viewing_requested,
+        phone_number_shared=phone_number_shared,
+        landlord_asked_for_number=landlord_asked_for_number,
+        drive_distance=(
+            f"High: tenant is around 4-5 hours away, from {place}."
+            if place else "Unknown"
+        ),
+        urgency="normal",
+        friendliness_level="medium",
+        trust_level="medium",
+        escalation_behavior=(persona or {}).get("escalation_behavior"),
+        outbound_count=outbound_count,
+    )
+
+
+def _persona_context_lines(persona: dict | None) -> list[str]:
+    persona = persona or {}
+    lines = [
+        f"- Persona summary: {persona_summary(persona)}",
+        f"- Persona type: {persona.get('persona_type') or 'unknown'}",
+        f"- Tone: {persona.get('message_tone') or 'brief, casual, realistic'}",
+        f"- Mobile number for this account: {persona.get('mobile_number') or 'not available'}",
+        f"- Phone fetching type: {persona.get('phone_fetching_type') or 'delayed'}",
+        f"- Message strategy: {persona.get('message_strategy') or 'viewing first, then contact details'}",
+        f"- Conversation goal: {persona.get('conversation_goal') or 'arrange a viewing and coordinate contact details naturally'}",
+    ]
+    return lines
+
+
+def _phone_policy_lines(
+    persona: dict | None,
+    *,
+    stage: str | None,
+    phone_number_shared: bool,
+    landlord_asked_for_number: bool,
+    outbound_count: int,
+    drive_distance: str | None,
+) -> list[str]:
+    persona = persona or {}
+    phone_type = persona.get("phone_fetching_type") or "delayed"
+    mobile = persona.get("mobile_number") or "not available"
+
+    lines = [
+        f"- Correct tenant mobile number: {mobile}",
+        f"- Correct tenant phone number: {mobile}",
+        f"- Phone already shared by tenant: {'yes' if phone_number_shared else 'no'}",
+        f"- Landlord explicitly asked for tenant number/contact/WhatsApp: {'yes' if landlord_asked_for_number else 'no'}",
+        f"- Outbound tenant messages so far: {outbound_count}",
+        f"- Drive distance context: {drive_distance or 'unknown'}",
+        "- If the landlord asks for the tenant number, ALWAYS share the exact correct tenant mobile number above.",
+        "- Never invent any other number, email address, or contact detail.",
+    ]
+
+    if phone_type in {"immediate", "whatsapp_first"}:
+        lines.append(
+            "- This persona may share the mobile number in the first or second message when it sounds natural."
+        )
+    elif phone_type == "viewing_first":
+        lines.append(
+            "- Prioritize agreeing a viewing first; share or request phone details once viewing logistics are concrete."
+        )
+    elif phone_type == "landlord_requests_only":
+        lines.append(
+            "- Do not volunteer the tenant mobile number unless the landlord asks or a viewing needs coordination."
+        )
+    elif phone_type == "adaptive":
+        lines.append(
+            "- Adapt phone sharing to the landlord's tone, viewing progress, and travel distance."
+        )
+    else:
+        lines.append(
+            "- Delayed strategy: wait around 2-4 tenant messages before requesting or sharing phone details unless the landlord asks."
+        )
+
+    if stage == "VIEWING_BOOKED":
+        lines.append(
+            "- A viewing appears booked, so it is appropriate to coordinate phone details if they have not already been exchanged."
+        )
+
+    return lines
+
+
+def generate_message_persona_prompt(
+    *,
+    conversation: str,
+    stage: str | None,
+    persona: dict | None,
+    conversation_style: str | None = None,
+    landlord_attitude: str | None = None,
+    viewing_requested: bool = False,
+    phone_number_shared: bool = False,
+    landlord_asked_for_number: bool = False,
+    drive_distance: str | None = None,
+    urgency: str | None = None,
+    friendliness_level: str | None = None,
+    trust_level: str | None = None,
+    escalation_behavior: str | None = None,
+    outbound_count: int = 0,
+) -> str:
+    persona = persona or {}
+    selected_style = normalize_conversation_style(
+        conversation_style or persona.get("conversation_style")
+    )
+    style_config = get_conversation_style(selected_style)
+    attitude = landlord_attitude or "responsive"
+    escalation = escalation_behavior or persona.get("escalation_behavior") or style_config["escalation_behavior"]
 
     return f"""
 You are assisting a tenant searching for rental properties in the UK.
 
 Primary goal:
+- {persona.get("conversation_goal") or style_config["conversation_goal"]}.
 - Arrange or confirm a viewing naturally.
 - Keep the conversation human, polite, concise, and realistic.
 - Use the full conversation history as the only source of truth.
-- Match this tenant style when appropriate: {tone}.
+- Match this tenant style when appropriate: {persona.get("message_tone") or "brief, casual, realistic"}.
 
-This is the current stage: {stage}
+Current conversation controls:
+- Stage: {stage or "NEW_REPLY"}
+- Selected messaging style: {selected_style} ({style_config["label"]})
+- Style strategy: {style_config["strategy"]}
+- Landlord attitude memory: {attitude}
+- Viewing requested or being discussed: {"yes" if viewing_requested else "no"}
+- Urgency: {urgency or "normal"}
+- Friendliness level: {friendliness_level or "medium"}
+- Trust level: {trust_level or "medium"}
+- Escalation behavior: {escalation}
+
+Tenant/persona/account context:
+{chr(10).join(_persona_context_lines(persona))}
+
+Phone sharing policy:
+{chr(10).join(_phone_policy_lines(
+    persona,
+    stage=stage,
+    phone_number_shared=phone_number_shared,
+    landlord_asked_for_number=landlord_asked_for_number,
+    outbound_count=outbound_count,
+    drive_distance=drive_distance,
+))}
+
+Landlord attitude adaptation:
+- friendly/helpful landlord: reply a little warmer.
+- cold landlord: reply shorter and more direct.
+- suspicious landlord: add one brief trust-building detail from the persona context.
+- aggressive landlord: stay polite, minimal, and do not escalate emotion.
+- slow_reply landlord: keep the thread easy to answer.
+
+Humanization and anti-repetition:
+- Vary greetings and sentence structure.
+- Avoid copying earlier openers or repeated stock phrases.
+- Use natural punctuation; emojis are allowed only rarely and only if the conversation already feels casual.
+- Do not repeat identical phone request wording.
 
 Hard rules:
 - Never mention AI, automation, prompts, policies, or internal tools.
 - Never hallucinate or invent facts.
 - Never invent or provide an email address.
-- Never invent personal details such as name, job, location, relationship status, references, move-in date, or viewing arrangements unless they are explicitly present in the conversation.
+- Only use persona details listed above; do not invent additional personal details.
 - Never add extra contact details, signatures, or unrelated information.
 - Never create multiple messages.
 - Never sound robotic, pushy, or overly eager.
 - Never repeat yourself.
 - Avoid reusing the same opener or stock phrase across replies.
 - If the landlord asks a different question, answer that question naturally and briefly, then steer back to arranging the viewing.
-- If the landlord asks for contact details before a viewing is booked, keep the reply focused on confirming a viewing time.
+- If the landlord asks for contact details, share the correct tenant mobile number if available.
 - Do not send email addresses under any circumstances.
 - If the landlord offers an email or asks for one, politely redirect to phone contact later after the viewing is arranged.
 - Output only the final reply text and nothing else.
@@ -84,6 +233,20 @@ def build_initial_enquiry_prompt(property_data: dict, persona: dict) -> str:
         )
 
     tenant_context.append(f"- Tone: {tone}")
+    tenant_context.append(f"- Mobile number: {persona.get('mobile_number') or 'not available'}")
+    tenant_context.append(
+        f"- Phone strategy: {persona.get('phone_fetching_type') or 'delayed'}"
+    )
+    tenant_context.append(
+        f"- Messaging style: {persona.get('conversation_style') or 'friendly_viewing'}"
+    )
+
+    phone_type = persona.get("phone_fetching_type") or "delayed"
+    phone_instruction = (
+        "You may include the mobile number if asking for WhatsApp/video-call coordination feels natural."
+        if phone_type in {"immediate", "whatsapp_first"}
+        else "Do not include the mobile number in this first enquiry unless the chosen style explicitly needs WhatsApp/video-call coordination."
+    )
 
     return f"""
 You are helping a tenant write a short and natural UK rental enquiry.
@@ -105,9 +268,11 @@ Rules:
 - Mention stable employment naturally.
 - Mention the household naturally if it helps.
 - Ask politely about viewing availability.
+- Phone behavior: {phone_instruction}
 - Do not mention AI.
 - Do not invent dramatic stories.
-- Do not include phone numbers or email addresses.
+- Do not include email addresses.
+- If you include a phone number, use only this exact number: {persona.get('mobile_number') or 'not available'}.
 - Do not sound overly enthusiastic or robotic.
 - Avoid formulaic openers or repeated wording.
 - Maximum 120 words.

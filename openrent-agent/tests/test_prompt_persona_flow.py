@@ -2,7 +2,9 @@ from app.ai.prompts import (
     build_initial_enquiry_prompt,
     build_phone_request_prompt,
     build_reply_prompt,
+    generate_message_persona_prompt,
 )
+from app.ai.replies import generate_reply
 from app.ai.replies import _normalize_place_name, generate_distant_location
 
 
@@ -14,6 +16,12 @@ PERSONA = {
     "household_description": "professional couple",
     "message_tone": "friendly, direct, brief",
     "home_city": "Manchester",
+    "mobile_number": "+447900111222",
+    "phone_fetching_type": "delayed",
+    "message_strategy": "friendly viewing first",
+    "escalation_behavior": "wait until logistics are specific",
+    "conversation_goal": "arrange a viewing and coordinate contact details",
+    "conversation_style": "friendly_viewing",
 }
 
 
@@ -36,6 +44,35 @@ def test_non_booked_reply_prompt_does_not_ask_for_phone():
 
     assert "ask for the landlord's phone number" not in prompt.lower()
     assert "arrange or confirm a viewing naturally" in prompt.lower()
+
+
+def test_dynamic_prompt_includes_phone_policy_and_landlord_attitude():
+    prompt = generate_message_persona_prompt(
+        conversation="LANDLORD: What is your WhatsApp?",
+        stage="VIEWING_DISCUSSION",
+        persona=PERSONA,
+        landlord_attitude="friendly",
+        conversation_style="whatsapp_coordination",
+        landlord_asked_for_number=True,
+        phone_number_shared=False,
+        outbound_count=1,
+    )
+
+    assert "+447900111222" in prompt
+    assert "Landlord attitude memory: friendly" in prompt
+    assert "ALWAYS share the exact correct tenant mobile number" in prompt
+
+
+def test_generate_reply_shares_correct_number_when_landlord_asks():
+    reply, error = generate_reply(
+        [{"sender": "landlord", "message": "Can you share your WhatsApp number?"}],
+        stage="VIEWING_DISCUSSION",
+        persona=PERSONA,
+        landlord_attitude="friendly",
+    )
+
+    assert error is None
+    assert "+447900111222" in reply
 
 
 def test_booked_reply_prompt_uses_dynamic_place():

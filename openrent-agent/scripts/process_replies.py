@@ -10,10 +10,10 @@ from app.db.repository import (
     get_conversation_by_thread_id,
     update_last_processed_message,
     phone_exists,
-    update_landlord_scan,
-    attach_landlord_to_listing,
-    mark_listing_skipped_agent,
     mark_phone_requested,
+    mark_phone_number_shared,
+    mark_landlord_asked_phone,
+    update_conversation_memory,
     save_viewing_datetime,
     count_phones_today,
     get_thread_property_location,
@@ -45,6 +45,11 @@ from app.ai.replies import (
     generate_reply
 )
 
+from app.ai.conversation_memory import (
+    detect_landlord_attitude,
+    latest_landlord_asked_for_phone,
+)
+
 from app.utils.human import random_sleep
 
 from app.config import settings
@@ -54,9 +59,6 @@ from app.utils.phone import (
 )
 from app.utils.logger import logger
 
-from app.utils.retry import (
-    retry_async
-)
 from app.db.status import (
     SKIPPED,
     PHONE_ACQUIRED,
@@ -96,18 +98,6 @@ async def process_account_replies(
 
             await open_thread(page, thread_id)
 
-            # profile_url = await extract_landlord_profile_url(page)
-
-            # if profile_url:
-            #     is_agent, count = await landlord_is_agent(page, profile_url, threshold=5)
-            #     landlord = update_landlord_scan(profile_url, count, is_agent)
-            #     attach_landlord_to_listing(thread_id, landlord.id)
-
-            #     if is_agent:
-            #         print(f"Skipping agent landlord ({count} properties): {profile_url}")
-            #         mark_listing_skipped_agent(thread_id, count)
-            #         continue
-
             messages = await extract_conversation(page)
 
             latest_landlord_message = (
@@ -121,10 +111,6 @@ async def process_account_replies(
                     thread_id
                 )
             )
-
-            # if conversation and conversation.listing and conversation.listing.landlord and conversation.listing.landlord.is_agent:
-            #     print(f"Skipping agent thread {thread_id}")
-            #     continue
 
             if (
                 conversation
@@ -161,6 +147,25 @@ async def process_account_replies(
 
             landlord_texts = landlord_messages
 
+            persona = ensure_account_persona(account.id)
+            landlord_attitude = detect_landlord_attitude(
+                messages,
+                previous=conversation.landlord_attitude if conversation else None,
+            )
+            conversation_style = (
+                conversation.conversation_style
+                if conversation and conversation.conversation_style
+                else persona.get("conversation_style")
+            )
+            landlord_asked_number = latest_landlord_asked_for_phone(messages)
+
+            update_conversation_memory(
+                thread_id,
+                landlord_attitude=landlord_attitude,
+                conversation_style=conversation_style,
+            )
+            if landlord_asked_number:
+                mark_landlord_asked_phone(thread_id)
 
             phone = regex_extract_phone(
                 landlord_texts
@@ -246,6 +251,10 @@ async def process_account_replies(
                         logger.info(
                             f"Daily phone target reached for {account.email}: {phones_today}/3"
                         )
+                    update_last_processed_message(
+                        thread_id,
+                        latest_landlord_message
+                    )
 
                     continue
             stage = detect_stage(
@@ -298,8 +307,11 @@ async def process_account_replies(
                 reply,error = generate_reply(
                     messages,
                     stage=stage,
-                    persona=ensure_account_persona(account.id),
+                    persona=persona,
                     property_location=get_thread_property_location(thread_id),
+                    conversation=conversation,
+                    landlord_attitude=landlord_attitude,
+                    conversation_style=conversation_style,
                 )
                 if not reply or error:
 
@@ -319,10 +331,6 @@ async def process_account_replies(
                 print(reply)
                 logger.info(f"AI reply generated for thread {thread_id} and the reply is {reply}")
 
-                update_last_processed_message(
-                    thread_id,
-                    latest_landlord_message
-                )
                 await random_sleep(2, 5)
 
                 if settings.AI_AUTOSEND:
@@ -343,8 +351,14 @@ async def process_account_replies(
                         continue
 
                     save_message(thread_id, "outbound", reply)
-                    if stage == "VIEWING_BOOKED":
+                    update_last_processed_message(
+                        thread_id,
+                        latest_landlord_message
+                    )
+                    if stage == "VIEWING_BOOKED" and not landlord_asked_number:
                         mark_phone_requested(thread_id)
+                    if persona.get("mobile_number") and persona["mobile_number"] in reply:
+                        mark_phone_number_shared(thread_id)
 
                 else:
 
@@ -353,6 +367,10 @@ async def process_account_replies(
                         "(reply not sent)"
                     )
                     logger.info(f"Review mode enabled for thread {thread_id}")
+                    update_last_processed_message(
+                        thread_id,
+                        latest_landlord_message
+                    )
 
                 save_ai_reply(
                     thread_id,

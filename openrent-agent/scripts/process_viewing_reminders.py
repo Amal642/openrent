@@ -13,6 +13,7 @@ from app.db.repository import (
     update_account_worker_state,
     update_conversation_status,
 )
+from app.db.init_db import init_db
 from app.db.status import AI_FAILED, VIEWING_CANCELLED
 from app.openrent.inbox import extract_conversation, open_thread, send_reply
 from app.utils.human import random_sleep
@@ -103,4 +104,5 @@ async def process_viewing_reminders():
 
 
 if __name__ == "__main__":
+    init_db()
     asyncio.run(process_viewing_reminders())

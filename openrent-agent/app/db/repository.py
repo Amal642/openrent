@@ -12,7 +12,13 @@ from app.db.models import (
     SearchProfile,
 )
 from app.db.status import VIEWING_CANCELLED
-from app.ai.personas import get_persona_template, materialize_persona, select_persona
+from app.ai.personas import (
+    get_conversation_style,
+    get_persona_template,
+    materialize_persona,
+    normalize_conversation_style,
+    select_persona,
+)
 
 
 @contextmanager
@@ -29,7 +35,22 @@ def session_scope():
 
 # ---------------- ACCOUNTS ----------------
 
-def create_account(email, password, session_file, initial_message, proxy_server=None, proxy_username=None, proxy_password=None):
+def create_account(
+    email,
+    password,
+    session_file,
+    initial_message,
+    proxy_server=None,
+    proxy_username=None,
+    proxy_password=None,
+    mobile_number=None,
+    persona_type=None,
+    phone_fetching_type=None,
+    message_strategy=None,
+    escalation_behavior=None,
+    conversation_goal=None,
+    conversation_style=None,
+):
     with session_scope() as db:
         account = Account(
             email=email,
@@ -38,7 +59,14 @@ def create_account(email, password, session_file, initial_message, proxy_server=
             initial_message=initial_message,
             proxy_server=proxy_server,
             proxy_username=proxy_username,
-            proxy_password=proxy_password
+            proxy_password=proxy_password,
+            mobile_number=mobile_number,
+            persona_type=persona_type,
+            phone_fetching_type=phone_fetching_type,
+            message_strategy=message_strategy,
+            escalation_behavior=escalation_behavior,
+            conversation_goal=conversation_goal,
+            conversation_style=conversation_style,
         )
 
         db.add(account)
@@ -57,6 +85,12 @@ def update_account(
     daily_limit=None,
     active=None,
     persona_type=None,
+    mobile_number=None,
+    phone_fetching_type=None,
+    message_strategy=None,
+    escalation_behavior=None,
+    conversation_goal=None,
+    conversation_style=None,
 ):
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
@@ -77,6 +111,18 @@ def update_account(
             account.active = active
         if persona_type is not None:
             account.persona_type = persona_type
+        if mobile_number is not None:
+            account.mobile_number = mobile_number
+        if phone_fetching_type is not None:
+            account.phone_fetching_type = phone_fetching_type
+        if message_strategy is not None:
+            account.message_strategy = message_strategy
+        if escalation_behavior is not None:
+            account.escalation_behavior = escalation_behavior
+        if conversation_goal is not None:
+            account.conversation_goal = conversation_goal
+        if conversation_style is not None:
+            account.conversation_style = normalize_conversation_style(conversation_style)
 
         db.commit()
 
@@ -128,6 +174,12 @@ def ensure_account_persona(account_or_id):
                 "persona_name",
                 "persona_job",
                 "home_city",
+                "mobile_number",
+                "phone_fetching_type",
+                "message_strategy",
+                "escalation_behavior",
+                "conversation_goal",
+                "conversation_style",
             )
         )
         if partner_required:
@@ -141,9 +193,12 @@ def ensure_account_persona(account_or_id):
 
         if missing:
             selected = (
-                materialize_persona(template)
+                materialize_persona(template, seed=f"{account.id}:{account.email}")
                 if template
-                else select_persona()
+                else materialize_persona(
+                    get_persona_template(select_persona()["persona_type"]),
+                    seed=f"{account.id}:{account.email}",
+                )
             )
             account.persona_type = account.persona_type or selected["persona_type"]
             account.persona_name = account.persona_name or selected["persona_name"]
@@ -155,9 +210,39 @@ def ensure_account_persona(account_or_id):
                 account.persona_partner_job or selected["persona_partner_job"]
             )
             account.home_city = account.home_city or selected["home_city"]
+            account.mobile_number = account.mobile_number or selected["mobile_number"]
+            account.conversation_style = (
+                account.conversation_style or selected["conversation_style"]
+            )
+            style_config = get_conversation_style(account.conversation_style)
+            account.phone_fetching_type = (
+                account.phone_fetching_type
+                or selected.get("phone_fetching_type")
+                or style_config["phone_fetching_type"]
+            )
+            account.message_strategy = (
+                account.message_strategy
+                or selected.get("message_strategy")
+                or style_config["strategy"]
+            )
+            account.escalation_behavior = (
+                account.escalation_behavior
+                or selected.get("escalation_behavior")
+                or style_config["escalation_behavior"]
+            )
+            account.conversation_goal = (
+                account.conversation_goal
+                or selected.get("conversation_goal")
+                or style_config["conversation_goal"]
+            )
             db.commit()
 
         template = get_persona_template(account.persona_type) or {}
+        conversation_style = normalize_conversation_style(
+            account.conversation_style
+            or (template.get("conversation_styles") or ["friendly_viewing"])[0]
+        )
+        style_config = get_conversation_style(conversation_style)
 
         return {
             "persona_type": account.persona_type,
@@ -169,6 +254,29 @@ def ensure_account_persona(account_or_id):
             "household_description": template.get("household_description"),
             "message_tone": template.get("message_tone"),
             "display_name": template.get("display_name"),
+            "mobile_number": account.mobile_number,
+            "phone_fetching_type": (
+                account.phone_fetching_type
+                or template.get("phone_fetching_type")
+                or style_config["phone_fetching_type"]
+            ),
+            "message_strategy": (
+                account.message_strategy
+                or template.get("message_strategy")
+                or style_config["strategy"]
+            ),
+            "escalation_behavior": (
+                account.escalation_behavior
+                or template.get("escalation_behavior")
+                or style_config["escalation_behavior"]
+            ),
+            "conversation_goal": (
+                account.conversation_goal
+                or template.get("conversation_goal")
+                or style_config["conversation_goal"]
+            ),
+            "conversation_style": conversation_style,
+            "conversation_styles": template.get("conversation_styles") or [],
         }
 
 
@@ -193,6 +301,13 @@ def serialize_account(account):
         "household_description": persona["household_description"] if persona else None,
         "message_tone": persona["message_tone"] if persona else None,
         "persona_label": persona["display_name"] if persona else None,
+        "mobile_number": persona["mobile_number"] if persona else None,
+        "phone_fetching_type": persona["phone_fetching_type"] if persona else None,
+        "message_strategy": persona["message_strategy"] if persona else None,
+        "escalation_behavior": persona["escalation_behavior"] if persona else None,
+        "conversation_goal": persona["conversation_goal"] if persona else None,
+        "conversation_style": persona["conversation_style"] if persona else None,
+        "conversation_styles": persona["conversation_styles"] if persona else [],
         "worker_status": account.worker_status or "idle",
         "worker_last_heartbeat": account.worker_last_heartbeat,
         "worker_last_error": account.worker_last_error,
@@ -352,7 +467,8 @@ def get_uncontacted_listings(
             .filter(
                 SearchProfile.account_id == account_id,
                 Listing.message_sent == False,
-                Listing.processing_failed == False
+                Listing.processing_failed == False,
+                Listing.skip_reason == None,
             )
             .limit(limit)
             .all()
@@ -370,6 +486,7 @@ def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30)
                 SearchProfile.account_id == account_id,
                 Listing.message_sent == False,
                 Listing.processing_failed == False,
+                Listing.skip_reason == None,
                 (
                     (Listing.processing_owner == None)
                     | (Listing.processing_started_at < stale_before)
@@ -433,17 +550,6 @@ def mark_listing_failed(listing_id):
 
             db.commit()
 
-def mark_listing_skipped(listing_id):
-    with session_scope() as db:
-        listing = db.query(Listing).filter(Listing.id == listing_id).first()
-
-        if listing:
-            listing.processing_failed = True
-            listing.processing_owner = None
-            listing.processing_started_at = None
-            db.commit()
-
-
 def save_message_url(
     listing_id,
     message_url
@@ -483,13 +589,18 @@ def increment_message_count(account_id):
 
 def create_conversation(
     thread_id,
-    listing_id=None
+    listing_id=None,
+    conversation_style=None,
+    landlord_attitude=None,
 ):
     with session_scope() as db:
         conversation = Conversation(
             thread_id=thread_id,
             listing_id=listing_id,
-            conversation_stage="NEW_LEAD"
+            conversation_stage="NEW_LEAD",
+            conversation_style=normalize_conversation_style(conversation_style)
+            if conversation_style else None,
+            landlord_attitude=landlord_attitude or "responsive",
         )
 
         db.add(conversation)
@@ -499,7 +610,7 @@ def create_conversation(
         return conversation
 
 
-def get_or_create_conversation(thread_id, listing_id=None):
+def get_or_create_conversation(thread_id, listing_id=None, conversation_style=None):
     with session_scope() as db:
         conversation = db.query(Conversation).filter(
             Conversation.thread_id == thread_id
@@ -512,6 +623,8 @@ def get_or_create_conversation(thread_id, listing_id=None):
             thread_id=thread_id,
             listing_id=listing_id,
             conversation_stage="NEW_LEAD",
+            conversation_style=normalize_conversation_style(conversation_style)
+            if conversation_style else None,
         )
         db.add(conversation)
         db.commit()
@@ -669,6 +782,49 @@ def mark_phone_requested(
             db.commit()
 
 
+def mark_phone_number_shared(thread_id):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+            conversation.phone_number_shared_at = datetime.utcnow()
+            db.commit()
+
+
+def mark_landlord_asked_phone(thread_id):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+            conversation.landlord_asked_phone_at = datetime.utcnow()
+            db.commit()
+
+
+def update_conversation_memory(
+    thread_id,
+    *,
+    landlord_attitude=None,
+    conversation_style=None,
+):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+            if landlord_attitude:
+                conversation.landlord_attitude = landlord_attitude
+            if conversation_style:
+                conversation.conversation_style = normalize_conversation_style(
+                    conversation_style
+                )
+            db.commit()
+
+
 def update_conversation_stage(thread_id, stage):
     with session_scope() as db:
         conversation = db.query(Conversation).filter(
@@ -721,6 +877,7 @@ def save_phone_number(
         if conversation:
             conversation.extracted_phone = phone
             conversation.phone_found = True
+            conversation.phone_found_at = datetime.utcnow()
             conversation.status = "PHONE_ACQUIRED"
             db.commit()
 
@@ -748,7 +905,8 @@ def mark_listing_skipped(listing_id, reason="SKIPPED"):
 
         if listing:
             listing.skip_reason = reason
-            listing.processing_failed = True
+            listing.processing_failed = False
+            listing.last_processed_at = datetime.utcnow()
             listing.processing_owner = None
             listing.processing_started_at = None
             db.commit()
@@ -843,7 +1001,7 @@ def mark_listing_skipped_agent(listing_id, property_count=None):
 
         if listing:
             listing.skip_reason = "agent"
-            listing.processing_failed = True
+            listing.processing_failed = False
             listing.last_processed_at = datetime.utcnow()
             listing.processing_owner = None
             listing.processing_started_at = None
@@ -897,7 +1055,8 @@ def count_phones_today(account_id=None):
             .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
             .filter(
                 Conversation.extracted_phone != None,
-                Conversation.last_message_at >= start,
+                Conversation.phone_found_at != None,
+                Conversation.phone_found_at >= start,
             )
         )
 
@@ -958,6 +1117,14 @@ def get_dashboard_leads(status=None):
                 "cancel_required": conversation.cancel_required,
                 "cancellation_sent_at": conversation.cancellation_sent_at,
                 "phone_requested_at": conversation.phone_requested_at,
+                "phone_found_at": conversation.phone_found_at,
+                "phone_number_shared_at": conversation.phone_number_shared_at,
+                "landlord_asked_phone_at": conversation.landlord_asked_phone_at,
+                "landlord_attitude": conversation.landlord_attitude,
+                "conversation_style": (
+                    conversation.conversation_style
+                    or (persona["conversation_style"] if persona else None)
+                ),
                 "last_stage_change": conversation.last_stage_change,
                 "phone": conversation.extracted_phone or "",
                 "last_processed_message": conversation.last_processed_message or "",
@@ -974,6 +1141,11 @@ def get_dashboard_leads(status=None):
                 "persona_type": persona["persona_type"] if persona else account.persona_type,
                 "household_description": persona["household_description"] if persona else None,
                 "message_tone": persona["message_tone"] if persona else None,
+                "mobile_number": persona["mobile_number"] if persona else None,
+                "phone_fetching_type": persona["phone_fetching_type"] if persona else None,
+                "message_strategy": persona["message_strategy"] if persona else None,
+                "escalation_behavior": persona["escalation_behavior"] if persona else None,
+                "conversation_goal": persona["conversation_goal"] if persona else None,
                 "created_at": conversation.created_at,
                 "last_message_at": conversation.last_message_at,
             })
