@@ -1,4 +1,33 @@
-from app.ai.personas import get_conversation_style, normalize_conversation_style, persona_summary
+from app.ai.personas import (
+    get_conversation_style,
+    normalize_conversation_style,
+    persona_summary,
+)
+
+
+_DESIGN_RULES: dict[str, list[str]] = {
+    "viewing_first_v1": [
+        "Your primary goal is to arrange or confirm a viewing naturally.",
+        "If the landlord asks questions, answer them briefly and directly before circling back to the viewing.",
+        "Do not ask for a phone number until a viewing is agreed or very close to being agreed.",
+        "Once a viewing is set, ask for a number casually - frame it as a practical coordination step only.",
+        "Never make it feel like you are chasing contact details.",
+    ],
+    "phone_first_v1": [
+        "Your goal is to get the landlord's phone number early, but keep it natural and low-pressure.",
+        "Answer any direct landlord questions briefly before making the ask.",
+        "Never feel transactional or pushy.",
+    ],
+    "screening_first_v1": [
+        "Establish yourself as a reliable tenant first - answer any questions about employment, household, or move-in naturally.",
+        "Once the landlord seems comfortable, steer the conversation toward arranging a viewing.",
+    ],
+    "soft_human_v1": [
+        "Keep every reply warm, brief, and low-pressure.",
+        "Match the landlord's pace - if they are asking questions, answer them before progressing.",
+        "Never rush toward a viewing or push for anything.",
+    ],
+}
 
 
 def build_phone_extraction_prompt(text: str) -> str:
@@ -20,9 +49,10 @@ Rules:
 
 def build_reply_prompt(
     conversation: str,
-    stage: str,
+    stage: str = "VIEWING_DISCUSSION",
     persona: dict | None = None,
     place: str | None = None,
+    conversation_design_id: str | None = None,
     landlord_attitude: str | None = None,
     conversation_style: str | None = None,
     viewing_requested: bool = False,
@@ -33,10 +63,18 @@ def build_reply_prompt(
     if stage == "VIEWING_CANCELLED":
         return build_cancel_viewing_prompt(conversation)
 
+    if stage == "VIEWING_BOOKED" and not landlord_asked_for_number:
+        return build_phone_request_prompt(
+            conversation,
+            place=place or (persona or {}).get("home_city") or "Manchester",
+            viewing_location="the viewing",
+        )
+
     return generate_message_persona_prompt(
         conversation=conversation,
         stage=stage,
         persona=persona,
+        conversation_design_id=conversation_design_id,
         landlord_attitude=landlord_attitude,
         conversation_style=conversation_style,
         viewing_requested=viewing_requested,
@@ -126,6 +164,7 @@ def generate_message_persona_prompt(
     conversation: str,
     stage: str | None,
     persona: dict | None,
+    conversation_design_id: str | None = None,
     conversation_style: str | None = None,
     landlord_attitude: str | None = None,
     viewing_requested: bool = False,
@@ -144,10 +183,20 @@ def generate_message_persona_prompt(
     )
     style_config = get_conversation_style(selected_style)
     attitude = landlord_attitude or "responsive"
-    escalation = escalation_behavior or persona.get("escalation_behavior") or style_config["escalation_behavior"]
+    escalation = (
+        escalation_behavior
+        or persona.get("escalation_behavior")
+        or style_config["escalation_behavior"]
+    )
+
+    persona_name = persona.get("persona_name") or "Mary"
+    rules = _DESIGN_RULES.get(
+        conversation_design_id or "viewing_first_v1",
+        _DESIGN_RULES["viewing_first_v1"],
+    )
 
     return f"""
-You are assisting a tenant searching for rental properties in the UK.
+You are {persona_name}, a real person looking to rent a property in the UK. You are texting the landlord directly - not writing an email, not filling a form. Just a natural back-and-forth conversation.
 
 Primary goal:
 - {persona.get("conversation_goal") or style_config["conversation_goal"]}.
@@ -155,6 +204,9 @@ Primary goal:
 - Keep the conversation human, polite, concise, and realistic.
 - Use the full conversation history as the only source of truth.
 - Match this tenant style when appropriate: {persona.get("message_tone") or "brief, casual, realistic"}.
+
+Conversation design rules:
+{chr(10).join(f"- {rule}" for rule in rules)}
 
 Current conversation controls:
 - Stage: {stage or "NEW_REPLY"}
@@ -187,9 +239,14 @@ Landlord attitude adaptation:
 - aggressive landlord: stay polite, minimal, and do not escalate emotion.
 - slow_reply landlord: keep the thread easy to answer.
 
-Humanization and anti-repetition:
-- Vary greetings and sentence structure.
-- Avoid copying earlier openers or repeated stock phrases.
+How to write your reply:
+- Sound like a real person texting. Short, direct, no fluff.
+- Never open with "Certainly", "Of course", "Absolutely", "Sure", "Great", "Thanks for getting back to me", "Thanks for your message", "Happy to", or any similar AI-sounding opener.
+- Never explain what you are about to say. Just say it.
+- If the landlord asked a question, answer it first - briefly and directly - before anything else.
+- Vary your wording. If you used a phrase in a previous message, say it differently this time.
+- No bullet points, lists, or headers in the actual reply. Plain text only.
+- Keep it short - 1 to 3 sentences is almost always enough.
 - Use natural punctuation; emojis are allowed only rarely and only if the conversation already feels casual.
 - Do not repeat identical phone request wording.
 
@@ -205,14 +262,13 @@ Hard rules:
 - Avoid reusing the same opener or stock phrase across replies.
 - If the landlord asks a different question, answer that question naturally and briefly, then steer back to arranging the viewing.
 - If the landlord asks for contact details, share the correct tenant mobile number if available.
-- Do not send email addresses under any circumstances.
 - If the landlord offers an email or asks for one, politely redirect to phone contact later after the viewing is arranged.
 - Output only the final reply text and nothing else.
 
 Conversation:
 {conversation}
 
-Generate the next reply ONLY.
+Write your next message only. No explanation, no quotation marks.
 """.strip()
 
 

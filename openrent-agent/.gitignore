@@ -135,4 +135,8 @@ htmlcov/
 *.temp
 
 
-sessions/
+/sessions/
+
+# Generated simulation runs
+simulation/datasets/runs/*.json
+!simulation/datasets/runs/a554de53-3f50-4856-a397-4234eb266b46.json

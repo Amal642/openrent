@@ -10,8 +10,16 @@ dependencies = [
     "python-dotenv",
     "sqlalchemy",
     "asyncpg",
+    "Flask",
     "fastapi",
-    "uvicorn"
+    "uvicorn",
+    "openai",
+    "pydantic"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
 ]
 
 [tool.setuptools.packages.find]

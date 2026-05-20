@@ -1,5 +1,6 @@
 import re
 import time
+from dataclasses import dataclass
 
 from openai import APIError, APITimeoutError, OpenAI, RateLimitError
 
@@ -37,10 +38,43 @@ FALLBACK_DISTANT_LOCATIONS = [
 ]
 
 
+@dataclass
+class ReplyGenerationResult:
+    reply: str | None
+    prompt: str | None
+    completion: str | None
+    model: str
+    temperature: float
+    is_valid: bool
+    error: str | None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    latency_ms: int = 0
+
+
+def _default_completion_create(**kwargs):
+    return client.chat.completions.create(**kwargs)
+
+
 def format_conversation(messages):
     lines = []
     for msg in messages:
         lines.append(f"{msg['sender'].upper()}: {msg['message']}")
+    return "\n".join(lines)
+
+
+def _format_simulation_conversation(messages) -> str:
+    lines = []
+    for message in messages:
+        speaker = getattr(message, "speaker", None)
+        content = getattr(message, "message", None)
+        if speaker is None and isinstance(message, dict):
+            speaker = message.get("speaker") or message.get("sender")
+            content = message.get("message")
+        if not speaker or content is None:
+            continue
+        lines.append(f"{str(speaker).upper()}: {content}")
     return "\n".join(lines)
 
 
@@ -156,39 +190,101 @@ def generate_reply(
         if phone_reply:
             return phone_reply, None
 
-    place = None
-    if stage == "VIEWING_BOOKED":
-        place = generate_distant_location(property_location or "")
-    prompt = build_reply_prompt(
-        conversation,
-        stage,
-        persona=persona,
-        place=place,
-        landlord_attitude=landlord_attitude,
-        conversation_style=conversation_style,
-        viewing_requested=viewing_requested(messages),
-        phone_number_shared=number_shared,
-        landlord_asked_for_number=landlord_asked_number,
-        outbound_count=sent_count,
-    )
+    def build_prompt(conversation_text: str) -> str:
+        place = None
+        if stage == "VIEWING_BOOKED":
+            place = generate_distant_location(property_location or "")
+        return build_reply_prompt(
+            conversation_text,
+            stage or "VIEWING_DISCUSSION",
+            persona=persona,
+            place=place,
+            landlord_attitude=landlord_attitude,
+            conversation_style=conversation_style,
+            viewing_requested=viewing_requested(messages),
+            phone_number_shared=number_shared,
+            landlord_asked_for_number=landlord_asked_number,
+            outbound_count=sent_count,
+        )
 
+    result = generate_reply_result(
+        conversation,
+        model=settings.OPENAI_REPLY_MODEL,
+        temperature=0.7,
+        prompt_builder=build_prompt,
+        retries=retries,
+        base_delay=base_delay,
+    )
+    if not result.is_valid:
+        return None, result.error or "invalid_ai_reply"
+    return result.reply, None
+
+
+def generate_reply_result(
+    prompt_messages,
+    *,
+    model: str | None = None,
+    temperature: float = 0.7,
+    prompt_builder=None,
+    retries: int = 3,
+    base_delay: int = 2,
+):
+    conversation = prompt_messages
+    if not isinstance(prompt_messages, str):
+        conversation = _format_simulation_conversation(prompt_messages)
+
+    if prompt_builder is None:
+        prompt = build_reply_prompt(conversation)
+    else:
+        prompt = prompt_builder(conversation)
+
+    selected_model = model or settings.OPENAI_REPLY_MODEL
     last_error = None
 
     for attempt in range(1, retries + 1):
+        started_at = time.perf_counter()
         try:
-            response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+            response = _default_completion_create(
+                model=selected_model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
+                temperature=temperature,
             )
+            latency_ms = int((time.perf_counter() - started_at) * 1000)
+            completion = (response.choices[0].message.content or "").strip()
+            usage = getattr(response, "usage", None)
+            prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+            completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+            total_tokens = getattr(usage, "total_tokens", 0) or 0
 
-            reply = response.choices[0].message.content.strip()
-
-            if not is_valid_reply(reply):
+            if not is_valid_reply(completion):
                 logger.warning("Invalid AI reply generated")
-                return None, "invalid_ai_reply"
+                return ReplyGenerationResult(
+                    reply=None,
+                    prompt=prompt,
+                    completion=completion,
+                    model=selected_model,
+                    temperature=temperature,
+                    is_valid=False,
+                    error="invalid_ai_reply",
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    latency_ms=latency_ms,
+                )
 
-            return reply, None
+            return ReplyGenerationResult(
+                reply=completion,
+                prompt=prompt,
+                completion=completion,
+                model=selected_model,
+                temperature=temperature,
+                is_valid=True,
+                error=None,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                latency_ms=latency_ms,
+            )
 
         except (RateLimitError, APITimeoutError, APIError) as exc:
             last_error = str(exc)
@@ -197,13 +293,20 @@ def generate_reply(
             )
             if attempt < retries:
                 time.sleep(base_delay * attempt)
-
         except Exception as exc:
             last_error = str(exc)
             logger.exception(f"Unexpected AI reply error: {exc}")
             break
 
-    return None, last_error or "ai_reply_failed"
+    return ReplyGenerationResult(
+        reply=None,
+        prompt=prompt,
+        completion=None,
+        model=selected_model,
+        temperature=temperature,
+        is_valid=False,
+        error=last_error or "ai_reply_failed",
+    )
 
 
 def generate_cancellation_message(messages=None, retries=3, base_delay=2):
