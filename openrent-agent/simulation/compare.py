@@ -151,6 +151,7 @@ def _run_single_design(
     initial_message_provider = build_initial_message_provider(
         source="fixture",
         conversation_design_id=design.design_id,
+        persona=persona,
     )
 
     emit_event(

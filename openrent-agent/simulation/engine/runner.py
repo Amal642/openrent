@@ -4,6 +4,7 @@ from simulation.engine.deterministic import build_rng
 from simulation.engine.event_bus import EventBus
 from simulation.engine.orchestrator import SimulationOrchestrator
 from simulation.engine.runtime_context import RuntimeContext
+from simulation.conversation_designs import default_simulation_persona
 from simulation.lab import (
     DEFAULT_ACTOR_ID,
     DEFAULT_POLICY_ID,
@@ -18,8 +19,11 @@ from simulation.templates.initial_message_provider import build_initial_message_
 def run_simulation(*, deterministic_seed: int = 42, max_turns: int = 1):
     scenario = _resolve_scenario(DEFAULT_SCENARIO_ID, max_turns, "agent_starts")
     actor = _resolve_actor(DEFAULT_ACTOR_ID)
+    persona = default_simulation_persona()
     policy = _resolve_policy(DEFAULT_POLICY_ID)
-    initial_message_provider = build_initial_message_provider(source="fixture")
+    initial_message_provider = build_initial_message_provider(
+        source="fixture", persona=persona
+    )
     context = RuntimeContext(
         session_id=str(uuid.uuid4()),
         deterministic_seed=deterministic_seed,

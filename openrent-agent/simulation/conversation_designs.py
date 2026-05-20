@@ -20,6 +20,21 @@ class ConversationDesign:
     failure_criteria: list[str]
     metadata: dict = field(default_factory=dict)
 
+    def render_opening_message(self, persona: dict | None = None) -> str:
+        p = persona or {}
+        name = p.get("persona_name") or "Mary"
+        has_partner = bool(p.get("persona_partner_name"))
+        tokens = {
+            "persona_name": name,
+            "my_partner_and_i_are": "My partner and I are" if has_partner else "I'm",
+            "credentials_intro": (
+                "We're both working professionals"
+                if has_partner
+                else "I'm a working professional"
+            ),
+        }
+        return self.opening_message.format_map(tokens)
+
 
 CONVERSATION_DESIGNS = {
     VIEWING_FIRST_V1: ConversationDesign(
@@ -30,7 +45,7 @@ CONVERSATION_DESIGNS = {
             "number for coordination."
         ),
         opening_message=(
-            "Hi, I'm Mary. My husband and I are interested in the property. "
+            "Hi, I'm {persona_name}. {my_partner_and_i_are} interested in the property. "
             "Would it be possible to arrange a viewing sometime this week?"
         ),
         reply_prompt_rules=[
@@ -59,7 +74,7 @@ CONVERSATION_DESIGNS = {
         name="Phone first",
         description="Early phone-capture strategy retained for comparison.",
         opening_message=(
-            "Hi, I'm Mary. My husband and I are interested in the property. "
+            "Hi, I'm {persona_name}. {my_partner_and_i_are} interested in the property. "
             "Would you be able to share your number so we can have a quick chat?"
         ),
         reply_prompt_rules=[
@@ -75,8 +90,8 @@ CONVERSATION_DESIGNS = {
         name="Screening first",
         description="Lead with tenant credibility before progressing to viewing.",
         opening_message=(
-            "Hi, I'm Mary. My husband and I are interested in the property. "
-            "We're both working professionals and wanted to check if viewings are available."
+            "Hi, I'm {persona_name}. {my_partner_and_i_are} interested in the property. "
+            "{credentials_intro} and wanted to check if viewings are available."
         ),
         reply_prompt_rules=[
             "Primary goal: answer screening concerns and build credibility.",
@@ -90,7 +105,7 @@ CONVERSATION_DESIGNS = {
         name="Soft human",
         description="Low-pressure conversational strategy with softer wording.",
         opening_message=(
-            "Hi, I'm Mary. I saw your property and it looks like it could be a good fit. "
+            "Hi, I'm {persona_name}. I saw your property and it looks like it could be a good fit. "
             "Would it be possible to arrange a viewing?"
         ),
         reply_prompt_rules=[

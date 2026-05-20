@@ -145,6 +145,7 @@ def run_simulation_session(
             account_id=account_id,
             initial_message=initial_message,
             conversation_design_id=conversation_design.design_id,
+            persona=persona,
         )
 
     context = RuntimeContext(

@@ -19,6 +19,25 @@ def test_fixture_initial_message_provider_returns_deterministic_message():
     assert provider.source == "fixture"
 
 
+def test_fixture_initial_message_provider_uses_persona_name():
+    persona = {"persona_name": "James", "persona_partner_name": "Sophie"}
+    provider = FixtureInitialMessageProvider(persona=persona)
+
+    message = provider.get_message()
+    assert "James" in message
+    assert "My partner and I are" in message
+
+
+def test_fixture_initial_message_provider_single_persona():
+    persona = {"persona_name": "Tom", "persona_partner_name": None}
+    provider = FixtureInitialMessageProvider(persona=persona)
+
+    message = provider.get_message()
+    assert "Tom" in message
+    assert "I'm interested" in message or "I'm" in message
+    assert "My partner" not in message
+
+
 def test_manual_initial_message_provider_returns_exact_message():
     provider = ManualInitialMessageProvider("Hello from manual input.")
 

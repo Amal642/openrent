@@ -43,9 +43,10 @@ This design should:
 
 ```text
 app/ai/prompts.py                          Single source of truth for all AI reply behavior
+app/ai/personas.py                         Persona templates and materialisation logic
 app/ai/replies.py
 app/api/main.py
-simulation/conversation_designs.py         Metadata only: names, opening messages, success/failure criteria
+simulation/conversation_designs.py         Metadata only: names, opening message templates, success/failure criteria
 simulation/scenario_library.py
 simulation/conversation_state.py
 simulation/compare.py
@@ -75,6 +76,14 @@ _DESIGN_RULES = {
 `ProductionPolicy.build_prompt` passes `conversation_design_id=self.conversation_design_id` to `build_reply_prompt`. It does not pass the full conversation design dict.
 
 To change how the AI replies for a given design, edit `_DESIGN_RULES` in `prompts.py` only.
+
+## Opening Message Architecture
+
+Opening messages in `conversation_designs.py` are template strings, not hardcoded text. They use tokens such as `{persona_name}`, `{my_partner_and_i_are}`, and `{credentials_intro}` that are resolved at session start via `ConversationDesign.render_opening_message(persona)`.
+
+- To change the wording of an opening message, edit the template string in `conversation_designs.py`.
+- To change who the AI presents as, change the persona passed to the session.
+- Do not hardcode names or household phrasing directly into `opening_message` strings.
 
 ## Simulation Concepts
 

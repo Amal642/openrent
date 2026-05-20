@@ -3,11 +3,8 @@ from abc import ABC, abstractmethod
 from fastapi import HTTPException
 
 from simulation.conversation_designs import (
-    VIEWING_FIRST_V1,
     get_conversation_design,
 )
-
-DEFAULT_INITIAL_MESSAGE = get_conversation_design(VIEWING_FIRST_V1).opening_message
 
 
 class InitialMessageProvider(ABC):
@@ -25,9 +22,12 @@ class FixtureInitialMessageProvider(InitialMessageProvider):
         self,
         message: str | None = None,
         conversation_design_id: str | None = None,
+        persona: dict | None = None,
     ):
         design = get_conversation_design(conversation_design_id)
-        self.message = (message or design.opening_message).strip()
+        self.message = (
+            message.strip() if message else design.render_opening_message(persona)
+        )
 
     def get_message(self) -> str:
         return self.message
@@ -80,6 +80,7 @@ def build_initial_message_provider(
     account_id: int | None = None,
     initial_message: str | None = None,
     conversation_design_id: str | None = None,
+    persona: dict | None = None,
 ) -> InitialMessageProvider:
     provider_source = (source or "fixture").strip().lower()
     if provider_source == "manual":
@@ -95,5 +96,6 @@ def build_initial_message_provider(
         return FixtureInitialMessageProvider(
             initial_message,
             conversation_design_id=conversation_design_id,
+            persona=persona,
         )
     raise HTTPException(status_code=400, detail="Unknown initial_message_source")

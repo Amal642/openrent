@@ -98,6 +98,7 @@ The simulation lab supports:
 - Audit mode for client/tester-facing transcript review.
 - Dev mode for internal logs, prompts, completions, runtime context, and event timelines.
 - Interactive sessions where the AI starts as the renter and testers reply as the landlord.
+- Persona-driven opening messages: the AI introduces itself with the name, household type, and tone drawn from the active persona rather than a hardcoded line.
 - Conversation design selection, including `viewing_first_v1` and `phone_first_v1`.
 - Compare mode for running the same landlord scenario against multiple AI designs.
 - Conversation state tracking for viewing progress, screening, coordination, early phone asks, refusals, and stalls.
@@ -112,13 +113,23 @@ app/ai/prompts.py  →  _DESIGN_RULES dict
 
 Each conversation design has its reply rules embedded there, keyed by design ID. This is the single source of truth for AI behavior in the simulation lab.
 
-**Conversation design metadata** (names, opening messages, success/failure criteria) lives in:
+**Conversation design metadata** (names, opening message templates, success/failure criteria) lives in:
 
 ```text
 simulation/conversation_designs.py
 ```
 
 This file defines what each design is called and how sessions start — it does not control how the AI replies.
+
+Opening messages are template strings rendered at runtime from the active persona. The persona supplies the tenant name, partner name, and household type, so the opening message matches whoever the AI is playing. To change the opening wording for a design, edit `opening_message` in `conversation_designs.py`. To change who the AI is, change the persona passed to the session.
+
+**Personas** (tenant identities the AI adopts) live in:
+
+```text
+app/ai/personas.py
+```
+
+Each persona template defines a household type, name pool, job pool, tone, city, phone-capture strategy, and eligible conversation styles. A persona is materialised at session start by randomly selecting names and a conversation style from the template.
 
 Static landlord scenarios live in:
 
@@ -178,10 +189,10 @@ python scripts\process_viewing_reminders.py
 
 ## Tests
 
-Backend simulation/API tests:
+Backend simulation/API tests (run from `openrent-agent/`):
 
 ```powershell
-pytest openrent-agent/tests/simulation openrent-agent/tests/test_simulation_api.py openrent-agent/tests/test_prompt_persona_flow.py
+pytest tests\simulation tests\test_simulation_api.py tests\test_prompt_persona_flow.py
 ```
 
 Simulation lab build:
