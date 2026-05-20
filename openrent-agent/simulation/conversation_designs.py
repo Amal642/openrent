@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 from app.ai.personas import get_persona_template
+import os
 
 
 VIEWING_FIRST_V1 = "viewing_first_v1"
@@ -152,7 +153,11 @@ def default_simulation_persona() -> dict:
             "household_description",
             "young professional couple",
         ),
+        "mobile_number": os.getenv("MOBILE_1"),
         "message_tone": template.get("message_tone", "friendly, direct, brief"),
         "home_city": template.get("home_city", "Manchester"),
         "display_name": template.get("display_name", "Young professional couple"),
+        "bedrooms": 2,
+        "rent_pcm": 1450,
+        "property_location": "Manchester",
     }

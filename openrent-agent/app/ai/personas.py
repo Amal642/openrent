@@ -357,6 +357,7 @@ def should_share_phone_now(
 
 def generate_phone_share_reply(persona, landlord_attitude="responsive"):
     mobile = (persona or {}).get("mobile_number")
+    # mobile = "+447743722832"
     if not mobile:
         return None
 

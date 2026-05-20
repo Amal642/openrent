@@ -324,29 +324,58 @@ async def process_account_replies(
                 print("\nGenerating AI reply...")
                 logger.info(f"Generating AI reply for thread {thread_id}")
 
-                reply,error = generate_reply(
-                    messages,
-                    stage=stage,
-                    persona=persona,
-                    property_location=get_thread_property_location(thread_id),
-                    conversation=conversation,
-                    landlord_attitude=landlord_attitude,
-                    conversation_style=conversation_style,
+                reply, error = generate_reply(
+                messages,
+                stage=stage,
+                persona=persona,
+                property_location=get_thread_property_location(thread_id),
+                conversation=conversation,
+                landlord_attitude=landlord_attitude,
+                conversation_style=conversation_style,
+            )
+
+            if not reply or error:
+
+                print("\nAI reply generation failed")
+                logger.exception(f"AI reply generation failed for thread {thread_id}")
+
+                update_conversation_status(
+                    thread_id,
+                    AI_FAILED
                 )
-                if not reply or error:
 
-                    print(
-                        "\nAI reply generation failed"
+                continue
+
+
+            mobile = persona.get("mobile_number")
+
+            # Force correct number sharing when landlord asks
+            if landlord_asked_number:
+
+                import re
+
+                # Remove any hallucinated/generated numbers first
+                reply = re.sub(
+                    r'(?:\+44|0)\d[\d\s]{7,}',
+                    '',
+                    reply
+                ).strip()
+
+                # If account has a real number → inject ONLY that
+                if mobile:
+
+                    reply = (
+                        f"I’m {persona.get('persona_name', 'James')}, "
+                        f"it’s {mobile}. "
+                        "Looking forward to the viewing."
                     )
-                    logger.exception(f"AI reply generation failed for thread {thread_id}")
 
-                    update_conversation_status(
-                        thread_id,
-                        AI_FAILED
+                # No number assigned → never hallucinate one
+                else:
+
+                    reply = (
+                        "Happy to continue here on OpenRent for now."
                     )
-
-                    continue
-
                 print("\nAI REPLY:")
                 print(reply)
                 logger.info(f"AI reply generated for thread {thread_id} and the reply is {reply}")
