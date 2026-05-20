@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OpenRent Agent — Architecture Map</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --text: #e2e8f0;
+    --muted: #7c85a3;
+    --frontend: #6366f1;
+    --api: #0ea5e9;
+    --production: #10b981;
+    --simulation: #f59e0b;
+    --external: #ef4444;
+    --accent: #a78bfa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 24px 32px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+  header h1 span { color: var(--accent); }
+  .meta { display: flex; gap: 10px; flex-wrap: wrap; }
+  .badge {
+    font-size: 0.7rem; font-weight: 600; padding: 3px 9px;
+    border-radius: 999px; border: 1px solid currentColor; opacity: 0.85;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .badge.monorepo { color: var(--accent); }
+  .badge.fastapi  { color: var(--api); }
+  .badge.react    { color: var(--frontend); }
+  .badge.sqlite   { color: var(--production); }
+  .badge.openai   { color: var(--external); }
+
+  /* ── Layout ── */
+  .page { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 65px); }
+
+  /* ── Sidebar ── */
+  nav {
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 65px);
+    overflow-y: auto;
+  }
+  nav .nav-section { padding: 4px 16px 2px; font-size: 0.65rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-top: 12px; }
+  nav a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 16px; font-size: 0.82rem; color: var(--muted);
+    text-decoration: none; cursor: pointer; border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  nav a:hover, nav a.active {
+    color: var(--text); background: var(--surface); border-left-color: var(--accent);
+  }
+  nav a .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  /* ── Main content ── */
+  main { padding: 28px 32px; overflow-y: auto; }
+
+  /* ── Section headings ── */
+  .section { margin-bottom: 40px; scroll-margin-top: 20px; }
+  .section-title {
+    font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* ── Layer bar ── */
+  .layer-bar {
+    display: flex; gap: 0; border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; margin-bottom: 28px;
+  }
+  .layer-seg {
+    flex: 1; padding: 10px 6px; text-align: center;
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; cursor: pointer; transition: opacity 0.15s;
+    opacity: 0.75;
+  }
+  .layer-seg:hover { opacity: 1; }
+  .layer-seg.frontend  { background: color-mix(in srgb, var(--frontend) 18%, transparent); color: var(--frontend); }
+  .layer-seg.api       { background: color-mix(in srgb, var(--api) 18%, transparent); color: var(--api); }
+  .layer-seg.production{ background: color-mix(in srgb, var(--production) 18%, transparent); color: var(--production); }
+  .layer-seg.simulation{ background: color-mix(in srgb, var(--simulation) 18%, transparent); color: var(--simulation); }
+  .layer-seg.external  { background: color-mix(in srgb, var(--external) 18%, transparent); color: var(--external); }
+
+  /* ── Cards grid ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    transition: border-color 0.15s;
+    cursor: pointer;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 8px; gap: 8px;
+  }
+  .card-title { font-size: 0.9rem; font-weight: 600; }
+  .card-layer {
+    font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+  }
+  .card-path {
+    font-size: 0.7rem; color: var(--muted); font-family: 'Consolas', monospace;
+    margin-bottom: 8px; word-break: break-all;
+  }
+  .card-desc { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+  .tag {
+    font-size: 0.65rem; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 6px; color: var(--muted);
+    font-family: 'Consolas', monospace;
+  }
+
+  /* ── Flow diagram ── */
+  .flow-list { display: grid; gap: 14px; }
+  .flow-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .flow-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; color: var(--accent); }
+  .flow-steps { display: flex; flex-direction: column; gap: 0; }
+  .flow-step {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 7px 0;
+    border-left: 2px solid var(--border);
+    padding-left: 14px;
+    margin-left: 8px;
+    position: relative;
+    font-size: 0.78rem; color: var(--muted); line-height: 1.4;
+  }
+  .flow-step::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 11px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .flow-step:first-child::before { background: var(--accent); }
+  .flow-step:last-child { border-left-color: transparent; }
+  .flow-step code {
+    font-family: 'Consolas', monospace;
+    font-size: 0.72rem;
+    color: var(--text);
+    background: var(--surface2);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ── Architecture diagram (SVG-like boxes with CSS) ── */
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 28px;
+    overflow-x: auto;
+  }
+  .arch-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    margin-bottom: 8px;
+  }
+  .arch-box {
+    flex: 1;
+    min-width: 110px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid;
+  }
+  .arch-box.frontend  { background: color-mix(in srgb, var(--frontend) 14%, transparent); border-color: var(--frontend); color: var(--frontend); }
+  .arch-box.api       { background: color-mix(in srgb, var(--api) 14%, transparent); border-color: var(--api); color: var(--api); }
+  .arch-box.production{ background: color-mix(in srgb, var(--production) 14%, transparent); border-color: var(--production); color: var(--production); }
+  .arch-box.simulation{ background: color-mix(in srgb, var(--simulation) 14%, transparent); border-color: var(--simulation); color: var(--simulation); }
+  .arch-box.external  { background: color-mix(in srgb, var(--external) 14%, transparent); border-color: var(--external); color: var(--external); }
+  .arch-box.shared    { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); color: var(--accent); }
+  .arch-arrow {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; color: var(--muted); padding: 0 4px; flex-shrink: 0;
+  }
+  .arch-label {
+    font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); min-width: 80px;
+    display: flex; align-items: center;
+  }
+  .arch-connector {
+    height: 20px; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 0.7rem;
+  }
+
+  /* ── File tree ── */
+  .tree {
+    font-family: 'Consolas', monospace;
+    font-size: 0.76rem;
+    line-height: 1.8;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    overflow-x: auto;
+  }
+  .tree-dir { color: var(--accent); }
+  .tree-file { color: var(--muted); }
+  .tree-comment { color: #475569; font-style: italic; }
+  .tree-important { color: var(--simulation); font-weight: 600; }
+
+  /* ── Env table ── */
+  .env-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .env-table th {
+    text-align: left; padding: 8px 12px; font-size: 0.68rem;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .env-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .env-table td:first-child { font-family: 'Consolas', monospace; color: var(--accent); font-size: 0.73rem; }
+  .env-table tr:last-child td { border-bottom: none; }
+  .env-table tr:hover td { background: var(--surface2); }
+
+  /* ── Principles list ── */
+  .principle-list { display: grid; gap: 8px; }
+  .principle {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.8rem;
+  }
+  .principle::before {
+    content: '→';
+    color: var(--accent);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* ── Stack pills ── */
+  .stack-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .stack-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.78rem;
+  }
+  .stack-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── Modal / overlay detail ── */
+  .overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: 560px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  .modal h3 { font-size: 1rem; margin-bottom: 4px; }
+  .modal .modal-path { font-size: 0.72rem; color: var(--muted); font-family: 'Consolas', monospace; margin-bottom: 12px; }
+  .modal .modal-desc { font-size: 0.82rem; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+  .modal .close-btn {
+    position: absolute; top: 14px; right: 14px;
+    background: none; border: none; color: var(--muted);
+    font-size: 1.2rem; cursor: pointer;
+  }
+  .modal .close-btn:hover { color: var(--text); }
+  .modal-file-list { display: grid; gap: 6px; }
+  .modal-file {
+    padding: 8px 10px;
+    background: var(--surface2);
+    border-radius: 6px;
+    font-size: 0.74rem;
+  }
+  .modal-file code {
+    font-family: 'Consolas', monospace;
+    color: var(--accent);
+    font-size: 0.72rem;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .modal-file span { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OpenRent <span>Agent</span> — Architecture Map</h1>
+  <div class="meta">
+    <span class="badge monorepo">Monorepo</span>
+    <span class="badge fastapi">FastAPI</span>
+    <span class="badge react">React 18</span>
+    <span class="badge sqlite">SQLite / Postgres</span>
+    <span class="badge openai">OpenAI</span>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- Sidebar nav -->
+  <nav id="nav">
+    <div class="nav-section">Overview</div>
+    <a href="#overview" onclick="setActive(this)"><span class="dot" style="background:var(--accent)"></span> Architecture</a>
+    <a href="#stack" onclick="setActive(this)"><span class="dot" style="background:var(--muted)"></span> Tech Stack</a>
+    <a href="#filetree" onclick="setActive(this)"><span class="dot" style="background:var(--muted)"></span> File Tree</a>
+
+    <div class="nav-section">Layers</div>
+    <a href="#frontend" onclick="setActive(this)"><span class="dot" style="background:var(--frontend)"></span> Frontend</a>
+    <a href="#api" onclick="setActive(this)"><span class="dot" style="background:var(--api)"></span> API</a>
+    <a href="#production" onclick="setActive(this)"><span class="dot" style="background:var(--production)"></span> Production</a>
+    <a href="#simulation" onclick="setActive(this)"><span class="dot" style="background:var(--simulation)"></span> Simulation Lab</a>
+    <a href="#external" onclick="setActive(this)"><span class="dot" style="background:var(--external)"></span> External</a>
+
+    <div class="nav-section">Data Flows</div>
+    <a href="#flows" onclick="setActive(this)"><span class="dot" style="background:var(--muted)"></span> Flows</a>
+
+    <div class="nav-section">Config</div>
+    <a href="#env" onclick="setActive(this)"><span class="dot" style="background:var(--muted)"></span> Environment</a>
+    <a href="#principles" onclick="setActive(this)"><span class="dot" style="background:var(--muted)"></span> Principles</a>
+  </nav>
+
+  <main>
+
+    <!-- ── Overview diagram ── -->
+    <div class="section" id="overview">
+      <div class="section-title" style="color:var(--accent)">Architecture Overview</div>
+
+      <div class="arch-diagram">
+        <!-- Row: Frontends -->
+        <div class="arch-row">
+          <div class="arch-label">Frontend</div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box frontend">Simulation Lab UI<br><small style="font-weight:400;opacity:0.7">frontend/simulation-lab/</small></div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box frontend">Command Center UI<br><small style="font-weight:400;opacity:0.7">frontend/openrent-command-center/</small></div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box frontend" style="flex:0.5;min-width:80px">React 18<br>+ Vite</div>
+        </div>
+        <div class="arch-connector">↓ HTTP REST ↓</div>
+
+        <!-- Row: API -->
+        <div class="arch-row">
+          <div class="arch-label">API Layer</div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box api" style="flex:4">FastAPI — app/api/main.py<br><small style="font-weight:400;opacity:0.7">/api/* (accounts, leads, metrics) &nbsp;|&nbsp; /simulation/* (run, compare, interactive)</small></div>
+        </div>
+        <div class="arch-connector">↓ calls ↓</div>
+
+        <!-- Row: Production + Simulation side by side -->
+        <div class="arch-row">
+          <div class="arch-label">Production</div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box production">AI Module<br><small style="font-weight:400;opacity:0.7">app/ai/ — prompts.py</small></div>
+          <div class="arch-box production">Database<br><small style="font-weight:400;opacity:0.7">app/db/</small></div>
+          <div class="arch-box production">Browser<br><small style="font-weight:400;opacity:0.7">app/browser/</small></div>
+          <div class="arch-box production">OpenRent<br><small style="font-weight:400;opacity:0.7">app/openrent/</small></div>
+          <div class="arch-box production">Workers<br><small style="font-weight:400;opacity:0.7">app/workers/</small></div>
+        </div>
+        <div class="arch-connector" style="display:flex;gap:40px;justify-content:center">
+          <span>↕ shares prompts.py</span>
+        </div>
+        <div class="arch-row">
+          <div class="arch-label">Simulation</div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box simulation">Engine<br><small style="font-weight:400;opacity:0.7">simulation/engine/</small></div>
+          <div class="arch-box simulation">Policies<br><small style="font-weight:400;opacity:0.7">simulation/policies/</small></div>
+          <div class="arch-box simulation">Actors<br><small style="font-weight:400;opacity:0.7">simulation/actors/</small></div>
+          <div class="arch-box simulation">Evaluators<br><small style="font-weight:400;opacity:0.7">simulation/evaluators/</small></div>
+          <div class="arch-box simulation">Sessions<br><small style="font-weight:400;opacity:0.7">simulation/sessions/</small></div>
+        </div>
+        <div class="arch-connector">↓ calls ↓</div>
+
+        <!-- Row: External -->
+        <div class="arch-row">
+          <div class="arch-label">External</div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box external">OpenAI API<br><small style="font-weight:400;opacity:0.7">GPT reply gen</small></div>
+          <div class="arch-box external">OpenRent Platform<br><small style="font-weight:400;opacity:0.7">Playwright browser</small></div>
+          <div class="arch-box external">Zoho CRM<br><small style="font-weight:400;opacity:0.7">lead sync</small></div>
+          <div class="arch-box external">SQLite / Postgres<br><small style="font-weight:400;opacity:0.7">openrent.db</small></div>
+        </div>
+      </div>
+
+      <!-- The shared bridge -->
+      <div style="background:color-mix(in srgb, var(--accent) 10%, transparent); border:1px solid var(--accent); border-radius:10px; padding:14px 18px; margin-bottom:0; display:flex; align-items:center; gap:14px;">
+        <div style="font-size:1.3rem;">⚡</div>
+        <div>
+          <div style="font-size:0.82rem; font-weight:600; color:var(--accent); margin-bottom:3px;">Single Source of Truth: <code style="font-family:Consolas;background:var(--surface2);padding:1px 6px;border-radius:3px;">app/ai/prompts.py</code></div>
+          <div style="font-size:0.76rem; color:var(--muted);">All AI conversation design rules live here only. Both the production automation and simulation lab read from <code style="font-family:Consolas">_DESIGN_RULES</code> — no rules embedded elsewhere.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tech Stack ── -->
+    <div class="section" id="stack">
+      <div class="section-title" style="color:var(--muted)">Tech Stack</div>
+      <div class="stack-grid">
+        <div class="stack-pill"><span class="dot" style="background:var(--api)"></span> FastAPI + Uvicorn</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--production)"></span> SQLAlchemy ORM</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--production)"></span> SQLite / Postgres</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--external)"></span> OpenAI API</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--production)"></span> Playwright (Chromium)</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--frontend)"></span> React 18.3</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--frontend)"></span> Vite 5.4</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--simulation)"></span> pytest</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--muted)"></span> python-dotenv</div>
+        <div class="stack-pill"><span class="dot" style="background:var(--external)"></span> Zoho CRM SDK</div>
+      </div>
+    </div>
+
+    <!-- ── File Tree ── -->
+    <div class="section" id="filetree">
+      <div class="section-title" style="color:var(--muted)">File Tree</div>
+      <div class="tree">
+<span class="tree-dir">openrent/</span>
+├── <span class="tree-dir">openrent-agent/</span>               <span class="tree-comment"># main project</span>
+│   ├── <span class="tree-dir">app/</span>                          <span class="tree-comment"># production backend</span>
+│   │   ├── <span class="tree-dir">ai/</span>
+│   │   │   ├── <span class="tree-important">prompts.py</span>              <span class="tree-comment"># ← SINGLE SOURCE OF TRUTH for all AI rules</span>
+│   │   │   ├── <span class="tree-file">personas.py</span>
+│   │   │   ├── <span class="tree-file">replies.py</span>
+│   │   │   ├── <span class="tree-file">stages.py</span>
+│   │   │   └── <span class="tree-file">conversation_memory.py</span>
+│   │   ├── <span class="tree-dir">api/</span>
+│   │   │   └── <span class="tree-file">main.py</span>                 <span class="tree-comment"># FastAPI app — 40+ endpoints</span>
+│   │   ├── <span class="tree-dir">db/</span>
+│   │   │   ├── <span class="tree-file">models.py</span>               <span class="tree-comment"># Account, SearchProfile ORM</span>
+│   │   │   ├── <span class="tree-file">repository.py</span>           <span class="tree-comment"># data access layer</span>
+│   │   │   └── <span class="tree-dir">migrations/</span>
+│   │   ├── <span class="tree-dir">browser/</span>                    <span class="tree-comment"># Playwright automation</span>
+│   │   ├── <span class="tree-dir">openrent/</span>                   <span class="tree-comment"># platform workflows</span>
+│   │   ├── <span class="tree-dir">workers/</span>
+│   │   ├── <span class="tree-dir">jobs/</span>
+│   │   ├── <span class="tree-dir">integrations/</span>               <span class="tree-comment"># Zoho CRM</span>
+│   │   └── <span class="tree-dir">utils/</span>
+│   │
+│   ├── <span class="tree-dir">simulation/</span>                    <span class="tree-comment"># conversation testing lab</span>
+│   │   ├── <span class="tree-important">conversation_designs.py</span>       <span class="tree-comment"># design metadata + success criteria</span>
+│   │   ├── <span class="tree-file">scenario_library.py</span>           <span class="tree-comment"># static landlord test scenarios</span>
+│   │   ├── <span class="tree-file">conversation_state.py</span>         <span class="tree-comment"># heuristic signal extraction</span>
+│   │   ├── <span class="tree-file">interactive.py</span>               <span class="tree-comment"># human-tester mode</span>
+│   │   ├── <span class="tree-file">compare.py</span>                   <span class="tree-comment"># multi-design comparison</span>
+│   │   ├── <span class="tree-file">lab.py</span>                       <span class="tree-comment"># lab orchestration + factories</span>
+│   │   ├── <span class="tree-dir">engine/</span>
+│   │   │   ├── <span class="tree-file">orchestrator.py</span>           <span class="tree-comment"># SimulationOrchestrator</span>
+│   │   │   ├── <span class="tree-file">session_manager.py</span>
+│   │   │   ├── <span class="tree-file">event_bus.py</span>
+│   │   │   ├── <span class="tree-file">runtime_context.py</span>
+│   │   │   └── <span class="tree-file">deterministic.py</span>         <span class="tree-comment"># RNG seeding</span>
+│   │   ├── <span class="tree-dir">actors/</span>                     <span class="tree-comment"># landlord, human, simulated</span>
+│   │   ├── <span class="tree-dir">policies/</span>                   <span class="tree-comment"># production, aggressive, minimal</span>
+│   │   ├── <span class="tree-dir">evaluators/</span>                 <span class="tree-comment"># heuristic, LLM judge</span>
+│   │   ├── <span class="tree-dir">sessions/</span>                   <span class="tree-comment"># models, store, transcript</span>
+│   │   ├── <span class="tree-dir">memory/</span>
+│   │   ├── <span class="tree-dir">observability/</span>              <span class="tree-comment"># metrics, tracing, token usage</span>
+│   │   └── <span class="tree-dir">replay/</span>                     <span class="tree-comment"># formatter, timeline</span>
+│   │
+│   ├── <span class="tree-dir">frontend/</span>
+│   │   ├── <span class="tree-dir">simulation-lab/</span>             <span class="tree-comment"># tester-facing UI</span>
+│   │   │   └── <span class="tree-dir">src/components/</span>         <span class="tree-comment"># 12 components</span>
+│   │   └── <span class="tree-dir">openrent-command-center/</span>    <span class="tree-comment"># ops dashboard</span>
+│   │
+│   ├── <span class="tree-dir">tests/</span>
+│   │   ├── <span class="tree-dir">simulation/</span>                 <span class="tree-comment"># 11 test modules</span>
+│   │   └── <span class="tree-file">test_*.py</span>                    <span class="tree-comment"># API, db, phone, stages tests</span>
+│   │
+│   └── <span class="tree-dir">scripts/</span>                       <span class="tree-comment"># workers, seeding, debug tools</span>
+│
+├── <span class="tree-file">openrent.db</span>                        <span class="tree-comment"># SQLite database</span>
+└── <span class="tree-dir">old_codes/</span>                         <span class="tree-comment"># legacy</span>
+      </div>
+    </div>
+
+    <!-- ── Frontend Layer ── -->
+    <div class="section" id="frontend">
+      <div class="section-title" style="color:var(--frontend)">Frontend</div>
+
+      <div class="layer-bar">
+        <div class="layer-seg frontend">Frontend</div>
+      </div>
+
+      <div class="cards">
+        <div class="card" onclick="openModal('sim_lab_ui')">
+          <div class="card-header">
+            <div class="card-title">Simulation Lab UI</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--frontend) 15%, transparent); color:var(--frontend)">Frontend</div>
+          </div>
+          <div class="card-path">frontend/simulation-lab/src/</div>
+          <div class="card-desc">Tester-facing chat interface for interactive conversation testing, design comparison, and audit mode.</div>
+          <div class="card-tags">
+            <span class="tag">InteractivePanel</span>
+            <span class="tag">CompareDesignsPanel</span>
+            <span class="tag">EvaluationScorecard</span>
+            <span class="tag">TranscriptViewer</span>
+            <span class="tag">EventTimeline</span>
+            <span class="tag">PromptCompletionInspector</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('command_center_ui')">
+          <div class="card-header">
+            <div class="card-title">Command Center UI</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--frontend) 15%, transparent); color:var(--frontend)">Frontend</div>
+          </div>
+          <div class="card-path">frontend/openrent-command-center/src/</div>
+          <div class="card-desc">Operations dashboard for managing accounts, search profiles, leads, and metrics. Served by FastAPI at <code>/</code>.</div>
+          <div class="card-tags">
+            <span class="tag">React 18</span>
+            <span class="tag">Vite 5.4</span>
+            <span class="tag">built → served by FastAPI</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── API Layer ── -->
+    <div class="section" id="api">
+      <div class="section-title" style="color:var(--api)">API Layer</div>
+
+      <div class="layer-bar">
+        <div class="layer-seg api">API</div>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">FastAPI App</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--api) 15%, transparent); color:var(--api)">API</div>
+          </div>
+          <div class="card-path">app/api/main.py</div>
+          <div class="card-desc">Main REST API server. 40+ endpoints. CORS open. Initialises DB on startup via lifespan hook. Serves built frontend assets.</div>
+          <div class="card-tags">
+            <span class="tag">GET/POST /api/accounts</span>
+            <span class="tag">POST /api/accounts/{id}/run</span>
+            <span class="tag">GET /api/leads</span>
+            <span class="tag">GET /api/metrics</span>
+            <span class="tag">POST /simulation/run</span>
+            <span class="tag">POST /simulation/interactive/start</span>
+            <span class="tag">POST /simulation/compare-designs</span>
+            <span class="tag">GET /simulation/sessions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Production Layer ── -->
+    <div class="section" id="production">
+      <div class="section-title" style="color:var(--production)">Production Automation</div>
+
+      <div class="layer-bar">
+        <div class="layer-seg production">Production</div>
+      </div>
+
+      <div class="cards">
+        <div class="card" onclick="openModal('ai_module')">
+          <div class="card-header">
+            <div class="card-title">AI Module</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--production) 15%, transparent); color:var(--production)">Production</div>
+          </div>
+          <div class="card-path">app/ai/</div>
+          <div class="card-desc">Prompt engine. All design rules in <strong>prompts.py</strong> only. Persona templates, reply validation, stage tracking, memory.</div>
+          <div class="card-tags">
+            <span class="tag">viewing_first_v1</span>
+            <span class="tag">phone_first_v1</span>
+            <span class="tag">screening_first_v1</span>
+            <span class="tag">soft_human_v1</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('db_module')">
+          <div class="card-header">
+            <div class="card-title">Database Layer</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--production) 15%, transparent); color:var(--production)">Production</div>
+          </div>
+          <div class="card-path">app/db/</div>
+          <div class="card-desc">SQLAlchemy ORM with repository pattern. Account + SearchProfile models. 40+ query functions. SQL migrations.</div>
+          <div class="card-tags">
+            <span class="tag">Account</span>
+            <span class="tag">SearchProfile</span>
+            <span class="tag">repository.py</span>
+            <span class="tag">SQLite / Postgres</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('browser_module')">
+          <div class="card-header">
+            <div class="card-title">Browser Automation</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--production) 15%, transparent); color:var(--production)">Production</div>
+          </div>
+          <div class="card-path">app/browser/</div>
+          <div class="card-desc">Playwright Chromium automation. Login, proxy support, CSS selector library for OpenRent UI elements.</div>
+          <div class="card-tags">
+            <span class="tag">Playwright</span>
+            <span class="tag">launcher.py</span>
+            <span class="tag">auth.py</span>
+            <span class="tag">selectors.py</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('openrent_module')">
+          <div class="card-header">
+            <div class="card-title">OpenRent Platform</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--production) 15%, transparent); color:var(--production)">Production</div>
+          </div>
+          <div class="card-path">app/openrent/</div>
+          <div class="card-desc">All OpenRent-specific workflows. Inbox navigation, message sending, landlord profile scraping, property search.</div>
+          <div class="card-tags">
+            <span class="tag">inbox.py</span>
+            <span class="tag">messaging.py</span>
+            <span class="tag">landlords.py</span>
+            <span class="tag">search.py</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('workers_module')">
+          <div class="card-header">
+            <div class="card-title">Workers & Jobs</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--production) 15%, transparent); color:var(--production)">Production</div>
+          </div>
+          <div class="card-path">app/workers/ + app/jobs/</div>
+          <div class="card-desc">Background task runners. Account worker orchestrates browser → inbox → AI → send. Jobs for replies, listings, CRM sync.</div>
+          <div class="card-tags">
+            <span class="tag">account_worker.py</span>
+            <span class="tag">process_replies.py</span>
+            <span class="tag">sync_crm.py</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Integrations</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--production) 15%, transparent); color:var(--production)">Production</div>
+          </div>
+          <div class="card-path">app/integrations/ + app/extraction/</div>
+          <div class="card-desc">Zoho CRM sync for lead management. Phone number extraction from conversation threads.</div>
+          <div class="card-tags">
+            <span class="tag">zoho.py</span>
+            <span class="tag">phone_extractor.py</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Simulation Lab Layer ── -->
+    <div class="section" id="simulation">
+      <div class="section-title" style="color:var(--simulation)">Simulation Lab</div>
+
+      <div class="layer-bar">
+        <div class="layer-seg simulation">Simulation Lab</div>
+      </div>
+
+      <div class="cards">
+        <div class="card" onclick="openModal('sim_engine')">
+          <div class="card-header">
+            <div class="card-title">Simulation Engine</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/engine/</div>
+          <div class="card-desc">Core orchestration. SimulationOrchestrator coordinates actors, policies, scenarios, runtime context, event bus. Deterministic via RNG seeding.</div>
+          <div class="card-tags">
+            <span class="tag">orchestrator.py</span>
+            <span class="tag">session_manager.py</span>
+            <span class="tag">event_bus.py</span>
+            <span class="tag">deterministic.py</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('sim_actors')">
+          <div class="card-header">
+            <div class="card-title">Actors</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/actors/</div>
+          <div class="card-desc">Pluggable landlord actors. Landlord (scenario-based), Human (live tester), Simulated (LLM-based). All share BaseActor interface.</div>
+          <div class="card-tags">
+            <span class="tag">landlord_actor.py</span>
+            <span class="tag">human_actor.py</span>
+            <span class="tag">simulated_actor.py</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('sim_policies')">
+          <div class="card-header">
+            <div class="card-title">Policies</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/policies/</div>
+          <div class="card-desc">AI reply strategies. ProductionPolicy reads prompts.py _DESIGN_RULES at temp=0.0. Aggressive, minimal, and experimental variants.</div>
+          <div class="card-tags">
+            <span class="tag">production_policy.py</span>
+            <span class="tag">temp=0.0 (deterministic)</span>
+            <span class="tag">aggressive_followup</span>
+            <span class="tag">minimal_policy</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('sim_evaluators')">
+          <div class="card-header">
+            <div class="card-title">Evaluators</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/evaluators/</div>
+          <div class="card-desc">HeuristicEvaluator scores viewing_progress, phone_capture, answer_quality, timing. Detects failure types. LLM judge optional.</div>
+          <div class="card-tags">
+            <span class="tag">heuristic.py</span>
+            <span class="tag">ASKED_PHONE_BEFORE_VIEWING</span>
+            <span class="tag">FAILED_PHONE_CAPTURE</span>
+            <span class="tag">llm_judge.py</span>
+          </div>
+        </div>
+        <div class="card" onclick="openModal('sim_state')">
+          <div class="card-header">
+            <div class="card-title">Conversation State</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/conversation_state.py</div>
+          <div class="card-desc">Deterministic signal extraction from transcript — no LLM. Extracts viewing_requested, phone_captured, screening_answered, etc.</div>
+          <div class="card-tags">
+            <span class="tag">viewing_requested</span>
+            <span class="tag">viewing_confirmed</span>
+            <span class="tag">phone_captured</span>
+            <span class="tag">screening_answered</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Interactive Mode</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/interactive.py</div>
+          <div class="card-desc">Human tester plays landlord in real-time. Max 25 turns. Start via API, reply turn-by-turn. Used by Simulation Lab UI.</div>
+          <div class="card-tags">
+            <span class="tag">start_interactive_session()</span>
+            <span class="tag">handle_interactive_message()</span>
+            <span class="tag">max 25 turns</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Design Comparison</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/compare.py</div>
+          <div class="card-desc">Run the same landlord scenario against multiple conversation designs in parallel. Returns comparison metrics for each design.</div>
+          <div class="card-tags">
+            <span class="tag">compare_conversation_designs()</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Sessions & Observability</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/sessions/ + simulation/observability/</div>
+          <div class="card-desc">JSONSessionStore persists SimulationSession objects. MetricsCollector tracks tokens and latency. Tracing enables full event replay.</div>
+          <div class="card-tags">
+            <span class="tag">JSONSessionStore</span>
+            <span class="tag">MetricsCollector</span>
+            <span class="tag">event tracing</span>
+            <span class="tag">replay</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── External ── -->
+    <div class="section" id="external">
+      <div class="section-title" style="color:var(--external)">External Services</div>
+
+      <div class="cards">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">OpenAI API</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--external) 15%, transparent); color:var(--external)">External</div>
+          </div>
+          <div class="card-path">OPENAI_API_KEY, OPENAI_REPLY_MODEL</div>
+          <div class="card-desc">GPT model for reply generation. Called by ProductionPolicy (temp=0.0 in sim) and account workers (auto-send mode).</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">OpenRent Platform</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--external) 15%, transparent); color:var(--external)">External</div>
+          </div>
+          <div class="card-path">app/browser/ + app/openrent/</div>
+          <div class="card-desc">Automated via Playwright Chromium. Login, inbox scraping, message sending, property search. Proxy support available.</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Zoho CRM</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--external) 15%, transparent); color:var(--external)">External</div>
+          </div>
+          <div class="card-path">app/integrations/zoho.py</div>
+          <div class="card-desc">Lead and conversation sync via Zoho CRM API. Triggered by sync_crm job.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Data Flows ── -->
+    <div class="section" id="flows">
+      <div class="section-title" style="color:var(--muted)">Data Flows</div>
+      <div class="flow-list">
+
+        <div class="flow-card">
+          <div class="flow-title">Interactive Session Flow (Human Tester)</div>
+          <div class="flow-steps">
+            <div class="flow-step">Frontend <code>POST /simulation/interactive/start</code></div>
+            <div class="flow-step"><code>simulation/interactive.py: start_interactive_session()</code></div>
+            <div class="flow-step"><code>simulation/engine/orchestrator.py</code> — setup engine</div>
+            <div class="flow-step"><code>session_manager.py</code> — emit initial AI message (opening message from design)</div>
+            <div class="flow-step">Frontend receives session_id + first AI message</div>
+            <div class="flow-step">Human tester replies → <code>POST /simulation/interactive/{session_id}/message</code></div>
+            <div class="flow-step"><code>simulation/policies/production_policy.py</code> — reads <code>_DESIGN_RULES</code> from prompts.py → calls OpenAI</div>
+            <div class="flow-step"><code>simulation/evaluators/heuristic.py</code> — score turn</div>
+            <div class="flow-step">Frontend receives updated transcript + state + evaluation</div>
+          </div>
+        </div>
+
+        <div class="flow-card">
+          <div class="flow-title">Conversation Design → AI Reply</div>
+          <div class="flow-steps">
+            <div class="flow-step">design_id arrives (from UI or API)</div>
+            <div class="flow-step"><code>simulation/conversation_designs.py: get_conversation_design()</code> — fetch metadata</div>
+            <div class="flow-step"><code>app/ai/prompts.py: _DESIGN_RULES[design_id]</code> — fetch rule set</div>
+            <div class="flow-step"><code>build_reply_prompt(persona, context, rules)</code> — compose full prompt</div>
+            <div class="flow-step"><code>simulation/policies/production_policy.py</code> — call policy with prompt</div>
+            <div class="flow-step">OpenAI API → reply text returned</div>
+          </div>
+        </div>
+
+        <div class="flow-card">
+          <div class="flow-title">Account Automation (Production)</div>
+          <div class="flow-steps">
+            <div class="flow-step"><code>POST /api/accounts/{id}/run</code></div>
+            <div class="flow-step"><code>app/workers/account_worker.py: run_one_account_by_id()</code></div>
+            <div class="flow-step">Playwright browser launches (headless or visible)</div>
+            <div class="flow-step"><code>app/browser/auth.py</code> — login to OpenRent</div>
+            <div class="flow-step"><code>app/openrent/inbox.py</code> — fetch new messages</div>
+            <div class="flow-step">For each message: <code>build_reply_prompt()</code> → OpenAI API</div>
+            <div class="flow-step"><code>app/openrent/messaging.py</code> — send reply</div>
+            <div class="flow-step"><code>app/db/repository.py</code> — log conversation status</div>
+          </div>
+        </div>
+
+        <div class="flow-card">
+          <div class="flow-title">Multi-Design Comparison</div>
+          <div class="flow-steps">
+            <div class="flow-step"><code>POST /simulation/compare-designs</code> with list of design_ids + scenario</div>
+            <div class="flow-step"><code>simulation/compare.py: compare_conversation_designs()</code></div>
+            <div class="flow-step">For each design_id: resolve policy → run orchestrator with landlord_actor</div>
+            <div class="flow-step"><code>HeuristicEvaluator</code> — score each session</div>
+            <div class="flow-step">Return array of EvaluationResult (one per design) for side-by-side comparison</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Environment ── -->
+    <div class="section" id="env">
+      <div class="section-title" style="color:var(--muted)">Environment Variables</div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
+        <table class="env-table">
+          <thead>
+            <tr>
+              <th>Variable</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>DATABASE_URL</td><td>SQLite or Postgres connection string</td></tr>
+            <tr><td>OPENAI_API_KEY</td><td>OpenAI API key</td></tr>
+            <tr><td>OPENAI_REPLY_MODEL</td><td>GPT model to use (default: gpt-4.1-mini)</td></tr>
+            <tr><td>EMAIL</td><td>OpenRent account email</td></tr>
+            <tr><td>PASSWORD</td><td>OpenRent account password</td></tr>
+            <tr><td>HEADLESS</td><td>Playwright headless mode (true/false)</td></tr>
+            <tr><td>AI_AUTOSEND</td><td>Auto-send AI-generated replies without review</td></tr>
+            <tr><td>SIMULATION_DEFAULT_TEMPERATURE</td><td>AI temperature in simulation — default 0.0 (deterministic)</td></tr>
+            <tr><td>SIMULATION_MAX_FOLLOWUPS</td><td>Max follow-up messages allowed per simulation</td></tr>
+            <tr><td>WORKER_TICK_SECONDS</td><td>Background worker check interval (default 300s)</td></tr>
+            <tr><td>PROXY_SERVER</td><td>Optional browser proxy server URL</td></tr>
+            <tr><td>PROXY_USERNAME</td><td>Proxy authentication username</td></tr>
+            <tr><td>PROXY_PASSWORD</td><td>Proxy authentication password</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Principles ── -->
+    <div class="section" id="principles">
+      <div class="section-title" style="color:var(--muted)">Key Principles</div>
+      <div class="principle-list">
+        <div class="principle">All AI behavior rules live <strong>only</strong> in <code style="font-family:Consolas;background:var(--surface2);padding:1px 5px;border-radius:3px;">app/ai/prompts.py</code> (<code>_DESIGN_RULES</code>). Never embedded in conversation_designs.py or elsewhere.</div>
+        <div class="principle">Simulation is <strong>deterministic</strong> — RNG seeding ensures the same scenario + design always produces the same transcript for reproducible testing.</div>
+        <div class="principle">Conversation state analysis uses <strong>heuristics only</strong> — no LLM call. Fast, cheap, and predictable signal extraction from transcript text.</div>
+        <div class="principle">ProductionPolicy uses <strong>temperature=0.0</strong> in simulation mode so evaluations are reproducible across runs.</div>
+        <div class="principle"><strong>Repository pattern</strong> — all database access goes through <code>app/db/repository.py</code>. No raw queries in business logic.</div>
+        <div class="principle"><strong>Event bus</strong> captures every step of a simulation session, enabling full audit replay and dev-mode inspection of prompts + completions.</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Modal for card detail ── -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <button class="close-btn" onclick="closeModalBtn()">×</button>
+    <h3 id="modal-title"></h3>
+    <div class="modal-path" id="modal-path"></div>
+    <div class="modal-desc" id="modal-desc"></div>
+    <div class="modal-file-list" id="modal-files"></div>
+  </div>
+</div>
+
+<script>
+// Module detail data
+const details = {
+  sim_lab_ui: {
+    title: 'Simulation Lab UI',
+    path: 'frontend/simulation-lab/src/',
+    desc: 'Tester-facing React app for interactive conversation testing. Supports audit mode (clean transcript view for clients) and dev mode (raw prompts, completions, event log, runtime context).',
+    files: {
+      'InteractivePanel.jsx': 'Live chat interface — human tester types as landlord',
+      'CompareDesignsPanel.jsx': 'Run same scenario against multiple AI designs side-by-side',
+      'RunPanel.jsx': 'Configure and trigger a simulation run',
+      'SessionList.jsx': 'Browse past simulation sessions',
+      'TranscriptViewer.jsx': 'Display conversation transcript turn by turn',
+      'EvaluationScorecard.jsx': 'Show scores and failure type badges',
+      'ConversationStatePanel.jsx': 'Display extracted signals and flags from conversation',
+      'EventTimeline.jsx': '[dev] Event-by-event timeline with timestamps',
+      'PromptCompletionInspector.jsx': '[dev] Raw prompts and OpenAI completions',
+      'RuntimeContextPanel.jsx': '[dev] Memory, metrics, extracted entities',
+      'ReplayViewer.jsx': 'Replay a past session step by step',
+      'api.js': 'Axios/fetch client for /simulation/* endpoints'
+    }
+  },
+  command_center_ui: {
+    title: 'Command Center UI',
+    path: 'frontend/openrent-command-center/src/',
+    desc: 'Operations dashboard for managing OpenRent accounts, search profiles, leads, and metrics. Built with Vite and served as static assets by FastAPI at the root path.',
+    files: {
+      'App.jsx': 'Root component — dashboard layout and routing',
+      'main.jsx': 'React entry point'
+    }
+  },
+  ai_module: {
+    title: 'AI Module',
+    path: 'app/ai/',
+    desc: 'Central AI subsystem. prompts.py is the single source of truth for all conversation design rules. Never add rules to conversation_designs.py — they must live in _DESIGN_RULES in prompts.py only.',
+    files: {
+      'prompts.py': 'SINGLE SOURCE OF TRUTH — _DESIGN_RULES dict keyed by design_id. build_reply_prompt(), build_phone_extraction_prompt()',
+      'personas.py': 'Renter persona templates and normalization helpers',
+      'replies.py': 'Reply generation pipeline and validation',
+      'stages.py': 'Conversation stage enums: VIEWING_DISCUSSION, VIEWING_BOOKED, VIEWING_CANCELLED, etc.',
+      'conversation_memory.py': 'Conversation state and memory management across turns',
+      'extractors.py': 'Data extraction from message text',
+      'validators.py': 'Prompt and reply validation rules'
+    }
+  },
+  db_module: {
+    title: 'Database Layer',
+    path: 'app/db/',
+    desc: 'SQLAlchemy ORM with full repository pattern. Supports SQLite (development) and Postgres (production). Two core models: Account and SearchProfile.',
+    files: {
+      'models.py': 'Account (persona, credentials, worker metadata), SearchProfile (location, price, bedrooms)',
+      'repository.py': '40+ query functions — Account CRUD, search profiles, lead status, dashboard aggregation',
+      'connection.py': 'SQLAlchemy engine and session factory setup',
+      'init_db.py': 'Database table creation on startup',
+      'status.py': 'Conversation status enums: CLOSED, SKIPPED, PENDING, etc.',
+      'migrations/20260517_persona_worker_schema.sql': 'Persona and worker schema migration',
+      'migrations/20260519_conversation_phone_strategy.sql': 'Phone strategy conversation migration'
+    }
+  },
+  browser_module: {
+    title: 'Browser Automation',
+    path: 'app/browser/',
+    desc: 'Playwright Chromium automation layer. Abstracts browser launch, login, and UI interactions on OpenRent. Proxy support for request routing.',
+    files: {
+      'launcher.py': 'Launch Playwright browser — headless or visible, with optional proxy',
+      'auth.py': 'Automate OpenRent login flow using credentials from config',
+      'selectors.py': 'CSS selector library for OpenRent UI elements (stable references)'
+    }
+  },
+  openrent_module: {
+    title: 'OpenRent Platform',
+    path: 'app/openrent/',
+    desc: 'All OpenRent-specific platform workflows. Clean boundary between platform integration and business logic. Inbox, messaging, search, landlords.',
+    files: {
+      'inbox.py': 'Navigate inbox, fetch new messages and conversation threads',
+      'messaging.py': 'Send messages and replies to landlords',
+      'landlords.py': 'Scrape landlord profile data',
+      'listings.py': 'Property listing operations',
+      'search.py': 'Property search by criteria'
+    }
+  },
+  workers_module: {
+    title: 'Workers & Jobs',
+    path: 'app/workers/ + app/jobs/',
+    desc: 'Background task system. Account worker is the main loop — browser launch → inbox fetch → AI reply → send. Jobs handle CRM sync and listing processing.',
+    files: {
+      'account_worker.py': 'run_one_account_by_id() — full automation loop per account',
+      'process_replies.py': 'Job: Process and respond to incoming landlord replies',
+      'send_messages.py': 'Job: Send queued outbound messages',
+      'sync_crm.py': 'Job: Sync lead and conversation data to Zoho CRM'
+    }
+  },
+  sim_engine: {
+    title: 'Simulation Engine',
+    path: 'simulation/engine/',
+    desc: 'Core orchestration engine for deterministic conversation testing. The orchestrator coordinates all moving parts. Events are captured in the event bus for replay and audit.',
+    files: {
+      'orchestrator.py': 'SimulationOrchestrator — main simulation runner. Coordinates actor, policy, scenario, runtime context, event bus. Handles initial message, turn-by-turn conversation, finalization.',
+      'runner.py': 'Run single or batch simulations programmatically',
+      'session_manager.py': 'generate_agent_reply(), emit_event(), update_context_from_actor/agent_message(), finalize_session()',
+      'event_bus.py': 'Collect and emit typed events across the simulation lifecycle',
+      'runtime_context.py': 'Encapsulates: metrics, memory, flags, extracted entities, timestamps per turn',
+      'deterministic.py': 'Seed RNG for reproducible random behaviour across runs',
+      'state_projection.py': 'Reconstruct conversation state for session replay'
+    }
+  },
+  sim_actors: {
+    title: 'Actors',
+    path: 'simulation/actors/',
+    desc: 'Pluggable actors that play the landlord role. BaseActor defines the interface. Three concrete implementations for different testing modes.',
+    files: {
+      'base.py': 'BaseActor abstract interface — respond(message) → str',
+      'landlord_actor.py': 'Script-based landlord following a scenario from scenario_library.py',
+      'human_actor.py': 'Live human tester providing replies via the interactive API endpoint',
+      'simulated_actor.py': 'LLM-based simulated landlord for fully automated testing'
+    }
+  },
+  sim_policies: {
+    title: 'Policies',
+    path: 'simulation/policies/',
+    desc: 'Pluggable AI reply strategies. ProductionPolicy is the primary path — it reads _DESIGN_RULES from prompts.py and runs at temperature=0.0 for determinism.',
+    files: {
+      'base.py': 'AgentPolicy abstract interface — generate_reply(context) → str',
+      'production_policy.py': 'Reads prompts.py _DESIGN_RULES by design_id. Calls OpenAI at temp=0.0. Respects max_followups limit.',
+      'aggressive_followup.py': 'Variant: escalates follow-up aggressiveness',
+      'minimal_policy.py': 'Variant: minimal, sparse replies for testing landlord patience',
+      'experimental/': 'Experimental policy variants under development'
+    }
+  },
+  sim_evaluators: {
+    title: 'Evaluators',
+    path: 'simulation/evaluators/',
+    desc: 'Evaluate conversation success and failure. HeuristicEvaluator is the primary evaluator — fast, deterministic, no LLM call required. LLM judge available as optional add-on.',
+    files: {
+      'base.py': 'BaseEvaluator abstract interface — evaluate(session) → EvaluationResult',
+      'heuristic.py': 'HeuristicEvaluator: scores viewing_progress, phone_capture, answer_quality, timing. Detects failure types.',
+      'failure_types.py': 'Failure type constants: ASKED_PHONE_BEFORE_VIEWING, FAILED_PHONE_CAPTURE, FAILED_TO_MOVE_TOWARD_VIEWING',
+      'rubric.py': 'Scoring rubrics for agent-starts and actor-starts conversation modes',
+      'llm_judge.py': 'LLM-based holistic evaluation — slower, more nuanced, optional'
+    }
+  },
+  sim_state: {
+    title: 'Conversation State',
+    path: 'simulation/conversation_state.py',
+    desc: 'Deterministic signal extraction from transcript. Uses text matching, not LLM. Fast and cheap — called every turn to update state flags.',
+    files: {
+      'analyze_conversation_state()': 'Main function. Returns signals, flags, and structured analysis from transcript.',
+      'Signals': 'viewing_requested, viewing_confirmed, phone_captured, phone_requested, screening_answered, screening_asked'
+    }
+  }
+};
+
+function openModal(id) {
+  const d = details[id];
+  if (!d) return;
+  document.getElementById('modal-title').textContent = d.title;
+  document.getElementById('modal-path').textContent = d.path;
+  document.getElementById('modal-desc').textContent = d.desc;
+  const fl = document.getElementById('modal-files');
+  fl.innerHTML = Object.entries(d.files || {}).map(([k, v]) =>
+    `<div class="modal-file"><code>${k}</code><span>${v}</span></div>`
+  ).join('');
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('overlay')) closeModalBtn();
+}
+function closeModalBtn() {
+  document.getElementById('overlay').classList.remove('open');
+}
+
+function setActive(el) {
+  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// Highlight nav on scroll
+const sections = document.querySelectorAll('.section');
+const navLinks = document.querySelectorAll('nav a');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      navLinks.forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
