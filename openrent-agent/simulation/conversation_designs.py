@@ -153,7 +153,7 @@ def default_simulation_persona() -> dict:
             "household_description",
             "young professional couple",
         ),
-        "mobile_number": os.getenv("MOBILE_1"),
+        "mobile_number": 7743722832,
         "message_tone": template.get("message_tone", "friendly, direct, brief"),
         "home_city": template.get("home_city", "Manchester"),
         "display_name": template.get("display_name", "Young professional couple"),
