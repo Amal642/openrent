@@ -98,11 +98,14 @@ def _persona_context_lines(persona: dict | None) -> list[str]:
         f"- Persona summary: {persona_summary(persona)}",
         f"- Persona type: {persona.get('persona_type') or 'unknown'}",
         f"- Tone: {persona.get('message_tone') or 'brief, casual, realistic'}",
-        f"- Mobile number for this account: {persona.get('mobile_number') or 'not available'}",
         f"- Phone fetching type: {persona.get('phone_fetching_type') or 'delayed'}",
         f"- Message strategy: {persona.get('message_strategy') or 'viewing first, then contact details'}",
         f"- Conversation goal: {persona.get('conversation_goal') or 'arrange a viewing and coordinate contact details naturally'}",
     ]
+    if persona.get("mobile_number"):
+        lines.append(f"- Mobile number for this account: {persona.get('mobile_number')}")
+    else:
+        lines.append("- Mobile number for this account: none assigned")
     return lines
 
 
@@ -117,20 +120,33 @@ def _phone_policy_lines(
 ) -> list[str]:
     persona = persona or {}
     phone_type = persona.get("phone_fetching_type") or "delayed"
-    mobile = persona.get("mobile_number") or "not available"
+    mobile = persona.get("mobile_number")
 
     lines = [
-        f"- Correct tenant mobile number: {mobile}",
-        f"- Correct tenant phone number: {mobile}",
         f"- Phone already shared by tenant: {'yes' if phone_number_shared else 'no'}",
         f"- Landlord explicitly asked for tenant number/contact/WhatsApp: {'yes' if landlord_asked_for_number else 'no'}",
         f"- Outbound tenant messages so far: {outbound_count}",
         f"- Drive distance context: {drive_distance or 'unknown'}",
-        "- If the landlord asks for the tenant number, ALWAYS share the exact correct tenant mobile number above.",
         "- Never invent any other number, email address, or contact detail.",
     ]
+    if mobile:
+        lines.insert(0, f"- Correct tenant mobile number: {mobile}")
+        lines.insert(
+            5,
+            "- If the landlord asks for the tenant number, ALWAYS share the exact correct tenant mobile number above.",
+        )
+    else:
+        lines.insert(0, "- No tenant mobile number is assigned for this account.")
+        lines.insert(
+            5,
+            "- If the landlord asks for the tenant number, do not provide any number.",
+        )
 
-    if phone_type in {"immediate", "whatsapp_first"}:
+    if not mobile:
+        lines.append(
+            "- Phone sharing is disabled until this account has an assigned mobile number."
+        )
+    elif phone_type in {"immediate", "whatsapp_first"}:
         lines.append(
             "- This persona may share the mobile number in the first or second message when it sounds natural."
         )
@@ -289,7 +305,10 @@ def build_initial_enquiry_prompt(property_data: dict, persona: dict) -> str:
         )
 
     tenant_context.append(f"- Tone: {tone}")
-    tenant_context.append(f"- Mobile number: {persona.get('mobile_number') or 'not available'}")
+    if persona.get("mobile_number"):
+        tenant_context.append(f"- Mobile number: {persona.get('mobile_number')}")
+    else:
+        tenant_context.append("- Mobile number: none assigned")
     tenant_context.append(
         f"- Phone strategy: {persona.get('phone_fetching_type') or 'delayed'}"
     )
@@ -298,11 +317,12 @@ def build_initial_enquiry_prompt(property_data: dict, persona: dict) -> str:
     )
 
     phone_type = persona.get("phone_fetching_type") or "delayed"
-    phone_instruction = (
-        "You may include the mobile number if asking for WhatsApp/video-call coordination feels natural."
-        if phone_type in {"immediate", "whatsapp_first"}
-        else "Do not include the mobile number in this first enquiry unless the chosen style explicitly needs WhatsApp/video-call coordination."
-    )
+    if not persona.get("mobile_number"):
+        phone_instruction = "No mobile number is assigned, so do not include any phone number."
+    elif phone_type in {"immediate", "whatsapp_first"}:
+        phone_instruction = "You may include the mobile number if asking for WhatsApp/video-call coordination feels natural."
+    else:
+        phone_instruction = "Do not include the mobile number in this first enquiry unless the chosen style explicitly needs WhatsApp/video-call coordination."
 
     return f"""
 You are helping a tenant write a short and natural UK rental enquiry.
@@ -328,7 +348,8 @@ Rules:
 - Do not mention AI.
 - Do not invent dramatic stories.
 - Do not include email addresses.
-- If you include a phone number, use only this exact number: {persona.get('mobile_number') or 'not available'}.
+- If you include a phone number, use only the exact assigned mobile number from the tenant context.
+- If no mobile number is assigned, do not include any phone number.
 - Do not sound overly enthusiastic or robotic.
 - Avoid formulaic openers or repeated wording.
 - Maximum 120 words.

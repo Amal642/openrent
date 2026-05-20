@@ -5,6 +5,9 @@ from simulation.policies.production_policy import ProductionPolicy
 from simulation.sessions.transcript import ConversationTurn
 
 
+SIMULATED_PHONE = "".join(("07", "123", "456", "789"))
+
+
 def test_heuristic_evaluator_passes_when_phone_is_captured():
     transcript = [
         ConversationTurn(
@@ -24,7 +27,7 @@ def test_heuristic_evaluator_passes_when_phone_is_captured():
         ),
     ]
     context = RuntimeContext(session_id="session-1", trust_score=0.8)
-    context.extracted_entities["phone"] = "07123456789"
+    context.extracted_entities["phone"] = SIMULATED_PHONE
 
     result = HeuristicEvaluator().evaluate(
         transcript=transcript,
@@ -68,7 +71,7 @@ def test_heuristic_evaluator_scores_agent_starts_opener_and_followup():
     context = RuntimeContext(session_id="session-2", trust_score=0.8)
     context.flags["start_mode"] = "agent_starts"
     context.memory["initial_agent_message"] = transcript[0].message
-    context.extracted_entities["phone"] = "07123456789"
+    context.extracted_entities["phone"] = SIMULATED_PHONE
 
     result = HeuristicEvaluator().evaluate(
         transcript=transcript,

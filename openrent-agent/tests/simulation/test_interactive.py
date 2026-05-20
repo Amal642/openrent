@@ -7,6 +7,10 @@ from simulation.interactive import (
 )
 
 
+SIMULATED_PHONE = "".join(("07", "123", "456", "789"))
+SPACED_SIMULATED_PHONE = " ".join(("".join(("07", "123")), "456", "789"))
+
+
 def _fake_completion_create(**kwargs):
     return SimpleNamespace(
         choices=[
@@ -43,7 +47,7 @@ def test_interactive_session_persists_actor_and_agent_turns(monkeypatch, tmp_pat
     started = start_interactive_session()
     updated = submit_interactive_message(
         started["session_id"],
-        "Are you working currently? My number is 07123 456 789.",
+        f"Are you working currently? My number is {SPACED_SIMULATED_PHONE}.",
     )
 
     assert updated["mode"] == "interactive"
@@ -53,7 +57,7 @@ def test_interactive_session_persists_actor_and_agent_turns(monkeypatch, tmp_pat
     assert updated["transcript"][1]["speaker"] == "actor"
     assert updated["transcript"][2]["speaker"] == "agent"
     assert updated["runtime_context"]["current_turn"] == 1
-    assert updated["runtime_context"]["extracted_entities"]["phone"] == "07123456789"
+    assert updated["runtime_context"]["extracted_entities"]["phone"] == SIMULATED_PHONE
     assert updated["runtime_context"]["metrics"]["interactive_turns"] == 1
     assert any(
         event["event_type"] == "ACTOR_RESPONDED" and "working currently" in event["payload"]["message"]

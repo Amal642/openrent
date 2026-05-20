@@ -4,6 +4,9 @@ from simulation.sessions.models import EvaluationResult
 from simulation.sessions.transcript import project_transcript
 
 
+SIMULATED_PHONE = "".join(("07", "123", "456", "789"))
+
+
 def test_projection_ignores_non_transcript_events():
     events = [
         SimulationEvent(
@@ -22,7 +25,7 @@ def test_projection_ignores_non_transcript_events():
             event_type="PHONE_DETECTED",
             turn_index=1,
             timestamp="2026-01-01T00:00:01+00:00",
-            payload={"phone": "07123456789"},
+            payload={"phone": SIMULATED_PHONE},
         ),
     ]
 

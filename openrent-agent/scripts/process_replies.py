@@ -28,7 +28,8 @@ from app.openrent.inbox import (
     should_ai_reply,
     can_reply,
     get_latest_landlord_message,
-    send_reply
+    send_reply,
+    reveal_hidden_phone_number
 )
 
 from app.ai.stages import (
@@ -170,47 +171,23 @@ async def process_account_replies(
             phone = regex_extract_phone(
                 landlord_texts
             )
+            if not phone:
 
-            if phone:
+                revealed = await reveal_hidden_phone_number(page)
 
-                print(
-                    f"\nPHONE FOUND: {phone}"
-                )
-                logger.info(f"Phone found: {phone}")
-                update_conversation_status(thread_id, PHONE_ACQUIRED)
-                phone = normalize_uk_phone(
-                    phone
-                )
-                if phone_exists(phone):
+                if revealed:
 
-                    print(
-                        "\nDuplicate phone detected"
-                    )
-                    logger.info(f"Duplicate phone detected: {phone}")
+                    messages = await extract_conversation(page)
 
-                    update_conversation_status(
-                        thread_id,
-                        DUPLICATE_LEAD
+                    landlord_messages = get_landlord_messages(
+                        messages
                     )
 
-                    continue
-                save_phone_number(
-                    thread_id,
-                    phone
-                )
-                phones_today = count_phones_today(account.id)
-                if phones_today >= 3:
-                    logger.info(
-                        f"Daily phone target reached for {account.email}: {phones_today}/3"
+                    landlord_texts = landlord_messages
+
+                    phone = regex_extract_phone(
+                        landlord_texts
                     )
-                update_last_processed_message(
-                    thread_id,
-                    latest_landlord_message
-                )
-
-
-                continue
-            
             # Fallback to AI extraction
             if not phone:
 
@@ -257,6 +234,49 @@ async def process_account_replies(
                     )
 
                     continue
+
+            if phone:
+
+                print(
+                    f"\nPHONE FOUND: {phone}"
+                )
+                logger.info(f"Phone found: {phone}")
+                update_conversation_status(thread_id, PHONE_ACQUIRED)
+                phone = normalize_uk_phone(
+                    phone
+                )
+                if phone_exists(phone):
+
+                    print(
+                        "\nDuplicate phone detected"
+                    )
+                    logger.info(f"Duplicate phone detected: {phone}")
+
+                    update_conversation_status(
+                        thread_id,
+                        DUPLICATE_LEAD
+                    )
+
+                    continue
+                save_phone_number(
+                    thread_id,
+                    phone
+                )
+                phones_today = count_phones_today(account.id)
+                if phones_today >= 3:
+                    logger.info(
+                        f"Daily phone target reached for {account.email}: {phones_today}/3"
+                    )
+                update_last_processed_message(
+                    thread_id,
+                    latest_landlord_message
+                )
+
+
+                continue
+            
+            
+                
             stage = detect_stage(
                 messages
             )

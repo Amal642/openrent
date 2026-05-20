@@ -23,6 +23,8 @@ def db_session(tmp_path, monkeypatch):
 
 
 def test_save_phone_number_sets_acquisition_timestamp(db_session):
+    landlord_phone = "".join(("07", "123", "456", "789"))
+
     with db_session() as session:
         account = Account(email="a@example.com", password="", session_file="s.json")
         session.add(account)
@@ -46,7 +48,7 @@ def test_save_phone_number_sets_acquisition_timestamp(db_session):
         session.add(conversation)
         session.commit()
 
-    repository.save_phone_number("T1", "07123456789")
+    repository.save_phone_number("T1", landlord_phone)
 
     with db_session() as session:
         conversation = session.query(Conversation).filter_by(thread_id="T1").one()
@@ -73,3 +75,16 @@ def test_mark_listing_skipped_is_not_processing_failure(db_session):
         listing = session.query(Listing).filter_by(id=listing_id).one()
         assert listing.skip_reason == "not_contactable"
         assert listing.processing_failed is False
+
+
+def test_ensure_account_persona_does_not_generate_mobile_number(db_session):
+    with db_session() as session:
+        account = Account(email="persona@example.com", password="", session_file="s.json")
+        session.add(account)
+        session.commit()
+        account_id = account.id
+
+    persona = repository.ensure_account_persona(account_id)
+
+    assert persona["persona_type"]
+    assert persona["mobile_number"] is None

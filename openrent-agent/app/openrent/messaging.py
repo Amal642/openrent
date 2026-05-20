@@ -5,6 +5,7 @@ from datetime import (
     datetime,
     timedelta
 )
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 AVAILABILITY_OPTIONS = [
     "Available after 5pm most weekdays.",

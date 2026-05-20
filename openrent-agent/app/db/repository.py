@@ -174,7 +174,6 @@ def ensure_account_persona(account_or_id):
                 "persona_name",
                 "persona_job",
                 "home_city",
-                "mobile_number",
                 "phone_fetching_type",
                 "message_strategy",
                 "escalation_behavior",
@@ -210,7 +209,6 @@ def ensure_account_persona(account_or_id):
                 account.persona_partner_job or selected["persona_partner_job"]
             )
             account.home_city = account.home_city or selected["home_city"]
-            account.mobile_number = account.mobile_number or selected["mobile_number"]
             account.conversation_style = (
                 account.conversation_style or selected["conversation_style"]
             )

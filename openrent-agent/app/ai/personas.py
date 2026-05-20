@@ -81,7 +81,6 @@ PERSONA_TEMPLATES = {
         "household_description": "young professional couple",
         "message_tone": "friendly, direct, brief",
         "home_city": "Manchester",
-        "mobile_number": "+447700900101",
         "phone_fetching_type": "delayed",
         "message_strategy": "friendly, viewing-led, trust-building",
         "escalation_behavior": "ask for phone details after a viewing time is mostly agreed",
@@ -107,7 +106,6 @@ PERSONA_TEMPLATES = {
         "household_description": "single IT professional",
         "message_tone": "minimal, matter-of-fact, calm",
         "home_city": "Derby",
-        "mobile_number": "+447700900102",
         "phone_fetching_type": "landlord_requests_only",
         "message_strategy": "quiet, practical, viewing-first",
         "escalation_behavior": "share phone only when the landlord asks or a viewing is fixed",
@@ -132,7 +130,6 @@ PERSONA_TEMPLATES = {
         "household_description": "working professional with a healthcare role",
         "message_tone": "warm, polite, practical, may mention shifts naturally",
         "home_city": "Birmingham",
-        "mobile_number": "+447700900103",
         "phone_fetching_type": "adaptive",
         "message_strategy": "warm, practical, schedule-aware",
         "escalation_behavior": "use shift patterns as a natural reason for direct coordination",
@@ -157,7 +154,6 @@ PERSONA_TEMPLATES = {
         "household_description": "single academic professional",
         "message_tone": "measured, polite, slightly formal",
         "home_city": "Nottingham",
-        "mobile_number": "+447700900104",
         "phone_fetching_type": "viewing_first",
         "message_strategy": "measured, viewing-led, polite",
         "escalation_behavior": "only move to phone once the landlord is engaged",
@@ -182,7 +178,6 @@ PERSONA_TEMPLATES = {
         "household_description": "professional couple",
         "message_tone": "efficient, practical, concise",
         "home_city": "Leicester",
-        "mobile_number": "+447700900105",
         "phone_fetching_type": "immediate",
         "message_strategy": "concise, professional, direct coordination",
         "escalation_behavior": "ask for WhatsApp or phone coordination early if the landlord is responsive",
@@ -226,15 +221,6 @@ def get_conversation_style(style):
     return CONVERSATION_STYLES[normalize_conversation_style(style)]
 
 
-def _seeded_mobile_number(seed):
-    digits = re.sub(r"\D", "", str(seed or ""))
-    if not digits:
-        digits = str(abs(hash(str(seed))) % 10_000_000_000).zfill(10)
-
-    suffix = digits[-8:].zfill(8)
-    return f"+4479{suffix}"
-
-
 def get_persona_template(persona_type):
     return PERSONA_TEMPLATES.get(persona_type)
 
@@ -261,7 +247,7 @@ def materialize_persona(template, seed=None):
         "message_tone": template["message_tone"],
         "home_city": template["home_city"],
         "display_name": template["display_name"],
-        "mobile_number": _seeded_mobile_number(seed) if seed else template.get("mobile_number"),
+        "mobile_number": template.get("mobile_number"),
         "phone_fetching_type": template.get("phone_fetching_type") or style_config["phone_fetching_type"],
         "message_strategy": template.get("message_strategy") or style_config["strategy"],
         "escalation_behavior": template.get("escalation_behavior") or style_config["escalation_behavior"],

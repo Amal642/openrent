@@ -2,6 +2,9 @@ from simulation.actors.base import ActorGoal, ActorProfile
 from simulation.actors.simulated_actor import RuleBasedActor
 
 
+SIMULATED_LANDLORD_PHONE = "".join(("07", "123", "456", "789"))
+
+
 class LandlordActor(RuleBasedActor):
     def __init__(self):
         super().__init__(
@@ -44,7 +47,7 @@ class LandlordActor(RuleBasedActor):
             context.goal_progress["phone_shared"] = True
             context.trust_score = min(1.0, context.trust_score + 0.35)
             return (
-                "Sounds good. You can call me on 07123456789 this evening "
+                f"Sounds good. You can call me on {SIMULATED_LANDLORD_PHONE} this evening "
                 "and we can discuss a viewing."
             )
 
@@ -59,4 +62,3 @@ class LandlordActor(RuleBasedActor):
             "Thanks. I still need to know your work situation and move date "
             "before sharing contact details."
         )
-

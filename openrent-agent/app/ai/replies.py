@@ -18,7 +18,7 @@ from app.ai.conversation_memory import (
     viewing_requested,
 )
 from app.ai.personas import generate_phone_share_reply
-from app.ai.validators import is_valid_reply
+from app.ai.validators import is_valid_reply, remove_unapproved_phone_numbers
 from app.config import settings
 from app.utils.logger import logger
 
@@ -188,7 +188,13 @@ def generate_reply(
             landlord_attitude=landlord_attitude or "responsive",
         )
         if phone_reply:
-            return phone_reply, None
+            return (
+                remove_unapproved_phone_numbers(
+                    phone_reply,
+                    (persona or {}).get("mobile_number"),
+                ),
+                None,
+            )
 
     def build_prompt(conversation_text: str) -> str:
         place = None
@@ -217,7 +223,13 @@ def generate_reply(
     )
     if not result.is_valid:
         return None, result.error or "invalid_ai_reply"
-    return result.reply, None
+    reply = remove_unapproved_phone_numbers(
+        result.reply,
+        (persona or {}).get("mobile_number"),
+    )
+    if not is_valid_reply(reply):
+        return None, "invalid_ai_reply"
+    return reply, None
 
 
 def generate_reply_result(
@@ -375,6 +387,10 @@ def generate_initial_property_message(
             )
 
             reply = response.choices[0].message.content.strip()
+            reply = remove_unapproved_phone_numbers(
+                reply,
+                (persona or {}).get("mobile_number"),
+            )
 
             if len(reply) < 20:
                 return None, "short_reply"

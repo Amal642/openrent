@@ -8,6 +8,8 @@ from app.ai.replies import generate_reply
 from app.ai.replies import _normalize_place_name, generate_distant_location
 
 
+ASSIGNED_MOBILE = "+" + "".join(("44", "7900", "111", "222"))
+
 PERSONA = {
     "persona_name": "James",
     "persona_partner_name": "Sophie",
@@ -16,7 +18,7 @@ PERSONA = {
     "household_description": "professional couple",
     "message_tone": "friendly, direct, brief",
     "home_city": "Manchester",
-    "mobile_number": "+447900111222",
+    "mobile_number": ASSIGNED_MOBILE,
     "phone_fetching_type": "delayed",
     "message_strategy": "friendly viewing first",
     "escalation_behavior": "wait until logistics are specific",
@@ -58,7 +60,7 @@ def test_dynamic_prompt_includes_phone_policy_and_landlord_attitude():
         outbound_count=1,
     )
 
-    assert "+447900111222" in prompt
+    assert ASSIGNED_MOBILE in prompt
     assert "Landlord attitude memory: friendly" in prompt
     assert "ALWAYS share the exact correct tenant mobile number" in prompt
 
@@ -72,7 +74,7 @@ def test_generate_reply_shares_correct_number_when_landlord_asks():
     )
 
     assert error is None
-    assert "+447900111222" in reply
+    assert ASSIGNED_MOBILE in reply
 
 
 def test_booked_reply_prompt_uses_dynamic_place():

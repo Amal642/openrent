@@ -1,6 +1,8 @@
 import math
 
 from app.utils.human import random_sleep
+import re
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 
 BASE_URL = "https://www.openrent.co.uk/myenquiries"
@@ -337,3 +339,44 @@ def get_latest_landlord_message(
         return None
 
     return landlord_messages[-1]
+
+async def reveal_hidden_phone_number(page):
+    try:
+
+        # Find reveal link inside message thread
+        reveal_link = page.locator(
+            "a:has-text('Click here to reveal the contact information now')"
+        )
+
+        if await reveal_link.count() == 0:
+            return False
+
+        print("\nHidden contact link found")
+        
+        await reveal_link.first.click()
+
+        # Wait for popup/modal
+        modal_button = page.locator(
+            "button:has-text('Proceed: I understand the risks')"
+        )
+
+        await modal_button.wait_for(timeout=5000)
+
+        print("Risk popup detected")
+
+        await modal_button.click()
+
+        # Wait for number/message to refresh
+        await page.wait_for_timeout(3000)
+
+        print("Contact information revealed")
+
+        return True
+
+    except PlaywrightTimeoutError:
+        print("Reveal popup timeout")
+        return False
+
+    except Exception as e:
+        print(f"Failed revealing contact info: {e}")
+        return False
