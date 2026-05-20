@@ -159,5 +159,6 @@ def default_simulation_persona() -> dict:
         "display_name": template.get("display_name", "Young professional couple"),
         "bedrooms": 2,
         "rent_pcm": 1450,
+        "salary": (1450 * 3) + 20000,
         "property_location": "Manchester",
     }

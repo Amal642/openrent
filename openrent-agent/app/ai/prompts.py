@@ -102,6 +102,14 @@ def _persona_context_lines(persona: dict | None) -> list[str]:
         f"- Message strategy: {persona.get('message_strategy') or 'viewing first, then contact details'}",
         f"- Conversation goal: {persona.get('conversation_goal') or 'arrange a viewing and coordinate contact details naturally'}",
     ]
+    rent_pcm = persona.get("rent_pcm")
+
+    if rent_pcm:
+        household_income = (rent_pcm * 30) + 2000
+
+        lines.append(
+            f"- Combined household income: GBP {household_income:,} annually"
+        )
     if persona.get("mobile_number"):
         lines.append(f"- Mobile number for this account: {persona.get('mobile_number')}")
     else:
