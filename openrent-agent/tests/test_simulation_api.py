@@ -130,7 +130,7 @@ def test_compare_designs_returns_result_for_each_selected_design(monkeypatch):
         "/simulation/compare-designs",
         json={
             "initial_landlord_message": landlord_message,
-            "conversation_design_ids": ["viewing_first_v1", "phone_first_v1"],
+            "conversation_design_ids": ["viewing_first_v1", "confirmation_close_v1"],
             "max_turns": 1,
         },
     )
@@ -141,7 +141,7 @@ def test_compare_designs_returns_result_for_each_selected_design(monkeypatch):
     assert len(payload["results"]) == 2
     assert {result["design_id"] for result in payload["results"]} == {
         "viewing_first_v1",
-        "phone_first_v1",
+        "confirmation_close_v1",
     }
 
 
@@ -217,7 +217,7 @@ def test_compare_designs_uses_same_landlord_message_across_designs(monkeypatch):
         "/simulation/compare-designs",
         json={
             "initial_landlord_message": landlord_message,
-            "conversation_design_ids": ["viewing_first_v1", "phone_first_v1"],
+            "conversation_design_ids": ["viewing_first_v1", "confirmation_close_v1"],
         },
     )
 
@@ -255,7 +255,7 @@ def test_compare_designs_scorecard_fields_include_viewing_and_phone(monkeypatch)
     client = TestClient(app)
     response = client.post(
         "/simulation/compare-designs",
-        json={"conversation_design_ids": ["viewing_first_v1", "phone_first_v1"]},
+        json={"conversation_design_ids": ["viewing_first_v1", "confirmation_close_v1"]},
     )
 
     assert response.status_code == 200

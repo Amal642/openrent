@@ -432,8 +432,8 @@
       <div style="background:color-mix(in srgb, var(--accent) 10%, transparent); border:1px solid var(--accent); border-radius:10px; padding:14px 18px; margin-bottom:0; display:flex; align-items:center; gap:14px;">
         <div style="font-size:1.3rem;">⚡</div>
         <div>
-          <div style="font-size:0.82rem; font-weight:600; color:var(--accent); margin-bottom:3px;">Single Source of Truth: <code style="font-family:Consolas;background:var(--surface2);padding:1px 6px;border-radius:3px;">app/ai/prompts.py</code></div>
-          <div style="font-size:0.76rem; color:var(--muted);">All AI conversation design rules live here only. Both the production automation and simulation lab read from <code style="font-family:Consolas">_DESIGN_RULES</code> — no rules embedded elsewhere.</div>
+          <div style="font-size:0.82rem; font-weight:600; color:var(--accent); margin-bottom:3px;">Reply Behavior Source of Truth: <code style="font-family:Consolas;background:var(--surface2);padding:1px 6px;border-radius:3px;">app/ai/prompts.py</code></div>
+          <div style="font-size:0.76rem; color:var(--muted);">AI reply behavior lives in <code style="font-family:Consolas">_DESIGN_RULES</code>. <code style="font-family:Consolas">simulation/conversation_designs.py</code> owns design metadata, property-aware opening templates, and success/failure criteria.</div>
         </div>
       </div>
     </div>
@@ -482,8 +482,9 @@
 │   │   └── <span class="tree-dir">utils/</span>
 │   │
 │   ├── <span class="tree-dir">simulation/</span>                    <span class="tree-comment"># conversation testing lab</span>
-│   │   ├── <span class="tree-important">conversation_designs.py</span>       <span class="tree-comment"># design metadata + success criteria</span>
-│   │   ├── <span class="tree-file">scenario_library.py</span>           <span class="tree-comment"># static landlord test scenarios</span>
+│   │   ├── <span class="tree-important">conversation_designs.py</span>       <span class="tree-comment"># designs, property-aware openers, personas</span>
+│   │   ├── <span class="tree-file">scenario_library.py</span>           <span class="tree-comment"># static comparison scenarios</span>
+│   │   ├── <span class="tree-dir">scenarios/</span>                  <span class="tree-comment"># generated run/interactive scenarios</span>
 │   │   ├── <span class="tree-file">conversation_state.py</span>         <span class="tree-comment"># heuristic signal extraction</span>
 │   │   ├── <span class="tree-file">interactive.py</span>               <span class="tree-comment"># human-tester mode</span>
 │   │   ├── <span class="tree-file">compare.py</span>                   <span class="tree-comment"># multi-design comparison</span>
@@ -533,7 +534,7 @@
             <div class="card-layer" style="background:color-mix(in srgb, var(--frontend) 15%, transparent); color:var(--frontend)">Frontend</div>
           </div>
           <div class="card-path">frontend/simulation-lab/src/</div>
-          <div class="card-desc">Tester-facing chat interface for interactive conversation testing, design comparison, and audit mode.</div>
+          <div class="card-desc">Client/tester-facing chat interface for landlord reply testing, message-style comparison, and advanced inspection.</div>
           <div class="card-tags">
             <span class="tag">InteractivePanel</span>
             <span class="tag">CompareDesignsPanel</span>
@@ -582,6 +583,7 @@
             <span class="tag">GET /api/metrics</span>
             <span class="tag">POST /simulation/run</span>
             <span class="tag">POST /simulation/interactive/start</span>
+            <span class="tag">GET /simulation/interactive/{id}</span>
             <span class="tag">POST /simulation/compare-designs</span>
             <span class="tag">GET /simulation/sessions</span>
           </div>
@@ -607,9 +609,10 @@
           <div class="card-desc">Prompt engine. All design rules in <strong>prompts.py</strong> only. Persona templates, reply validation, stage tracking, memory.</div>
           <div class="card-tags">
             <span class="tag">viewing_first_v1</span>
-            <span class="tag">phone_first_v1</span>
             <span class="tag">screening_first_v1</span>
-            <span class="tag">soft_human_v1</span>
+            <span class="tag">confirmation_close_v1</span>
+            <span class="tag">tenant_shares_first_v1</span>
+            <span class="tag">landlord_preference_v1</span>
           </div>
         </div>
         <div class="card" onclick="openModal('db_module')">
@@ -705,6 +708,21 @@
             <span class="tag">deterministic.py</span>
           </div>
         </div>
+        <div class="card" onclick="openModal('sim_designs')">
+          <div class="card-header">
+            <div class="card-title">Conversation Designs</div>
+            <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
+          </div>
+          <div class="card-path">simulation/conversation_designs.py</div>
+          <div class="card-desc">Active message-style metadata, property-aware opening templates, simulation persona construction, and success/failure criteria.</div>
+          <div class="card-tags">
+            <span class="tag">viewing_first_v1</span>
+            <span class="tag">screening_first_v1</span>
+            <span class="tag">confirmation_close_v1</span>
+            <span class="tag">tenant_shares_first_v1</span>
+            <span class="tag">landlord_preference_v1</span>
+          </div>
+        </div>
         <div class="card" onclick="openModal('sim_actors')">
           <div class="card-header">
             <div class="card-title">Actors</div>
@@ -766,10 +784,10 @@
             <div class="card-layer" style="background:color-mix(in srgb, var(--simulation) 15%, transparent); color:var(--simulation)">Simulation</div>
           </div>
           <div class="card-path">simulation/interactive.py</div>
-          <div class="card-desc">Human tester plays landlord in real-time. Max 25 turns. Start via API, reply turn-by-turn. Used by Simulation Lab UI.</div>
+          <div class="card-desc">Human tester plays landlord in real-time. Max 25 turns. Start via API, reply turn-by-turn. Used by the Test mode UI.</div>
           <div class="card-tags">
             <span class="tag">start_interactive_session()</span>
-            <span class="tag">handle_interactive_message()</span>
+            <span class="tag">submit_interactive_message()</span>
             <span class="tag">max 25 turns</span>
           </div>
         </div>
@@ -932,7 +950,7 @@
         <div class="principle">Conversation state analysis uses <strong>heuristics only</strong> — no LLM call. Fast, cheap, and predictable signal extraction from transcript text.</div>
         <div class="principle">ProductionPolicy uses <strong>temperature=0.0</strong> in simulation mode so evaluations are reproducible across runs.</div>
         <div class="principle"><strong>Repository pattern</strong> — all database access goes through <code>app/db/repository.py</code>. No raw queries in business logic.</div>
-        <div class="principle"><strong>Event bus</strong> captures every step of a simulation session, enabling full audit replay and dev-mode inspection of prompts + completions.</div>
+        <div class="principle"><strong>Event bus</strong> captures every step of a simulation session, enabling full replay and Advanced-mode inspection of prompts + completions.</div>
       </div>
     </div>
 
@@ -956,20 +974,20 @@ const details = {
   sim_lab_ui: {
     title: 'Simulation Lab UI',
     path: 'frontend/simulation-lab/src/',
-    desc: 'Tester-facing React app for interactive conversation testing. Supports audit mode (clean transcript view for clients) and dev mode (raw prompts, completions, event log, runtime context).',
+    desc: 'Client/tester-facing React app for landlord conversation testing. Test mode gives a clean conversation and results flow; Advanced mode exposes raw prompts, completions, event log, runtime context, and replay.',
     files: {
       'InteractivePanel.jsx': 'Live chat interface — human tester types as landlord',
       'CompareDesignsPanel.jsx': 'Run same scenario against multiple AI designs side-by-side',
       'RunPanel.jsx': 'Configure and trigger a simulation run',
-      'SessionList.jsx': 'Browse past simulation sessions',
-      'TranscriptViewer.jsx': 'Display conversation transcript turn by turn',
-      'EvaluationScorecard.jsx': 'Show scores and failure type badges',
+      'SessionList.jsx': 'Browse recent shared test sessions',
+      'TranscriptViewer.jsx': 'Display tenant/landlord transcript as chat-style turns',
+      'EvaluationScorecard.jsx': 'Show client-readable result cards and failure details',
       'ConversationStatePanel.jsx': 'Display extracted signals and flags from conversation',
-      'EventTimeline.jsx': '[dev] Event-by-event timeline with timestamps',
-      'PromptCompletionInspector.jsx': '[dev] Raw prompts and OpenAI completions',
-      'RuntimeContextPanel.jsx': '[dev] Memory, metrics, extracted entities',
+      'EventTimeline.jsx': '[advanced] Event-by-event timeline with timestamps',
+      'PromptCompletionInspector.jsx': '[advanced] Raw prompts and OpenAI completions',
+      'RuntimeContextPanel.jsx': '[advanced] Memory, metrics, extracted entities',
       'ReplayViewer.jsx': 'Replay a past session step by step',
-      'api.js': 'Axios/fetch client for /simulation/* endpoints'
+      'api.js': 'fetch client for /simulation/* endpoints'
     }
   },
   command_center_ui: {
@@ -984,7 +1002,7 @@ const details = {
   ai_module: {
     title: 'AI Module',
     path: 'app/ai/',
-    desc: 'Central AI subsystem. prompts.py is the single source of truth for all conversation design rules. Never add rules to conversation_designs.py — they must live in _DESIGN_RULES in prompts.py only.',
+    desc: 'Central AI subsystem. prompts.py is the single source of truth for AI reply behavior rules. conversation_designs.py owns metadata, opening templates, and success/failure criteria.',
     files: {
       'prompts.py': 'SINGLE SOURCE OF TRUTH — _DESIGN_RULES dict keyed by design_id. build_reply_prompt(), build_phone_extraction_prompt()',
       'personas.py': 'Renter persona templates and normalization helpers',
@@ -993,6 +1011,17 @@ const details = {
       'conversation_memory.py': 'Conversation state and memory management across turns',
       'extractors.py': 'Data extraction from message text',
       'validators.py': 'Prompt and reply validation rules'
+    }
+  },
+  sim_designs: {
+    title: 'Conversation Designs',
+    path: 'simulation/conversation_designs.py',
+    desc: 'Defines the active message styles, display names, descriptions, opening message templates, success/failure criteria, simulation persona construction, and property-aware phrasing. Reply behavior still comes from app/ai/prompts.py.',
+    files: {
+      'ConversationDesign': 'Dataclass for design_id, name, description, opening_message, success_criteria, failure_criteria',
+      'render_opening_message(persona, property)': 'Renders persona and property tokens such as persona_name, my_partner_and_i_are, credentials_intro, property_phrase',
+      'build_simulation_persona()': 'Builds persona from scenario persona_type and property data, including rent, household income, and mobile number',
+      'active designs': 'viewing_first_v1, screening_first_v1, confirmation_close_v1, tenant_shares_first_v1, landlord_preference_v1'
     }
   },
   db_module: {

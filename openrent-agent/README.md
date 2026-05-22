@@ -2,7 +2,7 @@
 
 OpenRent Agent is a FastAPI, Playwright, OpenAI, and React project for managing OpenRent outreach, replies, lead status, and simulation-based conversation testing.
 
-The current development focus is the simulation lab: a separate UI for testing landlord conversations, comparing AI conversation designs, and auditing how the model progresses toward viewing coordination and phone-number capture.
+The current development focus is the simulation lab: a separate, client-facing UI for testing landlord conversations, comparing AI message styles, and checking how the model progresses toward viewing coordination and phone-number capture.
 
 ## Stack
 
@@ -28,13 +28,14 @@ openrent-agent/
     openrent/                   OpenRent platform workflow code
   frontend/
     openrent-command-center/    Main operations dashboard
-    simulation-lab/             Conversation testing and audit UI
+    simulation-lab/             Client-facing conversation test UI
   scripts/                      Worker and one-off operational scripts
   simulation/
     compare.py                  Compare conversation designs
-    conversation_designs.py     Design metadata: names, opening messages, success/failure criteria
+    conversation_designs.py     Design metadata, property-aware openers, personas, success/failure criteria
     conversation_state.py       Deterministic transcript state analyzer
     scenario_library.py         Reusable landlord test scenarios
+    scenarios/                  Generated run/interactive scenario definitions
     evaluators/                 Heuristic scorecards
     sessions/                   Session artifacts, store, transcript models
     templates/                  Initial-message providers
@@ -95,49 +96,51 @@ http://127.0.0.1:5173
 
 The simulation lab supports:
 
-- Audit mode for client/tester-facing transcript review.
-- Dev mode for internal logs, prompts, completions, runtime context, and event timelines.
+- Test mode for client/tester-facing conversation testing.
+- Advanced mode for internal logs, prompts, completions, runtime context, and event timelines.
 - Interactive sessions where the AI starts as the renter and testers reply as the landlord.
-- Persona-driven opening messages: the AI introduces itself with the name, household type, and tone drawn from the active persona rather than a hardcoded line.
-- Conversation design selection, including `viewing_first_v1` and `phone_first_v1`.
-- Compare mode for running the same landlord scenario against multiple AI designs.
+- Persona- and property-driven opening messages: the AI introduces itself with active persona details and references the scenario property through `{property_phrase}`.
+- Conversation design selection across the five active message styles.
+- Compare mode for running the same landlord scenario against multiple AI message styles.
 - Conversation state tracking for viewing progress, screening, coordination, early phone asks, refusals, and stalls.
 
 ## Conversation Design Testing
 
-**AI reply behavior** (the rules that control how the AI responds during a conversation) lives exclusively in:
+**AI reply behavior** lives exclusively in:
 
 ```text
-app/ai/prompts.py  →  _DESIGN_RULES dict
+app/ai/prompts.py -> _DESIGN_RULES dict
 ```
 
-Each conversation design has its reply rules embedded there, keyed by design ID. This is the single source of truth for AI behavior in the simulation lab.
+Each active conversation design has its reply rules embedded there, keyed by design ID. This is the single source of truth for AI reply behavior in the simulation lab.
 
-**Conversation design metadata** (names, opening message templates, success/failure criteria) lives in:
+**Conversation design metadata** lives in:
 
 ```text
 simulation/conversation_designs.py
 ```
 
-This file defines what each design is called and how sessions start — it does not control how the AI replies.
+This file owns design names, opening message templates, property-aware phrasing, simulation persona construction, and success/failure criteria. It does not control turn-by-turn AI reply behavior.
 
-Opening messages are template strings rendered at runtime from the active persona. The persona supplies the tenant name, partner name, and household type, so the opening message matches whoever the AI is playing. To change the opening wording for a design, edit `opening_message` in `conversation_designs.py`. To change who the AI is, change the persona passed to the session.
+Opening messages are template strings rendered at runtime from the active persona and scenario property. The persona supplies the tenant name, partner name, and household type. The property supplies `{property_phrase}`, such as `the 2-bed in Hackney`. To change opening wording, edit `opening_message` in `conversation_designs.py`. To change who the AI is, change the scenario persona or persona template.
 
-**Personas** (tenant identities the AI adopts) live in:
+**Personas** live in:
 
 ```text
 app/ai/personas.py
+simulation/conversation_designs.py -> build_simulation_persona()
 ```
 
-Each persona template defines a household type, name pool, job pool, tone, city, phone-capture strategy, and eligible conversation styles. A persona is materialised at session start by randomly selecting names and a conversation style from the template.
+`app/ai/personas.py` defines reusable tenant templates. `build_simulation_persona()` adapts a template to the selected scenario property, including bedrooms, rent, household income, property location, and the simulation mobile number.
 
 Static landlord scenarios live in:
 
 ```text
 simulation/scenario_library.py
+simulation/scenarios/generators.py
 ```
 
-Current seeded scenarios:
+Current seeded scenarios include:
 
 - `normal_viewing_offer`
 - `screening_before_viewing`
@@ -145,14 +148,23 @@ Current seeded scenarios:
 - `asks_for_tenant_phone_early`
 - `vague_landlord_reply`
 - `viewing_confirmed_then_coordination`
+- `outreach-screening-before-phone`
+- `outreach-phone-request`
+- `reply-after-landlord-question`
+- `screening-before-phone`
 
-The current preferred strategy is `viewing_first_v1`:
+Current active conversation designs:
 
-- Move toward arranging a viewing first.
-- Answer screening questions naturally and briefly.
-- Do not ask for phone before viewing progress.
-- Ask for phone only when coordination is reasonable.
-- Sound like a real person texting — never robotic or scripted.
+- `viewing_first_v1`: baseline; arrange or nearly arrange a viewing before asking for contact details.
+- `screening_first_v1`: build landlord confidence by answering screening concerns before progressing to viewing/contact.
+- `confirmation_close_v1`: strict gate; ask for the number only after a concrete viewing time is agreed or nearly agreed, using a logistics reason.
+- `tenant_shares_first_v1`: reciprocity; share the tenant mobile first after viewing progress, then let the landlord reciprocate if useful.
+- `landlord_preference_v1`: low-pressure channel choice; ask whether the landlord prefers OpenRent messages or phone coordination.
+
+Removed designs:
+
+- `phone_first_v1`
+- `soft_human_v1`
 
 ## Run Main Dashboard
 
@@ -213,5 +225,5 @@ npm run build
 
 - The simulation lab is intentionally separate from the main operations dashboard.
 - Generated simulation run artifacts and frontend dependency folders should not be committed.
-- Testers are currently treated as trusted users, so the lab can show shared session history.
-- Dev mode may expose prompts, completions, event logs, and runtime context. Use audit mode for client-facing testing.
+- Testers are currently treated as trusted users, so the lab can show shared session history from `simulation/datasets/runs`.
+- Advanced mode may expose prompts, completions, event logs, and runtime context. Use Test mode for client-facing testing.

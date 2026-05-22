@@ -16,6 +16,7 @@ from simulation.engine.session_manager import (
 )
 from simulation.conversation_designs import (
     VIEWING_FIRST_V1,
+    build_simulation_persona,
     default_simulation_persona,
     get_conversation_design,
 )
@@ -26,6 +27,38 @@ from simulation.templates.initial_message_provider import build_initial_message_
 
 
 INTERACTIVE_MAX_TURNS = 25
+
+
+def _build_setup(scenario, persona: dict) -> dict:
+    name = persona.get("persona_name") or "the tenant"
+    partner_name = persona.get("persona_partner_name")
+    job = persona.get("persona_job")
+    partner_job = persona.get("persona_partner_job")
+    household = persona.get("household_description") or "tenant"
+    rent_pcm = persona.get("rent_pcm")
+    income = (rent_pcm * 30) + 20000 if rent_pcm else None
+    home_city = persona.get("home_city")
+    mobile = persona.get("mobile_number")
+
+    if partner_name and partner_job:
+        identity = f"{name} ({job}) and partner {partner_name} ({partner_job})"
+    elif job:
+        identity = f"{name} ({job})"
+    else:
+        identity = name
+
+    tenant_summary = {
+        "identity": identity,
+        "household": household,
+        "household_income_gbp": income,
+        "home_city": home_city,
+        "mobile_number": str(mobile) if mobile else None,
+    }
+    return {
+        "tenant": tenant_summary,
+        "property": scenario.property,
+        "landlord_brief": scenario.landlord_brief,
+    }
 
 
 def _restore_event_bus(events_payload: list[dict] | None) -> EventBus:
@@ -62,16 +95,17 @@ def start_interactive_session(
     conversation_design = get_conversation_design(
         conversation_design_id or VIEWING_FIRST_V1,
     )
-    persona = default_simulation_persona()
     scenario = _resolve_scenario(
         scenario_id or DEFAULT_SCENARIO_ID,
         INTERACTIVE_MAX_TURNS,
         start_mode,
     )
+    persona = build_simulation_persona(scenario.persona_type, scenario.property)
     policy = _resolve_policy(
         policy_id or DEFAULT_POLICY_ID,
         conversation_design=conversation_design,
         persona=persona,
+        property=scenario.property,
     )
     actor = HumanActor()
     initial_message_provider = None
@@ -82,6 +116,7 @@ def start_interactive_session(
             initial_message=initial_message,
             conversation_design_id=conversation_design.design_id,
             persona=persona,
+            property=scenario.property,
         )
     context = RuntimeContext(
         session_id=str(uuid.uuid4()),
@@ -134,7 +169,7 @@ def start_interactive_session(
                 key="initial_agent_message",
             ),
         )
-    return finalize_session(
+    result = finalize_session(
         mode="interactive",
         actor=actor,
         policy=policy,
@@ -145,6 +180,8 @@ def start_interactive_session(
         session_started=session_started,
         store=_session_store(store),
     ).to_dict()
+    result["setup"] = _build_setup(scenario, persona)
+    return result
 
 
 def submit_interactive_message(
@@ -189,12 +226,13 @@ def submit_interactive_message(
         session.get("runtime_context", {})
         .get("memory", {})
         .get("persona")
-        or default_simulation_persona()
+        or build_simulation_persona(scenario.persona_type, scenario.property)
     )
     policy = _resolve_policy(
         session["policy_id"],
         conversation_design=conversation_design,
         persona=persona,
+        property=scenario.property,
     )
     actor = HumanActor()
     context = RuntimeContext.from_snapshot(session.get("runtime_context"))
@@ -228,7 +266,7 @@ def submit_interactive_message(
 
     generate_agent_reply(policy, context, event_bus, metrics)
 
-    return finalize_session(
+    result = finalize_session(
         mode="interactive",
         actor=actor,
         policy=policy,
@@ -239,6 +277,8 @@ def submit_interactive_message(
         session_started=session_started,
         store=session_store,
     ).to_dict()
+    result["setup"] = _build_setup(scenario, persona)
+    return result
 
 
 def get_interactive_session(
@@ -251,4 +291,16 @@ def get_interactive_session(
         raise HTTPException(status_code=404, detail="Session not found")
     if session.get("mode") != "interactive":
         raise HTTPException(status_code=400, detail="Session is not interactive")
+    scenario = _resolve_scenario(
+        session.get("scenario_id") or DEFAULT_SCENARIO_ID,
+        session.get("max_turns", INTERACTIVE_MAX_TURNS),
+        session.get("start_mode", "agent_starts"),
+    )
+    persona = (
+        session.get("runtime_context", {})
+        .get("memory", {})
+        .get("persona")
+        or build_simulation_persona(scenario.persona_type, scenario.property)
+    )
+    session["setup"] = _build_setup(scenario, persona)
     return session

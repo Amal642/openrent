@@ -12,6 +12,7 @@ from simulation.engine.orchestrator import SimulationOrchestrator
 from simulation.engine.runtime_context import RuntimeContext
 from simulation.conversation_designs import (
     VIEWING_FIRST_V1,
+    build_simulation_persona,
     default_simulation_persona,
     get_conversation_design,
 )
@@ -93,6 +94,7 @@ def _resolve_policy(
     *,
     conversation_design=None,
     persona: dict | None = None,
+    property: dict | None = None,
 ):
     builder = POLICY_BUILDERS.get(policy_id)
     if builder is None:
@@ -106,6 +108,7 @@ def _resolve_policy(
                 asdict(conversation_design) if conversation_design else None
             ),
             persona=persona,
+            property=property,
         )
     return builder()
 
@@ -126,17 +129,18 @@ def run_simulation_session(
     conversation_design = get_conversation_design(
         conversation_design_id or VIEWING_FIRST_V1,
     )
-    persona = default_simulation_persona()
     scenario = _resolve_scenario(
         scenario_id or DEFAULT_SCENARIO_ID,
         max_turns,
         start_mode,
     )
+    persona = build_simulation_persona(scenario.persona_type, scenario.property)
     actor = _resolve_actor(actor_id or DEFAULT_ACTOR_ID)
     policy = _resolve_policy(
         policy_id or DEFAULT_POLICY_ID,
         conversation_design=conversation_design,
         persona=persona,
+        property=scenario.property,
     )
     initial_message_provider = None
     if scenario.start_mode == "agent_starts":
@@ -146,6 +150,7 @@ def run_simulation_session(
             initial_message=initial_message,
             conversation_design_id=conversation_design.design_id,
             persona=persona,
+            property=scenario.property,
         )
 
     context = RuntimeContext(

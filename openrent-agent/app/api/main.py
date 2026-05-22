@@ -444,6 +444,13 @@ def simulation_scenarios():
     return list_conversation_scenarios()
 
 
+@app.get("/simulation/interactive-scenarios")
+def simulation_interactive_scenarios():
+    from simulation.scenarios.generators import list_interactive_scenarios
+
+    return list_interactive_scenarios()
+
+
 @app.post("/simulation/compare-designs")
 def simulation_compare_designs(payload: CompareDesignsPayload):
     from simulation.compare import compare_conversation_designs

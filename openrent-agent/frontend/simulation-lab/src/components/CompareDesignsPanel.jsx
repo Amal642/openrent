@@ -3,12 +3,12 @@ import { useState } from "react";
 import Panel from "./Panel";
 import { activeSignalLabels, formatStateLabel } from "./ConversationStatePanel";
 
-const DEFAULT_SELECTED = ["viewing_first_v1", "phone_first_v1"];
+const DEFAULT_SELECTED = ["viewing_first_v1", "confirmation_close_v1"];
 const DEFAULT_SCENARIO_ID = "normal_viewing_offer";
 
 function speakerLabel(speaker) {
   if (speaker === "agent") {
-    return "AI";
+    return "Tenant";
   }
   if (speaker === "actor") {
     return "Landlord";
@@ -32,7 +32,7 @@ export default function CompareDesignsPanel({
     ? conversationDesigns
     : [
         { id: "viewing_first_v1", name: "Viewing first" },
-        { id: "phone_first_v1", name: "Phone first" },
+        { id: "confirmation_close_v1", name: "Confirmation close" },
       ];
   const scenarioOptions = conversationScenarios.length
     ? conversationScenarios
@@ -84,22 +84,25 @@ export default function CompareDesignsPanel({
   }
 
   return (
-    <Panel title="Compare Designs">
+    <Panel title="Compare Message Styles">
       <form className="stack" onSubmit={handleSubmit}>
         <div className="design-check-grid">
           {designOptions.map((design) => (
-            <label key={design.id} className="check-row">
+            <label key={design.id} className="check-row design-option">
               <input
                 type="checkbox"
                 checked={selectedDesignIds.includes(design.id)}
                 onChange={() => toggleDesign(design.id)}
               />
-              <span>{design.name}</span>
+              <span>
+                <strong>{design.name}</strong>
+                {design.description ? <small>{design.description}</small> : null}
+              </span>
             </label>
           ))}
         </div>
         <label className="field">
-          <span>Scenario</span>
+          <span>Landlord situation</span>
           <select
             value={selectedScenarioId}
             onChange={(event) => setSelectedScenarioId(event.target.value)}
@@ -112,7 +115,7 @@ export default function CompareDesignsPanel({
           </select>
         </label>
         <label className="field">
-          <span>Custom landlord message overrides scenario</span>
+          <span>Or write your own landlord message</span>
           <textarea
             className="text-area"
             value={landlordMessage}
@@ -121,14 +124,14 @@ export default function CompareDesignsPanel({
           />
         </label>
         <div className="status muted">
-          <strong>Testing message:</strong> {testedMessage}
+          <strong>Message being tested:</strong> {testedMessage}
         </div>
         <button
           className="primary-button"
           type="submit"
           disabled={loading || selectedDesignIds.length < 1 || selectedDesignIds.length > 4}
         >
-          {loading ? "Comparing..." : "Run Compare"}
+          {loading ? "Comparing..." : "Compare Styles"}
         </button>
         {error ? <p className="status error">{error}</p> : null}
       </form>
@@ -176,7 +179,7 @@ export default function CompareDesignsPanel({
                   <p className="status muted">
                     {result.failure_reasons?.length
                       ? result.failure_reasons.join(", ")
-                      : "No failures"}
+                      : "No issues detected"}
                   </p>
                 </div>
                 <div>

@@ -9,6 +9,7 @@ class ProductionPolicy(AgentPolicy):
         conversation_design_id: str | None = None,
         conversation_design: dict | None = None,
         persona: dict | None = None,
+        property: dict | None = None,
     ):
         super().__init__(
             policy_id="production-policy-v1",
@@ -17,6 +18,7 @@ class ProductionPolicy(AgentPolicy):
             conversation_design_id=conversation_design_id,
             conversation_design=conversation_design,
             persona=persona,
+            property=property,
             allow_phone_request=True,
             allow_negotiation=False,
             max_followups=settings.SIMULATION_MAX_FOLLOWUPS,
@@ -30,5 +32,5 @@ class ProductionPolicy(AgentPolicy):
             conversation,
             persona=self.persona,
             conversation_design_id=self.conversation_design_id,
+            property=self.property,
         )
-

@@ -1,9 +1,9 @@
 {
   "project": {
     "name": "OpenRent Agent",
-    "description": "Full-stack AI automation platform for OpenRent outreach with deterministic conversation simulation lab",
+    "description": "Full-stack AI automation platform for OpenRent outreach with a client-facing conversation test lab",
     "type": "Monorepo",
-    "branch": "integrate-simulation",
+    "branch": "main",
     "database": "SQLite (openrent.db) / Postgres",
     "root": "d:/openrent/openrent"
   },
@@ -25,7 +25,7 @@
           "label": "Simulation Lab UI",
           "path": "frontend/simulation-lab/",
           "tech": "React 18 + Vite",
-          "description": "Tester-facing UI for interactive conversation testing and audit mode",
+          "description": "Client/tester-facing UI for landlord conversation tests, message-style comparison, and advanced inspection",
           "components": [
             "InteractivePanel.jsx",
             "CompareDesignsPanel.jsx",
@@ -39,7 +39,7 @@
             "RuntimeContextPanel.jsx",
             "ReplayViewer.jsx"
           ],
-          "modes": ["audit", "dev"]
+          "modes": ["test", "advanced"]
         },
         {
           "id": "command_center_ui",
@@ -87,6 +87,7 @@
                 "GET /simulation/scenarios",
                 "POST /simulation/compare-designs",
                 "POST /simulation/interactive/start",
+                "GET /simulation/interactive/{session_id}",
                 "POST /simulation/interactive/{session_id}/message",
                 "GET /simulation/sessions",
                 "GET /simulation/sessions/{session_id}",
@@ -118,9 +119,10 @@
           },
           "designRules": [
             "viewing_first_v1",
-            "phone_first_v1",
             "screening_first_v1",
-            "soft_human_v1"
+            "confirmation_close_v1",
+            "tenant_shares_first_v1",
+            "landlord_preference_v1"
           ]
         },
         {
@@ -209,20 +211,31 @@
           "id": "sim_designs",
           "label": "Conversation Designs",
           "path": "simulation/conversation_designs.py",
-          "description": "ConversationDesign dataclass — design metadata, opening message, success/failure criteria"
+          "description": "ConversationDesign dataclass — active design metadata, property-aware opening templates, persona construction, success/failure criteria",
+          "activeDesigns": [
+            "viewing_first_v1",
+            "screening_first_v1",
+            "confirmation_close_v1",
+            "tenant_shares_first_v1",
+            "landlord_preference_v1"
+          ]
         },
         {
           "id": "sim_scenarios",
           "label": "Scenario Library",
-          "path": "simulation/scenario_library.py",
-          "description": "Static landlord test scenarios",
+          "path": "simulation/scenario_library.py + simulation/scenarios/generators.py",
+          "description": "Static comparison scenarios and generated interactive/run scenarios with property and persona data",
           "scenarios": [
             "normal_viewing_offer",
             "screening_before_viewing",
             "phone_refusal_before_viewing",
             "asks_for_tenant_phone_early",
             "vague_landlord_reply",
-            "viewing_confirmed_then_coordination"
+            "viewing_confirmed_then_coordination",
+            "outreach-screening-before-phone",
+            "outreach-phone-request",
+            "reply-after-landlord-question",
+            "screening-before-phone"
           ]
         },
         {
@@ -282,7 +295,7 @@
           "id": "sim_sessions",
           "label": "Sessions & Memory",
           "path": "simulation/sessions/ + simulation/memory/",
-          "description": "Session persistence, transcript models, memory state",
+          "description": "Session persistence, transcript models, memory state. JSON run history is shared across trusted lab users.",
           "files": {
             "models.py": "SimulationSession, EvaluationResult",
             "store.py": "JSONSessionStore — persist sessions to JSON",
@@ -348,11 +361,12 @@
       "steps": [
         "Frontend POST /simulation/interactive/start",
         "simulation/interactive.py: start_interactive_session()",
-        "simulation/engine/orchestrator.py (setup orchestrator)",
-        "simulation/engine/session_manager.py (emit initial agent message)",
+        "simulation/scenario_library.py or generators.py (resolve property/persona scenario)",
+        "simulation/conversation_designs.py (build_simulation_persona and render property-aware opener)",
+        "simulation/engine/session_manager.py (emit initial tenant message)",
         "Frontend receives session_id",
         "Human tester replies → POST /simulation/interactive/{session_id}/message",
-        "simulation/interactive.py: handle_interactive_message()",
+        "simulation/interactive.py: submit_interactive_message()",
         "simulation/policies/production_policy.py (get next AI message)",
         "simulation/evaluators/heuristic.py (evaluate progress)",
         "Frontend receives updated transcript, state, evaluation"
@@ -363,10 +377,10 @@
       "label": "Conversation Design → AI Reply",
       "steps": [
         "conversation_design_id (from UI or API)",
-        "simulation/conversation_designs.py (get design metadata)",
+        "simulation/conversation_designs.py (get design metadata and property-aware opening template)",
         "app/ai/prompts.py: _DESIGN_RULES[design_id] (get rules)",
         "app/ai/prompts.py: build_reply_prompt() (compose prompt)",
-        "simulation/policies/production_policy.py (call policy)",
+        "simulation/policies/production_policy.py (call policy with persona and property context)",
         "OpenAI API (generate reply)"
       ]
     },
@@ -414,11 +428,13 @@
     "PROXY_PASSWORD": "Proxy password"
   },
   "keyPrinciples": [
-    "All AI behavior rules live ONLY in app/ai/prompts.py (_DESIGN_RULES)",
+    "AI reply behavior rules live ONLY in app/ai/prompts.py (_DESIGN_RULES)",
+    "Conversation design metadata and property-aware opening templates live in simulation/conversation_designs.py",
+    "Active designs are viewing_first, screening_first, confirmation_close, tenant_shares_first, and landlord_preference",
     "Simulation is deterministic — RNG seeding ensures reproducibility",
     "Conversation state analysis uses heuristics, not LLM (fast, cheap)",
     "ProductionPolicy uses temperature=0.0 for deterministic simulation",
     "Repository pattern isolates all database logic",
-    "Event bus enables full session replay and audit"
+    "Event bus enables full session replay and advanced inspection"
   ]
 }

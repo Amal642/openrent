@@ -9,6 +9,7 @@ class AgentPolicy:
     conversation_design_id: str | None = None
     conversation_design: dict | None = None
     persona: dict | None = None
+    property: dict | None = None
     allow_phone_request: bool = True
     allow_negotiation: bool = False
     max_followups: int = 1
@@ -18,4 +19,3 @@ class AgentPolicy:
 
     def build_prompt(self, conversation: str) -> str:
         raise NotImplementedError
-

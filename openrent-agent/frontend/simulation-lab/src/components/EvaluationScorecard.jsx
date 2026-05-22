@@ -10,8 +10,55 @@ export default function EvaluationScorecard({
 }) {
   if (!evaluation) {
     return (
-      <Panel title="Evaluation Scorecard">
-        <p className="status muted">No evaluation loaded.</p>
+      <Panel title={auditMode ? "Results" : "Evaluation Scorecard"}>
+        <p className="status muted">Start a test conversation to see results.</p>
+      </Panel>
+    );
+  }
+
+  const resultCards = [
+    {
+      label: "Overall result",
+      value: evaluation.passed ? "Passed" : "Needs review",
+      state: evaluation.passed ? "pass" : "fail",
+    },
+    {
+      label: "Phone captured",
+      value: phoneCaptured ? "Yes" : "Not yet",
+      state: phoneCaptured ? "pass" : "neutral",
+    },
+    {
+      label: "Message style",
+      value: conversationDesignName || "Not set",
+      state: "neutral",
+    },
+    {
+      label: "Score",
+      value: evaluation.score,
+      state: evaluation.passed ? "pass" : "fail",
+    },
+  ];
+  const visibleFailures = Array.isArray(failureTypes) ? failureTypes : [];
+
+  if (auditMode) {
+    return (
+      <Panel title="Results">
+        <div className="metric-grid">
+          {resultCards.map((card) => (
+            <div key={card.label} className={`metric-card ${card.state}`}>
+              <span>{card.label}</span>
+              <strong>{card.value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="stack">
+          <div>
+            <h3>What did not work</h3>
+            <p className="status muted">
+              {visibleFailures.length ? visibleFailures.join(", ") : "No issues detected."}
+            </p>
+          </div>
+        </div>
       </Panel>
     );
   }

@@ -23,10 +23,13 @@ class FixtureInitialMessageProvider(InitialMessageProvider):
         message: str | None = None,
         conversation_design_id: str | None = None,
         persona: dict | None = None,
+        property: dict | None = None,
     ):
         design = get_conversation_design(conversation_design_id)
         self.message = (
-            message.strip() if message else design.render_opening_message(persona)
+            message.strip()
+            if message
+            else design.render_opening_message(persona, property=property)
         )
 
     def get_message(self) -> str:
@@ -81,6 +84,7 @@ def build_initial_message_provider(
     initial_message: str | None = None,
     conversation_design_id: str | None = None,
     persona: dict | None = None,
+    property: dict | None = None,
 ) -> InitialMessageProvider:
     provider_source = (source or "fixture").strip().lower()
     if provider_source == "manual":
@@ -97,5 +101,6 @@ def build_initial_message_provider(
             initial_message,
             conversation_design_id=conversation_design_id,
             persona=persona,
+            property=property,
         )
     raise HTTPException(status_code=400, detail="Unknown initial_message_source")

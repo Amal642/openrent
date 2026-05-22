@@ -13,19 +13,29 @@ _DESIGN_RULES: dict[str, list[str]] = {
         "Once a viewing is set, ask for a number casually - frame it as a practical coordination step only.",
         "Never make it feel like you are chasing contact details.",
     ],
-    "phone_first_v1": [
-        "Your goal is to get the landlord's phone number early, but keep it natural and low-pressure.",
-        "Answer any direct landlord questions briefly before making the ask.",
-        "Never feel transactional or pushy.",
-    ],
     "screening_first_v1": [
-        "Establish yourself as a reliable tenant first - answer any questions about employment, household, or move-in naturally.",
-        "Once the landlord seems comfortable, steer the conversation toward arranging a viewing.",
+        "Build landlord confidence before asking for contact details.",
+        "Answer questions about work, household, affordability, and move-in directly using only persona facts.",
+        "Once the landlord seems comfortable, steer toward arranging a viewing.",
+        "Ask for a number only after screening concerns are satisfied and viewing coordination is relevant.",
     ],
-    "soft_human_v1": [
-        "Keep every reply warm, brief, and low-pressure.",
-        "Match the landlord's pace - if they are asking questions, answer them before progressing.",
-        "Never rush toward a viewing or push for anything.",
+    "confirmation_close_v1": [
+        "Do not ask for a phone number until a specific viewing date or time is agreed or nearly agreed.",
+        "If no concrete time exists yet, keep narrowing availability instead of asking for contact details.",
+        "After a time is agreed, ask for the best number only as a practical day-of-viewing fallback.",
+        "Use logistics reasons such as delays, finding the entrance, directions, or last-minute changes.",
+    ],
+    "tenant_shares_first_v1": [
+        "Use reciprocity: after viewing progress exists, share the tenant mobile first as optional coordination help.",
+        "Do not share the tenant mobile before viewing progress.",
+        "Invite the landlord to use whichever channel is easiest rather than demanding their number.",
+        "Only ask for the landlord's best number after sharing yours if it is needed for viewing logistics.",
+    ],
+    "landlord_preference_v1": [
+        "Let the landlord choose the coordination channel.",
+        "When viewing coordination is relevant, ask whether they prefer to arrange it here or by phone.",
+        "Do not directly ask for their number unless they opt into phone coordination.",
+        "If they prefer OpenRent messages, continue there without pushing off-platform.",
     ],
 }
 
@@ -59,6 +69,7 @@ def build_reply_prompt(
     phone_number_shared: bool = False,
     landlord_asked_for_number: bool = False,
     outbound_count: int = 0,
+    property: dict | None = None,
 ) -> str:
     if stage == "VIEWING_CANCELLED":
         return build_cancel_viewing_prompt(conversation)
@@ -89,6 +100,7 @@ def build_reply_prompt(
         trust_level="medium",
         escalation_behavior=(persona or {}).get("escalation_behavior"),
         outbound_count=outbound_count,
+        property=property,
     )
 
 
@@ -105,7 +117,7 @@ def _persona_context_lines(persona: dict | None) -> list[str]:
     rent_pcm = persona.get("rent_pcm")
 
     if rent_pcm:
-        household_income = (rent_pcm * 30) + 2000
+        household_income = (rent_pcm * 30) + 20000
 
         lines.append(
             f"- Combined household income: GBP {household_income:,} annually"
@@ -114,6 +126,33 @@ def _persona_context_lines(persona: dict | None) -> list[str]:
         lines.append(f"- Mobile number for this account: {persona.get('mobile_number')}")
     else:
         lines.append("- Mobile number for this account: none assigned")
+    return lines
+
+
+def _property_context_lines(property: dict | None) -> list[str]:
+    if not property:
+        return ["- No specific property details provided; refer to it generically as 'the property'."]
+    lines = []
+    title = property.get("title")
+    if title:
+        lines.append(f"- Listing: {title}")
+    bedrooms = property.get("bedrooms")
+    if bedrooms is not None:
+        lines.append(f"- Bedrooms: {bedrooms}")
+    rent_pcm = property.get("rent_pcm")
+    if rent_pcm is not None:
+        lines.append(f"- Rent: GBP {int(rent_pcm):,} pcm")
+    location = property.get("location")
+    if location:
+        lines.append(f"- Location: {location}")
+    furnished = property.get("furnished")
+    if furnished is not None:
+        lines.append(f"- Furnished: {'yes' if furnished else 'no'}")
+    available_from = property.get("available_from")
+    if available_from:
+        lines.append(f"- Available from: {available_from}")
+    if not lines:
+        return ["- No specific property details provided; refer to it generically as 'the property'."]
     return lines
 
 
@@ -200,6 +239,7 @@ def generate_message_persona_prompt(
     trust_level: str | None = None,
     escalation_behavior: str | None = None,
     outbound_count: int = 0,
+    property: dict | None = None,
 ) -> str:
     persona = persona or {}
     selected_style = normalize_conversation_style(
@@ -242,6 +282,9 @@ Current conversation controls:
 - Friendliness level: {friendliness_level or "medium"}
 - Trust level: {trust_level or "medium"}
 - Escalation behavior: {escalation}
+
+Property context (the listing being discussed):
+{chr(10).join(_property_context_lines(property))}
 
 Tenant/persona/account context:
 {chr(10).join(_persona_context_lines(persona))}

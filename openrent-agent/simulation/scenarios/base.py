@@ -11,3 +11,6 @@ class Scenario:
     start_mode: str = "actor_starts"
     expected_signals: list[str] = field(default_factory=list)
     max_turns: int = 1
+    property: dict | None = None
+    landlord_brief: dict | None = None
+    persona_type: str | None = None

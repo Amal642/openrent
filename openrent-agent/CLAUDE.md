@@ -14,40 +14,61 @@ The parent repository may contain unrelated files. Avoid changing files outside 
 
 ## Current Product Direction
 
-The simulation lab is a separate UI from the main OpenRent command center.
+The simulation lab is separate from the main OpenRent command center.
 
 Primary simulation goal:
 
 - Let trusted testers act as landlords.
 - Let the AI act as the renter.
-- Start with an AI initial message.
-- Audit whether the AI progresses toward booking a viewing.
-- Capture phone numbers only when viewing coordination makes it reasonable.
-- Compare multiple conversation designs against the same landlord scenario.
+- Start with an AI initial message in most client-facing tests.
+- Check whether the AI progresses toward booking a viewing.
+- Capture or exchange phone numbers only when viewing coordination makes it reasonable.
+- Compare multiple message styles against the same landlord scenario.
 
-Preferred current conversation design:
+Client-facing UI language:
+
+- Use `Test` mode for the simple client-facing experience.
+- Use `Advanced` mode for raw prompts, completions, runtime context, event logs, and replay.
+- Use human-facing labels: `Tenant` and `Landlord`, not `agent` and `actor`.
+- Avoid raw event codes in Test mode.
+
+## Active Conversation Designs
+
+Current active design IDs:
 
 ```text
 viewing_first_v1
+screening_first_v1
+confirmation_close_v1
+tenant_shares_first_v1
+landlord_preference_v1
 ```
 
-This design should:
+Removed design IDs:
 
-- Move toward viewing first.
-- Answer landlord screening questions naturally.
-- Avoid early phone asks.
-- Ask for phone only after viewing is confirmed or close to confirmed.
-- Avoid lead-harvesting or scripted language.
+```text
+phone_first_v1
+soft_human_v1
+```
+
+Design intent:
+
+- `viewing_first_v1`: baseline; move toward viewing first, then ask for contact only when coordination is reasonable.
+- `screening_first_v1`: answer/offer credibility before pushing for viewing/contact.
+- `confirmation_close_v1`: strict gate; ask for number only after a concrete viewing time is agreed or nearly agreed, with a logistics reason.
+- `tenant_shares_first_v1`: reciprocity; tenant shares their own mobile first after viewing progress.
+- `landlord_preference_v1`: channel choice; ask whether the landlord prefers OpenRent messages or phone coordination.
 
 ## Important Files
 
 ```text
-app/ai/prompts.py                          Single source of truth for all AI reply behavior
+app/ai/prompts.py                          Single source of truth for AI reply behavior rules
 app/ai/personas.py                         Persona templates and materialisation logic
 app/ai/replies.py
 app/api/main.py
-simulation/conversation_designs.py         Metadata only: names, opening message templates, success/failure criteria
+simulation/conversation_designs.py         Metadata, opening templates, property phrasing, simulation persona construction
 simulation/scenario_library.py
+simulation/scenarios/generators.py         Scenario property/persona data
 simulation/conversation_state.py
 simulation/compare.py
 simulation/evaluators/heuristic.py
@@ -60,44 +81,53 @@ tests/test_prompt_persona_flow.py
 
 ## AI Behavior Architecture
 
-All reply behavior rules for the simulation lab live in `app/ai/prompts.py` in the `_DESIGN_RULES` dict, keyed by conversation design ID:
+All AI reply behavior rules for the simulation lab live in `app/ai/prompts.py` in the `_DESIGN_RULES` dict, keyed by conversation design ID:
 
 ```python
 _DESIGN_RULES = {
     "viewing_first_v1": [...],
-    "phone_first_v1": [...],
     "screening_first_v1": [...],
-    "soft_human_v1": [...],
+    "confirmation_close_v1": [...],
+    "tenant_shares_first_v1": [...],
+    "landlord_preference_v1": [...],
 }
 ```
 
-`build_reply_prompt` reads from this dict using `conversation_design_id`. Do not source reply rules from `conversation_designs.py` — that file is metadata only.
+`build_reply_prompt` reads from this dict using `conversation_design_id`.
 
-`ProductionPolicy.build_prompt` passes `conversation_design_id=self.conversation_design_id` to `build_reply_prompt`. It does not pass the full conversation design dict.
+`simulation/conversation_designs.py` is not the turn-by-turn reply behavior source. It owns:
 
-To change how the AI replies for a given design, edit `_DESIGN_RULES` in `prompts.py` only.
+- display names and descriptions
+- opening message templates
+- property-aware `{property_phrase}` rendering
+- simulation persona construction via `build_simulation_persona()`
+- success/failure criteria shown to testers
+
+To change how the AI replies for a given design, edit `_DESIGN_RULES` in `prompts.py`.
 
 ## Opening Message Architecture
 
-Opening messages in `conversation_designs.py` are template strings, not hardcoded text. They use tokens such as `{persona_name}`, `{my_partner_and_i_are}`, and `{credentials_intro}` that are resolved at session start via `ConversationDesign.render_opening_message(persona)`.
+Opening messages in `conversation_designs.py` are template strings, not hardcoded final text. They use tokens such as:
+
+- `{persona_name}`
+- `{my_partner_and_i_are}`
+- `{credentials_intro}`
+- `{property_phrase}`
+
+These are resolved at session start through `ConversationDesign.render_opening_message(persona, property=property)`.
 
 - To change the wording of an opening message, edit the template string in `conversation_designs.py`.
-- To change who the AI presents as, change the persona passed to the session.
-- Do not hardcode names or household phrasing directly into `opening_message` strings.
+- To change who the AI presents as, change the scenario persona type or persona template.
+- To change property wording, update scenario property data or `_property_phrase()`.
+- Do not hardcode tenant names, household phrasing, or property strings directly into final messages.
 
 ## Simulation Concepts
 
-Use human-facing labels in audit mode:
-
-- `AI`, not `agent`.
-- `Landlord`, not `actor`.
-- Avoid raw event codes in client-facing UI.
-
-Internal event/source names may still use existing code terms where changing them would create unnecessary churn.
-
 Conversation state is deterministic and lightweight. Do not add LLM-based state classification unless explicitly requested.
 
-Scenario library is static Python for now. Do not add a database for scenarios yet.
+Scenario library data is static Python for now. Do not add a database for scenarios unless explicitly requested.
+
+Interactive sessions are persisted through `JSONSessionStore` under `simulation/datasets/runs`. The current lab treats testers as trusted users, so shared history is visible through `/simulation/sessions` and the Recent Tests panel.
 
 ## Run Commands
 
@@ -118,6 +148,12 @@ Backend verification:
 
 ```powershell
 pytest tests\simulation tests\test_simulation_api.py tests\test_prompt_persona_flow.py
+```
+
+If the local pytest environment loads broken external plugins, use:
+
+```powershell
+$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD='1'; python -m pytest tests\test_simulation_api.py
 ```
 
 Frontend verification:
@@ -151,5 +187,5 @@ The worktree may already contain user or prior-agent changes. Do not revert unre
 - Keep simulation changes vertical and small.
 - Prefer deterministic tests around policy, state, scenarios, and API contracts.
 - Avoid broad refactors while the simulation integration is still being stabilized.
-- Keep audit UI simple and readable.
-- Put raw prompts, completions, runtime context, and event logs behind dev mode.
+- Keep Test mode simple, readable, and client-facing.
+- Put raw prompts, completions, runtime context, and event logs behind Advanced mode.

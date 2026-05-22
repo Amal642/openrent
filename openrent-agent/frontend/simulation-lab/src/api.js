@@ -55,6 +55,10 @@ export function fetchScenarios() {
   return request("/simulation/scenarios");
 }
 
+export function fetchInteractiveScenarios() {
+  return request("/simulation/interactive-scenarios");
+}
+
 export function compareDesigns(payload) {
   return request("/simulation/compare-designs", {
     method: "POST",

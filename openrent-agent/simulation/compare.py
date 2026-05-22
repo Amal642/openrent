@@ -5,8 +5,9 @@ from fastapi import HTTPException
 
 from simulation.actors.human_actor import HumanActor
 from simulation.conversation_designs import (
-    PHONE_FIRST_V1,
+    CONFIRMATION_CLOSE_V1,
     VIEWING_FIRST_V1,
+    build_simulation_persona,
     default_simulation_persona,
     get_conversation_design,
 )
@@ -120,16 +121,17 @@ def _run_single_design(
     deterministic_seed: int,
 ) -> dict:
     design = get_conversation_design(design_id)
-    persona = default_simulation_persona()
     scenario = _resolve_scenario(
         DEFAULT_SCENARIO_ID,
         max_turns,
         "agent_starts",
     )
+    persona = build_simulation_persona(scenario.persona_type, scenario.property)
     policy = _resolve_policy(
         DEFAULT_POLICY_ID,
         conversation_design=design,
         persona=persona,
+        property=scenario.property,
     )
     actor = HumanActor()
     context = RuntimeContext(
@@ -152,6 +154,7 @@ def _run_single_design(
         source="fixture",
         conversation_design_id=design.design_id,
         persona=persona,
+        property=scenario.property,
     )
 
     emit_event(
@@ -224,7 +227,7 @@ def compare_conversation_designs(
     max_turns: int = 1,
     deterministic_seed: int = 42,
 ) -> dict:
-    design_ids = conversation_design_ids or [VIEWING_FIRST_V1, PHONE_FIRST_V1]
+    design_ids = conversation_design_ids or [VIEWING_FIRST_V1, CONFIRMATION_CLOSE_V1]
     if not 1 <= len(design_ids) <= 4:
         raise HTTPException(
             status_code=400,

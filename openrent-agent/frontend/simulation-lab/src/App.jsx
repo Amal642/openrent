@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   compareDesigns,
   fetchConversationDesigns,
+  fetchInteractiveScenarios,
   fetchInteractiveSession,
   fetchResults,
   fetchScenarios,
@@ -22,6 +23,7 @@ import ReplayViewer from "./components/ReplayViewer";
 import RunPanel from "./components/RunPanel";
 import RuntimeContextPanel from "./components/RuntimeContextPanel";
 import SessionList from "./components/SessionList";
+import SetupCard from "./components/SetupCard";
 import TranscriptViewer from "./components/TranscriptViewer";
 
 export default function App() {
@@ -37,13 +39,12 @@ export default function App() {
   const [detailError, setDetailError] = useState("");
   const [conversationDesigns, setConversationDesigns] = useState([]);
   const [conversationScenarios, setConversationScenarios] = useState([]);
+  const [interactiveScenarios, setInteractiveScenarios] = useState([]);
 
   const isAuditMode = viewerMode === "audit";
   const filteredSessions = sessions.filter((session) => {
     const sessionMode = session.mode || "simulation";
-    if (isAuditMode) {
-      return sessionMode === "interactive";
-    }
+    if (isAuditMode) return sessionMode === "interactive";
     return sessionMode === mode;
   });
 
@@ -75,16 +76,13 @@ export default function App() {
     try {
       const sessionSummary = sessions.find((entry) => entry.session_id === sessionId);
       const modeForSession = sessionSummary?.mode || mode;
-      const sessionPromise = modeForSession === "interactive"
-        ? fetchInteractiveSession(sessionId)
-        : fetchSession(sessionId);
-      const [session, results] = await Promise.all([
-        sessionPromise,
-        fetchResults(sessionId),
-      ]);
-      const bundle = { session, results };
-      setSelectedSession(bundle.session);
-      setSelectedResults(bundle.results);
+      const sessionPromise =
+        modeForSession === "interactive"
+          ? fetchInteractiveSession(sessionId)
+          : fetchSession(sessionId);
+      const [session, results] = await Promise.all([sessionPromise, fetchResults(sessionId)]);
+      setSelectedSession(session);
+      setSelectedResults(results);
     } catch (error) {
       setDetailError(error.message);
     } finally {
@@ -124,24 +122,21 @@ export default function App() {
     fetchScenarios()
       .then(setConversationScenarios)
       .catch(() => setConversationScenarios([]));
+    fetchInteractiveScenarios()
+      .then(setInteractiveScenarios)
+      .catch(() => setInteractiveScenarios([]));
   }, []);
 
   useEffect(() => {
-    if (isAuditMode) {
-      setMode("interactive");
-    }
+    if (isAuditMode) setMode("interactive");
   }, [isAuditMode]);
 
   useEffect(() => {
-    if (!selectedSessionId) {
-      return;
-    }
+    if (!selectedSessionId) return;
     const selectedSessionSummary = sessions.find(
       (session) => session.session_id === selectedSessionId,
     );
-    if (selectedSessionSummary && (selectedSessionSummary.mode || "simulation") === mode) {
-      return;
-    }
+    if (selectedSessionSummary && (selectedSessionSummary.mode || "simulation") === mode) return;
     const fallbackSessionId = filteredSessions[0]?.session_id || "";
     if (fallbackSessionId) {
       handleSelectSession(fallbackSessionId);
@@ -156,39 +151,30 @@ export default function App() {
     selectedSession?.runtime_context?.extracted_entities?.phone,
   );
 
+  const activeInteractiveSession =
+    selectedSession?.mode === "interactive" ? selectedSession : null;
+
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div>
-          <p className="eyebrow">openrent-agent</p>
-          <h1>Simulation Lab</h1>
+        <div className="header-copy">
+          <p className="eyebrow">Client testing workspace</p>
+          <h1>Test Rental Conversations</h1>
+          <p className="subtitle">
+            Reply as the landlord and watch how the AI moves the conversation forward.
+          </p>
         </div>
-        <p className="subtitle">
-          {isAuditMode
-            ? "Audit-first landlord testing flow with shared session history."
-            : "Full internal inspection UI over simulation session artifacts."}
-        </p>
+        <button
+          type="button"
+          className="header-dev-toggle"
+          onClick={() => setViewerMode(isAuditMode ? "dev" : "audit")}
+        >
+          {isAuditMode ? "Advanced →" : "← Test mode"}
+        </button>
       </header>
 
-      <div className="mode-toggle" role="tablist" aria-label="Simulation lab viewer mode">
-        <button
-          type="button"
-          className={viewerMode === "audit" ? "mode-button active" : "mode-button"}
-          onClick={() => setViewerMode("audit")}
-        >
-          Audit
-        </button>
-        <button
-          type="button"
-          className={viewerMode === "dev" ? "mode-button active" : "mode-button"}
-          onClick={() => setViewerMode("dev")}
-        >
-          Dev
-        </button>
-      </div>
-
       {!isAuditMode ? (
-        <div className="mode-toggle" role="tablist" aria-label="Simulation lab run mode">
+        <div className="mode-toggle" role="tablist" aria-label="Run mode">
           <button
             type="button"
             className={mode === "interactive" ? "mode-button active" : "mode-button"}
@@ -210,22 +196,17 @@ export default function App() {
         <aside className="sidebar">
           {!isAuditMode && mode === "simulation" ? (
             <RunPanel onRun={handleRun} />
-          ) : (
+          ) : !isAuditMode ? (
             <InteractivePanel
-              activeSession={selectedSession?.mode === "interactive" ? selectedSession : null}
+              activeSession={activeInteractiveSession}
               onStart={handleStartInteractive}
               onSend={handleSendInteractive}
-              auditMode={isAuditMode}
+              auditMode={false}
               conversationDesigns={conversationDesigns}
-            />
-          )}
-          {isAuditMode ? (
-            <CompareDesignsPanel
-              conversationDesigns={conversationDesigns}
-              conversationScenarios={conversationScenarios}
-              onCompare={compareDesigns}
+              interactiveScenarios={interactiveScenarios}
             />
           ) : null}
+
           <SessionList
             sessions={filteredSessions}
             selectedSessionId={selectedSessionId}
@@ -234,17 +215,58 @@ export default function App() {
             onRefresh={() => refreshSessions()}
             onSelect={handleSelectSession}
             auditMode={isAuditMode}
+            scenarioLabels={Object.fromEntries(
+              interactiveScenarios.map((s) => [
+                s.scenario_id,
+                s.property?.title || s.title,
+              ])
+            )}
           />
+
+          {isAuditMode ? (
+            <details className="compare-details">
+              <summary className="compare-summary">Compare message styles</summary>
+              <CompareDesignsPanel
+                conversationDesigns={conversationDesigns}
+                conversationScenarios={conversationScenarios}
+                onCompare={compareDesigns}
+              />
+            </details>
+          ) : null}
         </aside>
 
         <section className="detail-column">
-          {detailLoading ? <p className="status">Loading session detail...</p> : null}
+          {detailLoading ? <p className="status">Loading conversation…</p> : null}
           {detailError ? <p className="status error">{detailError}</p> : null}
-          <TranscriptViewer
-            transcript={selectedSession?.transcript}
-            events={selectedSession?.events}
-            auditMode={isAuditMode}
-          />
+
+          {isAuditMode ? <SetupCard setup={selectedSession?.setup} /> : null}
+
+          {isAuditMode ? (
+            <div className="chat-shell">
+              <div className="chat-shell-header">Conversation</div>
+              <TranscriptViewer
+                transcript={selectedSession?.transcript}
+                events={selectedSession?.events}
+                auditMode={true}
+                bare={true}
+              />
+              <InteractivePanel
+                activeSession={activeInteractiveSession}
+                onStart={handleStartInteractive}
+                onSend={handleSendInteractive}
+                auditMode={true}
+                conversationDesigns={conversationDesigns}
+                interactiveScenarios={interactiveScenarios}
+              />
+            </div>
+          ) : (
+            <TranscriptViewer
+              transcript={selectedSession?.transcript}
+              events={selectedSession?.events}
+              auditMode={false}
+            />
+          )}
+
           <EvaluationScorecard
             evaluation={selectedResults?.evaluation}
             failureTypes={selectedResults?.failure_types}
@@ -252,6 +274,7 @@ export default function App() {
             phoneCaptured={phoneCaptured}
             conversationDesignName={selectedSession?.conversation_design_name}
           />
+
           {isAuditMode ? (
             <ConversationStatePanel
               conversationState={
@@ -259,6 +282,7 @@ export default function App() {
               }
             />
           ) : null}
+
           {!isAuditMode ? (
             <>
               <RuntimeContextPanel runtimeContext={selectedSession?.runtime_context} />
