@@ -1,4 +1,4 @@
-# OpenRent Agent
+# OpenRent Agent infra
 
 OpenRent Agent is a FastAPI, Playwright, OpenAI, and React project for managing OpenRent outreach, replies, lead status, and simulation-based conversation testing.
 
