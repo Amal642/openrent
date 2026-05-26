@@ -125,7 +125,19 @@ def run_simulation_session(
     account_id: int | None = None,
     initial_message: str | None = None,
     conversation_design_id: str | None = None,
+    hippo=None,
 ) -> dict:
+    """Run one sim session through the orchestrator and return the dict.
+
+    `hippo` is an optional pre-built `HippoSession` (see
+    `simulation.engine.hippo_hooks`). When provided, the orchestrator
+    fires the HIPPO_RECALL + HIPPO_INGEST hooks; when None (the
+    default), behaviour is unchanged. The caller owns the client
+    lifecycle \u2014 typically the pilot-matrix runner spawns one client and
+    passes the same `HippoSession` to every trial so the snap
+    accumulates across trials.
+    """
+
     conversation_design = get_conversation_design(
         conversation_design_id or VIEWING_FIRST_V1,
     )
@@ -161,6 +173,7 @@ def run_simulation_session(
     context.flags["start_mode"] = scenario.start_mode
     context.flags["conversation_design_id"] = conversation_design.design_id
     context.flags["conversation_design_name"] = conversation_design.name
+    context.flags["hippo_memory"] = "on" if hippo is not None else "off"
     context.memory["persona"] = persona
     if initial_message_provider is not None:
         context.flags["initial_message_source"] = initial_message_provider.source
@@ -173,6 +186,7 @@ def run_simulation_session(
         runtime_context=context,
         event_bus=EventBus(),
         initial_message_provider=initial_message_provider,
+        hippo=hippo,
     ).run()
     return session.to_dict()
 
