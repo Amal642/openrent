@@ -4,6 +4,12 @@ import time
 from app.ai.replies import generate_reply_result
 from simulation.conversation_designs import get_conversation_design
 from simulation.conversation_state import analyze_conversation_state
+from simulation.engine.hippo_hooks import (
+    HippoSession,
+    maybe_ingest_session,
+    maybe_recall_notes,
+    wrap_build_prompt,
+)
 from simulation.evaluators.heuristic import HeuristicEvaluator
 from simulation.observability.metrics import MetricsCollector
 from simulation.observability.token_usage import usage_from_result
@@ -76,14 +82,44 @@ def update_context_from_agent_message(context, agent_message: str, *, key: str) 
     }
 
 
-def generate_agent_reply(policy, context, event_bus, metrics):
+def generate_agent_reply(
+    policy,
+    context,
+    event_bus,
+    metrics,
+    *,
+    hippo: HippoSession | None = None,
+):
     prompt_messages = project_transcript(event_bus.events)
+    prompt_builder = policy.build_prompt
+    if hippo is not None:
+        recall_trace = maybe_recall_notes(
+            hippo,
+            last_actor_text=context.last_actor_response,
+        )
+        if recall_trace is not None:
+            prompt_builder = wrap_build_prompt(
+                recall_trace.notes_block,
+                policy.build_prompt,
+            )
+            emit_event(
+                event_bus,
+                context,
+                "HIPPO_RECALL",
+                {
+                    "trace_id": recall_trace.trace_id,
+                    "query": recall_trace.query,
+                    "note_count": recall_trace.note_count,
+                    "warning_count": recall_trace.warning_count,
+                    "notes_applied": bool(recall_trace.notes_block),
+                },
+            )
     started_at = time.perf_counter()
     result = generate_reply_result(
         prompt_messages,
         model=policy.model,
         temperature=policy.temperature,
-        prompt_builder=policy.build_prompt,
+        prompt_builder=prompt_builder,
     )
     generation_latency_ms = int((time.perf_counter() - started_at) * 1000)
     metrics.record_generation(result, generation_latency_ms)
@@ -201,8 +237,29 @@ def finalize_session(
     metrics,
     session_started,
     store=None,
+    hippo: HippoSession | None = None,
 ):
     evaluation = evaluate_session(actor, policy, context, event_bus, metrics)
+    if hippo is not None:
+        transcript = project_transcript(event_bus.events)
+        ingest_trace = maybe_ingest_session(
+            hippo,
+            transcript=transcript,
+            evaluation=evaluation,
+        )
+        if ingest_trace is not None:
+            emit_event(
+                event_bus,
+                context,
+                "HIPPO_INGEST",
+                {
+                    "cell_ids": list(ingest_trace.cell_ids),
+                    "cell_count": len(ingest_trace.cell_ids),
+                    "outcome_label": ingest_trace.outcome_label,
+                    "outcome_success": ingest_trace.outcome_success,
+                    "warning": ingest_trace.warning,
+                },
+            )
     run_duration_ms = int((time.perf_counter() - session_started) * 1000)
     if context.flags.get("deterministic"):
         run_duration_ms = (

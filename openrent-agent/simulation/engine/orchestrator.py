@@ -21,6 +21,7 @@ class SimulationOrchestrator:
         runtime_context,
         event_bus,
         initial_message_provider=None,
+        hippo=None,
     ):
         self.actor = actor
         self.policy = policy
@@ -29,6 +30,7 @@ class SimulationOrchestrator:
         self.event_bus = event_bus
         self.metrics = MetricsCollector(runtime_context.metrics)
         self.initial_message_provider = initial_message_provider
+        self.hippo = hippo
 
     def _emit_actor_message(self, actor_message: str):
         self._emit(
@@ -98,6 +100,7 @@ class SimulationOrchestrator:
                 self.context,
                 self.event_bus,
                 self.metrics,
+                hippo=self.hippo,
             )
 
             if agent_response.reply_text:
@@ -134,4 +137,5 @@ class SimulationOrchestrator:
             metrics=self.metrics,
             session_started=session_started,
             store=JSONSessionStore(),
+            hippo=self.hippo,
         )
