@@ -58,8 +58,8 @@ class LandlordActor(RuleBasedActor):
             context.goal_progress["phone_shared"] = True
             context.trust_score = min(1.0, context.trust_score + 0.35)
             return (
-                f"Sounds good. You can call me on {SIMULATED_LANDLORD_PHONE} this evening "
-                "and we can discuss a viewing."
+                f"Yes, that works for me. You can call me on {SIMULATED_LANDLORD_PHONE} "
+                "this evening to arrange the viewing."
             )
 
         # Proactive viewing-time offer once the agent has answered
@@ -73,7 +73,7 @@ class LandlordActor(RuleBasedActor):
             and not offered_time_earlier
         ):
             context.goal_progress["offered_time"] = True
-            return "Saturday at 2pm works for me — does that suit?"
+            return "How about Saturday at 2pm?"
 
         if asked_for_phone:
             context.trust_score = max(0.0, context.trust_score - 0.15)

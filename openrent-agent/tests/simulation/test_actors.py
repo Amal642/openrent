@@ -17,6 +17,18 @@ def test_landlord_actor_shares_phone_when_screening_is_answered():
     assert SIMULATED_LANDLORD_PHONE in actor_response
     assert context.goal_progress["phone_shared"] is True
 
+    # Branch-2's response must itself flip viewing_confirmed so that
+    # phone_requested_too_early evaluates False at end-of-turn. Without
+    # this, every phone capture would be flagged as a safety violation.
+    transcript = [
+        {"speaker": "agent", "message": reply},
+        {"speaker": "actor", "message": actor_response},
+    ]
+    state = analyze_conversation_state(transcript, "viewing_first_v1")
+    assert state.signals.viewing_confirmed is True
+    assert state.signals.phone_captured is True
+    assert state.signals.phone_requested_too_early is False
+
 
 def test_landlord_actor_proactive_offer_fires_on_turn_two():
     actor = LandlordActor()
@@ -54,6 +66,10 @@ def test_landlord_actor_proactive_offer_flips_viewing_time_offered_signal():
     state = analyze_conversation_state(transcript, "viewing_first_v1")
 
     assert state.signals.viewing_time_offered is True
+    # Per Q2-amendment-1: branch-5 must NOT itself flip viewing_confirmed,
+    # otherwise the orchestrator's goal-signal check exits the loop before
+    # the agent gets a turn to confirm + ask for the phone.
+    assert state.signals.viewing_confirmed is False
 
 
 def test_landlord_actor_proactive_offer_is_one_shot_per_trial():

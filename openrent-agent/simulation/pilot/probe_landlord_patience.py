@@ -102,8 +102,8 @@ def _transcript_dicts(transcript: list) -> list[dict]:
 
 
 def _identify_landlord_branch(message: str) -> str:
-    """Classify a landlord message against the 4 reachable branches
-    enumerated in the a3 precommit (static read of landlord_actor.py).
+    """Classify a landlord message against the reachable branches in
+    landlord_actor.py. Branch-5 added in a4 (proactive-offer).
     """
 
     m = message.lower()
@@ -115,6 +115,8 @@ def _identify_landlord_branch(message: str) -> str:
         return "branch-3-phone-refused"
     if "i still need to know" in m:
         return "branch-4-default-screening"
+    if "how about saturday at 2pm" in m:
+        return "branch-5-proactive-offer"
     if "i need a proper reply" in m:
         return "branch-0-empty-reply-guard"
     return "branch-unclassified"
@@ -159,8 +161,17 @@ def _per_turn_flips(transcript_dicts: list[dict]) -> list[dict]:
     return rows
 
 
-def _trial_summary(turn_rows: list[dict]) -> dict:
-    """Roll up per-trial booleans needed for the precommit's rates."""
+def _trial_summary(turn_rows: list[dict], full_transcript: list[dict]) -> dict:
+    """Roll up per-trial booleans.
+
+    Per-turn flipped_signals tracks first-flip-True only and is correct
+    for monotone-True signals like viewing_time_offered. It is NOT
+    correct for end-of-conversation computed signals like
+    phone_requested_too_early, which the matrix evaluator computes on
+    the final transcript at evaluation time. End-of-transcript fields
+    (with the _end suffix) match the matrix's computation and are the
+    authoritative metrics for falsifier evaluation.
+    """
 
     actor_offered_time = any(
         row["speaker"] == "actor"
@@ -176,22 +187,19 @@ def _trial_summary(turn_rows: list[dict]) -> dict:
         ),
         None,
     )
-    phone_too_early_ever = any(
-        "phone_requested_too_early" in row["flipped_signals"]
-        for row in turn_rows
-    )
-    viewing_confirmed_ever = any(
-        "viewing_confirmed" in row["flipped_signals"]
-        for row in turn_rows
-    )
-    safe_path_reached = viewing_confirmed_ever and not phone_too_early_ever
+
+    final_state = analyze_conversation_state(full_transcript, "viewing_first_v1")
+    sig = final_state.signals
+    safe_phone_capture_end = sig.phone_captured and not sig.phone_requested_too_early
+
     return {
         "actor_offered_time_in_window": actor_offered_time,
         "first_offer_turn_0based": first_offer_turn,
-        "viewing_confirmed_ever": viewing_confirmed_ever,
-        "phone_requested_too_early_ever": phone_too_early_ever,
-        "safe_path_reached": safe_path_reached,
-        "final_state": turn_rows[-1]["current_state"] if turn_rows else None,
+        "phone_captured_end": sig.phone_captured,
+        "viewing_confirmed_end": sig.viewing_confirmed,
+        "phone_requested_too_early_end": sig.phone_requested_too_early,
+        "safe_phone_capture_end": safe_phone_capture_end,
+        "final_state": final_state.current_state,
     }
 
 
@@ -212,7 +220,7 @@ def run_one_trial(
     )
     transcript = _transcript_dicts(session.get("transcript") or [])
     turn_rows = _per_turn_flips(transcript)
-    summary = _trial_summary(turn_rows)
+    summary = _trial_summary(turn_rows, transcript)
     return {
         "scenario_key": scenario.scenario_key,
         "seed": seed,
@@ -293,12 +301,17 @@ def main(argv: list[str] | None = None) -> int:
         n_offer = sum(
             1 for t in per_trial if t["summary"]["actor_offered_time_in_window"]
         )
-        n_safe = sum(1 for t in per_trial if t["summary"]["safe_path_reached"])
-        n_viewing = sum(
-            1 for t in per_trial if t["summary"]["viewing_confirmed_ever"]
+        n_phone_captured = sum(
+            1 for t in per_trial if t["summary"]["phone_captured_end"]
         )
-        n_phone_early = sum(
-            1 for t in per_trial if t["summary"]["phone_requested_too_early_ever"]
+        n_safe_phone_capture = sum(
+            1 for t in per_trial if t["summary"]["safe_phone_capture_end"]
+        )
+        n_viewing_confirmed = sum(
+            1 for t in per_trial if t["summary"]["viewing_confirmed_end"]
+        )
+        n_phone_too_early = sum(
+            1 for t in per_trial if t["summary"]["phone_requested_too_early_end"]
         )
         offer_turns = [
             t["summary"]["first_offer_turn_0based"]
@@ -324,9 +337,10 @@ def main(argv: list[str] | None = None) -> int:
                 "max_turns": scenario.max_turns,
                 "n_trials": n,
                 "rate_actor_offers_time_in_window": n_offer / n if n else 0.0,
-                "rate_safe_path_reachable": n_safe / n if n else 0.0,
-                "rate_viewing_confirmed": n_viewing / n if n else 0.0,
-                "rate_phone_requested_too_early": n_phone_early / n if n else 0.0,
+                "rate_safe_phone_capture_end": n_safe_phone_capture / n if n else 0.0,
+                "rate_phone_captured_end": n_phone_captured / n if n else 0.0,
+                "rate_viewing_confirmed_end": n_viewing_confirmed / n if n else 0.0,
+                "rate_phone_requested_too_early_end": n_phone_too_early / n if n else 0.0,
                 "mean_first_offer_turn_0based": mean_first_offer,
                 "landlord_branch_counts_json": json.dumps(branch_counts, sort_keys=True),
             }
@@ -341,22 +355,35 @@ def main(argv: list[str] | None = None) -> int:
             writer.writerow(row)
 
     pooled_n = sum(r["n_trials"] for r in summary_rows)
-    pooled_offer = sum(
-        r["n_trials"] * r["rate_actor_offers_time_in_window"]
-        for r in summary_rows
-    )
-    pooled_safe = sum(
-        r["n_trials"] * r["rate_safe_path_reachable"] for r in summary_rows
-    )
-    pooled_rate_offer = pooled_offer / pooled_n if pooled_n else 0.0
-    pooled_rate_safe = pooled_safe / pooled_n if pooled_n else 0.0
 
-    if pooled_rate_offer >= 0.50 or pooled_rate_safe >= 0.10:
-        verdict = "RED"
-    elif pooled_rate_offer <= 0.10 and pooled_rate_safe == 0.0:
-        verdict = "GREEN"
+    def _pooled(field: str) -> float:
+        total = sum(r["n_trials"] * r[field] for r in summary_rows)
+        return total / pooled_n if pooled_n else 0.0
+
+    pooled_rate_offer = _pooled("rate_actor_offers_time_in_window")
+    pooled_rate_safe_phone_capture = _pooled("rate_safe_phone_capture_end")
+    pooled_rate_phone_captured = _pooled("rate_phone_captured_end")
+    pooled_rate_viewing_confirmed = _pooled("rate_viewing_confirmed_end")
+    pooled_rate_phone_too_early = _pooled("rate_phone_requested_too_early_end")
+
+    # a3 structural-ceiling bands (only meaningful for a3-style probes
+    # under the unmodified actor). a4+ smoke runs use the apparatus
+    # gate below instead.
+    if pooled_rate_offer >= 0.50 or pooled_rate_safe_phone_capture > 0.0:
+        a3_verdict = "RED"
+    elif pooled_rate_offer <= 0.10 and pooled_rate_safe_phone_capture == 0.0:
+        a3_verdict = "GREEN"
     else:
-        verdict = "YELLOW"
+        a3_verdict = "YELLOW"
+
+    # a4 apparatus gate A5: baseline safe_phone_capture_rate must
+    # land in [0.20, 0.60] to leave headroom for memory to help.
+    if pooled_rate_safe_phone_capture > 0.60:
+        a5_verdict = "APPARATUS-RED-TOO-EASY"
+    elif pooled_rate_safe_phone_capture < 0.20:
+        a5_verdict = "APPARATUS-RED-TOO-HARD"
+    else:
+        a5_verdict = "APPARATUS-GREEN"
 
     manifest = {
         "fixture_id": fixture.fixture_id,
@@ -375,8 +402,12 @@ def main(argv: list[str] | None = None) -> int:
         "pooled": {
             "n_trials": pooled_n,
             "rate_actor_offers_time_in_window": pooled_rate_offer,
-            "rate_safe_path_reachable": pooled_rate_safe,
-            "verdict": verdict,
+            "rate_safe_phone_capture_end": pooled_rate_safe_phone_capture,
+            "rate_phone_captured_end": pooled_rate_phone_captured,
+            "rate_viewing_confirmed_end": pooled_rate_viewing_confirmed,
+            "rate_phone_requested_too_early_end": pooled_rate_phone_too_early,
+            "a3_structural_ceiling_verdict": a3_verdict,
+            "a4_apparatus_gate_a5_verdict": a5_verdict,
         },
         "per_scenario": summary_rows,
     }
@@ -384,12 +415,14 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(manifest, indent=2), encoding="utf-8"
     )
 
-    print(f"\nverdict: {verdict}")
+    print(f"\na3 structural-ceiling verdict: {a3_verdict}")
+    print(f"a4 apparatus-gate A5 verdict:  {a5_verdict}")
     print(f"  pooled_n = {pooled_n}")
-    print(
-        f"  rate_actor_offers_time_in_window = {pooled_rate_offer:.4f}"
-    )
-    print(f"  rate_safe_path_reachable = {pooled_rate_safe:.4f}")
+    print(f"  rate_actor_offers_time_in_window = {pooled_rate_offer:.4f}")
+    print(f"  rate_safe_phone_capture_end     = {pooled_rate_safe_phone_capture:.4f}")
+    print(f"  rate_phone_captured_end         = {pooled_rate_phone_captured:.4f}")
+    print(f"  rate_viewing_confirmed_end      = {pooled_rate_viewing_confirmed:.4f}")
+    print(f"  rate_phone_requested_too_early_end = {pooled_rate_phone_too_early:.4f}")
     print(f"  artifacts in {args.output_dir}")
     return 0
 
