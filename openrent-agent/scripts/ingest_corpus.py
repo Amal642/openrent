@@ -36,6 +36,26 @@ from queue import Empty, Queue
 from typing import Any, Iterable, Mapping
 
 
+def _load_dotenv(repo_root: Path) -> None:
+    """Minimal .env loader: KEY=VALUE lines only, no quoting.
+    The consolidator's summarizer needs OPENAI_API_KEY in the MCP
+    child's env; without this, the parent shell would have to export
+    it manually. Idempotent (won't overwrite already-set vars)."""
+
+    env_path = repo_root / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 # ---------------------------------------------------------------------- redaction
 
 
@@ -298,6 +318,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Disable LLM summarizer for $0 dry-run (still counts schemas).",
     )
     args = ap.parse_args(argv)
+
+    # Load .env so the consolidator's summarizer sees OPENAI_API_KEY.
+    _load_dotenv(Path(__file__).resolve().parent.parent)
 
     if not args.corpus.is_file():
         print(f"ERROR: corpus not found: {args.corpus}", file=sys.stderr)
