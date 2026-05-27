@@ -64,6 +64,15 @@ class MatrixConfig:
     hippo_thread_prefix: str = ""
     hippo_k_evidence: int = 8
     trace_samples: bool = False
+    enable_schemas: bool = False
+    """When True and the trial is memory-on, call
+    `hippo.client.consolidate(...)` after every session_runner call.
+    Schemas mint as a side effect on the substrate; per-trial reports
+    are captured in `MatrixResult.consolidate_events`.
+
+    Locked in by hippocampus-1:docs/OPENRENT-PILOT-A2-PRECOMMIT.md
+    Q3 ("after every trial"). Defaults to False so a0/a1/a1.1/a1.2
+    matrix commands stay byte-identical."""
 
 
 @dataclass
@@ -73,6 +82,7 @@ class MatrixResult:
     config: MatrixConfig
     trials: list[dict[str, Any]] = field(default_factory=list)
     trace_samples: list[dict[str, Any]] = field(default_factory=list)
+    consolidate_events: list[dict[str, Any]] = field(default_factory=list)
     aggregates: dict[str, Any] = field(default_factory=dict)
     started_at: float = 0.0
     finished_at: float = 0.0
@@ -166,6 +176,15 @@ def run_pilot_matrix(
                         result.trace_samples.append(
                             _extract_trace_sample(session_dict, row=row)
                         )
+                    if config.enable_schemas and hippo is not None:
+                        consolidate_event = _safe_consolidate(
+                            hippo,
+                            condition=condition,
+                            scenario_key=scenario.scenario_key,
+                            seed=seed,
+                            trial_index=trial_index,
+                        )
+                        result.consolidate_events.append(consolidate_event)
 
     result.finished_at = time.time()
     result.aggregates = aggregate_trials(result.trials)
@@ -179,6 +198,36 @@ def run_pilot_matrix(
 
 # ----------------------------------------------------------------------
 # Trial-level helpers
+
+
+def _safe_consolidate(
+    hippo: HippoSession,
+    *,
+    condition: str,
+    scenario_key: str,
+    seed: int,
+    trial_index: int,
+) -> dict[str, Any]:
+    """Run one consolidate pass and capture the report (or error).
+
+    A consolidate failure MUST NOT kill the matrix — the consolidator is
+    a side-effect mechanism; if it errors we record the failure and let
+    the next trial proceed (the matrix's verdict is then evaluated at
+    apparatus-precondition level, see
+    docs/OPENRENT-PILOT-A2-PRECOMMIT.md A1–A4).
+    """
+
+    base = {
+        "condition": condition,
+        "scenario_key": scenario_key,
+        "seed": seed,
+        "trial_index": trial_index,
+    }
+    try:
+        report = hippo.client.consolidate(partition_by="sourceId")
+    except Exception as exc:  # pragma: no cover - defensive
+        return {**base, "error": f"{type(exc).__name__}: {exc}"}
+    return {**base, "report": report}
 
 
 def _safe_run_session(
@@ -501,6 +550,12 @@ def _write_artefacts(output_dir: Path, result: MatrixResult) -> None:
             for row in result.trace_samples:
                 fh.write(json.dumps(row, default=_jsonify, sort_keys=True))
                 fh.write("\n")
+    if result.consolidate_events:
+        consolidate_path = output_dir / "consolidate_events.jsonl"
+        with consolidate_path.open("w", encoding="utf-8") as fh:
+            for row in result.consolidate_events:
+                fh.write(json.dumps(row, default=_jsonify, sort_keys=True))
+                fh.write("\n")
 
 
 def _jsonify(value: Any) -> Any:
@@ -523,6 +578,7 @@ def _build_manifest(config: MatrixConfig, result: MatrixResult) -> dict[str, Any
         "hippo_snap": config.hippo_snap,
         "hippo_k_evidence": config.hippo_k_evidence,
         "trace_samples": config.trace_samples,
+        "enable_schemas": config.enable_schemas,
         "trial_count": len(result.trials),
         "started_at_epoch": result.started_at,
         "finished_at_epoch": result.finished_at,

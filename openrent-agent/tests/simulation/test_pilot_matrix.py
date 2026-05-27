@@ -456,6 +456,162 @@ class TestMatrixRunner:
         assert agg["conditions"]["memory-on"]["hippo_recall_mean"] == 1.0
         assert agg["conditions"]["memory-on"]["hippo_ingest_mean"] == 1.0
 
+    def test_enable_schemas_fires_consolidate_per_trial(self, tmp_path):
+        """When --enable-schemas is set and memory is on, consolidate is
+        called after every trial; the report lands in consolidate_events
+        and serializes to consolidate_events.jsonl."""
+
+        fixture = _make_fixture()
+        consolidate_calls: list[dict[str, Any]] = []
+
+        class _ConsolidatingClient(_FakeHippoClient):
+            def consolidate(self, *, partition_by: str = "sourceId", **opts):
+                consolidate_calls.append({
+                    "partition_by": partition_by,
+                    "overrides": dict(opts),
+                })
+                return {
+                    "clustersTotal": 1,
+                    "cellsClustered": 3,
+                    "schemasNewlyMinted": 1,
+                    "schemasAbstained": 0,
+                    "edgesAdded": 3,
+                }
+
+        client = _ConsolidatingClient()
+
+        def session_runner(**kwargs):
+            return _fake_session_dict(
+                seed=kwargs["seed"],
+                passed=False,
+                current_state="viewing_negotiation",
+                hippo_memory="on",
+                recall_emitted=True,
+                ingest_emitted=True,
+                ingest_cells=3,
+            )
+
+        def hippo_factory(*, config, scope_label):
+            return HippoSession(client=client, meta=HippoSessionMeta(thread_id="placeholder"))
+
+        config = MatrixConfig(
+            fixture=fixture,
+            n_trials=2,
+            seed_base=100,
+            memory=("memory-on",),
+            memory_regime="shared",
+            output_dir=tmp_path,
+            enable_schemas=True,
+        )
+        result = run_pilot_matrix(
+            config,
+            session_runner=session_runner,
+            hippo_factory=hippo_factory,
+        )
+        # K=2 x N=2 = 4 trials.
+        assert len(result.trials) == 4
+        # Consolidate fires once per trial → 4 calls.
+        assert len(consolidate_calls) == 4
+        assert all(c["partition_by"] == "sourceId" for c in consolidate_calls)
+        # consolidate_events captured the same number of rows.
+        assert len(result.consolidate_events) == 4
+        # Manifest surfaces the flag.
+        manifest_path = tmp_path / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        assert manifest["enable_schemas"] is True
+        # Artifact written.
+        events_path = tmp_path / "consolidate_events.jsonl"
+        assert events_path.is_file()
+        lines = events_path.read_text().strip().splitlines()
+        assert len(lines) == 4
+        first_event = json.loads(lines[0])
+        assert first_event["condition"] == "memory-on"
+        assert first_event["report"]["schemasNewlyMinted"] == 1
+
+    def test_enable_schemas_default_off_does_not_call_consolidate(self, tmp_path):
+        """Default --enable-schemas=False: no consolidate calls, no
+        consolidate_events.jsonl artifact. Ensures a0/a1/a1.1/a1.2
+        matrix commands stay byte-identical."""
+
+        fixture = _make_fixture()
+        consolidate_called = []
+
+        class _NoConsolidateClient(_FakeHippoClient):
+            def consolidate(self, *args, **kwargs):
+                consolidate_called.append(1)
+                raise AssertionError("consolidate must not be called when enable_schemas=False")
+
+        def session_runner(**kwargs):
+            return _fake_session_dict(
+                seed=kwargs["seed"],
+                passed=False,
+                current_state="viewing_negotiation",
+                hippo_memory="on",
+                recall_emitted=True,
+                ingest_emitted=True,
+                ingest_cells=2,
+            )
+
+        def hippo_factory(*, config, scope_label):
+            return HippoSession(
+                client=_NoConsolidateClient(),
+                meta=HippoSessionMeta(thread_id="placeholder"),
+            )
+
+        config = MatrixConfig(
+            fixture=fixture,
+            n_trials=1,
+            seed_base=100,
+            memory=("memory-on",),
+            memory_regime="shared",
+            output_dir=tmp_path,
+            # enable_schemas defaults to False
+        )
+        run_pilot_matrix(
+            config,
+            session_runner=session_runner,
+            hippo_factory=hippo_factory,
+        )
+        assert consolidate_called == []
+        events_path = tmp_path / "consolidate_events.jsonl"
+        assert not events_path.exists()
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["enable_schemas"] is False
+
+    def test_enable_schemas_memory_off_skips_consolidate(self, tmp_path):
+        """enable_schemas=True but memory-off arm: no consolidate calls
+        (hippo is None on memory-off trials)."""
+
+        fixture = _make_fixture()
+
+        def session_runner(**kwargs):
+            return _fake_session_dict(
+                seed=kwargs["seed"],
+                passed=False,
+                current_state="viewing_negotiation",
+                hippo_memory="off",
+            )
+
+        def hippo_factory_must_not_run(**kwargs):
+            raise AssertionError("memory-off must not invoke hippo_factory")
+
+        config = MatrixConfig(
+            fixture=fixture,
+            n_trials=1,
+            seed_base=100,
+            memory=("memory-off",),
+            output_dir=tmp_path,
+            enable_schemas=True,
+        )
+        result = run_pilot_matrix(
+            config,
+            session_runner=session_runner,
+            hippo_factory=hippo_factory_must_not_run,
+        )
+        assert result.consolidate_events == []
+        events_path = tmp_path / "consolidate_events.jsonl"
+        assert not events_path.exists()
+
     def test_hippo_snap_parent_dir_exists_before_hippo_factory(self, tmp_path):
         """F3 regression: the snap's parent directory must exist before
         the MCP child opens.

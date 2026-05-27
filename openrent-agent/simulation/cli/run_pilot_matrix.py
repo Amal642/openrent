@@ -134,6 +134,18 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--enable-schemas",
+        action="store_true",
+        help=(
+            "When set, call hippo_memory_consolidate after every memory-on "
+            "trial. Schema cells mint as side-effects on the substrate; "
+            "per-trial reports land in consolidate_events.jsonl. Locked in "
+            "by docs/OPENRENT-PILOT-A2-PRECOMMIT.md Q3 (after every trial). "
+            "Requires the MCP server to have OPENAI_API_KEY in its env so "
+            "the LLM summarizer can run."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
@@ -161,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         hippo_thread_prefix=args.hippo_thread_prefix,
         hippo_k_evidence=args.hippo_k_evidence,
         trace_samples=args.trace_samples,
+        enable_schemas=args.enable_schemas,
     )
     result = run_pilot_matrix(config)
     summary = {
