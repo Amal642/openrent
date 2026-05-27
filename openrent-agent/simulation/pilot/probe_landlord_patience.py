@@ -213,6 +213,7 @@ def run_one_trial(
         seed=seed,
         max_turns=scenario.max_turns,
         scenario_id=scenario.scenario_id,
+        actor_id=scenario.actor_id,
         policy_id=scenario.policy_id,
         start_mode=scenario.start_mode,
         initial_message_source=scenario.initial_message_source,

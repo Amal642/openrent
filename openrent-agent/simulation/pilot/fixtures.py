@@ -58,6 +58,7 @@ class PilotScenario:
     category: str | None = None
     expected_outcome: str | None = None
     thread_id: str | None = None
+    actor_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -159,6 +160,7 @@ def _parse_scenario(raw: Any, *, index: int, source: str) -> PilotScenario:
         category=_optional_str(raw, "category"),
         expected_outcome=_optional_str(raw, "expected_outcome"),
         thread_id=_optional_str(raw, "thread_id"),
+        actor_id=_optional_str(raw, "actor_id"),
     )
 
 

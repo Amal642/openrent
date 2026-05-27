@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from simulation.actors.landlord_actor import LandlordActor
+from simulation.actors.llm_landlord_actor import LlmLandlordActor
 from simulation.engine.deterministic import build_rng
 from simulation.engine.event_bus import EventBus
 from simulation.engine.orchestrator import SimulationOrchestrator
@@ -62,6 +63,9 @@ SCENARIO_BUILDERS = {
 
 ACTOR_BUILDERS = {
     DEFAULT_ACTOR_ID: LandlordActor,
+    "llm-landlord-cooperative": lambda: LlmLandlordActor(persona="cooperative"),
+    "llm-landlord-suspicious": lambda: LlmLandlordActor(persona="suspicious"),
+    "llm-landlord-brusque": lambda: LlmLandlordActor(persona="brusque"),
 }
 
 POLICY_BUILDERS = {
