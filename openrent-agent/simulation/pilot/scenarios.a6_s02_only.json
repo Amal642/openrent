@@ -1,0 +1,42 @@
+{
+  "fixture_id": "a6-s02-only-v1",
+  "description": "a6 s02-only fixture: drops s04 and s05 from the a5 matrix to align matrix scope with smoke-2's calibration scope. 3 cells = s02 base x 3 LLM personas. New thread_ids so the snap doesn't collide with a5's. Calibrated A5 = [smoke - 0.15, 0.80] = [0.38, 0.80] derived from smoke-2 pooled baseline 0.5333. First explicit instance of P1.2 candidate calibration discipline. See hippocampus-1:docs/OPENRENT-PILOT-A6-S02-ONLY-PRECOMMIT.md (commit fb997ac on docs/project-guide).",
+  "scenarios": [
+    {
+      "scenario_key": "s02-cooperative",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-cooperative",
+      "category": "a6-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a6-s02-coop"
+    },
+    {
+      "scenario_key": "s02-suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "a6-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a6-s02-susp"
+    },
+    {
+      "scenario_key": "s02-brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "a6-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a6-s02-brus"
+    }
+  ]
+}
