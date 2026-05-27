@@ -57,6 +57,22 @@ class TestFixtureLoader:
             assert s.start_mode in {"agent_starts", "actor_starts"}
             assert s.max_turns >= 1
 
+    def test_loads_failed3_probe_fixture(self):
+        path = (
+            Path(__file__).resolve().parents[2]
+            / "simulation"
+            / "pilot"
+            / "scenarios.failed3.json"
+        )
+        fixture = load_pilot_fixture(path)
+        assert fixture.fixture_id == "openrent-pilot-failed3-v1"
+        assert fixture.k == 3
+        assert {s.scenario_key for s in fixture.scenarios} == {
+            "s02-screening-actor-starts-prod",
+            "s04-phone-request-actor-starts-prod",
+            "s05-reply-actor-starts-prod",
+        }
+
     def test_rejects_empty_scenarios(self):
         with pytest.raises(PilotFixtureError, match="non-empty list"):
             parse_pilot_fixture({
@@ -390,6 +406,8 @@ class TestMatrixRunner:
         assert manifest["k"] == 2
         assert manifest["n_trials"] == 3
         assert manifest["trial_count"] == 6
+        assert manifest["trace_samples"] is False
+        assert manifest["hippo_k_evidence"] == 8
 
     def test_memory_on_shared_regime_reuses_one_client(self):
         fixture = _make_fixture()
@@ -437,6 +455,70 @@ class TestMatrixRunner:
         agg = result.aggregates
         assert agg["conditions"]["memory-on"]["hippo_recall_mean"] == 1.0
         assert agg["conditions"]["memory-on"]["hippo_ingest_mean"] == 1.0
+
+    def test_trace_samples_sidecar_records_compact_recall_and_reply(self, tmp_path):
+        fixture = _make_fixture()
+
+        def session_runner(**kwargs):
+            session = _fake_session_dict(
+                seed=kwargs["seed"],
+                passed=False,
+                current_state="viewing_negotiation",
+                hippo_memory="on",
+                recall_emitted=True,
+                ingest_emitted=True,
+                ingest_cells=4,
+            )
+            session["events"].append({
+                "event_type": "REPLY_GENERATED",
+                "turn_index": 1,
+                "timestamp": "2026-01-01T00:00:02Z",
+                "payload": {
+                    "reply_text": "I work full-time. When can I view it?",
+                    "raw_prompt": (
+                        "Relevant prior outreach context for this lead "
+                        "(from prior sessions / memory):\n- one useful note"
+                        "\n\n---\n\nBase prompt"
+                    ),
+                },
+            })
+            session["events"][0]["payload"].update({
+                "query": "Are you working?",
+                "notes_block_chars": 17,
+                "notes_preview": ["one useful note"],
+                "evidence_sources": [{"source_id": "pilot-s02"}],
+            })
+            return session
+
+        config = MatrixConfig(
+            fixture=fixture,
+            n_trials=1,
+            seed_base=100,
+            memory=("memory-on",),
+            output_dir=tmp_path,
+            trace_samples=True,
+            hippo_k_evidence=2,
+        )
+        result = run_pilot_matrix(
+            config,
+            session_runner=session_runner,
+            hippo_factory=lambda **_: HippoSession(
+                client=_FakeHippoClient(),
+                meta=HippoSessionMeta(thread_id="placeholder"),
+            ),
+        )
+
+        assert len(result.trace_samples) == 2
+        trace_path = tmp_path / "trace_samples.jsonl"
+        assert trace_path.is_file()
+        first = json.loads(trace_path.read_text(encoding="utf-8").splitlines()[0])
+        assert first["recall"]["query"] == "Are you working?"
+        assert first["recall"]["evidence_sources"] == [{"source_id": "pilot-s02"}]
+        assert first["reply_text"] == "I work full-time. When can I view it?"
+        assert first["memory_block_chars"] > 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["trace_samples"] is True
+        assert manifest["hippo_k_evidence"] == 2
 
     def test_memory_on_per_trial_regime_spawns_one_client_per_trial(self):
         fixture = _make_fixture()
@@ -575,6 +657,21 @@ class TestMatrixRunner:
                     memory_regime="invented",
                 ),
                 session_runner=lambda **_: {},
+            )
+
+    def test_invalid_hippo_k_evidence_raises(self):
+        fixture = _make_fixture()
+        with pytest.raises(ValueError, match="hippo_k_evidence"):
+            run_pilot_matrix(
+                MatrixConfig(
+                    fixture=fixture,
+                    n_trials=1,
+                    seed_base=0,
+                    memory=("memory-on",),
+                    hippo_k_evidence=0,
+                ),
+                session_runner=lambda **_: {},
+                hippo_factory=lambda **_: None,
             )
 
     def test_zero_n_trials_raises(self):

@@ -102,6 +102,9 @@ def generate_agent_reply(
                 recall_trace.notes_block,
                 policy.build_prompt,
             )
+            raw_recall = dict(recall_trace.raw or {})
+            notes = list(raw_recall.get("notes") or [])
+            evidence = list(raw_recall.get("evidence") or [])
             emit_event(
                 event_bus,
                 context,
@@ -112,6 +115,21 @@ def generate_agent_reply(
                     "note_count": recall_trace.note_count,
                     "warning_count": recall_trace.warning_count,
                     "notes_applied": bool(recall_trace.notes_block),
+                    "notes_block_chars": len(recall_trace.notes_block or ""),
+                    "notes_preview": [
+                        _truncate_text(str(note), 220)
+                        for note in notes[:3]
+                    ],
+                    "evidence_sources": [
+                        {
+                            "cell_id": item.get("cellId"),
+                            "source_id": item.get("sourceId"),
+                            "kind": item.get("kind"),
+                            "tags": item.get("tags"),
+                        }
+                        for item in evidence[:8]
+                        if isinstance(item, dict)
+                    ],
                 },
             )
     started_at = time.perf_counter()
@@ -155,6 +173,13 @@ def generate_agent_reply(
         },
     )
     return agent_response
+
+
+def _truncate_text(text: str, limit: int) -> str:
+    clean = " ".join(text.split())
+    if len(clean) <= limit:
+        return clean
+    return f"{clean[: limit - 3]}..."
 
 
 def evaluate_session(actor, policy, context, event_bus, metrics):

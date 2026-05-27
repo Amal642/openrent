@@ -117,6 +117,23 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--hippo-k-evidence",
+        type=int,
+        default=8,
+        help=(
+            "Number of evidence cells requested per Hippo recall "
+            "(default: 8). Lower values are useful for prompt-budget probes."
+        ),
+    )
+    parser.add_argument(
+        "--trace-samples",
+        action="store_true",
+        help=(
+            "Write trace_samples.jsonl with compact recall/reply diagnostics "
+            "beside the standard matrix artifacts."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
@@ -142,6 +159,8 @@ def main(argv: list[str] | None = None) -> int:
         hippo_snap=args.hippo_snap,
         hippo_project_id=args.hippo_project_id,
         hippo_thread_prefix=args.hippo_thread_prefix,
+        hippo_k_evidence=args.hippo_k_evidence,
+        trace_samples=args.trace_samples,
     )
     result = run_pilot_matrix(config)
     summary = {

@@ -62,6 +62,8 @@ class MatrixConfig:
     hippo_snap: str = ":memory:"
     hippo_project_id: str = "openrent-sim-pilot"
     hippo_thread_prefix: str = ""
+    hippo_k_evidence: int = 8
+    trace_samples: bool = False
 
 
 @dataclass
@@ -70,6 +72,7 @@ class MatrixResult:
 
     config: MatrixConfig
     trials: list[dict[str, Any]] = field(default_factory=list)
+    trace_samples: list[dict[str, Any]] = field(default_factory=list)
     aggregates: dict[str, Any] = field(default_factory=dict)
     started_at: float = 0.0
     finished_at: float = 0.0
@@ -111,6 +114,8 @@ def run_pilot_matrix(
             f"unknown memory_regime {config.memory_regime!r}; "
             "expected 'shared' or 'per-trial'"
         )
+    if config.hippo_k_evidence < 1:
+        raise ValueError("hippo_k_evidence must be >= 1")
 
     factory = hippo_factory or _default_hippo_factory
 
@@ -148,6 +153,10 @@ def run_pilot_matrix(
                         trial_elapsed_ms=trial_elapsed_ms,
                     )
                     result.trials.append(row)
+                    if config.trace_samples:
+                        result.trace_samples.append(
+                            _extract_trace_sample(session_dict, row=row)
+                        )
 
     result.finished_at = time.time()
     result.aggregates = aggregate_trials(result.trials)
@@ -296,6 +305,61 @@ def _event_payload(event: Any) -> Mapping[str, Any]:
     return payload if isinstance(payload, Mapping) else {}
 
 
+def _extract_trace_sample(
+    session_dict: Mapping[str, Any],
+    *,
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    events = session_dict.get("events") or []
+    recall_payload = _first_event_payload(events, "HIPPO_RECALL")
+    reply_payload = _first_event_payload(events, "REPLY_GENERATED")
+    raw_prompt = reply_payload.get("raw_prompt")
+    raw_prompt = raw_prompt if isinstance(raw_prompt, str) else ""
+    memory_block_chars = 0
+    if raw_prompt.startswith("Relevant prior outreach context"):
+        memory_block, _sep, _rest = raw_prompt.partition("\n\n---\n\n")
+        memory_block_chars = len(memory_block)
+
+    return {
+        "condition": row.get("condition"),
+        "scenario_key": row.get("scenario_key"),
+        "seed": row.get("seed"),
+        "trial_index": row.get("trial_index"),
+        "passed": row.get("passed"),
+        "score": row.get("score"),
+        "failure_types": row.get("failure_types"),
+        "current_state": row.get("current_state"),
+        "prompt_tokens": row.get("prompt_tokens"),
+        "total_tokens": row.get("total_tokens"),
+        "hippo_recall_count": row.get("hippo_recall_count"),
+        "hippo_ingest_count": row.get("hippo_ingest_count"),
+        "hippo_ingest_cell_count": row.get("hippo_ingest_cell_count"),
+        "recall": {
+            "trace_id": recall_payload.get("trace_id"),
+            "query": recall_payload.get("query"),
+            "note_count": recall_payload.get("note_count"),
+            "warning_count": recall_payload.get("warning_count"),
+            "notes_applied": recall_payload.get("notes_applied"),
+            "notes_block_chars": recall_payload.get("notes_block_chars"),
+            "notes_preview": recall_payload.get("notes_preview") or [],
+            "evidence_sources": recall_payload.get("evidence_sources") or [],
+        },
+        "reply_text": reply_payload.get("reply_text"),
+        "raw_prompt_chars": len(raw_prompt),
+        "memory_block_chars": memory_block_chars,
+    }
+
+
+def _first_event_payload(
+    events: Sequence[Any],
+    event_type: str,
+) -> Mapping[str, Any]:
+    for event in events:
+        if _event_type(event) == event_type:
+            return _event_payload(event)
+    return {}
+
+
 # ----------------------------------------------------------------------
 # Hippo lifecycle (snap regime + factory)
 
@@ -397,6 +461,7 @@ def _default_hippo_factory(
         server_js=server_js,
         storage=config.hippo_snap,
         project_id=f"{config.hippo_project_id}-{scope_label}",
+        k_evidence=config.hippo_k_evidence,
     )
     meta = HippoSessionMeta(thread_id="placeholder")  # overwritten per scenario
     return HippoSession(client=client, meta=meta)
@@ -421,6 +486,12 @@ def _write_artefacts(output_dir: Path, result: MatrixResult) -> None:
         json.dumps(result.manifest, indent=2, sort_keys=True, default=_jsonify),
         encoding="utf-8",
     )
+    if result.config.trace_samples:
+        trace_path = output_dir / "trace_samples.jsonl"
+        with trace_path.open("w", encoding="utf-8") as fh:
+            for row in result.trace_samples:
+                fh.write(json.dumps(row, default=_jsonify, sort_keys=True))
+                fh.write("\n")
 
 
 def _jsonify(value: Any) -> Any:
@@ -441,6 +512,8 @@ def _build_manifest(config: MatrixConfig, result: MatrixResult) -> dict[str, Any
         "hippo_project_id": config.hippo_project_id,
         "hippo_thread_prefix": config.hippo_thread_prefix,
         "hippo_snap": config.hippo_snap,
+        "hippo_k_evidence": config.hippo_k_evidence,
+        "trace_samples": config.trace_samples,
         "trial_count": len(result.trials),
         "started_at_epoch": result.started_at,
         "finished_at_epoch": result.finished_at,
