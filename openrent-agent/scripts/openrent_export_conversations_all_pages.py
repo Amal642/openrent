@@ -101,90 +101,147 @@ def dedupe_messages(messages):
 
 async def extract_messages(page):
 
+    import re
+
     messages = []
 
     #
-    # IMPORTANT:
-    # ONLY SCRAPE MESSAGE BUBBLES
+    # ONLY ACTUAL CHAT BUBBLES
     #
-    selectors = [
-        ".message-thread .message",
-        ".conversation-message",
-        ".message-item",
-        ".media-body",
-        "[data-testid='message']",
-    ]
+    bubbles = await page.query_selector_all(
+        "div.message-content"
+    )
 
-    found_elements = []
-
-    for selector in selectors:
-        try:
-            elems = await page.query_selector_all(selector)
-
-            if elems:
-                found_elements = elems
-                break
-
-        except:
-            pass
-
-    if not found_elements:
-        return []
-
-    for elem in found_elements:
+    for bubble in bubbles:
 
         try:
-            text = await elem.inner_text()
 
-            text = clean_text(text)
+            text = await bubble.inner_text()
 
             if not text:
                 continue
 
-            class_name = await elem.get_attribute("class") or ""
-
-            role = "Unknown"
-
-            lower_class = class_name.lower()
+            text = text.strip()
 
             #
-            # DETECT ROLE
+            # SKIP EMPTY
             #
-            if (
-                "landlord" in lower_class
-                or "incoming" in lower_class
-                or "left" in lower_class
-            ):
+            if len(text) < 2:
+                continue
+
+            lower_text = text.lower()
+
+            #
+            # REMOVE OPENRENT SYSTEM / PROMO MESSAGES
+            #
+            blocked_phrases = [
+                "verified tenant",
+                "boosted to the top of their inbox",
+                "learn more about verified tenant",
+                "chris from openrent here",
+                "openrent here!",
+                "it's only £10",
+                "applies to all your enquiries",
+            ]
+
+            should_skip = False
+
+            for phrase in blocked_phrases:
+
+                if phrase in lower_text:
+                    should_skip = True
+                    break
+
+            if should_skip:
+                continue
+
+            #
+            # DETERMINE ROLE
+            #
+            class_name = (
+                await bubble.get_attribute("class")
+                or ""
+            )
+
+            if "current-user" in class_name:
+                role = "Tenant"
+            else:
                 role = "Landlord"
 
-            elif (
-                "tenant" in lower_class
-                or "outgoing" in lower_class
-                or "right" in lower_class
-            ):
-                role = "Tenant"
+            #
+            # CLEAN TEXT
+            #
+            text = re.sub(
+                r"\n{3,}",
+                "\n\n",
+                text
+            )
+
+            text = text.strip()
 
             #
-            # fallback text heuristics
+            # ESCAPE QUOTES
             #
-            if role == "Unknown":
+            text = text.replace(
+                '"',
+                '\\"'
+            )
 
-                if "thanks so much" in text.lower():
-                    role = "Tenant"
+            messages.append(
+                (role, text)
+            )
 
-                elif "viewing" in text.lower():
-                    role = "Landlord"
+        except Exception as e:
 
-            messages.append((role, text))
+            print(
+                "Bubble parse error:",
+                e
+            )
 
-        except:
-            pass
+    #
+    # REMOVE DUPLICATES
+    #
+    deduped = []
 
-    messages = dedupe_messages(messages)
+    seen = set()
 
-    return messages
+    for role, text in messages:
 
+        key = f"{role}:{text}"
 
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        deduped.append(
+            (role, text)
+        )
+
+    #
+    # SKIP LOW QUALITY THREADS
+    #
+    roles = set()
+
+    for role, _ in deduped:
+        roles.add(role)
+
+    #
+    # ONLY ONE SIDE TALKING
+    #
+    if roles == {"Tenant"}:
+        return []
+
+    if roles == {"Landlord"}:
+        return []
+
+    #
+    # REQUIRE REAL CONVERSATION
+    #
+    if len(deduped) < 2:
+        return []
+
+    return deduped
 # ---------------------------------------
 # GET THREAD LINKS
 # ---------------------------------------
@@ -232,7 +289,7 @@ async def main():
         # LOGIN
         #
         await page.goto(
-            "https://www.openrent.co.uk/account/login"
+            "https://www.openrent.co.uk"
         )
 
         print("\nLOGIN MANUALLY")
