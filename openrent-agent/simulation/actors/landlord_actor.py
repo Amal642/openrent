@@ -42,14 +42,38 @@ class LandlordActor(RuleBasedActor):
             phrase in lowered
             for phrase in ["work", "employ", "job", "full-time", "part-time"]
         )
+        requested_viewing = any(
+            phrase in lowered
+            for phrase in ["view", "viewing", "arrange", "see the property"]
+        )
+        offered_time_earlier = context.goal_progress.get("offered_time", False)
 
-        if asked_for_phone and answered_move and answered_employment:
+        # Phone share fires on the original trust signal (screening
+        # reanswered) OR if a viewing time was already offered earlier
+        # in the conversation — the offered-time itself substitutes
+        # for re-stated screening.
+        if asked_for_phone and (
+            (answered_move and answered_employment) or offered_time_earlier
+        ):
             context.goal_progress["phone_shared"] = True
             context.trust_score = min(1.0, context.trust_score + 0.35)
             return (
                 f"Sounds good. You can call me on {SIMULATED_LANDLORD_PHONE} this evening "
                 "and we can discuss a viewing."
             )
+
+        # Proactive viewing-time offer once the agent has answered
+        # screening and requested a viewing, without having asked for
+        # the phone first. One-shot per trial.
+        if (
+            not asked_for_phone
+            and context.current_turn >= 2
+            and requested_viewing
+            and (answered_move or answered_employment)
+            and not offered_time_earlier
+        ):
+            context.goal_progress["offered_time"] = True
+            return "Saturday at 2pm works for me — does that suit?"
 
         if asked_for_phone:
             context.trust_score = max(0.0, context.trust_score - 0.15)
