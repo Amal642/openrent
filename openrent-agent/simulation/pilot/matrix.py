@@ -224,7 +224,15 @@ def _safe_consolidate(
         "trial_index": trial_index,
     }
     try:
-        report = hippo.client.consolidate(partition_by="sourceId")
+        # min_salience=1.05 is the Q4-amended OpenRent-specific value,
+        # measurement-justified by experiments/a2-tn-salience-probe/probe.py.
+        # See hippocampus-1:docs/OPENRENT-PILOT-A2-Q4-AMENDMENT.md. The
+        # chess default of 1.2 is too strict for freshly-ingested OpenRent
+        # cells (rememberV2 starts cells at 1.0; recall bumps +0.05/touch).
+        report = hippo.client.consolidate(
+            partition_by="sourceId",
+            min_salience=1.05,
+        )
     except Exception as exc:  # pragma: no cover - defensive
         return {**base, "error": f"{type(exc).__name__}: {exc}"}
     return {**base, "report": report}
