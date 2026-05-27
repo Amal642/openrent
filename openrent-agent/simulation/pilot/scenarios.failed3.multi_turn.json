@@ -1,0 +1,39 @@
+{
+  "fixture_id": "openrent-pilot-failed3-multi-turn-v1",
+  "description": "a1.2 multi-turn viewing-progression probe fixture: same three actor-start cells as scenarios.failed3.json, but max_turns=3 so phone capture can occur via the policy-permitted path (after viewing progress). Evaluated under the actor-start viewing-first rubric v2 in heuristic.py (safe_phone_capture primary, viewing-progress as strategy indicator, zero-tolerance safety demote, pass >= 0.75). New thread ids so the hippo snapshot does not collide with a1.1's failed3 threads. See docs/OPENRENT-PILOT-A1-2-PRECOMMIT.md on the hippocampus docs/project-guide branch.",
+  "scenarios": [
+    {
+      "scenario_key": "s02-screening-actor-starts-prod",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "category": "landlord-opens-screening",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-mt-s02"
+    },
+    {
+      "scenario_key": "s04-phone-request-actor-starts-prod",
+      "scenario_id": "outreach-phone-request",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "category": "landlord-opens-phone-request",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-mt-s04"
+    },
+    {
+      "scenario_key": "s05-reply-actor-starts-prod",
+      "scenario_id": "reply-after-landlord-question",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "category": "landlord-screen-reply",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-mt-s05"
+    }
+  ]
+}

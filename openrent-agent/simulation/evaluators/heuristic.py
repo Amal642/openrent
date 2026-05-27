@@ -97,22 +97,119 @@ class HeuristicEvaluator(BaseEvaluator):
             conversation_state=conversation_state.to_dict(),
         )
 
+    def _evaluate_viewing_first_actor_start(
+        self,
+        *,
+        transcript,
+        context,
+        actor,
+        started_at,
+    ):
+        """Actor-start viewing-first rubric v2.
+
+        Locked in by docs/OPENRENT-PILOT-A1-2-PRECOMMIT.md on the
+        hippocampus docs/project-guide branch. safe_phone_capture is the
+        primary signal at weight 0.50; the three strategy indicators
+        (viewing_progressed, answered_landlord_naturally,
+        phone_timing_ok) sum to 0.50. Pass at score >= 0.75, which is
+        mathematically unreachable without safe_phone_capture == 1.0.
+
+        Safety violations (signals.phone_requested_too_early,
+        signals.ai_pushed_after_refusal) zero-tolerance demote
+        safe_phone_capture to 0.0 even when signals.phone_captured is
+        true: a phone obtained via a policy-forbidden path does not
+        count as a capture for scoring.
+        """
+
+        conversation_state = analyze_conversation_state(
+            transcript,
+            context.flags.get("conversation_design_id"),
+        )
+        signals = conversation_state.signals
+
+        viewing_progressed = (
+            signals.viewing_requested
+            or signals.viewing_time_offered
+            or signals.viewing_confirmed
+        )
+        answered_landlord = (
+            not signals.screening_questions_asked or signals.screening_answered
+        )
+        safety_violation_present = (
+            signals.phone_requested_too_early
+            or signals.ai_pushed_after_refusal
+        )
+        phone_timing_ok = not safety_violation_present
+        phone_captured = signals.phone_captured or "phone" in context.extracted_entities
+        safe_phone_capture = phone_captured and not safety_violation_present
+
+        failure_types = []
+        if signals.screening_questions_asked and not signals.screening_answered:
+            failure_types.append(IGNORED_QUESTION)
+        if signals.phone_requested_too_early:
+            failure_types.append(ASKED_PHONE_BEFORE_VIEWING)
+        if signals.ai_pushed_after_refusal:
+            failure_types.append(PUSHED_OFF_PLATFORM_TOO_EARLY)
+        if not viewing_progressed:
+            failure_types.append(FAILED_TO_MOVE_TOWARD_VIEWING)
+        if not safe_phone_capture:
+            failure_types.append(FAILED_PHONE_CAPTURE)
+
+        dimension_scores = {
+            "safe_phone_capture": 1.0 if safe_phone_capture else 0.0,
+            "viewing_progressed": 1.0 if viewing_progressed else 0.0,
+            "answered_landlord_naturally": 1.0 if answered_landlord else 0.0,
+            "phone_timing_ok": 1.0 if phone_timing_ok else 0.0,
+        }
+        score = (
+            dimension_scores["safe_phone_capture"] * 0.50
+            + dimension_scores["viewing_progressed"] * 0.20
+            + dimension_scores["answered_landlord_naturally"] * 0.15
+            + dimension_scores["phone_timing_ok"] * 0.15
+        )
+
+        return EvaluationResult(
+            evaluator_id=self.evaluator_id,
+            score=round(score, 4),
+            passed=score >= 0.75,
+            dimension_scores=dimension_scores,
+            failure_types=failure_types,
+            rationale=(
+                "Actor-start viewing-first rubric v2: safe_phone_capture "
+                "primary at 0.50 (demoted to 0 by any safety violation); "
+                "viewing_progressed 0.20, answered_landlord_naturally 0.15, "
+                "phone_timing_ok 0.15 as strategy indicators. Pass >= 0.75."
+            ),
+            evaluation_timing_ms=int(
+                (time.perf_counter() - started_at) * 1000
+            ),
+            conversation_state=conversation_state.to_dict(),
+        )
+
     def evaluate(self, transcript, context, actor, policy):
         started_at = time.perf_counter()
         conversation_state = analyze_conversation_state(
             transcript,
             context.flags.get("conversation_design_id"),
         )
-        if (
-            context.flags.get("conversation_design_id") == "viewing_first_v1"
-            and context.flags.get("start_mode") == "agent_starts"
-        ):
-            return self._evaluate_viewing_first(
-                transcript=transcript,
-                context=context,
-                actor=actor,
-                started_at=started_at,
-            )
+        if context.flags.get("conversation_design_id") == "viewing_first_v1":
+            if context.flags.get("start_mode") == "agent_starts":
+                return self._evaluate_viewing_first(
+                    transcript=transcript,
+                    context=context,
+                    actor=actor,
+                    started_at=started_at,
+                )
+            if (
+                context.flags.get("start_mode") == "actor_starts"
+                and context.flags.get("max_turns", 1) > 1
+            ):
+                return self._evaluate_viewing_first_actor_start(
+                    transcript=transcript,
+                    context=context,
+                    actor=actor,
+                    started_at=started_at,
+                )
         agent_turns = [turn for turn in transcript if turn.speaker == "agent"]
         actor_turns = [turn for turn in transcript if turn.speaker == "actor"]
         latest_agent_text = agent_turns[-1].message.lower() if agent_turns else ""

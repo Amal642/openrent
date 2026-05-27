@@ -83,6 +83,7 @@ class SimulationOrchestrator:
 
     def run(self):
         session_started = time.perf_counter()
+        self.context.flags["max_turns"] = self.scenario.max_turns
         self._emit(
             "SCENARIO_STARTED",
             {
