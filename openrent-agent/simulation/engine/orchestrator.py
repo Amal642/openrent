@@ -1,5 +1,6 @@
 import time
 
+from simulation.conversation_state import analyze_conversation_state
 from simulation.engine.session_manager import (
     emit_event,
     finalize_session,
@@ -10,6 +11,7 @@ from simulation.engine.session_manager import (
 from simulation.observability.metrics import MetricsCollector
 from simulation.observability.tracing import build_event_timestamp
 from simulation.sessions.store import JSONSessionStore
+from simulation.sessions.transcript import project_transcript
 
 
 class SimulationOrchestrator:
@@ -71,6 +73,14 @@ class SimulationOrchestrator:
     def _emit(self, event_type: str, payload: dict):
         emit_event(self.event_bus, self.context, event_type, payload)
 
+    def _goal_signals_reached(self) -> bool:
+        transcript = project_transcript(self.event_bus.events)
+        state = analyze_conversation_state(
+            transcript,
+            self.context.flags.get("conversation_design_id"),
+        )
+        return state.signals.phone_captured or state.signals.viewing_confirmed
+
     def run(self):
         session_started = time.perf_counter()
         self._emit(
@@ -103,29 +113,33 @@ class SimulationOrchestrator:
                 hippo=self.hippo,
             )
 
-            if agent_response.reply_text:
-                actor_response = self.actor.respond(
-                    self.context,
-                    agent_response.reply_text,
-                )
+            if not agent_response.reply_text:
+                break
+
+            actor_response = self.actor.respond(
+                self.context,
+                agent_response.reply_text,
+            )
+            self._emit(
+                "ACTOR_RESPONDED",
+                {
+                    "speaker": self.actor.profile.display_name,
+                    "message": actor_response,
+                },
+            )
+            memory_payload = update_context_from_actor_message(
+                self.context,
+                actor_response,
+            )
+            self._emit("MEMORY_UPDATED", memory_payload)
+            if memory_payload.get("phone_detected"):
                 self._emit(
-                    "ACTOR_RESPONDED",
-                    {
-                        "speaker": self.actor.profile.display_name,
-                        "message": actor_response,
-                    },
+                    "PHONE_DETECTED",
+                    {"phone": memory_payload["phone_detected"]},
                 )
-                memory_payload = update_context_from_actor_message(
-                    self.context,
-                    actor_response,
-                )
-                self._emit("MEMORY_UPDATED", memory_payload)
-                if memory_payload.get("phone_detected"):
-                    self._emit(
-                        "PHONE_DETECTED",
-                        {"phone": memory_payload["phone_detected"]},
-                    )
-            break
+
+            if self._goal_signals_reached():
+                break
 
         return finalize_session(
             mode="simulation",
