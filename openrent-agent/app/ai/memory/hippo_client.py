@@ -477,6 +477,48 @@ class HippoOutreachClient:
             "hippo_memory_forget", {"sourceId": thread_id}
         )
 
+    def consolidate(
+        self,
+        *,
+        partition_by: str = "sourceId",
+        overlap_threshold: int | None = None,
+        min_cluster_size: int | None = None,
+        min_salience: float | None = None,
+        exclude_source_prefixes: Sequence[str] | None = None,
+        max_clusters: int | None = None,
+        edge_weight: float | None = None,
+        use_summarizer: bool | None = None,
+    ) -> dict[str, Any]:
+        """Trigger one offline consolidate pass on the memory-kit-mcp server.
+
+        Schemas mint as side-effects on the substrate; the returned report
+        carries counters (clustersTotal, cellsClustered, schemasNewlyMinted,
+        schemasAbstained, edgesAdded) used by the pilot matrix to populate
+        per-trial consolidate-event rows.
+
+        Defaults align with the OpenRent a2 Q4 lock-in (see
+        ``hippocampus-1:docs/OPENRENT-PILOT-A2-PRECOMMIT.md``) and are
+        applied server-side; only override when the call site needs to
+        diverge for a specific probe.
+        """
+
+        payload: dict[str, Any] = {"partitionBy": partition_by}
+        if overlap_threshold is not None:
+            payload["overlapThreshold"] = overlap_threshold
+        if min_cluster_size is not None:
+            payload["minClusterSize"] = min_cluster_size
+        if min_salience is not None:
+            payload["minSalience"] = min_salience
+        if exclude_source_prefixes is not None:
+            payload["excludeSourcePrefixes"] = list(exclude_source_prefixes)
+        if max_clusters is not None:
+            payload["maxClusters"] = max_clusters
+        if edge_weight is not None:
+            payload["edgeWeight"] = edge_weight
+        if use_summarizer is not None:
+            payload["useSummarizer"] = use_summarizer
+        return self._client.call_tool("hippo_memory_consolidate", payload)
+
     # ------------------------------------------------------------------
     # Internals
 

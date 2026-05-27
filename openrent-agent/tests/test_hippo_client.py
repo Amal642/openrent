@@ -78,6 +78,14 @@ class _FakeMcpClient:
             }
         if name == "hippo_memory_forget":
             return {"forgotten": 0, "cellIds": []}
+        if name == "hippo_memory_consolidate":
+            return {
+                "clustersTotal": 1,
+                "cellsClustered": 3,
+                "schemasNewlyMinted": 1,
+                "schemasAbstained": 0,
+                "edgesAdded": 3,
+            }
         raise AssertionError(f"unexpected tool call: {name}")
 
     def close(self) -> None:
@@ -380,6 +388,49 @@ class TestHippoClientOffline:
         assert len(forget_calls) == 1
         assert forget_calls[0][1] == {"sourceId": "thread-zap"}
         assert "forgotten" in result
+
+    def test_consolidate_default_args_sends_partition_by_sourceId(
+        self, fake_client: _FakeMcpClient
+    ) -> None:
+        with self._open_client(fake_client) as client:
+            report = client.consolidate()
+        consolidate_calls = [
+            c for c in fake_client.calls if c[0] == "hippo_memory_consolidate"
+        ]
+        assert len(consolidate_calls) == 1
+        # Default: partition_by='sourceId', everything else server-default.
+        assert consolidate_calls[0][1] == {"partitionBy": "sourceId"}
+        # Report shape is whatever the MCP tool returns, passed through.
+        assert report["schemasNewlyMinted"] == 1
+        assert report["clustersTotal"] == 1
+
+    def test_consolidate_overrides_flow_through_to_payload(
+        self, fake_client: _FakeMcpClient
+    ) -> None:
+        with self._open_client(fake_client) as client:
+            client.consolidate(
+                partition_by="none",
+                overlap_threshold=22,
+                min_cluster_size=4,
+                min_salience=0.8,
+                exclude_source_prefixes=["schema", "synthetic"],
+                max_clusters=50,
+                edge_weight=0.5,
+                use_summarizer=False,
+            )
+        args = next(
+            c[1] for c in fake_client.calls if c[0] == "hippo_memory_consolidate"
+        )
+        assert args == {
+            "partitionBy": "none",
+            "overlapThreshold": 22,
+            "minClusterSize": 4,
+            "minSalience": 0.8,
+            "excludeSourcePrefixes": ["schema", "synthetic"],
+            "maxClusters": 50,
+            "edgeWeight": 0.5,
+            "useSummarizer": False,
+        }
 
 
 def _live_skip_reason() -> str | None:
