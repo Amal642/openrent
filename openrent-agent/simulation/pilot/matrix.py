@@ -119,6 +119,15 @@ def run_pilot_matrix(
 
     factory = hippo_factory or _default_hippo_factory
 
+    # Ensure the snap's parent directory exists BEFORE the MCP child opens.
+    # The MCP server calls `atomicWriteJson(snap_path, ...)` from its
+    # close() handler; without the parent dir, the write fails silently at
+    # process exit and the snap never lands. Discovered by the a2 Q4 probe
+    # when the a1.2 snap was missing despite --hippo-snap being set; see
+    # `hippocampus-1:docs/OPENRENT-PILOT-A2-PRECOMMIT.md` "Known Bugs".
+    if config.hippo_snap and config.hippo_snap != ":memory:":
+        Path(config.hippo_snap).parent.mkdir(parents=True, exist_ok=True)
+
     result = MatrixResult(config=config)
     result.started_at = time.time()
 

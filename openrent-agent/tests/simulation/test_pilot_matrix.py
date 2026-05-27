@@ -456,6 +456,101 @@ class TestMatrixRunner:
         assert agg["conditions"]["memory-on"]["hippo_recall_mean"] == 1.0
         assert agg["conditions"]["memory-on"]["hippo_ingest_mean"] == 1.0
 
+    def test_hippo_snap_parent_dir_exists_before_hippo_factory(self, tmp_path):
+        """F3 regression: the snap's parent directory must exist before
+        the MCP child opens.
+
+        Discovered when a1.2's snap was missing despite --hippo-snap.
+        The MCP server's close() calls atomicWriteJson(snap_path, ...)
+        which silently fails if the parent directory doesn't yet exist.
+        The fix in matrix.py creates the parent at the top of
+        run_pilot_matrix, before any MCP session is opened.
+
+        This test inverts the dependency: at the moment hippo_factory is
+        called, we assert the snap's parent dir exists. If the fix is
+        reverted, this assertion fires before any trial runs.
+        """
+
+        fixture = _make_fixture()
+        snap_path = tmp_path / "deep" / "nested" / "dir" / "hippo.snap.json"
+
+        def session_runner(**kwargs):
+            return _fake_session_dict(
+                seed=kwargs["seed"],
+                passed=False,
+                current_state="viewing_negotiation",
+                hippo_memory="on",
+                recall_emitted=True,
+                ingest_emitted=True,
+                ingest_cells=2,
+            )
+
+        observed_at_factory_call: dict[str, bool] = {}
+
+        def hippo_factory(*, config, scope_label):
+            observed_at_factory_call["parent_exists"] = snap_path.parent.is_dir()
+            return HippoSession(
+                client=_FakeHippoClient(),
+                meta=HippoSessionMeta(thread_id="placeholder"),
+            )
+
+        config = MatrixConfig(
+            fixture=fixture,
+            n_trials=1,
+            seed_base=100,
+            memory=("memory-on",),
+            memory_regime="shared",
+            hippo_snap=str(snap_path),
+        )
+        run_pilot_matrix(
+            config,
+            session_runner=session_runner,
+            hippo_factory=hippo_factory,
+        )
+        assert observed_at_factory_call.get("parent_exists") is True, (
+            "snap's parent dir must already exist when hippo_factory is called; "
+            "otherwise the MCP server's atomicWriteJson at close() will fail "
+            "silently and the snap will never land on disk."
+        )
+
+    def test_hippo_snap_memory_sentinel_does_not_create_directory(self, tmp_path):
+        """`:memory:` sentinel must NOT trigger parent-dir creation."""
+
+        fixture = _make_fixture()
+
+        def session_runner(**kwargs):
+            return _fake_session_dict(
+                seed=kwargs["seed"],
+                passed=False,
+                current_state="viewing_negotiation",
+                hippo_memory="on",
+                recall_emitted=True,
+                ingest_emitted=True,
+                ingest_cells=2,
+            )
+
+        def hippo_factory(*, config, scope_label):
+            return HippoSession(
+                client=_FakeHippoClient(),
+                meta=HippoSessionMeta(thread_id="placeholder"),
+            )
+
+        config = MatrixConfig(
+            fixture=fixture,
+            n_trials=1,
+            seed_base=100,
+            memory=("memory-on",),
+            memory_regime="shared",
+            hippo_snap=":memory:",
+        )
+        # Should not raise, should not create any path-like directory.
+        run_pilot_matrix(
+            config,
+            session_runner=session_runner,
+            hippo_factory=hippo_factory,
+        )
+        assert not (tmp_path / ":memory:").exists()
+
     def test_trace_samples_sidecar_records_compact_recall_and_reply(self, tmp_path):
         fixture = _make_fixture()
 
