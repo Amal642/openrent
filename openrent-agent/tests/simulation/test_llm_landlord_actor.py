@@ -58,10 +58,31 @@ def test_respond_uses_stubbed_completion_and_routes_text():
 
     assert SIMULATED_LANDLORD_PHONE in reply
     assert captured["model"] == "gpt-4.1-mini"
+    # Cooperative persona's default_temperature is 0.5 (Q3-locked).
     assert captured["temperature"] == 0.5
     # System prompt + opener (assistant) + agent reply (user) = 3 messages
     assert len(captured["messages"]) == 3
     assert captured["messages"][0]["role"] == "system"
+
+
+def test_brusque_persona_default_temperature_is_lowered():
+    """Q4-amendment-1: Brusque defaults to temp 0.2 to keep the
+    LLM closer to its strict refusal instructions.
+    """
+
+    captured: dict = {}
+
+    def fake_completion(**kwargs):
+        captured.update(kwargs)
+        return _stub_completion("Need work and move date first.")
+
+    actor = LlmLandlordActor(
+        persona="brusque", completion_create=fake_completion,
+    )
+    actor.initial_message()
+    actor.respond(RuntimeContext(session_id="brusque-temp"), "Hello.")
+
+    assert captured["temperature"] == 0.2
 
 
 def test_respond_flips_phone_shared_when_output_contains_phone():

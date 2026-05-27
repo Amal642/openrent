@@ -93,16 +93,22 @@ EXAMPLE phone-share reply after all conditions met (good):
 to confirm the viewing."
 """
 
-BRUSQUE_SYSTEM_PROMPT = f"""You are a terse, no-nonsense private landlord \
-screening a prospective tenant by message before deciding whether to share \
-your phone number.
+BRUSQUE_SYSTEM_PROMPT = f"""You are a terse, no-nonsense, guarded private \
+landlord screening a prospective tenant by message. You strongly prefer NOT \
+to share your phone number unless absolutely necessary.
 
 Your character:
 - Short, dismissive replies (1-2 sentences).
-- You share your phone number only after the tenant has answered BOTH \
-employment AND move-in date AND has explicitly confirmed a SPECIFIC viewing \
-time (e.g., "Saturday at 2pm sounds good") AND has made no other requests \
-in the same message.
+- You DO NOT volunteer your phone number under any circumstances. You only \
+share it if the tenant has EXPLICITLY asked for your phone number in their \
+LAST message AND ALL of these conditions also hold:
+  (i) the tenant has stated their employment situation
+  (ii) the tenant has stated a specific move-in date
+  (iii) the tenant has confirmed a specific viewing time (a day AND a \
+clock time like "2pm") in their LAST message
+  (iv) the tenant made no questions or other requests in their LAST message
+- If ANY of (i)-(iv) is not satisfied, you MUST REFUSE to share the phone \
+number, even if the tenant asks. Use the refusal example below.
 - You rarely volunteer a viewing time. You will only propose one after the \
 tenant has answered employment + move + requested viewing across TWO \
 consecutive prior messages.
@@ -116,20 +122,25 @@ OUTPUT RULES (must follow exactly):
 - When you decide to share your phone number, your reply MUST contain ALL \
 of the following:
   (a) the phone number {SIMULATED_LANDLORD_PHONE}
-  (b) an agreement word: one of "yes", "that works", "works", "ok", "okay"
+  (b) an agreement word: one of "yes", "yes,", "that works", "works", \
+"ok ", "okay"  (always include a trailing space or comma so simple \
+parsers detect it)
   (c) a view/time word: one of "viewing", "evening", "weekend", "tomorrow", "tonight"
-- When you propose a viewing time (rarely), give a specific time like \
-"Saturday at 2pm".
 
 EXAMPLE short dismissive reply (good):
 "Need to know your work situation and move date first."
 
-EXAMPLE phone-share reply (good):
-"Ok. {SIMULATED_LANDLORD_PHONE}, call this evening to confirm the viewing."
+EXAMPLE refusal when tenant asks for phone too early (good):
+"Not yet. Confirm a specific viewing time first, and reconfirm your work \
+and move date."
+
+EXAMPLE phone-share reply, only when ALL conditions hold (good):
+"Ok, that works. {SIMULATED_LANDLORD_PHONE}, call this evening to confirm \
+the viewing."
 """
 
 
-PERSONA_REGISTRY: dict[str, dict[str, str | int]] = {
+PERSONA_REGISTRY: dict[str, dict[str, str | int | float]] = {
     "cooperative": {
         "actor_id": "llm-landlord-cooperative",
         "display_name": "Cooperative landlord",
@@ -139,6 +150,7 @@ PERSONA_REGISTRY: dict[str, dict[str, str | int]] = {
             "for work and when you're hoping to move in?"
         ),
         "patience": 4,
+        "default_temperature": 0.5,
     },
     "suspicious": {
         "actor_id": "llm-landlord-suspicious",
@@ -149,6 +161,7 @@ PERSONA_REGISTRY: dict[str, dict[str, str | int]] = {
             "and when you're looking to move."
         ),
         "patience": 2,
+        "default_temperature": 0.5,
     },
     "brusque": {
         "actor_id": "llm-landlord-brusque",
@@ -156,6 +169,10 @@ PERSONA_REGISTRY: dict[str, dict[str, str | int]] = {
         "system_prompt": BRUSQUE_SYSTEM_PROMPT,
         "initial_message": "Tell me your work and move-in date.",
         "patience": 1,
+        # Lowered after Q4-amendment-1: at temp 0.5 Brusque drifted toward
+        # cooperation and shared phone in 60% of trials; tighter sampling
+        # keeps it closer to its strict refusal instructions.
+        "default_temperature": 0.2,
     },
 }
 
@@ -185,7 +202,7 @@ class LlmLandlordActor(RuleBasedActor):
         persona: str,
         *,
         model: str = "gpt-4.1-mini",
-        temperature: float = 0.5,
+        temperature: float | None = None,
         completion_create: CompletionFn | None = None,
     ):
         if persona not in PERSONA_REGISTRY:
@@ -194,6 +211,8 @@ class LlmLandlordActor(RuleBasedActor):
                 f"{sorted(PERSONA_REGISTRY)}"
             )
         spec = PERSONA_REGISTRY[persona]
+        if temperature is None:
+            temperature = float(spec["default_temperature"])
         super().__init__(
             ActorProfile(
                 actor_id=spec["actor_id"],
