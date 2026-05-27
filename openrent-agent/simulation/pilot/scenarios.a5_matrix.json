@@ -1,0 +1,114 @@
+{
+  "fixture_id": "a5-matrix-v1",
+  "description": "a5 full matrix: 3 base scenarios x 3 LLM landlord personas = 9 cells. N=5 per cell, both memory arms = 90 trials. Cross-product attribution per Q2-locked default. Uses Q4-amendment-1 personas (Brusque at temp 0.2, Cooperative + Suspicious at temp 0.5). See hippocampus-1:docs/OPENRENT-PILOT-A5-LLM-LANDLORD-PRECOMMIT.md.",
+  "scenarios": [
+    {
+      "scenario_key": "s02-cooperative",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-cooperative",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s02-coop"
+    },
+    {
+      "scenario_key": "s02-suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s02-susp"
+    },
+    {
+      "scenario_key": "s02-brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s02-brus"
+    },
+    {
+      "scenario_key": "s04-cooperative",
+      "scenario_id": "outreach-phone-request",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-cooperative",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s04-coop"
+    },
+    {
+      "scenario_key": "s04-suspicious",
+      "scenario_id": "outreach-phone-request",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s04-susp"
+    },
+    {
+      "scenario_key": "s04-brusque",
+      "scenario_id": "outreach-phone-request",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s04-brus"
+    },
+    {
+      "scenario_key": "s05-cooperative",
+      "scenario_id": "reply-after-landlord-question",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-cooperative",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s05-coop"
+    },
+    {
+      "scenario_key": "s05-suspicious",
+      "scenario_id": "reply-after-landlord-question",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s05-susp"
+    },
+    {
+      "scenario_key": "s05-brusque",
+      "scenario_id": "reply-after-landlord-question",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "pilot-a5-s05-brus"
+    }
+  ]
+}
