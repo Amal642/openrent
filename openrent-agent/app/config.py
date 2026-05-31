@@ -12,7 +12,7 @@ class Settings:
 
     DATABASE_URL = os.getenv("DATABASE_URL")
 
-    HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
+    HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
     SLOW_MO = int(os.getenv("SLOW_MO", 500))
 
     SESSION_FILE = os.getenv("SESSION_FILE", "session.json")

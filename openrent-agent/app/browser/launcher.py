@@ -18,7 +18,7 @@ async def launch_browser(account):
         }
 
     browser = await playwright.chromium.launch(
-        headless=False,
+        headless=True,
         slow_mo=500
     )
 
