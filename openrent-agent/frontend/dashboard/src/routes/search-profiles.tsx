@@ -41,11 +41,11 @@ import {
   getAccounts,
   getSearchProfiles,
   updateSearchProfile,
-} from "@/lib/api";
-import type { Account, SearchProfile } from "@/lib/types";
+} from "../lib/api";
+import type { Account, SearchProfile } from "../lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fmtMoney } from "@/lib/format";
+import { fmtMoney } from "../lib/format";
 
 export const Route = createFileRoute("/search-profiles")({
   head: () => ({
