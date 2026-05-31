@@ -315,7 +315,7 @@ Tenant: "hi nick, any update?"
 
 Landlord: "Hi Mary,
 Let me get back to you shortly.
-Apologies my tenant has been away.
+Apologies my tenant has been away. 
 
 Thanks
 Nick"
