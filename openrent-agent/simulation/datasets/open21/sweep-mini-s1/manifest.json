@@ -1,0 +1,174 @@
+{
+  "elapsed_seconds": 244.577,
+  "enable_schemas": false,
+  "finished_at_epoch": 1780196255.6173568,
+  "fixture_description": "OPEN-21 Phase-1 design sweep: 5 conversation designs x 3 LLM-landlord personas, memory-off, actor-start multi-turn. Full-factorial so design propensity is balanced across context (persona) -> learned context->design policy vs fixed viewing_first_v1 baseline needs no IPS. See hippocampus-1:docs(hippo-or)/OPENRENT-OPEN21-VALUE-LEARNING-PRECOMMIT.md.",
+  "fixture_id": "open21-design-sweep-v1",
+  "git_sha": "2b05c83158720940928257e8b072572f87f06ffd",
+  "hippo_k_evidence": 8,
+  "hippo_project_id": "openrent-sim-pilot",
+  "hippo_snap": ":memory:",
+  "hippo_thread_prefix": "",
+  "k": 15,
+  "memory_conditions": [
+    "memory-off"
+  ],
+  "memory_regime": "shared",
+  "n_trials": 3,
+  "scenarios": [
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "vf__cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-vf-cooperative"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "vf__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-vf-suspicious"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "vf__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-vf-brusque"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "sf__cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-sf-cooperative"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "sf__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-sf-suspicious"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "sf__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-sf-brusque"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "cc__cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-cc-cooperative"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "cc__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-cc-suspicious"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "cc__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-cc-brusque"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "ts__cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-ts-cooperative"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "ts__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-ts-suspicious"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "ts__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-ts-brusque"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "lp__cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-lp-cooperative"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "lp__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-lp-suspicious"
+    },
+    {
+      "category": "open21-design-sweep",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "lp__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-sweep-lp-brusque"
+    }
+  ],
+  "seed_base": 1000,
+  "started_at_epoch": 1780196011.0399084,
+  "trace_samples": false,
+  "trial_count": 45
+}

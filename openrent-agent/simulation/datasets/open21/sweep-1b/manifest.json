@@ -1,0 +1,124 @@
+{
+  "elapsed_seconds": 906.161,
+  "enable_schemas": false,
+  "finished_at_epoch": 1780197407.552865,
+  "fixture_description": "OPEN-21 Phase-1B powered design sweep: 5 designs x 2 DISCRIMINATING personas (brusque,suspicious; cooperative dropped as a 1.00 ceiling) x N=12. Tests whether the Phase-1 brusque->confirmation_close context->action signal on safe_phone_capture survives. Locked metrics preserved. See OPENRENT-OPEN21-VALUE-LEARNING-PRECOMMIT.md.",
+  "fixture_id": "open21-design-sweep-1b",
+  "git_sha": "2b05c83158720940928257e8b072572f87f06ffd",
+  "hippo_k_evidence": 8,
+  "hippo_project_id": "openrent-sim-pilot",
+  "hippo_snap": ":memory:",
+  "hippo_thread_prefix": "",
+  "k": 10,
+  "memory_conditions": [
+    "memory-off"
+  ],
+  "memory_regime": "shared",
+  "n_trials": 12,
+  "scenarios": [
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "vf__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-vf-brusque"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "vf__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-vf-suspicious"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "sf__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-sf-brusque"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "sf__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-sf-suspicious"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "cc__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-cc-brusque"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "cc__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-cc-suspicious"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "ts__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-ts-brusque"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "ts__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-ts-suspicious"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "lp__brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-lp-brusque"
+    },
+    {
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "lp__suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "open21-1b-lp-suspicious"
+    }
+  ],
+  "seed_base": 2000,
+  "started_at_epoch": 1780196501.3917673,
+  "trace_samples": false,
+  "trial_count": 120
+}

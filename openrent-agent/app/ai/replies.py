@@ -81,7 +81,7 @@ def _format_simulation_conversation(messages) -> str:
 def generate_names():
     prompt = names_generator()
     response = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=settings.OPENAI_REPLY_MODEL,
         messages=[
             {
                 "role": "user",
@@ -137,7 +137,7 @@ def generate_distant_location(property_location: str, retries=3, base_delay=2) -
     for attempt in range(1, retries + 1):
         try:
             response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model=settings.OPENAI_REPLY_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
             )
@@ -330,7 +330,7 @@ def generate_cancellation_message(messages=None, retries=3, base_delay=2):
     for attempt in range(1, retries + 1):
         try:
             response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model=settings.OPENAI_REPLY_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.6,
             )
@@ -376,7 +376,7 @@ def generate_initial_property_message(
     for attempt in range(1, retries + 1):
         try:
             response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model=settings.OPENAI_REPLY_MODEL,
                 messages=[
                     {
                         "role": "user",

@@ -53,7 +53,7 @@ def ai_extract_phone(messages, retries=3, base_delay=2):
         try:
 
             response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model=settings.OPENAI_REPLY_MODEL,
 
                 messages=[
                     {

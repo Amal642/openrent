@@ -1,0 +1,126 @@
+{
+  "fixture_id": "open21-design-sweep-1b",
+  "description": "OPEN-21 Phase-1B powered design sweep: 5 designs x 2 DISCRIMINATING personas (brusque,suspicious; cooperative dropped as a 1.00 ceiling) x N=12. Tests whether the Phase-1 brusque->confirmation_close context->action signal on safe_phone_capture survives. Locked metrics preserved. See OPENRENT-OPEN21-VALUE-LEARNING-PRECOMMIT.md.",
+  "scenarios": [
+    {
+      "scenario_key": "vf__brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-vf-brusque"
+    },
+    {
+      "scenario_key": "vf__suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "viewing_first_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-vf-suspicious"
+    },
+    {
+      "scenario_key": "sf__brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "screening_first_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-sf-brusque"
+    },
+    {
+      "scenario_key": "sf__suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "screening_first_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-sf-suspicious"
+    },
+    {
+      "scenario_key": "cc__brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "confirmation_close_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-cc-brusque"
+    },
+    {
+      "scenario_key": "cc__suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "confirmation_close_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-cc-suspicious"
+    },
+    {
+      "scenario_key": "ts__brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "tenant_shares_first_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-ts-brusque"
+    },
+    {
+      "scenario_key": "ts__suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "tenant_shares_first_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-ts-suspicious"
+    },
+    {
+      "scenario_key": "lp__brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "landlord_preference_v1",
+      "actor_id": "llm-landlord-brusque",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-lp-brusque"
+    },
+    {
+      "scenario_key": "lp__suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "policy_id": "production-policy-v1",
+      "start_mode": "actor_starts",
+      "max_turns": 3,
+      "conversation_design_id": "landlord_preference_v1",
+      "actor_id": "llm-landlord-suspicious",
+      "category": "open21-design-sweep-1b",
+      "expected_outcome": "viewing_progressed",
+      "thread_id": "open21-1b-lp-suspicious"
+    }
+  ]
+}

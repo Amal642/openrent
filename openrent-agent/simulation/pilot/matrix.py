@@ -330,6 +330,7 @@ def _extract_trial_row(
         "memory_flag": runtime_flags.get("hippo_memory", "off"),
         "scenario_key": scenario.scenario_key,
         "scenario_id": scenario.scenario_id,
+        "conversation_design_id": scenario.conversation_design_id,
         "policy_id": scenario.policy_id,
         "start_mode": scenario.start_mode,
         "max_turns": scenario.max_turns,

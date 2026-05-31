@@ -1,0 +1,244 @@
+{
+  "conditions": {
+    "memory-off": {
+      "generation_latency_ms_mean": 1705.1333,
+      "hippo_ingest_mean": 0,
+      "hippo_recall_mean": 0,
+      "n": 45,
+      "passed_rate": 0.5111,
+      "phone_captured_rate": 0.7111,
+      "prompt_tokens_mean": 2024.8444,
+      "score_mean": 0.6133,
+      "score_std": 0.3377,
+      "viewing_booked_rate": 0.2222
+    }
+  },
+  "current_state_by_condition": {
+    "memory-off": {
+      "coordination": 2,
+      "phone_captured": 32,
+      "viewing_confirmed": 8,
+      "viewing_negotiation": 3
+    }
+  },
+  "failure_types_by_condition": {
+    "memory-off": {
+      "failed_phone_capture": 3,
+      "ignored_question": 16,
+      "low_trust": 11
+    }
+  },
+  "scenarios": {
+    "cc__brusque": {
+      "memory-off": {
+        "generation_latency_ms_mean": 2683.3333,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.6667,
+        "phone_captured_rate": 1.0,
+        "prompt_tokens_mean": 3237,
+        "score_mean": 0.6667,
+        "score_std": 0.1886,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "cc__cooperative": {
+      "memory-off": {
+        "generation_latency_ms_mean": 1003,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 1.0,
+        "phone_captured_rate": 1.0,
+        "prompt_tokens_mean": 1042,
+        "score_mean": 0.8,
+        "score_std": 0.0,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "cc__suspicious": {
+      "memory-off": {
+        "generation_latency_ms_mean": 1164.6667,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.0,
+        "phone_captured_rate": 0.0,
+        "prompt_tokens_mean": 1402.3333,
+        "score_mean": 0.2667,
+        "score_std": 0.1886,
+        "viewing_booked_rate": 1.0
+      }
+    },
+    "lp__brusque": {
+      "memory-off": {
+        "generation_latency_ms_mean": 2197,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.3333,
+        "phone_captured_rate": 0.6667,
+        "prompt_tokens_mean": 2836,
+        "score_mean": 0.4,
+        "score_std": 0.3266,
+        "viewing_booked_rate": 0.3333
+      }
+    },
+    "lp__cooperative": {
+      "memory-off": {
+        "generation_latency_ms_mean": 770.6667,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 1.0,
+        "phone_captured_rate": 1.0,
+        "prompt_tokens_mean": 1020,
+        "score_mean": 1.0,
+        "score_std": 0.0,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "lp__suspicious": {
+      "memory-off": {
+        "generation_latency_ms_mean": 1464,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.3333,
+        "phone_captured_rate": 0.6667,
+        "prompt_tokens_mean": 2124,
+        "score_mean": 0.7333,
+        "score_std": 0.1886,
+        "viewing_booked_rate": 0.3333
+      }
+    },
+    "sf__brusque": {
+      "memory-off": {
+        "generation_latency_ms_mean": 2221.3333,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.0,
+        "phone_captured_rate": 0.3333,
+        "prompt_tokens_mean": 3172.3333,
+        "score_mean": 0.1333,
+        "score_std": 0.1886,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "sf__cooperative": {
+      "memory-off": {
+        "generation_latency_ms_mean": 1295.3333,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 1.0,
+        "phone_captured_rate": 1.0,
+        "prompt_tokens_mean": 1021,
+        "score_mean": 0.8,
+        "score_std": 0.0,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "sf__suspicious": {
+      "memory-off": {
+        "generation_latency_ms_mean": 1652,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.0,
+        "phone_captured_rate": 0.6667,
+        "prompt_tokens_mean": 2103,
+        "score_mean": 0.3333,
+        "score_std": 0.2494,
+        "viewing_booked_rate": 0.3333
+      }
+    },
+    "ts__brusque": {
+      "memory-off": {
+        "generation_latency_ms_mean": 2161.3333,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.0,
+        "phone_captured_rate": 0.6667,
+        "prompt_tokens_mean": 3192.6667,
+        "score_mean": 0.2667,
+        "score_std": 0.1886,
+        "viewing_booked_rate": 0.3333
+      }
+    },
+    "ts__cooperative": {
+      "memory-off": {
+        "generation_latency_ms_mean": 805,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 1.0,
+        "phone_captured_rate": 1.0,
+        "prompt_tokens_mean": 1029,
+        "score_mean": 0.8,
+        "score_std": 0.0,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "ts__suspicious": {
+      "memory-off": {
+        "generation_latency_ms_mean": 1378,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.0,
+        "phone_captured_rate": 0.3333,
+        "prompt_tokens_mean": 1746.3333,
+        "score_mean": 0.3333,
+        "score_std": 0.2494,
+        "viewing_booked_rate": 0.6667
+      }
+    },
+    "vf__brusque": {
+      "memory-off": {
+        "generation_latency_ms_mean": 2537.6667,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.6667,
+        "phone_captured_rate": 0.6667,
+        "prompt_tokens_mean": 3247.6667,
+        "score_mean": 0.8333,
+        "score_std": 0.2357,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "vf__cooperative": {
+      "memory-off": {
+        "generation_latency_ms_mean": 2018.6667,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 1.0,
+        "phone_captured_rate": 1.0,
+        "prompt_tokens_mean": 1049,
+        "score_mean": 1.0,
+        "score_std": 0.0,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "vf__suspicious": {
+      "memory-off": {
+        "generation_latency_ms_mean": 2225,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 3,
+        "passed_rate": 0.6667,
+        "phone_captured_rate": 0.6667,
+        "prompt_tokens_mean": 2150.3333,
+        "score_mean": 0.8333,
+        "score_std": 0.2357,
+        "viewing_booked_rate": 0.3333
+      }
+    }
+  },
+  "trial_count": 45
+}
