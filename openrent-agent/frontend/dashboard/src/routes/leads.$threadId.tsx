@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ExternalLink,
-  Send,
   CheckCircle2,
   XCircle,
   Phone,
@@ -12,8 +11,6 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { completeLead, getAccounts, getLead, messagesForLead, skipLead } from "@/lib/api";
 import { fmtDateTime, fmtMoney, fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -47,7 +44,6 @@ function ConversationPage() {
   });
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState("");
 
   useEffect(() => {
     if (lead) setMessages(messagesForLead(lead));
@@ -149,24 +145,6 @@ function ConversationPage() {
                 </div>
               </div>
             ))}
-          </div>
-          <Separator />
-          <div className="p-3 space-y-2">
-            <Textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Manual OpenRent sending is handled by the worker pipeline."
-              className="min-h-[80px] resize-none"
-              disabled
-            />
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                Replies are generated and sent from the authenticated worker browser.
-              </span>
-              <Button size="sm" disabled>
-                <Send className="size-4" /> Send
-              </Button>
-            </div>
           </div>
         </div>
 

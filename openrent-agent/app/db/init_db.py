@@ -22,6 +22,9 @@ REQUIRED_COLUMNS = {
         "worker_last_error": "TEXT",
         "current_worker_phase": "VARCHAR DEFAULT 'idle'",
         "last_login_at": "DATETIME",
+        "proxy_server": "VARCHAR",
+        "proxy_username": "VARCHAR",
+        "proxy_password": "VARCHAR",
     },
     "listings": {
         "processing_owner": "VARCHAR",

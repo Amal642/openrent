@@ -82,6 +82,9 @@ def update_account(
     password=None,
     session_file=None,
     initial_message=None,
+    proxy_server=None,
+    proxy_username=None,
+    proxy_password=None,
     daily_limit=None,
     active=None,
     persona_type=None,
@@ -105,6 +108,12 @@ def update_account(
             account.session_file = session_file
         if initial_message is not None:
             account.initial_message = initial_message
+        if proxy_server is not None:
+            account.proxy_server = proxy_server
+        if proxy_username is not None:
+            account.proxy_username = proxy_username
+        if proxy_password is not None:
+            account.proxy_password = proxy_password
         if daily_limit is not None:
             account.daily_limit = daily_limit
         if active is not None:
@@ -285,6 +294,9 @@ def serialize_account(account):
         "id": account.id,
         "email": account.email,
         "session_file": account.session_file,
+        "proxy_server": account.proxy_server,
+        "proxy_username": account.proxy_username,
+        "proxy_password": account.proxy_password,
         "initial_message": account.initial_message,
         "daily_limit": account.daily_limit,
         "messages_sent_today": account.messages_sent_today,

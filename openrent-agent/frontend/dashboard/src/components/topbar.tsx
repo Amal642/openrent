@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
-import { Search, Sun, Moon } from "lucide-react";
+import { Sun, Moon } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { DotBadge } from "@/components/status-badge";
+import { getHealth } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 export function Topbar() {
   const [dark, setDark] = useState(true);
+  const { data } = useQuery({
+    queryKey: ["health"],
+    queryFn: getHealth,
+    refetchInterval: 30000,
+  });
   useEffect(() => {
     const stored = localStorage.getItem("theme");
     const isDark = stored ? stored === "dark" : true;
@@ -23,9 +30,9 @@ export function Topbar() {
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 backdrop-blur px-3">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-5" />
-      <div className="relative flex-1 max-w-md">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input placeholder="Search leads, accounts, threads…" className="pl-8 h-9 bg-muted/40" />
+      <div className="flex flex-1 items-center gap-2 text-sm">
+        <span className="font-medium">OpenRent command center</span>
+        <DotBadge tone={data?.status === "running" ? "success" : "warning"} label={data?.status ?? "checking"} />
       </div>
       <div className="ml-auto flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">

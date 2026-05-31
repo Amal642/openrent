@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, Fragment } from "react";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -15,6 +16,7 @@ import { getAccounts, getLogs } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import type { LogEntry } from "@/lib/types";
 
 export const Route = createFileRoute("/logs")({
   head: () => ({
@@ -46,13 +48,15 @@ function LogsPage() {
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: getAccounts,
   });
-  const { data: logs = [] } = useQuery({
+  const { data: logs = [] } = useQuery<LogEntry[]>({
     queryKey: ["logs"],
-    queryFn: getLogs,
+    queryFn: () => getLogs(),
     refetchInterval: 30000,
   });
 
@@ -71,6 +75,8 @@ function LogsPage() {
 
   const accountEmail = (id?: string) =>
     id ? (accounts.find((a) => a.id === id)?.email ?? id) : "—";
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <>
@@ -89,7 +95,10 @@ function LogsPage() {
         <Input
           placeholder="Filter logs…"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
           className="h-9 sm:w-64"
         />
       </div>
@@ -106,7 +115,7 @@ function LogsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((l) => (
+            {visible.map((l) => (
               <Fragment key={l.id}>
                 <TableRow
                   onClick={() => setExpanded(expanded === l.id ? null : l.id)}
@@ -137,6 +146,29 @@ function LogsPage() {
             ))}
           </TableBody>
         </Table>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          Page {page} of {totalPages} · {filtered.length} log events
+        </span>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            disabled={page <= 1}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+            disabled={page >= totalPages}
+          >
+            Next
+          </Button>
+        </div>
       </div>
     </>
   );

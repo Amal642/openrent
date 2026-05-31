@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
+import os
+import socket
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +44,9 @@ class AccountCreatePayload(BaseModel):
     password: str = ""
     session_file: str = "session.json"
     initial_message: str = ""
+    proxy_server: str | None = None
+    proxy_username: str | None = None
+    proxy_password: str | None = None
     daily_limit: int = 8
     active: bool = True
     mobile_number: str | None = None
@@ -57,6 +63,9 @@ class AccountUpdatePayload(BaseModel):
     password: str | None = None
     session_file: str | None = None
     initial_message: str | None = None
+    proxy_server: str | None = None
+    proxy_username: str | None = None
+    proxy_password: str | None = None
     daily_limit: int | None = None
     active: bool | None = None
     mobile_number: str | None = None
@@ -101,6 +110,27 @@ class CompareDesignsPayload(BaseModel):
     conversation_design_ids: list[str]
     max_turns: int = 1
 
+
+class SettingsPayload(BaseModel):
+    openai_model: str | None = None
+    auto_send: bool | None = None
+    worker_concurrency: int | None = None
+    min_delay_seconds: int | None = None
+    max_delay_seconds: int | None = None
+    retry_limit: int | None = None
+    daily_message_limit: int | None = None
+
+
+RUNTIME_SETTINGS = {
+    "openai_model": os.getenv("OPENAI_REPLY_MODEL", "gpt-4.1-mini"),
+    "auto_send": os.getenv("AI_AUTOSEND", "true").lower() == "true",
+    "worker_concurrency": int(os.getenv("WORKER_CONCURRENCY", "4")),
+    "min_delay_seconds": int(os.getenv("MIN_DELAY_SECONDS", "45")),
+    "max_delay_seconds": int(os.getenv("MAX_DELAY_SECONDS", "180")),
+    "retry_limit": int(os.getenv("RETRY_LIMIT", "3")),
+    "daily_message_limit": int(os.getenv("DEFAULT_DAILY_MESSAGE_LIMIT", "8")),
+}
+
 @asynccontextmanager
 async def lifespan(app_instance):
     init_db()
@@ -123,7 +153,7 @@ app.add_middleware(
 FRONTEND_DIST = (
     Path(__file__).resolve().parents[2]
     / "frontend"
-    / "openrent-command-center"
+    / "dashboard"
     / "dist"
 )
 
@@ -133,6 +163,23 @@ def _require_account(account_id: int):
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     return account
+
+
+def _set_worker_state(account_id: int, status: str, phase: str | None = None):
+    from app.db.repository import update_account_worker_state
+
+    update_account_worker_state(account_id, status, phase=phase)
+    account = get_account(account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return account
+
+
+def _proxy_host_port(proxy_server: str):
+    parsed = urlparse(proxy_server if "://" in proxy_server else f"http://{proxy_server}")
+    if not parsed.hostname or not parsed.port:
+        raise ValueError("Proxy must include host and port")
+    return parsed.hostname, parsed.port
 
 
 def _serve_frontend_asset(full_path: str = "index.html"):
@@ -147,7 +194,7 @@ def _serve_frontend_asset(full_path: str = "index.html"):
     return JSONResponse(
         {
             "status": "frontend_not_built",
-            "message": "Build frontend/openrent-command-center to serve the dashboard.",
+            "message": "Build frontend/dashboard to serve the dashboard.",
         },
         status_code=503,
     )
@@ -186,6 +233,9 @@ def api_create_account(payload: AccountCreatePayload):
         password=payload.password,
         session_file=payload.session_file,
         initial_message=payload.initial_message,
+        proxy_server=payload.proxy_server,
+        proxy_username=payload.proxy_username,
+        proxy_password=payload.proxy_password,
         mobile_number=payload.mobile_number,
         persona_type=payload.persona_type,
         phone_fetching_type=payload.phone_fetching_type,
@@ -217,6 +267,9 @@ def api_update_account(account_id: int, payload: AccountUpdatePayload):
         password=payload.password,
         session_file=payload.session_file,
         initial_message=payload.initial_message,
+        proxy_server=payload.proxy_server,
+        proxy_username=payload.proxy_username,
+        proxy_password=payload.proxy_password,
         daily_limit=payload.daily_limit,
         active=payload.active,
         mobile_number=payload.mobile_number,
@@ -242,6 +295,76 @@ def api_toggle_account(account_id: int):
     if not updated:
         raise HTTPException(status_code=404, detail="Account not found")
     return updated
+
+
+@app.post("/api/accounts/{account_id}/start")
+def api_start_account(account_id: int, background_tasks: BackgroundTasks):
+    _require_account(account_id)
+    update_account(account_id=account_id, active=True)
+    from app.workers.account_worker import run_one_account_by_id
+
+    background_tasks.add_task(run_one_account_by_id, account_id)
+    return _set_worker_state(account_id, "running", phase="queued")
+
+
+@app.post("/api/accounts/{account_id}/stop")
+def api_stop_account(account_id: int):
+    _require_account(account_id)
+    return _set_worker_state(account_id, "idle", phase="stopped")
+
+
+@app.post("/api/accounts/{account_id}/pause")
+def api_pause_account(account_id: int):
+    _require_account(account_id)
+    update_account(account_id=account_id, active=False)
+    return _set_worker_state(account_id, "paused", phase="paused")
+
+
+@app.post("/api/accounts/{account_id}/resume")
+def api_resume_account(account_id: int):
+    _require_account(account_id)
+    update_account(account_id=account_id, active=True)
+    return _set_worker_state(account_id, "idle", phase="idle")
+
+
+@app.post("/api/accounts/{account_id}/test-proxy")
+def api_test_proxy(account_id: int):
+    account = _require_account(account_id)
+    proxy_server = account.get("proxy_server")
+    if not proxy_server:
+        return {"account_id": account_id, "status": "not_configured", "ok": False}
+
+    try:
+        host, port = _proxy_host_port(proxy_server)
+        with socket.create_connection((host, port), timeout=8):
+            pass
+    except Exception as exc:
+        return {
+            "account_id": account_id,
+            "status": "failed",
+            "ok": False,
+            "detail": str(exc),
+        }
+
+    return {"account_id": account_id, "status": "ok", "ok": True}
+
+
+@app.post("/api/accounts/{account_id}/refresh-session")
+def api_refresh_session(account_id: int, background_tasks: BackgroundTasks):
+    _require_account(account_id)
+    from app.workers.account_worker import run_one_account_by_id
+
+    background_tasks.add_task(run_one_account_by_id, account_id)
+    return _set_worker_state(account_id, "running", phase="refreshing_session")
+
+
+@app.post("/api/accounts/{account_id}/invalidate-session")
+def api_invalidate_session(account_id: int):
+    account = _require_account(account_id)
+    session_file = account.get("session_file")
+    if session_file and Path(session_file).exists():
+        Path(session_file).unlink()
+    return _set_worker_state(account_id, "idle", phase="session_invalidated")
 
 
 @app.delete("/api/accounts/{account_id}")
@@ -367,6 +490,54 @@ def api_metrics():
         "active_accounts": len([account for account in accounts if account.get("active")]),
         "series": [by_day[day] for day in sorted(by_day.keys())[-14:]],
     }
+
+
+@app.get("/api/workers")
+def api_workers():
+    accounts = get_dashboard_accounts()
+    return [
+        {
+            "id": f"account-{account['id']}",
+            "account_id": account["id"],
+            "account_email": account["email"],
+            "status": account.get("worker_status", "idle"),
+            "phase": account.get("current_worker_phase", "idle"),
+            "last_heartbeat": account.get("worker_last_heartbeat"),
+            "last_error": account.get("worker_last_error"),
+            "active": account.get("active", False),
+        }
+        for account in accounts
+    ]
+
+
+@app.get("/api/workers/status")
+def api_workers_status():
+    workers = api_workers()
+    return {
+        "total": len(workers),
+        "running": len([worker for worker in workers if worker["status"] == "running"]),
+        "paused": len([worker for worker in workers if worker["status"] == "paused"]),
+        "errored": len([worker for worker in workers if worker["status"] == "error"]),
+        "queue": "external",
+        "active_tasks": len([worker for worker in workers if worker["status"] == "running"]),
+    }
+
+
+@app.get("/api/settings")
+def api_settings():
+    return {
+        **RUNTIME_SETTINGS,
+        "backend_status": "running",
+        "redis_status": "not_configured",
+        "api_status": "ok",
+    }
+
+
+@app.patch("/api/settings")
+def api_update_settings(payload: SettingsPayload):
+    updates = payload.dict(exclude_unset=True)
+    RUNTIME_SETTINGS.update({key: value for key, value in updates.items() if value is not None})
+    return api_settings()
 
 
 @app.get("/api/logs")

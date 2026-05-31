@@ -14,6 +14,7 @@ import { Route as SearchProfilesRouteImport } from './routes/search-profiles'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as WorkersRouteImport } from './routes/workers'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsThreadIdRouteImport } from './routes/leads.$threadId'
 
@@ -42,6 +43,11 @@ const AccountsRoute = AccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkersRoute = WorkersRouteImport.update({
+  id: '/workers',
+  path: '/workers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -56,6 +62,7 @@ const LeadsThreadIdRoute = LeadsThreadIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
   '/search-profiles': typeof SearchProfilesRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
   '/search-profiles': typeof SearchProfilesRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
   '/search-profiles': typeof SearchProfilesRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/accounts'
+    | '/workers'
     | '/leads'
     | '/logs'
     | '/search-profiles'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/accounts'
+    | '/workers'
     | '/leads'
     | '/logs'
     | '/search-profiles'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/accounts'
+    | '/workers'
     | '/leads'
     | '/logs'
     | '/search-profiles'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountsRoute: typeof AccountsRoute
+  WorkersRoute: typeof WorkersRoute
   LeadsRoute: typeof LeadsRouteWithChildren
   LogsRoute: typeof LogsRoute
   SearchProfilesRoute: typeof SearchProfilesRoute
@@ -157,6 +170,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/workers': {
+      id: '/workers'
+      path: '/workers'
+      fullPath: '/workers'
+      preLoaderRoute: typeof WorkersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -187,6 +207,7 @@ const LeadsRouteWithChildren = LeadsRoute._addFileChildren(LeadsRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
+  WorkersRoute: WorkersRoute,
   LeadsRoute: LeadsRouteWithChildren,
   LogsRoute: LogsRoute,
   SearchProfilesRoute: SearchProfilesRoute,

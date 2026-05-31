@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { PageHeader } from "../components/page-header";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Switch } from "../components/ui/switch";
+import { Label } from "../components/ui/label";
 import {
   Table,
   TableBody,
@@ -116,9 +116,10 @@ function SearchProfilesPage() {
       ...editing,
       ...data,
       accountId: data.accountId || editing?.accountId || accounts[0]?.id || "",
-      area: data.area || editing?.area || "Unspecified",
+      location: data.location || editing?.location || "Unspecified",
       priceMin: data.priceMin ?? editing?.priceMin ?? 0,
       priceMax: data.priceMax ?? editing?.priceMax ?? 0,
+      area: data.area ?? editing?.area ?? 0,
       bedroomsMin: data.bedroomsMin ?? editing?.bedroomsMin ?? 0,
       bedroomsMax: data.bedroomsMax ?? editing?.bedroomsMax ?? 0,
       petsAllowed: data.petsAllowed ?? editing?.petsAllowed ?? false,
@@ -191,7 +192,8 @@ function SearchProfilesPage() {
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>Account</TableHead>
-              <TableHead>Area</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Radius</TableHead>
               <TableHead>Price range</TableHead>
               <TableHead>Bedrooms</TableHead>
               <TableHead>Pets</TableHead>
@@ -205,7 +207,8 @@ function SearchProfilesPage() {
                 <TableCell className="text-sm text-muted-foreground">
                   {accountEmail(s.accountId)}
                 </TableCell>
-                <TableCell className="font-medium">{s.area}</TableCell>
+                <TableCell className="font-medium">{s.location}</TableCell>
+                <TableCell className="tabular-nums">{s.area || "-"} mi</TableCell>
                 <TableCell className="tabular-nums">
                   {fmtMoney(s.priceMin)} – {fmtMoney(s.priceMax)}
                 </TableCell>
@@ -308,11 +311,20 @@ function ProfileDialog({
             </Select>
           </div>
           <div className="col-span-2 space-y-1.5">
-            <Label>Area</Label>
+            <Label>Location</Label>
             <Input
-              value={data.area ?? ""}
-              onChange={(e) => setData({ ...data, area: e.target.value })}
+              value={data.location ?? ""}
+              onChange={(e) => setData({ ...data, location: e.target.value })}
               placeholder="e.g. Hackney, London"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Search radius</Label>
+            <Input
+              type="number"
+              value={data.area ?? ""}
+              onChange={(e) => setData({ ...data, area: Number(e.target.value) })}
+              placeholder="Miles"
             />
           </div>
           <div className="space-y-1.5">

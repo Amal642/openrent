@@ -1,0 +1,439 @@
+import { del, get, patch, post } from "./client";
+import type {
+  Account,
+  AutomationMetrics,
+  AutomationSettings,
+  ConversationStage,
+  HealthStatus,
+  Lead,
+  LeadStatus,
+  LogEntry,
+  Message,
+  ProxyTestResult,
+  SearchProfile,
+  WorkerStatus,
+  WorkersStatus,
+  WorkerSummary,
+} from "@/lib/types";
+
+const VALID_LEAD_STATUSES: LeadStatus[] = [
+  "INITIAL_MESSAGE_SENT",
+  "NEW_REPLY",
+  "AI_REPLIED",
+  "PHONE_ACQUIRED",
+  "AI_FAILED",
+  "REPLY_DISABLED",
+  "AGENT_SKIPPED",
+  "SKIPPED",
+  "DUPLICATE_LEAD",
+  "VIEWING_CANCELLED",
+  "CLOSED",
+];
+
+const VALID_STAGES: ConversationStage[] = [
+  "NEW_LEAD",
+  "VIEWING_DISCUSSION",
+  "VIEWING_BOOKED",
+  "PRE_VIEWING",
+  "CONTACT_REQUESTED",
+  "VIEWING_CANCELLED",
+  "CLOSED",
+];
+
+type BackendAccount = {
+  id: number | string;
+  email: string;
+  session_file?: string;
+  initial_message?: string;
+  proxy_server?: string;
+  proxy_username?: string;
+  proxy_password?: string;
+  daily_limit?: number;
+  messages_sent_today?: number;
+  active?: boolean;
+  created_at?: string;
+  persona_name?: string;
+  persona_partner_name?: string;
+  persona_job?: string;
+  persona_partner_job?: string;
+  home_city?: string;
+  mobile_number?: string;
+  phone_fetching_type?: string;
+  message_strategy?: string;
+  escalation_behavior?: string;
+  conversation_goal?: string;
+  conversation_style?: string;
+  worker_status?: string;
+  worker_last_heartbeat?: string;
+  worker_last_error?: string;
+  current_worker_phase?: string;
+  last_login_at?: string;
+};
+
+type BackendLead = {
+  thread_id?: string;
+  listing_id?: string;
+  property_url?: string;
+  account_id?: number | string;
+  account_email?: string;
+  search_profile_id?: number | string;
+  location?: string;
+  price_min?: number;
+  price_max?: number;
+  bedrooms_min?: number;
+  bedrooms_max?: number;
+  area?: number;
+  pets_allowed?: boolean;
+  status?: string;
+  conversation_stage?: string;
+  viewing_datetime?: string;
+  viewing_confirmed?: boolean;
+  viewing_cancelled?: boolean;
+  cancel_required?: boolean;
+  cancellation_sent_at?: string;
+  phone_requested_at?: string;
+  phone_found_at?: string;
+  phone_number_shared_at?: string;
+  landlord_asked_phone_at?: string;
+  landlord_attitude?: string;
+  conversation_style?: string;
+  last_stage_change?: string;
+  phone?: string;
+  persona_name?: string;
+  persona_partner_name?: string;
+  persona_job?: string;
+  persona_partner_job?: string;
+  home_city?: string;
+  mobile_number?: string;
+  phone_fetching_type?: string;
+  message_strategy?: string;
+  escalation_behavior?: string;
+  conversation_goal?: string;
+  last_processed_message?: string;
+  last_ai_reply?: string;
+  created_at?: string;
+  last_message_at?: string;
+};
+
+type BackendSearchProfile = {
+  id: number | string;
+  account_id: number | string;
+  account_email?: string;
+  location: string;
+  price_min?: number;
+  price_max?: number;
+  bedrooms_min?: number;
+  bedrooms_max?: number;
+  area?: number;
+  pets_allowed?: boolean;
+  active?: boolean;
+};
+
+function asDate(value?: string): string {
+  return value || new Date().toISOString();
+}
+
+function asLeadStatus(value?: string): LeadStatus {
+  return VALID_LEAD_STATUSES.includes(value as LeadStatus) ? (value as LeadStatus) : "NEW_REPLY";
+}
+
+function asStage(value?: string): ConversationStage {
+  return VALID_STAGES.includes(value as ConversationStage) ? (value as ConversationStage) : "NEW_LEAD";
+}
+
+function asWorkerStatus(value?: string, active?: boolean): WorkerStatus {
+  if (value === "running" || value === "paused" || value === "idle" || value === "error") {
+    return value;
+  }
+  return active === false ? "paused" : "idle";
+}
+
+function mapAccount(account: BackendAccount): Account {
+  const active = account.active ?? true;
+  const workerStatus = asWorkerStatus(account.worker_status, active);
+  const hasProxy = Boolean(account.proxy_server);
+
+  return {
+    id: String(account.id),
+    email: account.email,
+    sessionFile: account.session_file,
+    initialMessage: account.initial_message,
+    active,
+    sessionStatus: workerStatus === "error" ? "error" : account.last_login_at ? "active" : "expired",
+    workerStatus,
+    dailyMessageLimit: account.daily_limit ?? 0,
+    messagesSentToday: account.messages_sent_today ?? 0,
+    proxyServer: account.proxy_server,
+    proxyUsername: account.proxy_username,
+    proxyPassword: account.proxy_password,
+    proxyStatus: hasProxy ? (account.worker_last_error ? "degraded" : "unknown") : "not_configured",
+    aiEnabled: active,
+    outreachEnabled: active,
+    lastLoginAt: asDate(account.last_login_at || account.created_at),
+    personaName: account.persona_name,
+    personaPartnerName: account.persona_partner_name,
+    personaJob: account.persona_job,
+    personaPartnerJob: account.persona_partner_job,
+    homeCity: account.home_city,
+    mobileNumber: account.mobile_number,
+    phoneFetchingType: account.phone_fetching_type,
+    messageStrategy: account.message_strategy,
+    escalationBehavior: account.escalation_behavior,
+    conversationGoal: account.conversation_goal,
+    conversationStyle: account.conversation_style,
+    currentWorkerPhase: account.current_worker_phase,
+    workerLastHeartbeat: account.worker_last_heartbeat,
+    workerLastError: account.worker_last_error,
+  };
+}
+
+function mapLead(lead: BackendLead): Lead {
+  const id = lead.thread_id || lead.listing_id || crypto.randomUUID();
+  const propertyUrl = lead.property_url || "";
+  const listingName = lead.listing_id ? `Listing ${lead.listing_id}` : "OpenRent property";
+  const bedroomsMin = lead.bedrooms_min ?? 0;
+  const bedroomsMax = lead.bedrooms_max ?? bedroomsMin;
+
+  return {
+    id,
+    accountId: lead.account_id ? String(lead.account_id) : "unknown",
+    searchProfileId: lead.search_profile_id ? String(lead.search_profile_id) : "unknown",
+    propertyLink: propertyUrl,
+    propertyTitle: listingName,
+    rent: 0,
+    priceMin: lead.price_min,
+    priceMax: lead.price_max,
+    bedrooms: bedroomsMax,
+    bedroomsMin,
+    bedroomsMax,
+    area: lead.location || "OpenRent",
+    threadId: lead.thread_id || id,
+    landlordName: lead.account_email || "OpenRent lead",
+    status: asLeadStatus(lead.status),
+    conversationStage: asStage(lead.conversation_stage),
+    phoneNumber: lead.phone || undefined,
+    viewingDatetime: lead.viewing_datetime,
+    viewingConfirmed: lead.viewing_confirmed ?? false,
+    viewingCancelled: lead.viewing_cancelled ?? false,
+    cancelRequired: lead.cancel_required ?? false,
+    cancellationSentAt: lead.cancellation_sent_at,
+    phoneRequestedAt: lead.phone_requested_at,
+    phoneFoundAt: lead.phone_found_at,
+    phoneNumberSharedAt: lead.phone_number_shared_at,
+    landlordAskedPhoneAt: lead.landlord_asked_phone_at,
+    landlordAttitude: lead.landlord_attitude,
+    conversationStyle: lead.conversation_style,
+    lastStageChange: lead.last_stage_change,
+    personaName: lead.persona_name,
+    personaPartnerName: lead.persona_partner_name,
+    personaJob: lead.persona_job,
+    personaPartnerJob: lead.persona_partner_job,
+    homeCity: lead.home_city,
+    mobileNumber: lead.mobile_number,
+    phoneFetchingType: lead.phone_fetching_type,
+    messageStrategy: lead.message_strategy,
+    escalationBehavior: lead.escalation_behavior,
+    conversationGoal: lead.conversation_goal,
+    lastLandlordMessage: lead.last_processed_message || undefined,
+    lastAiReply: lead.last_ai_reply || undefined,
+    initialMessageSentAt: asDate(lead.created_at),
+    lastUpdatedAt: asDate(lead.last_message_at || lead.created_at),
+  };
+}
+
+function mapSearchProfile(profile: BackendSearchProfile): SearchProfile {
+  return {
+    id: String(profile.id),
+    accountId: String(profile.account_id),
+    accountEmail: profile.account_email,
+    location: profile.location,
+    area: profile.area ?? 0,
+    priceMin: profile.price_min ?? 0,
+    priceMax: profile.price_max ?? 0,
+    bedroomsMin: profile.bedrooms_min ?? 0,
+    bedroomsMax: profile.bedrooms_max ?? 0,
+    petsAllowed: profile.pets_allowed ?? false,
+    active: profile.active ?? true,
+  };
+}
+
+function searchProfilePayload(profile: Partial<SearchProfile>) {
+  return {
+    account_id: Number(profile.accountId),
+    location: profile.location || "Unspecified",
+    price_min: profile.priceMin ?? 0,
+    price_max: profile.priceMax ?? 0,
+    bedrooms_min: profile.bedroomsMin ?? 0,
+    bedrooms_max: profile.bedroomsMax ?? 0,
+    area: profile.area ?? 0,
+    pets_allowed: profile.petsAllowed ?? false,
+    active: profile.active ?? true,
+  };
+}
+
+function accountPayload(account: Partial<Account> & { password?: string }) {
+  const payload: Record<string, unknown> = {};
+  if (account.email !== undefined) payload.email = account.email;
+  if (account.password) payload.password = account.password;
+  if (account.sessionFile !== undefined) payload.session_file = account.sessionFile;
+  if (account.initialMessage !== undefined) payload.initial_message = account.initialMessage;
+  if (account.proxyServer !== undefined) payload.proxy_server = account.proxyServer || "";
+  if (account.proxyUsername !== undefined) payload.proxy_username = account.proxyUsername || "";
+  if (account.proxyPassword !== undefined) payload.proxy_password = account.proxyPassword || "";
+  if (account.dailyMessageLimit !== undefined) payload.daily_limit = account.dailyMessageLimit;
+  if (account.active !== undefined) payload.active = account.active;
+  if (account.mobileNumber !== undefined) payload.mobile_number = account.mobileNumber || "";
+  if (account.phoneFetchingType !== undefined) payload.phone_fetching_type = account.phoneFetchingType || "";
+  if (account.messageStrategy !== undefined) payload.message_strategy = account.messageStrategy || "";
+  if (account.escalationBehavior !== undefined) payload.escalation_behavior = account.escalationBehavior || "";
+  if (account.conversationGoal !== undefined) payload.conversation_goal = account.conversationGoal || "";
+  if (account.conversationStyle !== undefined) payload.conversation_style = account.conversationStyle || "";
+  return payload;
+}
+
+export function getHealth(): Promise<HealthStatus> {
+  return get<HealthStatus>("/health");
+}
+
+export async function getLeads(status?: LeadStatus | "all"): Promise<Lead[]> {
+  const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
+  const leads = await get<BackendLead[]>(`/leads${query}`);
+  return leads.map(mapLead);
+}
+
+export async function getLead(threadId: string): Promise<Lead | undefined> {
+  const leads = await getLeads();
+  return leads.find((lead) => lead.id === threadId || lead.threadId === threadId);
+}
+
+export async function getAccounts(): Promise<Account[]> {
+  const accounts = await get<BackendAccount[]>("/accounts");
+  return accounts.map(mapAccount);
+}
+
+export async function createAccount(account: Partial<Account> & { password?: string }): Promise<Account> {
+  const created = await post<BackendAccount>("/accounts", accountPayload(account));
+  return mapAccount(created);
+}
+
+export async function updateAccount(account: Partial<Account> & { id: string; password?: string }): Promise<Account> {
+  const updated = await patch<BackendAccount>(`/accounts/${account.id}`, accountPayload(account));
+  return mapAccount(updated);
+}
+
+export async function deleteAccount(accountId: string): Promise<{ account_id: number; deleted: boolean }> {
+  return del(`/accounts/${accountId}`);
+}
+
+export async function controlAccountWorker(input: {
+  accountId: string;
+  action: "start" | "stop" | "pause" | "resume";
+}): Promise<Account> {
+  const updated = await post<BackendAccount>(`/accounts/${input.accountId}/${input.action}`);
+  return mapAccount(updated);
+}
+
+export async function testAccountProxy(accountId: string): Promise<ProxyTestResult> {
+  return post<ProxyTestResult>(`/accounts/${accountId}/test-proxy`);
+}
+
+export async function refreshAccountSession(accountId: string): Promise<Account> {
+  const updated = await post<BackendAccount>(`/accounts/${accountId}/refresh-session`);
+  return mapAccount(updated);
+}
+
+export async function invalidateAccountSession(accountId: string): Promise<Account> {
+  const updated = await post<BackendAccount>(`/accounts/${accountId}/invalidate-session`);
+  return mapAccount(updated);
+}
+
+export async function getSearchProfiles(): Promise<SearchProfile[]> {
+  const profiles = await get<BackendSearchProfile[]>("/search-profiles");
+  return profiles.map(mapSearchProfile);
+}
+
+export async function createSearchProfile(profile: Partial<SearchProfile>): Promise<SearchProfile> {
+  const created = await post<BackendSearchProfile>("/search-profiles", searchProfilePayload(profile));
+  return mapSearchProfile(created);
+}
+
+export async function updateSearchProfile(profile: SearchProfile): Promise<SearchProfile> {
+  const updated = await patch<BackendSearchProfile>(
+    `/search-profiles/${profile.id}`,
+    searchProfilePayload(profile),
+  );
+  return mapSearchProfile(updated);
+}
+
+export async function deleteSearchProfile(profileId: string): Promise<SearchProfile> {
+  const deleted = await del<BackendSearchProfile>(`/search-profiles/${profileId}`);
+  return mapSearchProfile(deleted);
+}
+
+export function getMetrics(): Promise<AutomationMetrics> {
+  return get<AutomationMetrics>("/metrics");
+}
+
+export async function getLogs(limit = 250): Promise<LogEntry[]> {
+  const rows = await get<Array<Omit<LogEntry, "createdAt"> & { created_at?: string }>>(
+    `/logs?limit=${limit}`,
+  );
+  return rows.map((row) => {
+    const level = row.level === "warn" || row.level === "error" ? row.level : "info";
+    return {
+      ...row,
+      level,
+      createdAt: row.created_at || new Date().toISOString(),
+    };
+  });
+}
+
+export function getWorkers(): Promise<WorkerSummary[]> {
+  return get<WorkerSummary[]>("/workers");
+}
+
+export function getWorkersStatus(): Promise<WorkersStatus> {
+  return get<WorkersStatus>("/workers/status");
+}
+
+export function getSettings(): Promise<AutomationSettings> {
+  return get<AutomationSettings>("/settings");
+}
+
+export function updateSettings(settings: Partial<AutomationSettings>): Promise<AutomationSettings> {
+  return patch<AutomationSettings>("/settings", settings);
+}
+
+export async function completeLead(threadId: string): Promise<void> {
+  await post(`/leads/${threadId}/complete`);
+}
+
+export async function skipLead(threadId: string): Promise<void> {
+  await post(`/leads/${threadId}/skip`);
+}
+
+export function messagesForLead(lead: Lead): Message[] {
+  const messages: Message[] = [];
+
+  if (lead.lastLandlordMessage) {
+    messages.push({
+      id: `landlord-${lead.id}`,
+      threadId: lead.threadId,
+      sender: "landlord",
+      text: lead.lastLandlordMessage,
+      createdAt: lead.lastUpdatedAt,
+    });
+  }
+
+  if (lead.lastAiReply) {
+    messages.push({
+      id: `ai-${lead.id}`,
+      threadId: lead.threadId,
+      sender: "ai",
+      text: lead.lastAiReply,
+      createdAt: lead.lastUpdatedAt,
+    });
+  }
+
+  return messages;
+}

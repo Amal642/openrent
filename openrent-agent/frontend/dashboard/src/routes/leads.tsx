@@ -109,7 +109,7 @@ function LeadsPage() {
   );
 
   const accountEmail = (id: string) => accounts.find((a) => a.id === id)?.email ?? id;
-  const profileArea = (id: string) => searchProfiles.find((s) => s.id === id)?.area ?? id;
+  const profileLocation = (id: string) => searchProfiles.find((s) => s.id === id)?.location ?? id;
 
   const copyPhone = (p?: string) => {
     if (p) {
@@ -143,7 +143,7 @@ function LeadsPage() {
       <div className="sticky top-14 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 mb-4 bg-background/90 backdrop-blur border-b">
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            placeholder="Search landlord, area, property…"
+            placeholder="Search landlord, location, property…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="h-9 w-64"
@@ -182,7 +182,7 @@ function LeadsPage() {
               <SelectItem value="all">All profiles</SelectItem>
               {searchProfiles.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.area}
+                  {s.location}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -202,7 +202,7 @@ function LeadsPage() {
               <TableHead>Stage</TableHead>
               <TableHead>Landlord</TableHead>
               <TableHead>Property</TableHead>
-              <TableHead>Area</TableHead>
+              <TableHead>Location</TableHead>
               <TableHead>Budget</TableHead>
               <TableHead>Beds</TableHead>
               <TableHead>Account</TableHead>
@@ -249,7 +249,7 @@ function LeadsPage() {
                   {accountEmail(l.accountId)}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {profileArea(l.searchProfileId)}
+                  {profileLocation(l.searchProfileId)}
                 </TableCell>
                 <TableCell className="tabular-nums text-sm">
                   {l.phoneNumber ? (
