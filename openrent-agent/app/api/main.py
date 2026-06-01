@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 import os
 import socket
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -17,6 +17,7 @@ from app.db.repository import (
     deactivate_search_profile,
     delete_account,
     get_account,
+    get_conversation_messages,
     get_dashboard_accounts,
     get_dashboard_leads,
     get_dashboard_search_profiles,
@@ -212,17 +213,22 @@ def api_leads(status: str = None):
     return get_dashboard_leads(status=status)
 
 
+@app.get("/api/conversations/{thread_id}/messages")
+def api_conversation_messages(thread_id: str):
+    return get_conversation_messages(thread_id)
+
+
 @app.get("/api/accounts")
 def api_accounts():
     return get_dashboard_accounts()
 
 
 @app.post("/api/accounts/{account_id}/run")
-def api_run_account(account_id: int, background_tasks: BackgroundTasks):
+async def api_run_account(account_id: int):
     _require_account(account_id)
-    from app.workers.account_worker import run_one_account_by_id
+    from app.workers.account_worker import start_account_worker
 
-    background_tasks.add_task(run_one_account_by_id, account_id)
+    await start_account_worker(account_id)
     return {"status": "queued", "account_id": account_id}
 
 
@@ -298,19 +304,23 @@ def api_toggle_account(account_id: int):
 
 
 @app.post("/api/accounts/{account_id}/start")
-def api_start_account(account_id: int, background_tasks: BackgroundTasks):
+async def api_start_account(account_id: int):
     _require_account(account_id)
     update_account(account_id=account_id, active=True)
-    from app.workers.account_worker import run_one_account_by_id
+    from app.workers.account_worker import start_account_worker
 
-    background_tasks.add_task(run_one_account_by_id, account_id)
-    return _set_worker_state(account_id, "running", phase="queued")
+    await start_account_worker(account_id)
+    return get_account(account_id)
 
 
 @app.post("/api/accounts/{account_id}/stop")
-def api_stop_account(account_id: int):
+async def api_stop_account(account_id: int):
     _require_account(account_id)
-    return _set_worker_state(account_id, "idle", phase="stopped")
+    update_account(account_id=account_id, active=False)
+    from app.workers.account_worker import stop_account_worker
+
+    await stop_account_worker(account_id)
+    return get_account(account_id)
 
 
 @app.post("/api/accounts/{account_id}/pause")
@@ -350,12 +360,13 @@ def api_test_proxy(account_id: int):
 
 
 @app.post("/api/accounts/{account_id}/refresh-session")
-def api_refresh_session(account_id: int, background_tasks: BackgroundTasks):
+async def api_refresh_session(account_id: int):
     _require_account(account_id)
-    from app.workers.account_worker import run_one_account_by_id
+    from app.workers.account_worker import start_account_worker
 
-    background_tasks.add_task(run_one_account_by_id, account_id)
-    return _set_worker_state(account_id, "running", phase="refreshing_session")
+    await start_account_worker(account_id)
+    _set_worker_state(account_id, "running", phase="refreshing_session")
+    return get_account(account_id)
 
 
 @app.post("/api/accounts/{account_id}/invalidate-session")
@@ -512,14 +523,16 @@ def api_workers():
 
 @app.get("/api/workers/status")
 def api_workers_status():
+    from app.workers.account_worker import get_active_worker_count
+
     workers = api_workers()
     return {
         "total": len(workers),
-        "running": len([worker for worker in workers if worker["status"] == "running"]),
+        "running": len([worker for worker in workers if worker["status"] in {"running", "stopping"}]),
         "paused": len([worker for worker in workers if worker["status"] == "paused"]),
         "errored": len([worker for worker in workers if worker["status"] == "error"]),
-        "queue": "external",
-        "active_tasks": len([worker for worker in workers if worker["status"] == "running"]),
+        "queue": "in_process",
+        "active_tasks": get_active_worker_count(),
     }
 
 

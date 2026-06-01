@@ -99,6 +99,7 @@ type BackendLead = {
   conversation_style?: string;
   last_stage_change?: string;
   phone?: string;
+  phone_number?: string;
   persona_name?: string;
   persona_partner_name?: string;
   persona_job?: string;
@@ -113,6 +114,14 @@ type BackendLead = {
   last_ai_reply?: string;
   created_at?: string;
   last_message_at?: string;
+};
+
+type BackendMessage = {
+  id: number | string;
+  thread_id?: string;
+  direction?: string;
+  content?: string;
+  created_at?: string;
 };
 
 type BackendSearchProfile = {
@@ -138,11 +147,19 @@ function asLeadStatus(value?: string): LeadStatus {
 }
 
 function asStage(value?: string): ConversationStage {
-  return VALID_STAGES.includes(value as ConversationStage) ? (value as ConversationStage) : "NEW_LEAD";
+  return VALID_STAGES.includes(value as ConversationStage)
+    ? (value as ConversationStage)
+    : "NEW_LEAD";
 }
 
 function asWorkerStatus(value?: string, active?: boolean): WorkerStatus {
-  if (value === "running" || value === "paused" || value === "idle" || value === "error") {
+  if (
+    value === "running" ||
+    value === "stopping" ||
+    value === "paused" ||
+    value === "idle" ||
+    value === "error"
+  ) {
     return value;
   }
   return active === false ? "paused" : "idle";
@@ -159,7 +176,8 @@ function mapAccount(account: BackendAccount): Account {
     sessionFile: account.session_file,
     initialMessage: account.initial_message,
     active,
-    sessionStatus: workerStatus === "error" ? "error" : account.last_login_at ? "active" : "expired",
+    sessionStatus:
+      workerStatus === "error" ? "error" : account.last_login_at ? "active" : "expired",
     workerStatus,
     dailyMessageLimit: account.daily_limit ?? 0,
     messagesSentToday: account.messages_sent_today ?? 0,
@@ -211,7 +229,7 @@ function mapLead(lead: BackendLead): Lead {
     landlordName: lead.account_email || "OpenRent lead",
     status: asLeadStatus(lead.status),
     conversationStage: asStage(lead.conversation_stage),
-    phoneNumber: lead.phone || undefined,
+    phoneNumber: lead.phone_number || lead.phone || undefined,
     viewingDatetime: lead.viewing_datetime,
     viewingConfirmed: lead.viewing_confirmed ?? false,
     viewingCancelled: lead.viewing_cancelled ?? false,
@@ -283,11 +301,16 @@ function accountPayload(account: Partial<Account> & { password?: string }) {
   if (account.dailyMessageLimit !== undefined) payload.daily_limit = account.dailyMessageLimit;
   if (account.active !== undefined) payload.active = account.active;
   if (account.mobileNumber !== undefined) payload.mobile_number = account.mobileNumber || "";
-  if (account.phoneFetchingType !== undefined) payload.phone_fetching_type = account.phoneFetchingType || "";
-  if (account.messageStrategy !== undefined) payload.message_strategy = account.messageStrategy || "";
-  if (account.escalationBehavior !== undefined) payload.escalation_behavior = account.escalationBehavior || "";
-  if (account.conversationGoal !== undefined) payload.conversation_goal = account.conversationGoal || "";
-  if (account.conversationStyle !== undefined) payload.conversation_style = account.conversationStyle || "";
+  if (account.phoneFetchingType !== undefined)
+    payload.phone_fetching_type = account.phoneFetchingType || "";
+  if (account.messageStrategy !== undefined)
+    payload.message_strategy = account.messageStrategy || "";
+  if (account.escalationBehavior !== undefined)
+    payload.escalation_behavior = account.escalationBehavior || "";
+  if (account.conversationGoal !== undefined)
+    payload.conversation_goal = account.conversationGoal || "";
+  if (account.conversationStyle !== undefined)
+    payload.conversation_style = account.conversationStyle || "";
   return payload;
 }
 
@@ -306,22 +329,42 @@ export async function getLead(threadId: string): Promise<Lead | undefined> {
   return leads.find((lead) => lead.id === threadId || lead.threadId === threadId);
 }
 
+export async function getConversationMessages(threadId: string): Promise<Message[]> {
+  const rows = await get<BackendMessage[]>(
+    `/conversations/${encodeURIComponent(threadId)}/messages`,
+  );
+
+  return rows.map((row) => ({
+    id: String(row.id),
+    threadId: row.thread_id || threadId,
+    sender: row.direction === "inbound" ? "landlord" : "operator",
+    text: row.content || "",
+    createdAt: asDate(row.created_at),
+  }));
+}
+
 export async function getAccounts(): Promise<Account[]> {
   const accounts = await get<BackendAccount[]>("/accounts");
   return accounts.map(mapAccount);
 }
 
-export async function createAccount(account: Partial<Account> & { password?: string }): Promise<Account> {
+export async function createAccount(
+  account: Partial<Account> & { password?: string },
+): Promise<Account> {
   const created = await post<BackendAccount>("/accounts", accountPayload(account));
   return mapAccount(created);
 }
 
-export async function updateAccount(account: Partial<Account> & { id: string; password?: string }): Promise<Account> {
+export async function updateAccount(
+  account: Partial<Account> & { id: string; password?: string },
+): Promise<Account> {
   const updated = await patch<BackendAccount>(`/accounts/${account.id}`, accountPayload(account));
   return mapAccount(updated);
 }
 
-export async function deleteAccount(accountId: string): Promise<{ account_id: number; deleted: boolean }> {
+export async function deleteAccount(
+  accountId: string,
+): Promise<{ account_id: number; deleted: boolean }> {
   return del(`/accounts/${accountId}`);
 }
 
@@ -353,7 +396,10 @@ export async function getSearchProfiles(): Promise<SearchProfile[]> {
 }
 
 export async function createSearchProfile(profile: Partial<SearchProfile>): Promise<SearchProfile> {
-  const created = await post<BackendSearchProfile>("/search-profiles", searchProfilePayload(profile));
+  const created = await post<BackendSearchProfile>(
+    "/search-profiles",
+    searchProfilePayload(profile),
+  );
   return mapSearchProfile(created);
 }
 

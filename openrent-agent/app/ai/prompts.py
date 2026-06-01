@@ -186,7 +186,7 @@ def _phone_policy_lines(
         lines.insert(0, "- No tenant mobile number is assigned for this account.")
         lines.insert(
             5,
-            "- If the landlord asks for the tenant number, do not provide any number.",
+            "- If the landlord asks for the tenant number, do not provide any number; answer the rest of their message naturally and keep arranging the viewing in OpenRent.",
         )
 
     if not mobile:
@@ -217,6 +217,10 @@ def _phone_policy_lines(
     if stage == "VIEWING_BOOKED":
         lines.append(
             "- A viewing appears booked, so it is appropriate to coordinate phone details if they have not already been exchanged."
+        )
+    elif stage == "VIEWING_DISCUSSION":
+        lines.append(
+            "- Viewing details are still being discussed; keep replying naturally to availability, scheduling, and follow-up questions."
         )
 
     return lines

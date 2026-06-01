@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import suppress
 from datetime import datetime
 from uuid import uuid4
 
@@ -24,9 +26,13 @@ from scripts.process_viewing_reminders import (
 )
 
 from app.db.repository import (
+    account_stop_requested,
     get_active_accounts,
     update_account_worker_state,
 )
+
+ACTIVE_WORKERS = {}
+ACTIVE_BROWSER_RESOURCES = {}
 
 
 def account_phase(account, now=None):
@@ -56,12 +62,18 @@ async def run_account_worker(
 
     playwright = None
     browser = None
+    context = None
 
     try:
 
         playwright, browser, context, page = (
             await launch_browser(account)
         )
+        ACTIVE_BROWSER_RESOURCES[account.id] = {
+            "playwright": playwright,
+            "browser": browser,
+            "context": context,
+        }
 
         await login(
             page,
@@ -70,6 +82,11 @@ async def run_account_worker(
         )
         update_account_worker_state(account.id, "running", phase=phase)
 
+        if account_stop_requested(account.id):
+            logger.info(f"Worker stop requested before listing phase for {account.email}")
+            phase = "stopped"
+            return
+
         if phase == "send_and_reply":
             await process_account_listings(
                 account,
@@ -77,17 +94,35 @@ async def run_account_worker(
                 worker_id=worker_id
             )
 
+        if account_stop_requested(account.id):
+            logger.info(f"Worker stop requested before reply phase for {account.email}")
+            phase = "stopped"
+            return
+
         await process_account_replies(
             account,
             page,
             worker_id=worker_id
         )
 
+        if account_stop_requested(account.id):
+            logger.info(f"Worker stop requested before reminders phase for {account.email}")
+            phase = "stopped"
+            return
+
         await process_account_viewing_reminders(
             account,
             page,
             worker_id=worker_id
         )
+
+    except asyncio.CancelledError:
+        logger.info(
+            f"Worker cancellation requested for {account.email}"
+        )
+        phase = "stopped"
+        update_account_worker_state(account.id, "idle", phase="stopped")
+        raise
 
     except Exception as e:
 
@@ -99,16 +134,28 @@ async def run_account_worker(
 
     finally:
 
+        ACTIVE_BROWSER_RESOURCES.pop(account.id, None)
+
+        if context:
+            with suppress(Exception):
+                await context.close()
+
         if browser:
-            await browser.close()
+            with suppress(Exception):
+                await browser.close()
 
         if playwright:
-            await playwright.stop()
+            with suppress(Exception):
+                await playwright.stop()
 
         logger.info(
             f"Worker stopped for "
             f"{account.email}"
         )
+        current_task = asyncio.current_task()
+        if ACTIVE_WORKERS.get(account.id) is current_task:
+            ACTIVE_WORKERS.pop(account.id, None)
+
         update_account_worker_state(account.id, "idle", phase=phase)
 
 
@@ -120,3 +167,76 @@ async def run_one_account_by_id(account_id):
             return
 
     logger.warning(f"Account {account_id} not found or inactive")
+
+
+def _forget_worker(account_id):
+    def cleanup(task):
+        if ACTIVE_WORKERS.get(account_id) is task:
+            ACTIVE_WORKERS.pop(account_id, None)
+        if task.cancelled():
+            logger.info(f"Worker task for account {account_id} cancelled")
+            return
+        error = task.exception()
+        if error:
+            logger.error(f"Worker task for account {account_id} ended with error: {error}")
+
+    return cleanup
+
+
+async def start_account_worker(account_id):
+    existing = ACTIVE_WORKERS.get(account_id)
+    if existing and not existing.done():
+        logger.info(f"Worker already running for account {account_id}")
+        update_account_worker_state(account_id, "running", phase="already_running")
+        return False
+
+    task = asyncio.create_task(
+        run_one_account_by_id(account_id),
+        name=f"openrent-account-{account_id}",
+    )
+    ACTIVE_WORKERS[account_id] = task
+    task.add_done_callback(_forget_worker(account_id))
+    update_account_worker_state(account_id, "running", phase="queued")
+    logger.info(f"Worker task registered for account {account_id}")
+    return True
+
+
+async def stop_account_worker(account_id):
+    task = ACTIVE_WORKERS.get(account_id)
+
+    resources = ACTIVE_BROWSER_RESOURCES.get(account_id) or {}
+    browser = resources.get("browser")
+    context = resources.get("context")
+    playwright = resources.get("playwright")
+
+    logger.info(f"Stopping worker for account {account_id}")
+    update_account_worker_state(account_id, "stopping", phase="stopping")
+
+    if context:
+        with suppress(Exception):
+            await context.close()
+    if browser:
+        with suppress(Exception):
+            await browser.close()
+    if playwright:
+        with suppress(Exception):
+            await playwright.stop()
+
+    if task and not task.done():
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+    ACTIVE_WORKERS.pop(account_id, None)
+    ACTIVE_BROWSER_RESOURCES.pop(account_id, None)
+    update_account_worker_state(account_id, "idle", phase="stopped")
+    logger.info(f"Worker stopped for account {account_id}")
+    return task is not None
+
+
+def get_active_worker_count():
+    return len([
+        task
+        for task in ACTIVE_WORKERS.values()
+        if not task.done()
+    ])

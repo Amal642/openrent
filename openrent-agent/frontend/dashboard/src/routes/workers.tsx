@@ -26,6 +26,7 @@ export const Route = createFileRoute("/workers")({
 
 const workerTone: Record<WorkerStatus, "success" | "warning" | "destructive" | "muted"> = {
   running: "success",
+  stopping: "warning",
   idle: "muted",
   paused: "warning",
   error: "destructive",
@@ -33,7 +34,11 @@ const workerTone: Record<WorkerStatus, "success" | "warning" | "destructive" | "
 
 function WorkersPage() {
   const queryClient = useQueryClient();
-  const { data: workers = [], isLoading, error } = useQuery({
+  const {
+    data: workers = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["workers"],
     queryFn: getWorkers,
     refetchInterval: 10000,
@@ -98,7 +103,9 @@ function WorkersPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => mutation.mutate({ accountId: String(worker.account_id), action: "start" })}
+                      onClick={() =>
+                        mutation.mutate({ accountId: String(worker.account_id), action: "start" })
+                      }
                       aria-label="Start worker"
                     >
                       <Play className="size-4" />
@@ -106,7 +113,9 @@ function WorkersPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => mutation.mutate({ accountId: String(worker.account_id), action: "stop" })}
+                      onClick={() =>
+                        mutation.mutate({ accountId: String(worker.account_id), action: "stop" })
+                      }
                       aria-label="Stop worker"
                     >
                       <Power className="size-4" />
@@ -114,7 +123,9 @@ function WorkersPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => mutation.mutate({ accountId: String(worker.account_id), action: "pause" })}
+                      onClick={() =>
+                        mutation.mutate({ accountId: String(worker.account_id), action: "pause" })
+                      }
                       aria-label="Pause worker"
                     >
                       <Pause className="size-4" />
@@ -122,7 +133,9 @@ function WorkersPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => mutation.mutate({ accountId: String(worker.account_id), action: "resume" })}
+                      onClick={() =>
+                        mutation.mutate({ accountId: String(worker.account_id), action: "resume" })
+                      }
                       aria-label="Resume worker"
                     >
                       <RefreshCw className="size-4" />

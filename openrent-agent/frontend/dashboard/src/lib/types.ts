@@ -21,7 +21,7 @@ export type ConversationStage =
   | "CLOSED";
 
 export type SessionStatus = "active" | "expired" | "logging_in" | "error";
-export type WorkerStatus = "running" | "paused" | "idle" | "error";
+export type WorkerStatus = "running" | "stopping" | "paused" | "idle" | "error";
 export type ProxyStatus = "ok" | "degraded" | "down" | "not_configured" | "unknown";
 
 export interface Account {
