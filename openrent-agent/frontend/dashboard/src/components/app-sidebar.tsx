@@ -28,20 +28,20 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b">
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+      <SidebarHeader className="border-b bg-sidebar">
+        <div className="flex items-center gap-2 px-2 py-2">
+          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
             <Zap className="size-4" />
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-semibold">RentPilot</span>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Operations</span>
+            <span className="text-[11px] text-muted-foreground">Operations workspace</span>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="bg-sidebar">
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[11px]">Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (

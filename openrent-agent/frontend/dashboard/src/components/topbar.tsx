@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, Search } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -8,7 +8,7 @@ import { getHealth } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
 export function Topbar() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   const { data } = useQuery({
     queryKey: ["health"],
     queryFn: getHealth,
@@ -16,7 +16,7 @@ export function Topbar() {
   });
   useEffect(() => {
     const stored = localStorage.getItem("theme");
-    const isDark = stored ? stored === "dark" : true;
+    const isDark = stored ? stored === "dark" : false;
     setDark(isDark);
     document.documentElement.classList.toggle("dark", isDark);
   }, []);
@@ -27,18 +27,25 @@ export function Topbar() {
     localStorage.setItem("theme", next ? "dark" : "light");
   };
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 backdrop-blur px-3">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/85 backdrop-blur px-3 md:px-5">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-5" />
-      <div className="flex flex-1 items-center gap-2 text-sm">
-        <span className="font-medium">OpenRent command center</span>
+      <div className="flex flex-1 items-center gap-3 text-sm">
+        <div className="hidden min-w-0 flex-col sm:flex">
+          <span className="font-semibold leading-tight">OpenRent command center</span>
+          <span className="text-xs text-muted-foreground">Live outreach, replies, and workers</span>
+        </div>
         <DotBadge tone={data?.status === "running" ? "success" : "warning"} label={data?.status ?? "checking"} />
       </div>
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
+        <div className="hidden h-9 w-56 items-center gap-2 rounded-md border bg-card px-3 text-sm text-muted-foreground md:flex">
+          <Search className="size-4" />
+          <span>Search leads</span>
+        </div>
+        <Button variant="outline" size="icon" onClick={toggle} aria-label="Toggle theme">
           {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>
-        <div className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
+        <div className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-sm">
           OP
         </div>
       </div>

@@ -20,11 +20,21 @@ export function StatCard({
     warning: "text-warning",
     destructive: "text-destructive",
   }[tone];
+  const iconClass = {
+    default: "bg-primary/10 text-primary",
+    success: "bg-success/10 text-success",
+    warning: "bg-warning/15 text-warning",
+    destructive: "bg-destructive/10 text-destructive",
+  }[tone];
   return (
-    <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+    <div className="rounded-lg border bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">{label}</div>
-        {Icon && <Icon className="size-4 text-muted-foreground" />}
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        {Icon && (
+          <span className={cn("flex size-8 items-center justify-center rounded-md", iconClass)}>
+            <Icon className="size-4" />
+          </span>
+        )}
       </div>
       <div className={cn("mt-2 text-2xl font-semibold tabular-nums", toneClass)}>{value}</div>
       {delta && <div className="mt-1 text-xs text-muted-foreground">{delta}</div>}
