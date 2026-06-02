@@ -41,20 +41,18 @@ async def login(page, context, account):
     )
 
     # Fill password
-    password_input = page.locator(
-    'input[type="password"]'
-    )
-
-    await password_input.wait_for(
-        state="visible",
-        timeout=30000
-    )
-
-    await password_input.fill(account.password)
+    # await page.get_by_role(
+    #     "textbox",
+    #     name="Enter password"
+    # ).fill(account.password)
+    await page.locator(
+        'input[name="password"]'
+    ).fill(account.password)
 
     # Login
-    await page.locator(
-    "button.openid-password-button"
+    await page.get_by_role(
+        "button",
+        name="Log in"
     ).click()
 
     await page.wait_for_timeout(3000)
