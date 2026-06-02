@@ -200,3 +200,5 @@ npm run dev
 - Initial outreach stops after the daily account limit.
 - Leads page shows newly persisted conversations and outbound initial message.
 - Logs page shows proxy, login, retry, AI, and worker events.
+
+
