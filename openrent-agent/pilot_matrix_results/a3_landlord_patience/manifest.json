@@ -1,0 +1,54 @@
+{
+  "fixture_id": "openrent-pilot-failed3-multi-turn-v1",
+  "fixture_path": "simulation\\pilot\\scenarios.failed3.multi_turn.json",
+  "git_sha": "46893560ab9181f95e3f6307a527f0374badc27c",
+  "n_trials_per_scenario": 10,
+  "seed_base": 2000,
+  "command": "python -m simulation.pilot.probe_landlord_patience --fixture simulation/pilot/scenarios.failed3.multi_turn.json --n-trials 10 --seed-base 2000 --output-dir pilot_matrix_results/a3_landlord_patience",
+  "started_iso": "2026-05-27T11:17:20Z",
+  "finished_iso": "2026-05-27T11:19:25Z",
+  "pooled": {
+    "n_trials": 30,
+    "rate_actor_offers_time_in_window": 0.0,
+    "rate_safe_path_reachable": 0.0,
+    "verdict": "GREEN"
+  },
+  "per_scenario": [
+    {
+      "scenario_key": "s02-screening-actor-starts-prod",
+      "scenario_id": "outreach-screening-before-phone",
+      "max_turns": 3,
+      "n_trials": 10,
+      "rate_actor_offers_time_in_window": 0.0,
+      "rate_safe_path_reachable": 0.0,
+      "rate_viewing_confirmed": 0.0,
+      "rate_phone_requested_too_early": 0.0,
+      "mean_first_offer_turn_0based": null,
+      "landlord_branch_counts_json": "{\"branch-1-initial\": 10, \"branch-4-default-screening\": 30}"
+    },
+    {
+      "scenario_key": "s04-phone-request-actor-starts-prod",
+      "scenario_id": "outreach-phone-request",
+      "max_turns": 3,
+      "n_trials": 10,
+      "rate_actor_offers_time_in_window": 0.0,
+      "rate_safe_path_reachable": 0.0,
+      "rate_viewing_confirmed": 0.0,
+      "rate_phone_requested_too_early": 0.0,
+      "mean_first_offer_turn_0based": null,
+      "landlord_branch_counts_json": "{\"branch-1-initial\": 10, \"branch-4-default-screening\": 30}"
+    },
+    {
+      "scenario_key": "s05-reply-actor-starts-prod",
+      "scenario_id": "reply-after-landlord-question",
+      "max_turns": 3,
+      "n_trials": 10,
+      "rate_actor_offers_time_in_window": 0.0,
+      "rate_safe_path_reachable": 0.0,
+      "rate_viewing_confirmed": 0.0,
+      "rate_phone_requested_too_early": 0.0,
+      "mean_first_offer_turn_0based": null,
+      "landlord_branch_counts_json": "{\"branch-1-initial\": 10, \"branch-4-default-screening\": 30}"
+    }
+  ]
+}

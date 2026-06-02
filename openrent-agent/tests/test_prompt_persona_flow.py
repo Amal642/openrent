@@ -65,6 +65,24 @@ def test_dynamic_prompt_includes_phone_policy_and_landlord_attitude():
     assert "ALWAYS share the exact correct tenant mobile number" in prompt
 
 
+def test_corpus_number_capture_prompt_hides_tenant_mobile_and_targets_landlord_number():
+    prompt = generate_message_persona_prompt(
+        conversation="LANDLORD: Tomorrow at 6 could work.",
+        stage="VIEWING_DISCUSSION",
+        persona=PERSONA,
+        conversation_design_id="corpus_number_capture_v1",
+        viewing_requested=True,
+        landlord_asked_for_number=True,
+    )
+
+    assert ASSIGNED_MOBILE not in prompt
+    assert "obtain the landlord's number" in prompt
+    assert "do not share the tenant mobile number" in prompt
+    assert "do not skip the number ask" in prompt
+    assert "landlord's best number" in prompt
+    assert "follow the phone sharing policy for this conversation design" in prompt
+
+
 def test_generate_reply_shares_correct_number_when_landlord_asks():
     reply, error = generate_reply(
         [{"sender": "landlord", "message": "Can you share your WhatsApp number?"}],

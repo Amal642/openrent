@@ -1,0 +1,115 @@
+{
+  "elapsed_seconds": 563.75,
+  "enable_schemas": true,
+  "finished_at_epoch": 1779886758.9550474,
+  "fixture_description": "a5 full matrix: 3 base scenarios x 3 LLM landlord personas = 9 cells. N=5 per cell, both memory arms = 90 trials. Cross-product attribution per Q2-locked default. Uses Q4-amendment-1 personas (Brusque at temp 0.2, Cooperative + Suspicious at temp 0.5). See hippocampus-1:docs/OPENRENT-PILOT-A5-LLM-LANDLORD-PRECOMMIT.md.",
+  "fixture_id": "a5-matrix-v1",
+  "git_sha": "3e4fc04190ce258adaaea4643f86b4bfd15338bf",
+  "hippo_k_evidence": 2,
+  "hippo_project_id": "openrent-sim-pilot",
+  "hippo_snap": "pilot_matrix_results/a5_matrix/hippo-memory.snap.json",
+  "hippo_thread_prefix": "",
+  "k": 9,
+  "memory_conditions": [
+    "memory-off",
+    "memory-on"
+  ],
+  "memory_regime": "shared",
+  "n_trials": 5,
+  "scenarios": [
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "s02-cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s02-coop"
+    },
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "s02-suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s02-susp"
+    },
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "s02-brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s02-brus"
+    },
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-phone-request",
+      "scenario_key": "s04-cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s04-coop"
+    },
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-phone-request",
+      "scenario_key": "s04-suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s04-susp"
+    },
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-phone-request",
+      "scenario_key": "s04-brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s04-brus"
+    },
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "reply-after-landlord-question",
+      "scenario_key": "s05-cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s05-coop"
+    },
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "reply-after-landlord-question",
+      "scenario_key": "s05-suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s05-susp"
+    },
+    {
+      "category": "a5-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "reply-after-landlord-question",
+      "scenario_key": "s05-brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a5-s05-brus"
+    }
+  ],
+  "seed_base": 6000,
+  "started_at_epoch": 1779886195.2054307,
+  "trace_samples": true,
+  "trial_count": 90
+}

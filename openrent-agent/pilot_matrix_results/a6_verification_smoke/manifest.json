@@ -1,0 +1,61 @@
+{
+  "fixture_id": "a6-s02-only-v1",
+  "fixture_path": "simulation\\pilot\\scenarios.a6_s02_only.json",
+  "git_sha": "2b05c83158720940928257e8b072572f87f06ffd",
+  "n_trials_per_scenario": 3,
+  "seed_base": 7000,
+  "command": "python -m simulation.pilot.probe_landlord_patience --fixture simulation/pilot/scenarios.a6_s02_only.json --n-trials 3 --seed-base 7000 --output-dir pilot_matrix_results/a6_verification_smoke",
+  "started_iso": "2026-05-27T13:34:05Z",
+  "finished_iso": "2026-05-27T13:36:44Z",
+  "pooled": {
+    "n_trials": 9,
+    "rate_actor_offers_time_in_window": 0.6666666666666666,
+    "rate_safe_phone_capture_end": 0.4444444444444444,
+    "rate_phone_captured_end": 0.4444444444444444,
+    "rate_viewing_confirmed_end": 0.7777777777777778,
+    "rate_phone_requested_too_early_end": 0.0,
+    "a3_structural_ceiling_verdict": "RED",
+    "a4_apparatus_gate_a5_verdict": "APPARATUS-GREEN"
+  },
+  "per_scenario": [
+    {
+      "scenario_key": "s02-cooperative",
+      "scenario_id": "outreach-screening-before-phone",
+      "max_turns": 3,
+      "n_trials": 3,
+      "rate_actor_offers_time_in_window": 1.0,
+      "rate_safe_phone_capture_end": 1.0,
+      "rate_phone_captured_end": 1.0,
+      "rate_viewing_confirmed_end": 1.0,
+      "rate_phone_requested_too_early_end": 0.0,
+      "mean_first_offer_turn_0based": 2.0,
+      "landlord_branch_counts_json": "{\"branch-5-proactive-offer\": 3, \"branch-unclassified\": 3}"
+    },
+    {
+      "scenario_key": "s02-suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "max_turns": 3,
+      "n_trials": 3,
+      "rate_actor_offers_time_in_window": 1.0,
+      "rate_safe_phone_capture_end": 0.3333333333333333,
+      "rate_phone_captured_end": 0.3333333333333333,
+      "rate_viewing_confirmed_end": 1.0,
+      "rate_phone_requested_too_early_end": 0.0,
+      "mean_first_offer_turn_0based": 3.3333333333333335,
+      "landlord_branch_counts_json": "{\"branch-5-proactive-offer\": 1, \"branch-unclassified\": 8}"
+    },
+    {
+      "scenario_key": "s02-brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "max_turns": 3,
+      "n_trials": 3,
+      "rate_actor_offers_time_in_window": 0.0,
+      "rate_safe_phone_capture_end": 0.0,
+      "rate_phone_captured_end": 0.0,
+      "rate_viewing_confirmed_end": 0.3333333333333333,
+      "rate_phone_requested_too_early_end": 0.0,
+      "mean_first_offer_turn_0based": null,
+      "landlord_branch_counts_json": "{\"branch-unclassified\": 12}"
+    }
+  ]
+}

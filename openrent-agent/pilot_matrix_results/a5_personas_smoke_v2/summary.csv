@@ -1,0 +1,4 @@
+scenario_key,scenario_id,max_turns,n_trials,rate_actor_offers_time_in_window,rate_safe_phone_capture_end,rate_phone_captured_end,rate_viewing_confirmed_end,rate_phone_requested_too_early_end,mean_first_offer_turn_0based,landlord_branch_counts_json
+s02-cooperative,outreach-screening-before-phone,3,5,1.0,1.0,1.0,1.0,0.0,2.0,"{""branch-5-proactive-offer"": 5, ""branch-unclassified"": 5}"
+s02-suspicious,outreach-screening-before-phone,3,5,0.6,0.6,0.6,1.0,0.0,2.6666666666666665,"{""branch-5-proactive-offer"": 1, ""branch-unclassified"": 14}"
+s02-brusque,outreach-screening-before-phone,3,5,0.0,0.0,0.0,0.2,0.0,,"{""branch-unclassified"": 20}"

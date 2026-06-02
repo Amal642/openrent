@@ -2,7 +2,7 @@ import re
 
 
 PHONE_LIKE_PATTERN = re.compile(
-    r"(?<!\w)(?:\+44[\d\s().-]{8,}\d|44[\d\s().-]{8,}\d|0[1-9]\d[\d\s().-]{6,}\d)(?!\w)"
+    r"(?<!\w)(?:\+44[\d\s().-]{7,}\d|44[\d\s().-]{8,}\d|0[1-9]\d[\d\s().-]{6,}\d)(?!\w)"
 )
 
 
@@ -52,22 +52,16 @@ def remove_unapproved_phone_numbers(reply, allowed_mobile_number=None):
     if not reply:
         return reply
 
-    allowed_normalized = normalize_phone(
-        allowed_mobile_number
-    )
+    allowed_exact = (allowed_mobile_number or "").strip()
 
     def replace(match):
 
         candidate = match.group(0).strip()
 
-        candidate_normalized = normalize_phone(
-            candidate
-        )
-
         # Keep ONLY approved number
         if (
-            allowed_normalized
-            and candidate_normalized == allowed_normalized
+            allowed_exact
+            and candidate == allowed_exact
         ):
             return candidate
 

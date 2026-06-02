@@ -1,0 +1,54 @@
+{
+  "fixture_id": "openrent-pilot-failed3-multi-turn-v1",
+  "fixture_path": "simulation\\pilot\\scenarios.failed3.multi_turn.json",
+  "git_sha": "28771e8d78faf09c7eb8f56b4ba45b96d7e9250d",
+  "n_trials_per_scenario": 3,
+  "seed_base": 3000,
+  "command": "python -m simulation.pilot.probe_landlord_patience --fixture simulation/pilot/scenarios.failed3.multi_turn.json --n-trials 3 --seed-base 3000 --output-dir pilot_matrix_results/a4_smoke_v2",
+  "started_iso": "2026-05-27T11:57:01Z",
+  "finished_iso": "2026-05-27T11:57:36Z",
+  "pooled": {
+    "n_trials": 9,
+    "rate_actor_offers_time_in_window": 0.6666666666666666,
+    "rate_safe_path_reachable": 0.0,
+    "verdict": "RED"
+  },
+  "per_scenario": [
+    {
+      "scenario_key": "s02-screening-actor-starts-prod",
+      "scenario_id": "outreach-screening-before-phone",
+      "max_turns": 3,
+      "n_trials": 3,
+      "rate_actor_offers_time_in_window": 1.0,
+      "rate_safe_path_reachable": 0.0,
+      "rate_viewing_confirmed": 0.0,
+      "rate_phone_requested_too_early": 1.0,
+      "mean_first_offer_turn_0based": 4.0,
+      "landlord_branch_counts_json": "{\"branch-1-initial\": 3, \"branch-2-phone-shared\": 3, \"branch-4-default-screening\": 3, \"branch-5-proactive-offer\": 3}"
+    },
+    {
+      "scenario_key": "s04-phone-request-actor-starts-prod",
+      "scenario_id": "outreach-phone-request",
+      "max_turns": 3,
+      "n_trials": 3,
+      "rate_actor_offers_time_in_window": 0.0,
+      "rate_safe_path_reachable": 0.0,
+      "rate_viewing_confirmed": 0.0,
+      "rate_phone_requested_too_early": 1.0,
+      "mean_first_offer_turn_0based": null,
+      "landlord_branch_counts_json": "{\"branch-1-initial\": 3, \"branch-2-phone-shared\": 3, \"branch-4-default-screening\": 3, \"branch-5-proactive-offer\": 3}"
+    },
+    {
+      "scenario_key": "s05-reply-actor-starts-prod",
+      "scenario_id": "reply-after-landlord-question",
+      "max_turns": 3,
+      "n_trials": 3,
+      "rate_actor_offers_time_in_window": 1.0,
+      "rate_safe_path_reachable": 0.0,
+      "rate_viewing_confirmed": 0.0,
+      "rate_phone_requested_too_early": 1.0,
+      "mean_first_offer_turn_0based": 4.0,
+      "landlord_branch_counts_json": "{\"branch-1-initial\": 3, \"branch-2-phone-shared\": 3, \"branch-4-default-screening\": 3, \"branch-5-proactive-offer\": 3}"
+    }
+  ]
+}

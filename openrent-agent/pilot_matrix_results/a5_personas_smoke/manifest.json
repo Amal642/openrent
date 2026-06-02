@@ -1,0 +1,61 @@
+{
+  "fixture_id": "a5-personas-smoke-v1",
+  "fixture_path": "simulation\\pilot\\scenarios.a5_personas_smoke.json",
+  "git_sha": "3b5da71bb05e17fc6febbd1abe08758a48bee953",
+  "n_trials_per_scenario": 5,
+  "seed_base": 5000,
+  "command": "python -m simulation.pilot.probe_landlord_patience --fixture simulation/pilot/scenarios.a5_personas_smoke.json --n-trials 5 --seed-base 5000 --output-dir pilot_matrix_results/a5_personas_smoke",
+  "started_iso": "2026-05-27T12:30:29Z",
+  "finished_iso": "2026-05-27T12:32:16Z",
+  "pooled": {
+    "n_trials": 15,
+    "rate_actor_offers_time_in_window": 0.7333333333333333,
+    "rate_safe_phone_capture_end": 0.7333333333333333,
+    "rate_phone_captured_end": 0.7333333333333333,
+    "rate_viewing_confirmed_end": 0.8,
+    "rate_phone_requested_too_early_end": 0.0,
+    "a3_structural_ceiling_verdict": "RED",
+    "a4_apparatus_gate_a5_verdict": "APPARATUS-RED-TOO-EASY"
+  },
+  "per_scenario": [
+    {
+      "scenario_key": "s02-cooperative",
+      "scenario_id": "outreach-screening-before-phone",
+      "max_turns": 3,
+      "n_trials": 5,
+      "rate_actor_offers_time_in_window": 1.0,
+      "rate_safe_phone_capture_end": 1.0,
+      "rate_phone_captured_end": 1.0,
+      "rate_viewing_confirmed_end": 1.0,
+      "rate_phone_requested_too_early_end": 0.0,
+      "mean_first_offer_turn_0based": 2.0,
+      "landlord_branch_counts_json": "{\"branch-5-proactive-offer\": 5, \"branch-unclassified\": 5}"
+    },
+    {
+      "scenario_key": "s02-suspicious",
+      "scenario_id": "outreach-screening-before-phone",
+      "max_turns": 3,
+      "n_trials": 5,
+      "rate_actor_offers_time_in_window": 0.8,
+      "rate_safe_phone_capture_end": 0.6,
+      "rate_phone_captured_end": 0.6,
+      "rate_viewing_confirmed_end": 1.0,
+      "rate_phone_requested_too_early_end": 0.0,
+      "mean_first_offer_turn_0based": 2.5,
+      "landlord_branch_counts_json": "{\"branch-unclassified\": 14}"
+    },
+    {
+      "scenario_key": "s02-brusque",
+      "scenario_id": "outreach-screening-before-phone",
+      "max_turns": 3,
+      "n_trials": 5,
+      "rate_actor_offers_time_in_window": 0.4,
+      "rate_safe_phone_capture_end": 0.6,
+      "rate_phone_captured_end": 0.6,
+      "rate_viewing_confirmed_end": 0.4,
+      "rate_phone_requested_too_early_end": 0.0,
+      "mean_first_offer_turn_0based": 6.0,
+      "landlord_branch_counts_json": "{\"branch-unclassified\": 20}"
+    }
+  ]
+}

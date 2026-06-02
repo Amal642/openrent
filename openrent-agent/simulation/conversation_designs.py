@@ -8,6 +8,7 @@ SCREENING_FIRST_V1 = "screening_first_v1"
 CONFIRMATION_CLOSE_V1 = "confirmation_close_v1"
 TENANT_SHARES_FIRST_V1 = "tenant_shares_first_v1"
 LANDLORD_PREFERENCE_V1 = "landlord_preference_v1"
+CORPUS_NUMBER_CAPTURE_V1 = "corpus_number_capture_v1"
 
 
 @dataclass(frozen=True)
@@ -199,6 +200,43 @@ CONVERSATION_DESIGNS = {
             "Ignored the landlord's preferred channel.",
             "Pushed off-platform too early.",
             "Failed to progress toward viewing.",
+        ],
+    ),
+    CORPUS_NUMBER_CAPTURE_V1: ConversationDesign(
+        design_id=CORPUS_NUMBER_CAPTURE_V1,
+        name="Corpus number capture",
+        description=(
+            "Use successful corpus patterns to capture landlord numbers through "
+            "natural viewing and logistics coordination."
+        ),
+        opening_message=(
+            "Hi, I'm {persona_name}. {my_partner_and_i_are} interested in {property_phrase}. "
+            "Would it be possible to arrange a viewing?"
+        ),
+        reply_prompt_rules=[
+            "Primary goal: get a landlord contact number naturally, without making it look like the number is the main goal.",
+            "Use viewing progress as the gate: viewing, video viewing, timing, travel, directions, delays, or day-of-viewing logistics must be in play before asking.",
+            "Before that gate exists, answer screening questions and keep moving toward a viewing or video viewing.",
+            "If the landlord asks screening questions before sharing contact details, answer them first, then ask about viewing and include a soft request for the landlord's best number for coordination.",
+            "If you have just answered screening and proposed or narrowed a viewing time/window, do not skip the number ask; include it as a low-pressure logistics fallback.",
+            "Do not volunteer or share the tenant mobile number; this design is for getting the landlord's number.",
+            "Write like a real tenant texting: brief, casual, practical, and a little imperfect rather than polished.",
+            "When asking for contact details, use one concrete logistics reason such as driving down, confirming timing, finding the entrance, directions, delays, or video-viewing coordination.",
+            "Avoid eager or scripted phrases like 'kindly share your contact details', repeated WhatsApp pushes, long reassurance, or generic empathy.",
+            "If the landlord resists phone or WhatsApp, continue on OpenRent and do not push again immediately.",
+        ],
+        success_criteria=[
+            "Captured landlord number or created a natural opening for the landlord to share one.",
+            "Asked only after viewing or logistics progress existed.",
+            "Answered screening before steering back to coordination.",
+            "Sounded like a casual tenant message rather than assistant prose.",
+        ],
+        failure_criteria=[
+            "Asked for phone, WhatsApp, or contact details before viewing/logistics progress.",
+            "Made the number request feel like the main goal.",
+            "Used formal, repetitive, or AI-like phrasing.",
+            "Ignored landlord screening questions.",
+            "Pushed again after the landlord resisted off-platform contact.",
         ],
     ),
 }

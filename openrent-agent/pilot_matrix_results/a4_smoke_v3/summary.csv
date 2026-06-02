@@ -1,0 +1,4 @@
+scenario_key,scenario_id,max_turns,n_trials,rate_actor_offers_time_in_window,rate_safe_path_reachable,rate_viewing_confirmed,rate_phone_requested_too_early,mean_first_offer_turn_0based,landlord_branch_counts_json
+s02-screening-actor-starts-prod,outreach-screening-before-phone,3,3,1.0,0.0,1.0,1.0,4.0,"{""branch-1-initial"": 3, ""branch-4-default-screening"": 3, ""branch-5-proactive-offer"": 3, ""branch-unclassified"": 3}"
+s04-phone-request-actor-starts-prod,outreach-phone-request,3,3,0.0,0.0,1.0,1.0,,"{""branch-1-initial"": 3, ""branch-4-default-screening"": 3, ""branch-5-proactive-offer"": 3, ""branch-unclassified"": 3}"
+s05-reply-actor-starts-prod,reply-after-landlord-question,3,3,1.0,0.0,1.0,1.0,4.0,"{""branch-1-initial"": 3, ""branch-4-default-screening"": 3, ""branch-5-proactive-offer"": 3, ""branch-unclassified"": 3}"

@@ -171,6 +171,7 @@ def generate_reply(
     persona=None,
     property_location=None,
     conversation=None,
+    conversation_design_id=None,
     landlord_attitude=None,
     conversation_style=None,
     retries=3,
@@ -182,7 +183,11 @@ def generate_reply(
     number_shared = phone_shared_state(messages, persona, conversation=conversation_state)
     sent_count = outbound_count(messages)
 
-    if landlord_asked_number and not number_shared:
+    if (
+        landlord_asked_number
+        and not number_shared
+        and conversation_design_id != "corpus_number_capture_v1"
+    ):
         phone_reply = generate_phone_share_reply(
             persona,
             landlord_attitude=landlord_attitude or "responsive",
@@ -207,6 +212,7 @@ def generate_reply(
             place=place,
             landlord_attitude=landlord_attitude,
             conversation_style=conversation_style,
+            conversation_design_id=conversation_design_id,
             viewing_requested=viewing_requested(messages),
             phone_number_shared=number_shared,
             landlord_asked_for_number=landlord_asked_number,

@@ -4,6 +4,21 @@ from dataclasses import asdict, dataclass
 
 PHONE_PATTERN = re.compile(r"(?:\+?44\s?7\d{3}|\b07\d{3})\s?\d{3}\s?\d{3}\b")
 TIME_PATTERN = re.compile(r"\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b", re.IGNORECASE)
+VIEWING_TIME_TOKENS = [
+    "tomorrow",
+    "tonight",
+    "weekend",
+    "this week",
+    "next week",
+    "evening",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+]
 
 
 @dataclass
@@ -100,10 +115,7 @@ def analyze_conversation_state(
                 ["work", "working", "job", "employed", "move", "moving", "we are both"],
             ):
                 signals.screening_answered = True
-            if _contains_any(
-                message,
-                ["tomorrow", "tonight", "weekend", "this week", "next week", "evening"],
-            ) or TIME_PATTERN.search(message):
+            if _contains_any(message, VIEWING_TIME_TOKENS) or TIME_PATTERN.search(message):
                 signals.viewing_time_offered = True
 
         if speaker == "actor":
@@ -114,10 +126,7 @@ def analyze_conversation_state(
                 ["work", "job", "employed", "employment", "income", "reference", "move"],
             ):
                 signals.screening_questions_asked = True
-            if _contains_any(
-                message,
-                ["tomorrow", "tonight", "weekend", "this week", "next week", "evening"],
-            ) or TIME_PATTERN.search(message):
+            if _contains_any(message, VIEWING_TIME_TOKENS) or TIME_PATTERN.search(message):
                 signals.viewing_time_offered = True
             if _contains_any(
                 message,
@@ -147,8 +156,15 @@ def analyze_conversation_state(
             transcript or [],
         )
 
-    if signals.phone_requested and not signals.viewing_confirmed:
-        signals.phone_requested_too_early = True
+    if signals.phone_requested:
+        if conversation_design_id == "corpus_number_capture_v1":
+            signals.phone_requested_too_early = not (
+                signals.viewing_requested
+                or signals.viewing_time_offered
+                or signals.viewing_confirmed
+            )
+        else:
+            signals.phone_requested_too_early = not signals.viewing_confirmed
 
     if refusal_indexes:
         first_refusal = min(refusal_indexes)

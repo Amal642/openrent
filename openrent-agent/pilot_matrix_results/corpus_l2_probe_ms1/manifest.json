@@ -1,0 +1,43 @@
+{
+  "fixture": "full-conversations.md",
+  "convs_parsed": 288,
+  "cells_ingested": 1611,
+  "source_id_scheme": "pooled (Q3)",
+  "source_id": "corpus-all",
+  "redaction": {
+    "strategy": "single-global (Q1)",
+    "token": "[PHONE_REDACTED]",
+    "p1_predicate_2": "GREEN (zero literal phones post-redaction)"
+  },
+  "consolidator": {
+    "partitionBy": "sourceId",
+    "minSalience": 1.0,
+    "overlapThreshold": 25,
+    "maxClusters": 250,
+    "useSummarizer": true
+  },
+  "report": {
+    "clustersTotal": 49,
+    "cellsClustered": 1611,
+    "schemasNewlyMinted": 24,
+    "schemasAbstained": 0,
+    "edgesAdded": 1583
+  },
+  "computed": {
+    "schemas_minted": 24,
+    "cells_ingested": 1611,
+    "schemas_per_1000_cells": 14.9,
+    "baseline_a5_a6_per_1000": 26.67,
+    "verdict": "L2-CONFIRMED",
+    "verdict_bands": {
+      "L2-CONFIRMED": "<= 27",
+      "L2-AMBIGUOUS": "28-99",
+      "L2-FLIP": ">= 100"
+    }
+  },
+  "timing": {
+    "ingest_ms": 1703,
+    "consolidate_ms": 375275,
+    "wall_clock_s": 377
+  }
+}

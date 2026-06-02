@@ -1,0 +1,129 @@
+{
+  "conditions": {
+    "memory-off": {
+      "generation_latency_ms_mean": 5845.1333,
+      "hippo_ingest_mean": 0,
+      "hippo_recall_mean": 0,
+      "n": 30,
+      "passed_rate": 0.6333,
+      "phone_captured_rate": 0.6333,
+      "prompt_tokens_mean": 2038.7,
+      "score_mean": 0.8167,
+      "score_std": 0.2409,
+      "viewing_booked_rate": 0.2
+    },
+    "memory-on": {
+      "generation_latency_ms_mean": 8474.7,
+      "hippo_ingest_mean": 1,
+      "hippo_recall_mean": 2.0333,
+      "n": 30,
+      "passed_rate": 0.5667,
+      "phone_captured_rate": 0.5667,
+      "prompt_tokens_mean": 2841.3,
+      "score_mean": 0.7833,
+      "score_std": 0.2478,
+      "viewing_booked_rate": 0.1
+    }
+  },
+  "current_state_by_condition": {
+    "memory-off": {
+      "phone_captured": 19,
+      "viewing_confirmed": 6,
+      "viewing_negotiation": 5
+    },
+    "memory-on": {
+      "phone_captured": 17,
+      "viewing_confirmed": 3,
+      "viewing_negotiation": 10
+    }
+  },
+  "failure_types_by_condition": {
+    "memory-off": {
+      "failed_phone_capture": 11
+    },
+    "memory-on": {
+      "failed_phone_capture": 13
+    }
+  },
+  "scenarios": {
+    "s02-brusque": {
+      "memory-off": {
+        "generation_latency_ms_mean": 7366.7,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 10,
+        "passed_rate": 0.5,
+        "phone_captured_rate": 0.5,
+        "prompt_tokens_mean": 3246.8,
+        "score_mean": 0.75,
+        "score_std": 0.25,
+        "viewing_booked_rate": 0.0
+      },
+      "memory-on": {
+        "generation_latency_ms_mean": 6391.2,
+        "hippo_ingest_mean": 1,
+        "hippo_recall_mean": 3,
+        "n": 10,
+        "passed_rate": 0.1,
+        "phone_captured_rate": 0.1,
+        "prompt_tokens_mean": 4017.6,
+        "score_mean": 0.55,
+        "score_std": 0.15,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "s02-cooperative": {
+      "memory-off": {
+        "generation_latency_ms_mean": 3858.1,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 10,
+        "passed_rate": 1.0,
+        "phone_captured_rate": 1.0,
+        "prompt_tokens_mean": 1049,
+        "score_mean": 1.0,
+        "score_std": 0.0,
+        "viewing_booked_rate": 0.0
+      },
+      "memory-on": {
+        "generation_latency_ms_mean": 6034.9,
+        "hippo_ingest_mean": 1,
+        "hippo_recall_mean": 1,
+        "n": 10,
+        "passed_rate": 1.0,
+        "phone_captured_rate": 1.0,
+        "prompt_tokens_mean": 1364.9,
+        "score_mean": 1.0,
+        "score_std": 0.0,
+        "viewing_booked_rate": 0.0
+      }
+    },
+    "s02-suspicious": {
+      "memory-off": {
+        "generation_latency_ms_mean": 6310.6,
+        "hippo_ingest_mean": 0,
+        "hippo_recall_mean": 0,
+        "n": 10,
+        "passed_rate": 0.4,
+        "phone_captured_rate": 0.4,
+        "prompt_tokens_mean": 1820.3,
+        "score_mean": 0.7,
+        "score_std": 0.2449,
+        "viewing_booked_rate": 0.6
+      },
+      "memory-on": {
+        "generation_latency_ms_mean": 12998,
+        "hippo_ingest_mean": 1,
+        "hippo_recall_mean": 2.1,
+        "n": 10,
+        "passed_rate": 0.6,
+        "phone_captured_rate": 0.6,
+        "prompt_tokens_mean": 3141.4,
+        "score_mean": 0.8,
+        "score_std": 0.2449,
+        "viewing_booked_rate": 0.3
+      }
+    }
+  },
+  "trial_count": 60
+}

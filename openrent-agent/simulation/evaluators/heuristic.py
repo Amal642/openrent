@@ -17,6 +17,12 @@ from simulation.evaluators.rubric import AGENT_STARTS_RUBRIC, ACTOR_STARTS_RUBRI
 from simulation.sessions.models import EvaluationResult
 
 
+VIEWING_PROGRESS_DESIGNS = {
+    "viewing_first_v1",
+    "corpus_number_capture_v1",
+}
+
+
 class HeuristicEvaluator(BaseEvaluator):
     evaluator_id = "heuristic-v1"
 
@@ -104,7 +110,7 @@ class HeuristicEvaluator(BaseEvaluator):
             context.flags.get("conversation_design_id"),
         )
         if (
-            context.flags.get("conversation_design_id") == "viewing_first_v1"
+            context.flags.get("conversation_design_id") in VIEWING_PROGRESS_DESIGNS
             and context.flags.get("start_mode") == "agent_starts"
         ):
             return self._evaluate_viewing_first(

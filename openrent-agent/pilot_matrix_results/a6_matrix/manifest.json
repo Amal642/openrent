@@ -1,0 +1,55 @@
+{
+  "elapsed_seconds": 839.63,
+  "enable_schemas": true,
+  "finished_at_epoch": 1779889859.8170245,
+  "fixture_description": "a6 s02-only fixture: drops s04 and s05 from the a5 matrix to align matrix scope with smoke-2's calibration scope. 3 cells = s02 base x 3 LLM personas. New thread_ids so the snap doesn't collide with a5's. Calibrated A5 = [smoke - 0.15, 0.80] = [0.38, 0.80] derived from smoke-2 pooled baseline 0.5333. First explicit instance of P1.2 candidate calibration discipline. See hippocampus-1:docs/OPENRENT-PILOT-A6-S02-ONLY-PRECOMMIT.md (commit fb997ac on docs/project-guide).",
+  "fixture_id": "a6-s02-only-v1",
+  "git_sha": "2b05c83158720940928257e8b072572f87f06ffd",
+  "hippo_k_evidence": 2,
+  "hippo_project_id": "openrent-sim-pilot",
+  "hippo_snap": "pilot_matrix_results/a6_matrix/hippo-memory.snap.json",
+  "hippo_thread_prefix": "",
+  "k": 3,
+  "memory_conditions": [
+    "memory-off",
+    "memory-on"
+  ],
+  "memory_regime": "shared",
+  "n_trials": 10,
+  "scenarios": [
+    {
+      "category": "a6-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "s02-cooperative",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a6-s02-coop"
+    },
+    {
+      "category": "a6-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "s02-suspicious",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a6-s02-susp"
+    },
+    {
+      "category": "a6-matrix",
+      "expected_outcome": "viewing_progressed",
+      "max_turns": 3,
+      "policy_id": "production-policy-v1",
+      "scenario_id": "outreach-screening-before-phone",
+      "scenario_key": "s02-brusque",
+      "start_mode": "actor_starts",
+      "thread_id": "pilot-a6-s02-brus"
+    }
+  ],
+  "seed_base": 8000,
+  "started_at_epoch": 1779889020.1875136,
+  "trace_samples": true,
+  "trial_count": 60
+}

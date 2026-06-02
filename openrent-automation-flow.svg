@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1420" viewBox="0 0 1800 1420">
+  <defs>
+    <style>
+      .bg { fill: #f7f8fb; }
+      .title { font-family: Arial, Helvetica, sans-serif; font-size: 38px; font-weight: 700; fill: #172033; }
+      .subtitle { font-family: Arial, Helvetica, sans-serif; font-size: 20px; fill: #526070; }
+      .label { font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 700; fill: #172033; }
+      .small { font-family: Arial, Helvetica, sans-serif; font-size: 15px; fill: #526070; }
+      .node { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; }
+      .client { fill: #e8f4ff; stroke: #7db6e8; }
+      .system { fill: #eef8f1; stroke: #7fc893; }
+      .alert { fill: #fff2e6; stroke: #f3a35c; }
+      .review { fill: #f1ecff; stroke: #a993e7; }
+      .decision { fill: #ffffff; stroke: #8793a3; stroke-width: 2; }
+      .line { stroke: #6b7788; stroke-width: 2.5; fill: none; }
+      .dash { stroke-dasharray: 8 8; }
+      .yes { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; fill: #237044; }
+      .no { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; fill: #9a4f12; }
+      .lane-title { font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: 700; fill: #172033; }
+      .lane { fill: #ffffff; stroke: #e2e8f0; stroke-width: 2; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#6b7788"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1800" height="1420"/>
+  <text x="90" y="80" class="title">OpenRent Messaging Automation Flow</text>
+  <text x="90" y="116" class="subtitle">Client manages OpenRent account setup and verification. The automation platform manages messaging, routing, health checks, and review.</text>
+
+  <rect x="70" y="160" width="500" height="1160" rx="10" class="lane"/>
+  <rect x="650" y="160" width="500" height="1160" rx="10" class="lane"/>
+  <rect x="1230" y="160" width="500" height="1160" rx="10" class="lane"/>
+
+  <text x="100" y="205" class="lane-title">Client / Operations Team</text>
+  <text x="680" y="205" class="lane-title">Automation Platform</text>
+  <text x="1260" y="205" class="lane-title">AI + Review Workflow</text>
+
+  <!-- Client setup -->
+  <rect x="140" y="250" width="360" height="86" rx="8" class="node client"/>
+  <text x="320" y="286" text-anchor="middle" class="label">Create OpenRent Account</text>
+  <text x="320" y="313" text-anchor="middle" class="small">Client owns account creation</text>
+
+  <rect x="140" y="390" width="360" height="86" rx="8" class="node client"/>
+  <text x="320" y="426" text-anchor="middle" class="label">Complete Verification</text>
+  <text x="320" y="453" text-anchor="middle" class="small">OTP / SIM step if OpenRent requires it</text>
+
+  <rect x="140" y="530" width="360" height="86" rx="8" class="node client"/>
+  <text x="320" y="566" text-anchor="middle" class="label">Add Credentials</text>
+  <text x="320" y="593" text-anchor="middle" class="small">Username/password entered in dashboard</text>
+
+  <!-- Platform account pool -->
+  <rect x="720" y="530" width="360" height="86" rx="8" class="node system"/>
+  <text x="900" y="566" text-anchor="middle" class="label">Store Credentials Securely</text>
+  <text x="900" y="593" text-anchor="middle" class="small">Encrypted storage and access controls</text>
+
+  <rect x="720" y="670" width="360" height="86" rx="8" class="node system"/>
+  <text x="900" y="706" text-anchor="middle" class="label">Add to Account Pool</text>
+  <text x="900" y="733" text-anchor="middle" class="small">OpenRent account becomes usable channel</text>
+
+  <polygon points="900,810 1085,895 900,980 715,895" class="decision"/>
+  <text x="900" y="888" text-anchor="middle" class="label">Account Usable?</text>
+  <text x="900" y="916" text-anchor="middle" class="small">Login, send limits, errors, restrictions</text>
+
+  <rect x="720" y="1050" width="360" height="86" rx="8" class="node alert"/>
+  <text x="900" y="1086" text-anchor="middle" class="label">Mark Inactive</text>
+  <text x="900" y="1113" text-anchor="middle" class="small">Alert client to fix, re-verify, or replace</text>
+
+  <rect x="720" y="250" width="360" height="86" rx="8" class="node system"/>
+  <text x="900" y="286" text-anchor="middle" class="label">Available for Messaging</text>
+  <text x="900" y="313" text-anchor="middle" class="small">Healthy OpenRent account in pool</text>
+
+  <!-- AI outbound -->
+  <rect x="1300" y="250" width="360" height="86" rx="8" class="node review"/>
+  <text x="1480" y="286" text-anchor="middle" class="label">Select Landlord</text>
+  <text x="1480" y="313" text-anchor="middle" class="small">Based on location, campaign, or task</text>
+
+  <rect x="1300" y="390" width="360" height="86" rx="8" class="node review"/>
+  <text x="1480" y="426" text-anchor="middle" class="label">Check Context</text>
+  <text x="1480" y="453" text-anchor="middle" class="small">Landlord record, location, prior messages</text>
+
+  <rect x="1300" y="530" width="360" height="86" rx="8" class="node system"/>
+  <text x="1480" y="566" text-anchor="middle" class="label">Send via OpenRent</text>
+  <text x="1480" y="593" text-anchor="middle" class="small">Uses selected healthy account</text>
+
+  <polygon points="1480,670 1665,755 1480,840 1295,755" class="decision"/>
+  <text x="1480" y="748" text-anchor="middle" class="label">Sent Successfully?</text>
+  <text x="1480" y="776" text-anchor="middle" class="small">Track send result and errors</text>
+
+  <rect x="1300" y="910" width="360" height="86" rx="8" class="node system"/>
+  <text x="1480" y="946" text-anchor="middle" class="label">Save Conversation</text>
+  <text x="1480" y="973" text-anchor="middle" class="small">Message history linked to landlord/location</text>
+
+  <rect x="1300" y="1050" width="360" height="86" rx="8" class="node alert"/>
+  <text x="1480" y="1086" text-anchor="middle" class="label">Log Failure</text>
+  <text x="1480" y="1113" text-anchor="middle" class="small">Reduce account health score</text>
+
+  <!-- Inbound -->
+  <rect x="140" y="770" width="360" height="86" rx="8" class="node client"/>
+  <text x="320" y="806" text-anchor="middle" class="label">Landlord Replies</text>
+  <text x="320" y="833" text-anchor="middle" class="small">Message arrives inside OpenRent</text>
+
+  <rect x="720" y="1190" width="360" height="86" rx="8" class="node system"/>
+  <text x="900" y="1226" text-anchor="middle" class="label">Read Inbound Message</text>
+  <text x="900" y="1253" text-anchor="middle" class="small">Sync OpenRent inbox/conversation</text>
+
+  <rect x="1300" y="1190" width="360" height="86" rx="8" class="node review"/>
+  <text x="1480" y="1226" text-anchor="middle" class="label">Map to Record</text>
+  <text x="1480" y="1253" text-anchor="middle" class="small">Match landlord, location, task, context</text>
+
+  <polygon points="1480,1310 1640,1368 1480,1426 1320,1368" class="decision" transform="translate(0,-60)"/>
+  <text x="1480" y="1302" text-anchor="middle" class="label">Clear Match?</text>
+  <text x="1480" y="1328" text-anchor="middle" class="small">One landlord/location identified</text>
+
+  <rect x="1120" y="1290" width="260" height="72" rx="8" class="node system"/>
+  <text x="1250" y="1320" text-anchor="middle" class="label">Attach to Record</text>
+  <text x="1250" y="1345" text-anchor="middle" class="small">Continue AI workflow</text>
+
+  <rect x="1510" y="1290" width="190" height="72" rx="8" class="node review"/>
+  <text x="1605" y="1320" text-anchor="middle" class="label">Clarify / Review</text>
+  <text x="1605" y="1345" text-anchor="middle" class="small">Ask or send to human</text>
+
+  <!-- Connections -->
+  <path d="M320 336 L320 390" class="line" marker-end="url(#arrow)"/>
+  <path d="M320 476 L320 530" class="line" marker-end="url(#arrow)"/>
+  <path d="M500 573 L720 573" class="line" marker-end="url(#arrow)"/>
+  <path d="M900 616 L900 670" class="line" marker-end="url(#arrow)"/>
+  <path d="M900 756 L900 810" class="line" marker-end="url(#arrow)"/>
+  <path d="M900 810 L900 336" class="line" marker-end="url(#arrow)"/>
+  <text x="920" y="520" class="yes">Yes</text>
+  <path d="M900 980 L900 1050" class="line" marker-end="url(#arrow)"/>
+  <text x="920" y="1028" class="no">No</text>
+
+  <path d="M1080 293 L1300 293" class="line" marker-end="url(#arrow)"/>
+  <path d="M1480 336 L1480 390" class="line" marker-end="url(#arrow)"/>
+  <path d="M1480 476 L1480 530" class="line" marker-end="url(#arrow)"/>
+  <path d="M1480 616 L1480 670" class="line" marker-end="url(#arrow)"/>
+  <path d="M1480 840 L1480 910" class="line" marker-end="url(#arrow)"/>
+  <text x="1500" y="888" class="yes">Yes</text>
+  <path d="M1295 755 C1180 755 1180 1093 1300 1093" class="line" marker-end="url(#arrow)"/>
+  <text x="1210" y="905" class="no">No</text>
+  <path d="M1300 1093 L1080 1093" class="line" marker-end="url(#arrow)"/>
+  <path d="M900 1050 C900 1015 900 1015 900 980" class="line dash" marker-end="url(#arrow)"/>
+
+  <path d="M320 856 C320 1233 720 1233 720 1233" class="line" marker-end="url(#arrow)"/>
+  <path d="M1080 1233 L1300 1233" class="line" marker-end="url(#arrow)"/>
+  <path d="M1480 1276 L1480 1290" class="line" marker-end="url(#arrow)"/>
+  <path d="M1320 1308 L1380 1326" class="line" marker-end="url(#arrow)"/>
+  <text x="1395" y="1310" class="yes">Yes</text>
+  <path d="M1640 1308 L1510 1326" class="line" marker-end="url(#arrow)"/>
+  <text x="1610" y="1295" class="no">No</text>
+
+  <!-- Footer notes -->
+  <rect x="90" y="1342" width="980" height="48" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="115" y="1373" class="small">Important: the operational channel is the OpenRent account. SIM/OTP is only part of the client's account setup or recovery process.</text>
+</svg>
