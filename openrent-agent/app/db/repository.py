@@ -1221,15 +1221,34 @@ def mark_listing_skipped_agent(listing_id, property_count=None):
             db.commit()
 
 
-def get_due_viewing_cancellations(account_id=None, hours_before=5, limit=25):
+def get_due_viewing_cancellations(
+    account_id=None,
+    hours_before=5,
+    limit=25
+):
     cutoff = datetime.utcnow() + timedelta(hours=hours_before)
 
     with session_scope() as db:
+
         query = (
-            db.query(Conversation, Listing, SearchProfile, Account)
-            .join(Listing, Conversation.listing_id == Listing.id)
-            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
-            .join(Account, SearchProfile.account_id == Account.id)
+            db.query(
+                Conversation,
+                Listing,
+                SearchProfile,
+                Account
+            )
+            .join(
+                Listing,
+                Conversation.listing_id == Listing.id
+            )
+            .join(
+                SearchProfile,
+                Listing.search_profile_id == SearchProfile.id
+            )
+            .join(
+                Account,
+                SearchProfile.account_id == Account.id
+            )
             .filter(
                 Conversation.viewing_datetime != None,
                 Conversation.viewing_datetime <= cutoff,
@@ -1238,12 +1257,20 @@ def get_due_viewing_cancellations(account_id=None, hours_before=5, limit=25):
                 Conversation.cancel_required == True,
                 Conversation.cancellation_sent_at == None,
             )
-            .order_by(Conversation.viewing_datetime.asc())
-            .limit(limit)
         )
 
         if account_id is not None:
-            query = query.filter(Account.id == account_id)
+            query = query.filter(
+                Account.id == account_id
+            )
+
+        query = (
+            query
+            .order_by(
+                Conversation.viewing_datetime.asc()
+            )
+            .limit(limit)
+        )
 
         return [
             {
