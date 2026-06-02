@@ -80,12 +80,20 @@ const sessionTone: Record<SessionStatus, "success" | "warning" | "destructive" |
   active: "success",
   logging_in: "info",
   expired: "warning",
+  login_failed: "destructive",
+  captcha_suspected: "destructive",
   error: "destructive",
 };
 const workerTone: Record<WorkerStatus, "success" | "warning" | "destructive" | "muted"> = {
+  queued: "warning",
   running: "success",
   stopping: "warning",
   idle: "muted",
+  completed: "success",
+  stopped: "muted",
+  retrying: "warning",
+  proxy_error: "destructive",
+  login_error: "destructive",
   paused: "warning",
   error: "destructive",
 };
@@ -158,7 +166,9 @@ function AccountsPage() {
     onSuccess: (result) => {
       invalidate();
       toast[result.ok ? "success" : "error"](
-        result.ok ? "Proxy connection succeeded" : result.detail || "Proxy connection failed",
+        result.ok
+          ? `Proxy healthy${result.latency ? ` in ${result.latency}s` : ""}`
+          : result.detail || result.error || "Proxy connection failed",
       );
     },
   });
@@ -249,12 +259,26 @@ function AccountsPage() {
                   </TableCell>
                   <TableCell>
                     <DotBadge tone={sessionTone[a.sessionStatus]} label={a.sessionStatus} />
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {a.sessionLastChecked ? fmtRelative(a.sessionLastChecked) : "not checked"}
+                    </div>
+                    {a.sessionAuthFailures || a.sessionCaptchaTriggers ? (
+                      <div className="mt-1 text-xs text-destructive">
+                        {a.sessionAuthFailures} auth / {a.sessionCaptchaTriggers} captcha
+                      </div>
+                    ) : null}
                   </TableCell>
                   <TableCell>
                     <DotBadge tone={workerTone[a.workerStatus]} label={a.workerStatus} />
                     {a.currentWorkerPhase ? (
                       <div className="mt-1 text-xs text-muted-foreground">
                         {a.currentWorkerPhase}
+                      </div>
+                    ) : null}
+                    {a.retryCount ? (
+                      <div className="mt-1 text-xs text-warning">
+                        retry {a.retryCount}/{a.retryLimit}
+                        {a.retryNextAt ? ` · ${fmtRelative(a.retryNextAt)}` : ""}
                       </div>
                     ) : null}
                   </TableCell>
@@ -271,6 +295,18 @@ function AccountsPage() {
                     <div className="mt-1 max-w-[180px] truncate text-xs text-muted-foreground">
                       {a.proxyServer || "No proxy assigned"}
                     </div>
+                    {a.proxyIp || a.proxyLatency ? (
+                      <div className="mt-1 max-w-[180px] truncate text-xs text-muted-foreground">
+                        {[a.proxyIp, a.proxyLatency ? `${a.proxyLatency}s` : undefined]
+                          .filter(Boolean)
+                          .join(" / ")}
+                      </div>
+                    ) : null}
+                    {a.proxyLastError ? (
+                      <div className="mt-1 max-w-[180px] truncate text-xs text-destructive">
+                        {a.proxyLastError}
+                      </div>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-xs">
                     <div className="font-medium">
@@ -303,6 +339,12 @@ function AccountsPage() {
                   <TableCell className="text-xs text-muted-foreground">
                     {fmtRelative(a.lastLoginAt)}
                     {a.workerLastHeartbeat ? <div>{fmtRelative(a.workerLastHeartbeat)}</div> : null}
+                    {a.workerLastCompletedAt ? (
+                      <div>completed {fmtRelative(a.workerLastCompletedAt)}</div>
+                    ) : null}
+                    {a.workerJobId ? (
+                      <div className="max-w-[120px] truncate">job {a.workerJobId}</div>
+                    ) : null}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

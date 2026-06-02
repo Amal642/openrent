@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     DateTime,
+    Float,
     Text
 )
 
@@ -34,6 +35,7 @@ class Account(Base):
 
     daily_limit = Column(Integer, default=8)
     messages_sent_today = Column(Integer, default=0)
+    messages_sent_reset_at = Column(DateTime, nullable=True)
 
     active = Column(Boolean, default=True)
 
@@ -53,10 +55,31 @@ class Account(Base):
     conversation_style = Column(String, nullable=True)
 
     worker_status = Column(String, default="idle")
+    worker_job_id = Column(String, nullable=True)
+    worker_started_at = Column(DateTime, nullable=True)
     worker_last_heartbeat = Column(DateTime, nullable=True)
+    worker_error = Column(Text, nullable=True)
     worker_last_error = Column(Text, nullable=True)
+    worker_last_completed_at = Column(DateTime, nullable=True)
     current_worker_phase = Column(String, default="idle")
     last_login_at = Column(DateTime, nullable=True)
+    session_status = Column(String, default="expired")
+    session_last_checked = Column(DateTime, nullable=True)
+    session_last_error = Column(Text, nullable=True)
+    session_auth_failures = Column(Integer, default=0)
+    session_captcha_triggers = Column(Integer, default=0)
+    proxy_status = Column(String, default="unknown")
+    proxy_ip = Column(String, nullable=True)
+    proxy_latency = Column(Float, nullable=True)
+    proxy_last_checked = Column(DateTime, nullable=True)
+    proxy_last_error = Column(Text, nullable=True)
+    proxy_failures = Column(Integer, default=0)
+    retry_count = Column(Integer, default=0)
+    retry_limit = Column(Integer, default=3)
+    retry_reason = Column(Text, nullable=True)
+    retry_next_at = Column(DateTime, nullable=True)
+    last_exception = Column(Text, nullable=True)
+    permanently_failed = Column(Boolean, default=False)
 
     # relationships
     search_profiles = relationship("SearchProfile", back_populates="account")

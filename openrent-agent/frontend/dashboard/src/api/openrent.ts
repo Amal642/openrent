@@ -9,8 +9,11 @@ import type {
   LeadStatus,
   LogEntry,
   Message,
+  ProxyHealthRow,
   ProxyTestResult,
   SearchProfile,
+  SessionStatus,
+  ProxyStatus,
   WorkerStatus,
   WorkersStatus,
   WorkerSummary,
@@ -64,10 +67,30 @@ type BackendAccount = {
   conversation_goal?: string;
   conversation_style?: string;
   worker_status?: string;
+  worker_job_id?: string;
+  worker_started_at?: string;
   worker_last_heartbeat?: string;
+  worker_error?: string;
   worker_last_error?: string;
+  worker_last_completed_at?: string;
   current_worker_phase?: string;
   last_login_at?: string;
+  session_status?: string;
+  session_last_checked?: string;
+  session_last_error?: string;
+  session_auth_failures?: number;
+  session_captcha_triggers?: number;
+  proxy_status?: string;
+  proxy_ip?: string;
+  proxy_latency?: number;
+  proxy_last_checked?: string;
+  proxy_last_error?: string;
+  proxy_failures?: number;
+  retry_count?: number;
+  retry_limit?: number;
+  retry_reason?: string;
+  retry_next_at?: string;
+  permanently_failed?: boolean;
 };
 
 type BackendLead = {
@@ -154,8 +177,14 @@ function asStage(value?: string): ConversationStage {
 
 function asWorkerStatus(value?: string, active?: boolean): WorkerStatus {
   if (
+    value === "queued" ||
     value === "running" ||
     value === "stopping" ||
+    value === "completed" ||
+    value === "stopped" ||
+    value === "retrying" ||
+    value === "proxy_error" ||
+    value === "login_error" ||
     value === "paused" ||
     value === "idle" ||
     value === "error"
@@ -163,6 +192,34 @@ function asWorkerStatus(value?: string, active?: boolean): WorkerStatus {
     return value;
   }
   return active === false ? "paused" : "idle";
+}
+
+function asSessionStatus(value?: string, workerStatus?: WorkerStatus): SessionStatus {
+  if (
+    value === "active" ||
+    value === "expired" ||
+    value === "logging_in" ||
+    value === "login_failed" ||
+    value === "captcha_suspected" ||
+    value === "error"
+  ) {
+    return value;
+  }
+  if (workerStatus === "login_error") return "login_failed";
+  return "expired";
+}
+
+function asProxyStatus(value?: string, hasProxy?: boolean): ProxyStatus {
+  if (
+    value === "ok" ||
+    value === "degraded" ||
+    value === "down" ||
+    value === "not_configured" ||
+    value === "unknown"
+  ) {
+    return value;
+  }
+  return hasProxy ? "unknown" : "not_configured";
 }
 
 function mapAccount(account: BackendAccount): Account {
@@ -176,15 +233,14 @@ function mapAccount(account: BackendAccount): Account {
     sessionFile: account.session_file,
     initialMessage: account.initial_message,
     active,
-    sessionStatus:
-      workerStatus === "error" ? "error" : account.last_login_at ? "active" : "expired",
+    sessionStatus: asSessionStatus(account.session_status, workerStatus),
     workerStatus,
     dailyMessageLimit: account.daily_limit ?? 0,
     messagesSentToday: account.messages_sent_today ?? 0,
     proxyServer: account.proxy_server,
     proxyUsername: account.proxy_username,
     proxyPassword: account.proxy_password,
-    proxyStatus: hasProxy ? (account.worker_last_error ? "degraded" : "unknown") : "not_configured",
+    proxyStatus: asProxyStatus(account.proxy_status, hasProxy),
     aiEnabled: active,
     outreachEnabled: active,
     lastLoginAt: asDate(account.last_login_at || account.created_at),
@@ -200,8 +256,25 @@ function mapAccount(account: BackendAccount): Account {
     conversationGoal: account.conversation_goal,
     conversationStyle: account.conversation_style,
     currentWorkerPhase: account.current_worker_phase,
+    workerJobId: account.worker_job_id,
+    workerStartedAt: account.worker_started_at,
+    workerLastCompletedAt: account.worker_last_completed_at,
     workerLastHeartbeat: account.worker_last_heartbeat,
-    workerLastError: account.worker_last_error,
+    workerLastError: account.worker_last_error || account.worker_error,
+    sessionLastChecked: account.session_last_checked,
+    sessionLastError: account.session_last_error,
+    sessionAuthFailures: account.session_auth_failures ?? 0,
+    sessionCaptchaTriggers: account.session_captcha_triggers ?? 0,
+    proxyIp: account.proxy_ip,
+    proxyLatency: account.proxy_latency,
+    proxyLastChecked: account.proxy_last_checked,
+    proxyLastError: account.proxy_last_error,
+    proxyFailures: account.proxy_failures ?? 0,
+    retryCount: account.retry_count ?? 0,
+    retryLimit: account.retry_limit ?? 3,
+    retryReason: account.retry_reason,
+    retryNextAt: account.retry_next_at,
+    permanentlyFailed: account.permanently_failed ?? false,
   };
 }
 
@@ -377,7 +450,11 @@ export async function controlAccountWorker(input: {
 }
 
 export async function testAccountProxy(accountId: string): Promise<ProxyTestResult> {
-  return post<ProxyTestResult>(`/accounts/${accountId}/test-proxy`);
+  return post<ProxyTestResult>(`/accounts/${accountId}/check-proxy`);
+}
+
+export function getProxyHealth(): Promise<ProxyHealthRow[]> {
+  return get<ProxyHealthRow[]>("/proxy-health");
 }
 
 export async function refreshAccountSession(accountId: string): Promise<Account> {

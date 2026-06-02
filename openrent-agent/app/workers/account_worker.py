@@ -1,7 +1,10 @@
 import asyncio
 from contextlib import suppress
-from datetime import datetime
+from datetime import datetime, timedelta
+from urllib.parse import quote, urlsplit, urlunsplit
 from uuid import uuid4
+
+from rq import Retry
 
 from app.utils.logger import logger
 
@@ -29,7 +32,9 @@ from app.db.repository import (
     account_stop_requested,
     get_active_accounts,
     update_account_worker_state,
+    update_proxy_health,
 )
+from app.proxy.check_proxy import check_proxy
 
 from app.queue.queues import worker_queue
 from app.workers.rq_worker import run_account_worker_sync
@@ -37,6 +42,44 @@ from app.workers.rq_worker import run_account_worker_sync
 
 ACTIVE_WORKERS = {}
 ACTIVE_BROWSER_RESOURCES = {}
+
+
+def _proxy_url_for_account(account):
+    proxy_server = (account.proxy_server or "").strip()
+    if not proxy_server:
+        return None
+
+    parsed = urlsplit(
+        proxy_server if "://" in proxy_server else f"http://{proxy_server}"
+    )
+    if not account.proxy_username:
+        return urlunsplit(parsed)
+
+    username = quote(account.proxy_username, safe="")
+    password = quote(account.proxy_password or "", safe="")
+    credentials = f"{username}:{password}@"
+    netloc = parsed.netloc
+    if "@" in netloc:
+        netloc = netloc.split("@", 1)[1]
+    return urlunsplit(
+        (
+            parsed.scheme,
+            f"{credentials}{netloc}",
+            parsed.path,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
+
+
+async def _heartbeat_loop(account_id, phase_getter):
+    while True:
+        update_account_worker_state(
+            account_id,
+            "running",
+            phase=phase_getter(),
+        )
+        await asyncio.sleep(45)
 
 
 def account_phase(account, now=None):
@@ -72,8 +115,46 @@ async def run_account_worker(account):
     playwright = None
     browser = None
     context = None
+    heartbeat_task = None
 
     try:
+        heartbeat_task = asyncio.create_task(
+            _heartbeat_loop(account.id, lambda: phase)
+        )
+
+        proxy_url = _proxy_url_for_account(account)
+        if proxy_url:
+            phase = "proxy_check"
+            update_account_worker_state(
+                account.id,
+                "running",
+                phase=phase,
+            )
+            proxy_result = await asyncio.to_thread(check_proxy, proxy_url)
+            update_proxy_health(account.id, proxy_result)
+
+            if not proxy_result.get("healthy"):
+                error = proxy_result.get("error") or "Proxy health check failed"
+                logger.error(
+                    f"Proxy health check failed for {account.email}: {error}"
+                )
+                update_account_worker_state(
+                    account.id,
+                    "proxy_error",
+                    phase="proxy_error",
+                    error=error,
+                    retry_reason=error,
+                    retry_next_at=datetime.utcnow() + timedelta(minutes=1),
+                )
+                phase = "proxy_error"
+                return
+
+        phase = "launching_browser"
+        update_account_worker_state(
+            account.id,
+            "running",
+            phase=phase,
+        )
 
         playwright, browser, context, page = (
             await launch_browser(account)
@@ -85,12 +166,30 @@ async def run_account_worker(account):
             "context": context,
         }
 
-        await login(
-            page,
-            context,
-            account
+        phase = "authenticating"
+        update_account_worker_state(
+            account.id,
+            "running",
+            phase=phase,
         )
 
+        try:
+            await login(
+                page,
+                context,
+                account
+            )
+        except Exception as exc:
+            phase = "login_error"
+            update_account_worker_state(
+                account.id,
+                "login_error",
+                phase="login_error",
+                error=str(exc),
+            )
+            raise
+
+        phase = account_phase(account)
         update_account_worker_state(
             account.id,
             "running",
@@ -180,6 +279,7 @@ async def run_account_worker(account):
             "completed",
             phase="completed"
         )
+        phase = "completed"
 
     except asyncio.CancelledError:
 
@@ -211,6 +311,7 @@ async def run_account_worker(account):
             phase=phase,
             error=str(e)
         )
+        phase = "error"
 
     finally:
 
@@ -231,6 +332,11 @@ async def run_account_worker(account):
             with suppress(Exception):
                 await playwright.stop()
 
+        if heartbeat_task:
+            heartbeat_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await heartbeat_task
+
         logger.info(
             f"Worker stopped for "
             f"{account.email}"
@@ -241,11 +347,12 @@ async def run_account_worker(account):
         if ACTIVE_WORKERS.get(account.id) is current_task:
             ACTIVE_WORKERS.pop(account.id, None)
 
-        update_account_worker_state(
-            account.id,
-            "idle",
-            phase=phase
-        )
+        if phase not in {"error", "proxy_error", "login_error"}:
+            update_account_worker_state(
+                account.id,
+                "idle",
+                phase=phase
+            )
 
 
 async def run_one_account_by_id(account_id):
@@ -310,7 +417,15 @@ async def start_account_worker(account_id):
     job = worker_queue.enqueue(
         run_account_worker_sync,
         account_id,
-        job_timeout="2h"
+        job_timeout="2h",
+        retry=Retry(max=3, interval=[60, 300, 900]),
+    )
+
+    update_account_worker_state(
+        account_id,
+        "queued",
+        phase="queued",
+        job_id=job.id,
     )
 
     logger.info(

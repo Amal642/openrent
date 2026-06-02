@@ -35,6 +35,7 @@ from app.ai.replies import (
 from app.db.repository import update_conversation_status
 
 from app.utils.human import random_sleep
+from app.utils.scheduling import is_uk_outreach_window
 
 from app.utils.logger import logger
 
@@ -165,6 +166,13 @@ async def process_account_listings(
 
                 print("Daily limit reached")
                 logger.info(f"Daily limit reached for account {account.id}")
+                break
+
+            if not is_uk_outreach_window():
+                logger.info(
+                    "Outside UK outreach window; stopping initial enquiries "
+                    f"for account {account.id}"
+                )
                 break
 
             full_url = f"https://www.openrent.co.uk{message_link}"

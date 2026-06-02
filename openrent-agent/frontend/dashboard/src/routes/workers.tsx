@@ -25,9 +25,15 @@ export const Route = createFileRoute("/workers")({
 });
 
 const workerTone: Record<WorkerStatus, "success" | "warning" | "destructive" | "muted"> = {
+  queued: "warning",
   running: "success",
   stopping: "warning",
   idle: "muted",
+  completed: "success",
+  stopped: "muted",
+  retrying: "warning",
+  proxy_error: "destructive",
+  login_error: "destructive",
   paused: "warning",
   error: "destructive",
 };
@@ -77,6 +83,7 @@ function WorkersPage() {
               <TableHead>Status</TableHead>
               <TableHead>Phase</TableHead>
               <TableHead>Heartbeat</TableHead>
+              <TableHead>Job</TableHead>
               <TableHead>Last error</TableHead>
               <TableHead className="text-right">Controls</TableHead>
             </TableRow>
@@ -90,10 +97,26 @@ function WorkersPage() {
                 </TableCell>
                 <TableCell>
                   <DotBadge tone={workerTone[worker.status] ?? "muted"} label={worker.status} />
+                  {worker.stale ? (
+                    <div className="mt-1 text-xs text-destructive">stale heartbeat</div>
+                  ) : null}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{worker.phase}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {worker.last_heartbeat ? fmtRelative(worker.last_heartbeat) : "-"}
+                  {worker.started_at ? <div>started {fmtRelative(worker.started_at)}</div> : null}
+                </TableCell>
+                <TableCell className="max-w-[180px] truncate text-xs text-muted-foreground">
+                  {worker.job_id || "-"}
+                  {worker.retry_count ? (
+                    <div className="text-warning">
+                      retry {worker.retry_count}
+                      {worker.retry_next_at ? ` · ${fmtRelative(worker.retry_next_at)}` : ""}
+                    </div>
+                  ) : null}
+                  {worker.last_completed_at ? (
+                    <div>completed {fmtRelative(worker.last_completed_at)}</div>
+                  ) : null}
                 </TableCell>
                 <TableCell className="max-w-[320px] truncate text-xs text-muted-foreground">
                   {worker.last_error || "-"}

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.parse import quote, urlsplit, urlunsplit
 import os
 import socket
 
@@ -21,6 +22,7 @@ from app.db.repository import (
     get_dashboard_accounts,
     get_dashboard_leads,
     get_dashboard_search_profiles,
+    update_proxy_health,
     update_account,
     update_conversation_status,
     update_search_profile,
@@ -183,6 +185,63 @@ def _proxy_host_port(proxy_server: str):
     return parsed.hostname, parsed.port
 
 
+def _account_proxy_url(account: dict):
+    proxy_server = (account.get("proxy_server") or "").strip()
+    if not proxy_server:
+        return None
+
+    parsed = urlsplit(
+        proxy_server if "://" in proxy_server else f"http://{proxy_server}"
+    )
+    username_value = account.get("proxy_username")
+    if not username_value:
+        return urlunsplit(parsed)
+
+    username = quote(username_value, safe="")
+    password = quote(account.get("proxy_password") or "", safe="")
+    netloc = parsed.netloc.split("@", 1)[-1]
+    return urlunsplit(
+        (
+            parsed.scheme,
+            f"{username}:{password}@{netloc}",
+            parsed.path,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
+
+
+def _check_and_persist_proxy(account_id: int):
+    from app.proxy.check_proxy import check_proxy
+
+    account = _require_account(account_id)
+    proxy_url = _account_proxy_url(account)
+    if not proxy_url:
+        result = {
+            "account_id": account_id,
+            "healthy": False,
+            "status": "not_configured",
+            "ok": False,
+            "error": "No proxy configured",
+        }
+        update_proxy_health(account_id, result)
+        return result
+
+    result = check_proxy(proxy_url)
+    update_proxy_health(account_id, result)
+    return {
+        "account_id": account_id,
+        "healthy": result.get("healthy", False),
+        "ok": result.get("healthy", False),
+        "status": "ok" if result.get("healthy") else "failed",
+        "ip": result.get("ip"),
+        "latency": result.get("latency"),
+        "status_code": result.get("status_code"),
+        "error": result.get("error"),
+        "detail": result.get("error"),
+    }
+
+
 def _serve_frontend_asset(full_path: str = "index.html"):
     target = (FRONTEND_DIST / full_path).resolve()
     if FRONTEND_DIST.exists() and target.exists() and target.is_file():
@@ -221,6 +280,28 @@ def api_conversation_messages(thread_id: str):
 @app.get("/api/accounts")
 def api_accounts():
     return get_dashboard_accounts()
+
+
+@app.get("/api/proxy-health")
+def api_proxy_health():
+    accounts = get_dashboard_accounts()
+    return [
+        {
+            "account_id": account["id"],
+            "account_email": account["email"],
+            "proxy_server": account.get("proxy_server"),
+            "proxy_status": (
+                account.get("proxy_status")
+                or ("not_configured" if not account.get("proxy_server") else "unknown")
+            ),
+            "proxy_ip": account.get("proxy_ip"),
+            "proxy_latency": account.get("proxy_latency"),
+            "proxy_last_checked": account.get("proxy_last_checked"),
+            "proxy_last_error": account.get("proxy_last_error"),
+            "proxy_failures": account.get("proxy_failures", 0),
+        }
+        for account in accounts
+    ]
 
 
 @app.post("/api/accounts/{account_id}/run")
@@ -339,24 +420,12 @@ def api_resume_account(account_id: int):
 
 @app.post("/api/accounts/{account_id}/test-proxy")
 def api_test_proxy(account_id: int):
-    account = _require_account(account_id)
-    proxy_server = account.get("proxy_server")
-    if not proxy_server:
-        return {"account_id": account_id, "status": "not_configured", "ok": False}
+    return _check_and_persist_proxy(account_id)
 
-    try:
-        host, port = _proxy_host_port(proxy_server)
-        with socket.create_connection((host, port), timeout=8):
-            pass
-    except Exception as exc:
-        return {
-            "account_id": account_id,
-            "status": "failed",
-            "ok": False,
-            "detail": str(exc),
-        }
 
-    return {"account_id": account_id, "status": "ok", "ok": True}
+@app.post("/api/accounts/{account_id}/check-proxy")
+def api_check_proxy(account_id: int):
+    return _check_and_persist_proxy(account_id)
 
 
 @app.post("/api/accounts/{account_id}/refresh-session")
@@ -372,7 +441,9 @@ async def api_refresh_session(account_id: int):
 @app.post("/api/accounts/{account_id}/invalidate-session")
 def api_invalidate_session(account_id: int):
     account = _require_account(account_id)
-    session_file = account.get("session_file")
+    from app.browser.launcher import get_session_file
+
+    session_file = get_session_file(type("AccountRef", (), account))
     if session_file and Path(session_file).exists():
         Path(session_file).unlink()
     return _set_worker_state(account_id, "idle", phase="session_invalidated")
@@ -506,6 +577,7 @@ def api_metrics():
 @app.get("/api/workers")
 def api_workers():
     accounts = get_dashboard_accounts()
+    now = datetime.utcnow()
     return [
         {
             "id": f"account-{account['id']}",
@@ -514,8 +586,18 @@ def api_workers():
             "status": account.get("worker_status", "idle"),
             "phase": account.get("current_worker_phase", "idle"),
             "last_heartbeat": account.get("worker_last_heartbeat"),
+            "started_at": account.get("worker_started_at"),
+            "last_completed_at": account.get("worker_last_completed_at"),
+            "job_id": account.get("worker_job_id"),
+            "retry_count": account.get("retry_count", 0),
+            "retry_next_at": account.get("retry_next_at"),
             "last_error": account.get("worker_last_error"),
             "active": account.get("active", False),
+            "stale": bool(
+                account.get("worker_status") == "running"
+                and account.get("worker_last_heartbeat")
+                and (now - account["worker_last_heartbeat"]).total_seconds() > 120
+            ),
         }
         for account in accounts
     ]
@@ -530,7 +612,10 @@ def api_workers_status():
         "total": len(workers),
         "running": len([worker for worker in workers if worker["status"] in {"running", "stopping"}]),
         "paused": len([worker for worker in workers if worker["status"] == "paused"]),
-        "errored": len([worker for worker in workers if worker["status"] == "error"]),
+        "errored": len([
+            worker for worker in workers
+            if worker["status"] in {"error", "proxy_error", "login_error"}
+        ]),
         "queue": "in_process",
         "active_tasks": get_active_worker_count(),
     }

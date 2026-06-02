@@ -12,6 +12,7 @@ from app.db.models import (
     SearchProfile,
 )
 from app.db.status import VIEWING_CANCELLED
+from app.utils.scheduling import uk_now
 from app.ai.personas import (
     get_conversation_style,
     get_persona_template,
@@ -302,6 +303,7 @@ def serialize_account(account):
         "initial_message": account.initial_message,
         "daily_limit": account.daily_limit,
         "messages_sent_today": account.messages_sent_today,
+        "messages_sent_reset_at": account.messages_sent_reset_at,
         "active": account.active,
         "created_at": account.created_at,
         "persona_name": persona["persona_name"] if persona else None,
@@ -323,10 +325,31 @@ def serialize_account(account):
         "screening_posture": persona.get("screening_posture") if persona else None,
         "phone_boundary": persona.get("phone_boundary") if persona else None,
         "worker_status": account.worker_status or "idle",
+        "worker_job_id": account.worker_job_id,
+        "worker_started_at": account.worker_started_at,
         "worker_last_heartbeat": account.worker_last_heartbeat,
+        "worker_error": account.worker_error,
         "worker_last_error": account.worker_last_error,
+        "worker_last_completed_at": account.worker_last_completed_at,
         "current_worker_phase": account.current_worker_phase or "idle",
         "last_login_at": account.last_login_at,
+        "session_status": account.session_status or "expired",
+        "session_last_checked": account.session_last_checked,
+        "session_last_error": account.session_last_error,
+        "session_auth_failures": account.session_auth_failures or 0,
+        "session_captcha_triggers": account.session_captcha_triggers or 0,
+        "proxy_status": account.proxy_status or "unknown",
+        "proxy_ip": account.proxy_ip,
+        "proxy_latency": account.proxy_latency,
+        "proxy_last_checked": account.proxy_last_checked,
+        "proxy_last_error": account.proxy_last_error,
+        "proxy_failures": account.proxy_failures or 0,
+        "retry_count": account.retry_count or 0,
+        "retry_limit": account.retry_limit or 3,
+        "retry_reason": account.retry_reason,
+        "retry_next_at": account.retry_next_at,
+        "last_exception": account.last_exception,
+        "permanently_failed": bool(account.permanently_failed),
     }
 
 
@@ -344,7 +367,15 @@ def get_dashboard_accounts():
         return [serialize_account(account) for account in accounts]
 
 
-def update_account_worker_state(account_id, status, phase=None, error=None):
+def update_account_worker_state(
+    account_id,
+    status,
+    phase=None,
+    error=None,
+    job_id=None,
+    retry_reason=None,
+    retry_next_at=None,
+):
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
         if not account:
@@ -354,9 +385,83 @@ def update_account_worker_state(account_id, status, phase=None, error=None):
         account.worker_last_heartbeat = datetime.utcnow()
         account.current_worker_phase = phase or account.current_worker_phase
         account.worker_last_error = error
+        account.worker_error = error
+        if job_id is not None:
+            account.worker_job_id = job_id
+        if status == "running" and not account.worker_started_at:
+            account.worker_started_at = datetime.utcnow()
+        if status in ("completed", "idle") and phase == "completed":
+            account.worker_last_completed_at = datetime.utcnow()
+            account.worker_started_at = None
+            account.retry_count = 0
+            account.retry_reason = None
+            account.retry_next_at = None
+            account.last_exception = None
+            account.permanently_failed = False
+        if status in ("error", "proxy_error", "login_error"):
+            account.last_exception = error
+        if status == "retrying":
+            account.retry_count = (account.retry_count or 0) + 1
+            account.retry_reason = retry_reason or error
+            account.retry_next_at = retry_next_at
         if status in ("running", "idle"):
             account.last_login_at = account.last_login_at or datetime.utcnow()
         db.commit()
+
+
+def update_proxy_health(account_id, result):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return None
+
+        healthy = bool(result.get("healthy"))
+        latency = result.get("latency")
+        account.proxy_status = result.get("status") if result.get("status") == "not_configured" else (
+            "ok" if healthy else "down"
+        )
+        if latency is not None and healthy and latency > 5:
+            account.proxy_status = "degraded"
+        account.proxy_ip = result.get("ip") or account.proxy_ip
+        account.proxy_latency = latency
+        account.proxy_last_checked = datetime.utcnow()
+        account.proxy_last_error = result.get("error")
+        if not healthy:
+            account.proxy_failures = (account.proxy_failures or 0) + 1
+        else:
+            account.proxy_failures = 0
+        db.commit()
+        db.refresh(account)
+        return serialize_account(account)
+
+
+def update_session_health(
+    account_id,
+    status,
+    error=None,
+    captcha_triggered=False,
+    login_success=False,
+):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return None
+
+        account.session_status = status
+        account.session_last_checked = datetime.utcnow()
+        account.session_last_error = error
+        if login_success:
+            account.last_login_at = datetime.utcnow()
+            account.session_auth_failures = 0
+        elif status in ("error", "expired", "login_failed"):
+            account.session_auth_failures = (account.session_auth_failures or 0) + 1
+        if captcha_triggered:
+            account.session_captcha_triggers = (
+                account.session_captcha_triggers or 0
+            ) + 1
+        db.commit()
+        db.refresh(account)
+        return serialize_account(account)
 
 
 def account_stop_requested(account_id):
@@ -596,6 +701,12 @@ def can_send_message(account_id):
         if not account:
             return False
 
+        today = uk_now().date()
+        if not account.messages_sent_reset_at or account.messages_sent_reset_at.date() != today:
+            account.messages_sent_today = 0
+            account.messages_sent_reset_at = datetime.utcnow()
+            db.commit()
+
         return account.messages_sent_today < account.daily_limit
 
 
@@ -606,6 +717,10 @@ def increment_message_count(account_id):
         ).first()
 
         if account:
+            today = uk_now().date()
+            if not account.messages_sent_reset_at or account.messages_sent_reset_at.date() != today:
+                account.messages_sent_today = 0
+                account.messages_sent_reset_at = datetime.utcnow()
             account.messages_sent_today += 1
             db.commit()
 

@@ -20,8 +20,25 @@ export type ConversationStage =
   | "VIEWING_CANCELLED"
   | "CLOSED";
 
-export type SessionStatus = "active" | "expired" | "logging_in" | "error";
-export type WorkerStatus = "running" | "stopping" | "paused" | "idle" | "error";
+export type SessionStatus =
+  | "active"
+  | "expired"
+  | "logging_in"
+  | "login_failed"
+  | "captcha_suspected"
+  | "error";
+export type WorkerStatus =
+  | "queued"
+  | "running"
+  | "stopping"
+  | "paused"
+  | "idle"
+  | "completed"
+  | "stopped"
+  | "retrying"
+  | "proxy_error"
+  | "login_error"
+  | "error";
 export type ProxyStatus = "ok" | "degraded" | "down" | "not_configured" | "unknown";
 
 export interface Account {
@@ -53,8 +70,25 @@ export interface Account {
   conversationGoal?: string;
   conversationStyle?: string;
   currentWorkerPhase?: string;
+  workerJobId?: string;
+  workerStartedAt?: string;
+  workerLastCompletedAt?: string;
   workerLastHeartbeat?: string;
   workerLastError?: string;
+  sessionLastChecked?: string;
+  sessionLastError?: string;
+  sessionAuthFailures: number;
+  sessionCaptchaTriggers: number;
+  proxyIp?: string;
+  proxyLatency?: number;
+  proxyLastChecked?: string;
+  proxyLastError?: string;
+  proxyFailures: number;
+  retryCount: number;
+  retryLimit: number;
+  retryReason?: string;
+  retryNextAt?: string;
+  permanentlyFailed: boolean;
 }
 
 export interface SearchProfile {
@@ -161,6 +195,23 @@ export interface ProxyTestResult {
   status: ProxyStatus | "failed";
   ok: boolean;
   detail?: string;
+  healthy?: boolean;
+  ip?: string;
+  latency?: number;
+  status_code?: number;
+  error?: string;
+}
+
+export interface ProxyHealthRow {
+  account_id: number;
+  account_email: string;
+  proxy_server?: string;
+  proxy_status: ProxyStatus;
+  proxy_ip?: string;
+  proxy_latency?: number;
+  proxy_last_checked?: string;
+  proxy_last_error?: string;
+  proxy_failures: number;
 }
 
 export interface WorkerSummary {
@@ -170,8 +221,14 @@ export interface WorkerSummary {
   status: WorkerStatus;
   phase: string;
   last_heartbeat?: string;
+  started_at?: string;
+  last_completed_at?: string;
+  job_id?: string;
+  retry_count: number;
+  retry_next_at?: string;
   last_error?: string;
   active: boolean;
+  stale: boolean;
 }
 
 export interface WorkersStatus {
