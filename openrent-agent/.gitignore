@@ -139,3 +139,11 @@ htmlcov/
 
 # Generated simulation runs
 simulation/datasets/runs/*.json
+# Screenshots
+*.png
+
+# Sessions
+session*
+
+# Installers
+*.deb
