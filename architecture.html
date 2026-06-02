@@ -433,7 +433,7 @@
         <div style="font-size:1.3rem;">⚡</div>
         <div>
           <div style="font-size:0.82rem; font-weight:600; color:var(--accent); margin-bottom:3px;">Reply Behavior Source of Truth: <code style="font-family:Consolas;background:var(--surface2);padding:1px 6px;border-radius:3px;">app/ai/prompts.py</code></div>
-          <div style="font-size:0.76rem; color:var(--muted);">AI reply behavior lives in <code style="font-family:Consolas">_DESIGN_RULES</code>. <code style="font-family:Consolas">simulation/conversation_designs.py</code> owns design metadata, property-aware opening templates, and success/failure criteria.</div>
+          <div style="font-size:0.76rem; color:var(--muted);">Simulation and live reply generation both use <code style="font-family:Consolas">app/ai/prompts.py</code>. <code style="font-family:Consolas">simulation/conversation_designs.py</code> owns design metadata and opening templates. <code style="font-family:Consolas">corpus_number_capture_v2</code> only applies when that design_id is passed.</div>
         </div>
       </div>
     </div>
@@ -857,6 +857,20 @@
       <div class="flow-list">
 
         <div class="flow-card">
+          <div class="flow-title">Whole Project Flow (Simple)</div>
+          <div class="flow-steps">
+            <div class="flow-step">Operator creates accounts and search profiles in the Command Center.</div>
+            <div class="flow-step"><code>app/workers/account_worker.py</code> runs an account through listing, reply, and reminder phases.</div>
+            <div class="flow-step">Playwright logs in to OpenRent and reads listings, inbox threads, and landlord replies.</div>
+            <div class="flow-step"><code>app/db/repository.py</code> loads account persona data; <code>app/ai/personas.py</code> supplies jobs, household, home city, screening posture, and contact-boundary facts.</div>
+            <div class="flow-step"><code>app/ai/replies.py</code> formats the conversation and calls <code>app/ai/prompts.py</code> to build the OpenAI prompt.</div>
+            <div class="flow-step"><code>app/ai/prompts.py</code> applies the active design rules. Default fallback is <code>viewing_first_v1</code>; corpus number-capture behavior requires <code>corpus_number_capture_v2</code>.</div>
+            <div class="flow-step">OpenAI returns one reply; validators remove unapproved phone numbers before the reply is stored.</div>
+            <div class="flow-step"><code>AI_AUTOSEND=false</code> stores the reply for review only. <code>AI_AUTOSEND=true</code> sends it through <code>app/openrent/messaging.py</code>.</div>
+          </div>
+        </div>
+
+        <div class="flow-card">
           <div class="flow-title">Interactive Session Flow (Human Tester)</div>
           <div class="flow-steps">
             <div class="flow-step">Frontend <code>POST /simulation/interactive/start</code></div>
@@ -884,6 +898,18 @@
         </div>
 
         <div class="flow-card">
+          <div class="flow-title">Corpus Number Capture v2 Mode</div>
+          <div class="flow-steps">
+            <div class="flow-step"><code>full-conversations.md</code> is analyzed by <code>scripts/analyze_corpus_number_capture.py</code>; phone redaction comes from <code>scripts/ingest_corpus.py</code>.</div>
+            <div class="flow-step"><code>corpus_number_capture_v2</code> is registered in <code>simulation/conversation_designs.py</code>; its actual reply rules live in <code>app/ai/prompts.py</code>.</div>
+            <div class="flow-step">The mode targets landlord number capture. It does not share the tenant number.</div>
+            <div class="flow-step">The mode handles refusal: after a landlord refuses phone sharing, the next tenant reply keeps arranging on OpenRent instead of immediately asking again.</div>
+            <div class="flow-step">Persona templates provide grounded screening facts, including <code>single_income_couple</code> and the <code>landlord_number_boundary</code> style.</div>
+            <div class="flow-step"><code>simulation/conversation_state.py</code> and <code>simulation/evaluators/heuristic.py</code> measure phone capture, early phone asks, pushed-after-refusal, and viewing progress.</div>
+          </div>
+        </div>
+
+        <div class="flow-card">
           <div class="flow-title">Account Automation (Production)</div>
           <div class="flow-steps">
             <div class="flow-step"><code>POST /api/accounts/{id}/run</code></div>
@@ -891,8 +917,10 @@
             <div class="flow-step">Playwright browser launches (headless or visible)</div>
             <div class="flow-step"><code>app/browser/auth.py</code> — login to OpenRent</div>
             <div class="flow-step"><code>app/openrent/inbox.py</code> — fetch new messages</div>
-            <div class="flow-step">For each message: <code>build_reply_prompt()</code> → OpenAI API</div>
-            <div class="flow-step"><code>app/openrent/messaging.py</code> — send reply</div>
+            <div class="flow-step"><code>scripts/process_replies.py</code> calls <code>generate_reply()</code> with persona, stage, landlord attitude, and conversation style.</div>
+            <div class="flow-step">Current live reply flow does <strong>not</strong> pass <code>conversation_design_id</code>; <code>corpus_number_capture_v2</code> is not active there unless that wiring is added deliberately.</div>
+            <div class="flow-step">If landlord asks for the tenant number, <code>process_replies.py</code> has an extra safeguard that can append the assigned tenant mobile. Review this before using landlord-number-capture mode live.</div>
+            <div class="flow-step"><code>AI_AUTOSEND=false</code> stores for review. <code>AI_AUTOSEND=true</code> sends via <code>app/openrent/messaging.py</code>.</div>
             <div class="flow-step"><code>app/db/repository.py</code> — log conversation status</div>
           </div>
         </div>
@@ -945,7 +973,9 @@
     <div class="section" id="principles">
       <div class="section-title" style="color:var(--muted)">Key Principles</div>
       <div class="principle-list">
-        <div class="principle">All AI behavior rules live <strong>only</strong> in <code style="font-family:Consolas;background:var(--surface2);padding:1px 5px;border-radius:3px;">app/ai/prompts.py</code> (<code>_DESIGN_RULES</code>). Never embedded in conversation_designs.py or elsewhere.</div>
+        <div class="principle">All reply prompt rules live in <code style="font-family:Consolas;background:var(--surface2);padding:1px 5px;border-radius:3px;">app/ai/prompts.py</code> (<code>_DESIGN_RULES</code>). Design metadata, labels, opening messages, and success/failure criteria live in <code style="font-family:Consolas;background:var(--surface2);padding:1px 5px;border-radius:3px;">simulation/conversation_designs.py</code>.</div>
+        <div class="principle"><code style="font-family:Consolas;background:var(--surface2);padding:1px 5px;border-radius:3px;">corpus_number_capture_v2</code> is a selectable design, not the default live workflow. Production use requires explicit <code style="font-family:Consolas;background:var(--surface2);padding:1px 5px;border-radius:3px;">conversation_design_id</code> wiring plus review of the tenant-mobile safeguard in <code style="font-family:Consolas;background:var(--surface2);padding:1px 5px;border-radius:3px;">scripts/process_replies.py</code>.</div>
+        <div class="principle"><code style="font-family:Consolas;background:var(--surface2);padding:1px 5px;border-radius:3px;">AI_AUTOSEND=false</code> means generated replies are stored for review only. Live sending happens only when autosend is true and the OpenRent send path succeeds.</div>
         <div class="principle">Simulation is <strong>deterministic</strong> — RNG seeding ensures the same scenario + design always produces the same transcript for reproducible testing.</div>
         <div class="principle">Conversation state analysis uses <strong>heuristics only</strong> — no LLM call. Fast, cheap, and predictable signal extraction from transcript text.</div>
         <div class="principle">ProductionPolicy uses <strong>temperature=0.0</strong> in simulation mode so evaluations are reproducible across runs.</div>
