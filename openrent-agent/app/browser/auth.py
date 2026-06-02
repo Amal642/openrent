@@ -35,6 +35,10 @@ async def login(page, context, account):
         "button",
         name="Continue with email"
     ).click()
+    await page.screenshot(
+        path="login-debug.png",
+        full_page=True
+    )
 
     # Fill password
     await page.get_by_role(
