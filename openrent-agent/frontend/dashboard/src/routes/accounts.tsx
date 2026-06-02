@@ -84,6 +84,7 @@ const sessionTone: Record<SessionStatus, "success" | "warning" | "destructive" |
 };
 const workerTone: Record<WorkerStatus, "success" | "warning" | "destructive" | "muted"> = {
   running: "success",
+  stopping: "warning",
   idle: "muted",
   paused: "warning",
   error: "destructive",
@@ -130,7 +131,9 @@ function AccountsPage() {
 
   const saveMutation = useMutation({
     mutationFn: (account: Partial<Account> & { password?: string; id?: string }) =>
-      account.id ? updateAccount(account as Partial<Account> & { id: string }) : createAccount(account),
+      account.id
+        ? updateAccount(account as Partial<Account> & { id: string })
+        : createAccount(account),
     onSuccess: () => {
       invalidate();
       toast.success("Account saved");
@@ -165,7 +168,9 @@ function AccountsPage() {
       mode === "refresh" ? refreshAccountSession(id) : invalidateAccountSession(id),
     onSuccess: (_result, variables) => {
       invalidate();
-      toast.success(variables.mode === "refresh" ? "Session refresh queued" : "Session invalidated");
+      toast.success(
+        variables.mode === "refresh" ? "Session refresh queued" : "Session invalidated",
+      );
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Session action failed"),
   });
@@ -238,7 +243,9 @@ function AccountsPage() {
                 <TableRow key={a.id}>
                   <TableCell className="font-medium">
                     <div>{a.email}</div>
-                    <div className="text-xs text-muted-foreground">{a.sessionFile || "session.json"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {a.sessionFile || "session.json"}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <DotBadge tone={sessionTone[a.sessionStatus]} label={a.sessionStatus} />
@@ -246,7 +253,9 @@ function AccountsPage() {
                   <TableCell>
                     <DotBadge tone={workerTone[a.workerStatus]} label={a.workerStatus} />
                     {a.currentWorkerPhase ? (
-                      <div className="mt-1 text-xs text-muted-foreground">{a.currentWorkerPhase}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {a.currentWorkerPhase}
+                      </div>
                     ) : null}
                   </TableCell>
                   <TableCell className="min-w-[140px]">
@@ -265,20 +274,28 @@ function AccountsPage() {
                   </TableCell>
                   <TableCell className="text-xs">
                     <div className="font-medium">
-                      {a.personaName || "-"} {a.personaPartnerName ? `& ${a.personaPartnerName}` : ""}
+                      {a.personaName || "-"}{" "}
+                      {a.personaPartnerName ? `& ${a.personaPartnerName}` : ""}
                     </div>
                     <div className="text-muted-foreground">
-                      {[a.personaJob, a.personaPartnerJob, a.homeCity].filter(Boolean).join(" / ") || "-"}
+                      {[a.personaJob, a.personaPartnerJob, a.homeCity]
+                        .filter(Boolean)
+                        .join(" / ") || "-"}
                     </div>
                     <div className="text-muted-foreground">
-                      {[a.mobileNumber, a.conversationStyle, a.phoneFetchingType].filter(Boolean).join(" / ") || "-"}
+                      {[a.mobileNumber, a.conversationStyle, a.phoneFetchingType]
+                        .filter(Boolean)
+                        .join(" / ") || "-"}
                     </div>
                   </TableCell>
                   <TableCell>
                     <Switch
                       checked={a.active}
                       onCheckedChange={(active) =>
-                        workerMutation.mutate({ accountId: a.id, action: active ? "resume" : "pause" })
+                        workerMutation.mutate({
+                          accountId: a.id,
+                          action: active ? "resume" : "pause",
+                        })
                       }
                       aria-label={`${a.email} active state`}
                     />
@@ -295,26 +312,44 @@ function AccountsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => workerMutation.mutate({ accountId: a.id, action: "start" })}>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            workerMutation.mutate({ accountId: a.id, action: "start" })
+                          }
+                        >
                           <Play className="size-4" /> Start worker
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => workerMutation.mutate({ accountId: a.id, action: "stop" })}>
+                        <DropdownMenuItem
+                          onClick={() => workerMutation.mutate({ accountId: a.id, action: "stop" })}
+                        >
                           <Power className="size-4" /> Stop worker
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => workerMutation.mutate({ accountId: a.id, action: "pause" })}>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            workerMutation.mutate({ accountId: a.id, action: "pause" })
+                          }
+                        >
                           <Pause className="size-4" /> Pause account
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => workerMutation.mutate({ accountId: a.id, action: "resume" })}>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            workerMutation.mutate({ accountId: a.id, action: "resume" })
+                          }
+                        >
                           <RefreshCw className="size-4" /> Resume account
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => proxyMutation.mutate(a.id)}>
                           <ShieldCheck className="size-4" /> Test proxy
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => sessionMutation.mutate({ id: a.id, mode: "refresh" })}>
+                        <DropdownMenuItem
+                          onClick={() => sessionMutation.mutate({ id: a.id, mode: "refresh" })}
+                        >
                           <RefreshCw className="size-4" /> Refresh session
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => sessionMutation.mutate({ id: a.id, mode: "invalidate" })}>
+                        <DropdownMenuItem
+                          onClick={() => sessionMutation.mutate({ id: a.id, mode: "invalidate" })}
+                        >
                           <KeyRound className="size-4" /> Invalidate session
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -326,7 +361,10 @@ function AccountsPage() {
                         >
                           Edit account
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(a)}>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => setDeleteTarget(a)}
+                        >
                           <Trash2 className="size-4" /> Delete account
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -351,7 +389,8 @@ function AccountsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete account?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the account and its related search profiles, listings, conversations, and messages.
+              This removes the account and its related search profiles, listings, conversations, and
+              messages.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -419,7 +458,10 @@ function AccountDialog({
         </DialogHeader>
         <div className="grid gap-4 py-2 sm:grid-cols-2">
           <Field label="Email">
-            <Input value={data.email ?? ""} onChange={(e) => setData({ ...data, email: e.target.value })} />
+            <Input
+              value={data.email ?? ""}
+              onChange={(e) => setData({ ...data, email: e.target.value })}
+            />
           </Field>
           <Field label="Password">
             <Input

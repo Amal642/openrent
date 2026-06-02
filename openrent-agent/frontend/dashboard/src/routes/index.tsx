@@ -65,16 +65,19 @@ function Dashboard() {
   } = useQuery({
     queryKey: ["leads"],
     queryFn: () => getLeads(),
+    refetchInterval: 10000,
   });
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery({
     queryKey: ["accounts"],
     queryFn: getAccounts,
+    refetchInterval: 15000,
   });
 
   const { data: metrics } = useQuery({
     queryKey: ["metrics"],
     queryFn: getMetrics,
+    refetchInterval: 10000,
   });
 
   const chartData = useMemo(() => (metrics?.series ?? []).slice(-rangeDays), [metrics, rangeDays]);
@@ -145,9 +148,21 @@ function Dashboard() {
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <MiniMetric label="Reply rate" value={`${replyRate}%`} helper={`${totalReplies} replies`} />
-              <MiniMetric label="Phone progress" value={`${phonesToday}/${phoneTarget}`} helper="today's target" />
-              <MiniMetric label="Active accounts" value={`${accountsActive}/${accounts.length}`} helper="workers ready" />
+              <MiniMetric
+                label="Reply rate"
+                value={`${replyRate}%`}
+                helper={`${totalReplies} replies`}
+              />
+              <MiniMetric
+                label="Phone progress"
+                value={`${phonesToday}/${phoneTarget}`}
+                helper="today's target"
+              />
+              <MiniMetric
+                label="Active accounts"
+                value={`${accountsActive}/${accounts.length}`}
+                helper="workers ready"
+              />
             </div>
           </div>
 
@@ -155,7 +170,9 @@ function Dashboard() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold">Phone target</h2>
-                <p className="text-sm text-muted-foreground">A simple view of today's collection goal.</p>
+                <p className="text-sm text-muted-foreground">
+                  A simple view of today's collection goal.
+                </p>
               </div>
               <div className="flex size-10 items-center justify-center rounded-md bg-success/10 text-success">
                 <Phone className="size-5" />
@@ -167,7 +184,10 @@ function Dashboard() {
                 <span className="text-sm text-muted-foreground">{phonesToday} collected</span>
               </div>
               <div className="h-3 overflow-hidden rounded-full bg-background">
-                <div className="h-full rounded-full bg-success" style={{ width: `${phoneProgress}%` }} />
+                <div
+                  className="h-full rounded-full bg-success"
+                  style={{ width: `${phoneProgress}%` }}
+                />
               </div>
             </div>
             <Button asChild className="mt-5 w-full">
@@ -181,11 +201,32 @@ function Dashboard() {
       </section>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-        <StatCard label="Landlords contacted" value={totalContacted} icon={Send} delta={`last ${rangeDays} days`} />
-        <StatCard label="Replies waiting" value={totalReplies} icon={MessageCircle} delta={`${replyRate}% reply rate`} />
-        <StatCard label="Phone numbers" value={phones} icon={Phone} tone="success" delta="collected so far" />
+        <StatCard
+          label="Landlords contacted"
+          value={totalContacted}
+          icon={Send}
+          delta={`last ${rangeDays} days`}
+        />
+        <StatCard
+          label="Replies waiting"
+          value={totalReplies}
+          icon={MessageCircle}
+          delta={`${replyRate}% reply rate`}
+        />
+        <StatCard
+          label="Phone numbers"
+          value={phones}
+          icon={Phone}
+          tone="success"
+          delta="collected so far"
+        />
         <StatCard label="Active chats" value={active} icon={Activity} delta="still moving" />
-        <StatCard label="Needs attention" value={failed} icon={AlertTriangle} tone={failed ? "destructive" : "success"} />
+        <StatCard
+          label="Needs attention"
+          value={failed}
+          icon={AlertTriangle}
+          tone={failed ? "destructive" : "success"}
+        />
         <StatCard label="AI success" value={`${successRate}%`} icon={CheckCircle2} tone="success" />
       </div>
 
@@ -194,12 +235,16 @@ function Dashboard() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-semibold">Conversation momentum</h2>
-              <p className="text-sm text-muted-foreground">Leads, replies, phones, and issues over time.</p>
+              <p className="text-sm text-muted-foreground">
+                Leads, replies, phones, and issues over time.
+              </p>
             </div>
             <SegmentedControl
               options={ranges.map((range) => range.label)}
               active={`${rangeDays} days`}
-              onChange={(label) => setRangeDays(ranges.find((range) => range.label === label)?.days ?? 14)}
+              onChange={(label) =>
+                setRangeDays(ranges.find((range) => range.label === label)?.days ?? 14)
+              }
             />
           </div>
           <div className="h-72">
@@ -231,9 +276,30 @@ function Dashboard() {
                   fill="url(#leadsGradient)"
                   strokeWidth={2.5}
                 />
-                <Line type="monotone" dataKey="replies" name="Replies" stroke="var(--warning)" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="phones" name="Phones" stroke="var(--success)" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="failures" name="Issues" stroke="var(--destructive)" strokeWidth={2} dot={false} />
+                <Line
+                  type="monotone"
+                  dataKey="replies"
+                  name="Replies"
+                  stroke="var(--warning)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="phones"
+                  name="Phones"
+                  stroke="var(--success)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="failures"
+                  name="Issues"
+                  stroke="var(--destructive)"
+                  strokeWidth={2}
+                  dot={false}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -279,17 +345,26 @@ function Dashboard() {
         <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="font-semibold">Recent activity</h2>
-            <p className="text-sm text-muted-foreground">Latest landlord conversations, filtered for quick review.</p>
+            <p className="text-sm text-muted-foreground">
+              Latest landlord conversations, filtered for quick review.
+            </p>
           </div>
           <SegmentedControl
             options={statusFilters.map((filter) => filter.label)}
             active={statusFilters.find((filter) => filter.value === statusFilter)?.label ?? "All"}
-            onChange={(label) => setStatusFilter(statusFilters.find((filter) => filter.label === label)?.value ?? "all")}
+            onChange={(label) =>
+              setStatusFilter(
+                statusFilters.find((filter) => filter.label === label)?.value ?? "all",
+              )
+            }
           />
         </div>
         <ul className="divide-y">
           {recent.map((lead) => (
-            <li key={lead.id} className="group grid gap-3 p-4 text-sm transition hover:bg-secondary/50 md:grid-cols-[1fr_auto] md:items-center">
+            <li
+              key={lead.id}
+              className="group grid gap-3 p-4 text-sm transition hover:bg-secondary/50 md:grid-cols-[1fr_auto] md:items-center"
+            >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{lead.landlordName}</span>
@@ -305,7 +380,9 @@ function Dashboard() {
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3 md:justify-end">
-                <span className="text-xs text-muted-foreground">{fmtRelative(lead.lastUpdatedAt)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {fmtRelative(lead.lastUpdatedAt)}
+                </span>
                 <Button asChild variant="outline" size="sm">
                   <Link to="/leads/$threadId" params={{ threadId: lead.threadId }}>
                     Open

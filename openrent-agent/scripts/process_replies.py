@@ -1,8 +1,10 @@
 from app.db.repository import (
+    account_stop_requested,
     claim_conversation,
     ensure_account_persona,
     release_conversation_claim,
     save_ai_reply,
+    save_inbound_messages,
     save_message,
     save_phone_number,
     update_conversation_stage,
@@ -44,6 +46,10 @@ from app.ai.extractors import (
 
 from app.ai.replies import (
     generate_reply
+)
+
+from app.ai.validators import (
+    remove_unapproved_phone_numbers
 )
 
 from app.ai.conversation_memory import (
@@ -89,6 +95,11 @@ async def process_account_replies(
         thread_id = None
 
         try:
+            if account_stop_requested(account.id):
+                logger.info(
+                    f"Reply processing stopped for account {account.id}"
+                )
+                break
 
             thread_id = thread["thread_id"]
             owner = worker_id or f"account-{account.id}"
@@ -100,6 +111,7 @@ async def process_account_replies(
             await open_thread(page, thread_id)
 
             messages = await extract_conversation(page)
+            save_inbound_messages(thread_id, messages)
 
             latest_landlord_message = (
                 get_latest_landlord_message(
@@ -296,35 +308,43 @@ async def process_account_replies(
                     if viewing_datetime:
                         save_viewing_datetime(thread_id, viewing_datetime)
 
-            if should_ai_reply(messages):
-                
+            if not should_ai_reply(messages):
+                print("\nNo reply needed")
+                logger.info(f"No AI reply needed for thread {thread_id}")
+                update_conversation_status(thread_id, SKIPPED)
+                continue
 
-                reply_allowed = await can_reply(
-                    page
+            reply_allowed = await can_reply(
+                page
+            )
+
+            if not reply_allowed:
+
+                print(
+                    "\nReply disabled for thread"
+                )
+                logger.warning(f"Reply disabled for thread {thread_id}")
+
+                update_conversation_status(
+                    thread_id,
+                    REPLY_DISABLED
+                )
+                update_last_processed_message(
+                    thread_id,
+                    latest_landlord_message
                 )
 
-                if not reply_allowed:
+                continue
 
-                    print(
-                        "\nReply disabled for thread"
-                    )
-                    logger.warning(f"Reply disabled for thread {thread_id}")
+            # Reply generation stage: use the full conversation, stage memory,
+            # persona, and landlord attitude to produce a natural response.
+            print("\nGenerating AI reply...")
+            logger.info(
+                f"Generating AI reply for thread {thread_id} "
+                f"at stage {stage or 'NEW_REPLY'}"
+            )
 
-                    update_conversation_status(
-                        thread_id,
-                        REPLY_DISABLED
-                    )
-                    update_last_processed_message(
-                        thread_id,
-                        latest_landlord_message
-                    )
-
-                    continue
-
-                print("\nGenerating AI reply...")
-                logger.info(f"Generating AI reply for thread {thread_id}")
-
-                reply, error = generate_reply(
+            reply, error = generate_reply(
                 messages,
                 stage=stage,
                 persona=persona,
@@ -337,7 +357,10 @@ async def process_account_replies(
             if not reply or error:
 
                 print("\nAI reply generation failed")
-                logger.exception(f"AI reply generation failed for thread {thread_id}")
+                logger.error(
+                    f"AI reply generation failed for thread {thread_id}: "
+                    f"{error or 'empty_reply'}"
+                )
 
                 update_conversation_status(
                     thread_id,
@@ -346,93 +369,97 @@ async def process_account_replies(
 
                 continue
 
+            mobile = persona.get("mobile_number") if persona else None
 
-            mobile = persona.get("mobile_number")
-
-            # Force correct number sharing when landlord asks
+            # Landlord phone safeguard stage: remove any hallucinated numbers,
+            # then inject only the assigned tenant mobile when one exists.
             if landlord_asked_number:
+                before_safeguard = reply
+                reply = remove_unapproved_phone_numbers(reply, mobile)
 
-                import re
-
-                # Remove any hallucinated/generated numbers first
-                reply = re.sub(
-                    r'(?:\+44|0)\d[\d\s]{7,}',
-                    '',
-                    reply
-                ).strip()
-
-                # If account has a real number → inject ONLY that
-                if mobile:
-
+                if mobile and mobile not in reply:
                     reply = (
-                        f"I’m {persona.get('persona_name', 'James')}, "
-                        f"it’s {mobile}. "
-                        "Looking forward to the viewing."
+                        f"{reply.rstrip()} My number is {mobile}."
+                        if reply
+                        else f"My number is {mobile}."
                     )
 
-                # No number assigned → never hallucinate one
-                else:
-
-                    reply = (
-                        "Happy to continue here on OpenRent for now."
-                    )
-                print("\nAI REPLY:")
-                print(reply)
-                logger.info(f"AI reply generated for thread {thread_id} and the reply is {reply}")
-
-                await random_sleep(2, 5)
-
-                if settings.AI_AUTOSEND:
-
-                    print("\nAUTO-SEND ENABLED")
-                    logger.info(f"Auto-send enabled for thread {thread_id}")
-
-                    sent = await send_reply(
-                        page,
-                        reply
-                    )
-                    if not sent:
-                        logger.warning(f"Reply send failed for thread {thread_id}")
-                        update_conversation_status(
-                            thread_id,
-                            AI_FAILED
-                        )
-                        continue
-
-                    save_message(thread_id, "outbound", reply)
-                    update_last_processed_message(
-                        thread_id,
-                        latest_landlord_message
-                    )
-                    if stage == "VIEWING_BOOKED" and not landlord_asked_number:
-                        mark_phone_requested(thread_id)
-                    if persona.get("mobile_number") and persona["mobile_number"] in reply:
-                        mark_phone_number_shared(thread_id)
-
-                else:
-
-                    print(
-                        "\nREVIEW MODE "
-                        "(reply not sent)"
-                    )
-                    logger.info(f"Review mode enabled for thread {thread_id}")
-                    update_last_processed_message(
-                        thread_id,
-                        latest_landlord_message
-                    )
-
-                save_ai_reply(
-                    thread_id,
-                    reply
+                logger.info(
+                    f"Phone safeguard applied for thread {thread_id}; "
+                    f"mobile_assigned={bool(mobile)}; "
+                    f"changed={before_safeguard != reply}"
                 )
 
-                update_conversation_status(thread_id, AI_REPLIED)
+            if not reply:
+                logger.warning(
+                    f"Reply became empty after phone safeguards for thread {thread_id}"
+                )
+                update_conversation_status(thread_id, AI_FAILED)
+                continue
+
+            print("\nAI REPLY:")
+            print(reply)
+            logger.info(
+                f"AI reply generated for thread {thread_id}: {reply}"
+            )
+
+            # Persistence stage: always store the generated reply so the
+            # dashboard can show review-mode and failed-send drafts.
+            save_ai_reply(
+                thread_id,
+                reply
+            )
+
+            await random_sleep(2, 5)
+
+            sent = False
+
+            # Autosend stage: only persist an outbound message after the
+            # OpenRent send path reports success.
+            if settings.AI_AUTOSEND:
+
+                print("\nAUTO-SEND ENABLED")
+                logger.info(f"Auto-send enabled for thread {thread_id}")
+
+                sent = await send_reply(
+                    page,
+                    reply
+                )
+                if not sent:
+                    logger.warning(f"Reply send failed for thread {thread_id}")
+                    update_conversation_status(
+                        thread_id,
+                        AI_FAILED
+                    )
+                    continue
+
+                save_message(thread_id, "outbound", reply)
+                logger.info(f"Outbound reply persisted for thread {thread_id}")
+
             else:
 
                 print(
-                    "\nNo reply needed"
+                    "\nREVIEW MODE "
+                    "(reply not sent)"
                 )
-                update_conversation_status(thread_id, SKIPPED)
+                logger.info(f"Review mode enabled for thread {thread_id}")
+
+            # Conversation status updates: move metadata forward after a valid
+            # reply is generated, and after send when autosend is enabled.
+            update_last_processed_message(
+                thread_id,
+                latest_landlord_message
+            )
+            if stage == "VIEWING_BOOKED" and not landlord_asked_number:
+                mark_phone_requested(thread_id)
+            if mobile and mobile in reply:
+                mark_phone_number_shared(thread_id)
+
+            update_conversation_status(thread_id, AI_REPLIED)
+            logger.info(
+                f"Reply pipeline completed for thread {thread_id}; "
+                f"autosend={settings.AI_AUTOSEND}; sent={sent}"
+            )
 
         except Exception as e:
 

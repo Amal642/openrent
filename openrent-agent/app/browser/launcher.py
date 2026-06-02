@@ -19,7 +19,11 @@ async def launch_browser(account):
 
     browser = await playwright.chromium.launch(
         headless=True,
-        slow_mo=500
+        slow_mo=500,
+        args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+        ],
     )
 
     context = await browser.new_context(proxy=proxy)

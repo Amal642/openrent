@@ -1,17 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import {
-  ArrowLeft,
-  ExternalLink,
-  CheckCircle2,
-  XCircle,
-  Phone,
-  Copy,
-} from "lucide-react";
+import { ArrowLeft, ExternalLink, CheckCircle2, XCircle, Phone, Copy } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { completeLead, getAccounts, getLead, messagesForLead, skipLead } from "@/lib/api";
+import {
+  completeLead,
+  getAccounts,
+  getConversationMessages,
+  getLead,
+  messagesForLead,
+  skipLead,
+} from "@/lib/api";
 import { fmtDateTime, fmtMoney, fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/lib/types";
@@ -41,13 +40,36 @@ function ConversationPage() {
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: getAccounts,
+    refetchInterval: 15000,
   });
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { data: persistedMessages = [] } = useQuery({
+    queryKey: ["conversation-messages", threadId],
+    queryFn: () => getConversationMessages(threadId),
+    refetchInterval: 10000,
+  });
 
-  useEffect(() => {
-    if (lead) setMessages(messagesForLead(lead));
-  }, [lead]);
+  const onUpdated = () => {
+    queryClient.invalidateQueries({ queryKey: ["lead", threadId] });
+    queryClient.invalidateQueries({ queryKey: ["leads"] });
+    queryClient.invalidateQueries({ queryKey: ["conversation-messages", threadId] });
+  };
+  const completeMutation = useMutation({
+    mutationFn: completeLead,
+    onSuccess: () => {
+      onUpdated();
+      toast.success("Conversation marked complete");
+    },
+    onError: () => toast.error("Could not mark complete"),
+  });
+  const skipMutation = useMutation({
+    mutationFn: skipLead,
+    onSuccess: () => {
+      onUpdated();
+      toast.success("Conversation marked invalid");
+    },
+    onError: () => toast.error("Could not mark invalid"),
+  });
 
   if (isLoading) {
     return (
@@ -72,27 +94,13 @@ function ConversationPage() {
   }
 
   const account = accounts.find((a) => a.id === lead.accountId);
-
-  const onUpdated = () => {
-    queryClient.invalidateQueries({ queryKey: ["lead", threadId] });
-    queryClient.invalidateQueries({ queryKey: ["leads"] });
-  };
-  const completeMutation = useMutation({
-    mutationFn: completeLead,
-    onSuccess: () => {
-      onUpdated();
-      toast.success("Conversation marked complete");
-    },
-    onError: () => toast.error("Could not mark complete"),
-  });
-  const skipMutation = useMutation({
-    mutationFn: skipLead,
-    onSuccess: () => {
-      onUpdated();
-      toast.success("Conversation marked invalid");
-    },
-    onError: () => toast.error("Could not mark invalid"),
-  });
+  const generatedMessages = messagesForLead(lead);
+  const messages: Message[] = [...persistedMessages];
+  for (const generated of generatedMessages) {
+    if (!messages.some((message) => message.text === generated.text)) {
+      messages.push(generated);
+    }
+  }
 
   return (
     <>
@@ -111,7 +119,11 @@ function ConversationPage() {
                 <ExternalLink className="size-4" /> Open property
               </a>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => completeMutation.mutate(lead.threadId)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => completeMutation.mutate(lead.threadId)}
+            >
               <CheckCircle2 className="size-4" /> Complete
             </Button>
             <Button variant="outline" size="sm" onClick={() => skipMutation.mutate(lead.threadId)}>
@@ -217,10 +229,21 @@ function ConversationPage() {
           <div className="rounded-lg border bg-card p-4 space-y-2">
             <h3 className="text-sm font-semibold">Account persona</h3>
             <dl className="grid grid-cols-2 gap-2 text-xs">
-              <Field label="Names" value={[lead.personaName, lead.personaPartnerName].filter(Boolean).join(" & ") || "—"} />
-              <Field label="Jobs" value={[lead.personaJob, lead.personaPartnerJob].filter(Boolean).join(" & ") || "—"} />
+              <Field
+                label="Names"
+                value={
+                  [lead.personaName, lead.personaPartnerName].filter(Boolean).join(" & ") || "—"
+                }
+              />
+              <Field
+                label="Jobs"
+                value={[lead.personaJob, lead.personaPartnerJob].filter(Boolean).join(" & ") || "—"}
+              />
               <Field label="Home city" value={lead.homeCity || "—"} />
-              <Field label="Phone asked" value={lead.phoneRequestedAt ? fmtRelative(lead.phoneRequestedAt) : "—"} />
+              <Field
+                label="Phone asked"
+                value={lead.phoneRequestedAt ? fmtRelative(lead.phoneRequestedAt) : "—"}
+              />
             </dl>
           </div>
 

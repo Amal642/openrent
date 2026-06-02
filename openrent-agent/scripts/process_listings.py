@@ -1,6 +1,7 @@
 
 import random
 from app.db.repository import (
+    account_stop_requested,
     create_conversation,
     get_uncontacted_listings,
     mark_listing_contacted,
@@ -13,7 +14,7 @@ from app.db.repository import (
     claim_uncontacted_listings,
     ensure_account_persona,
     release_listing_claim,
-    save_message,
+    save_message_once,
 )
 
 from app.openrent.popups import (close_popups, handle_confirmation_popups)
@@ -64,6 +65,11 @@ async def process_account_listings(
     for listing in listings:
 
         try:
+            if account_stop_requested(account.id):
+                logger.info(
+                    f"Listing processing stopped for account {account.id}"
+                )
+                break
 
             await open_listing(page, listing)
 
@@ -171,6 +177,11 @@ async def process_account_listings(
             print("Message route saved:", full_url)
             logger.info(f"Message route saved: {full_url}")
 
+            # Initial message generation stage: create a persona-aware opener
+            # before touching the OpenRent send path.
+            logger.info(
+                f"Generating initial message for listing {listing.listing_id}"
+            )
             message_text, error = (
                 generate_initial_property_message(
                     metadata,
@@ -192,7 +203,13 @@ async def process_account_listings(
 
             print("Generated message:")
             print(message_text)
+            logger.info(
+                f"Initial message generated for listing {listing.listing_id}: "
+                f"{message_text}"
+            )
 
+            # Initial outbound send stage: only mark the listing contacted after
+            # OpenRent returns a thread URL that can be persisted.
             final_url = await send_initial_message(
                 page=page,
                 message_url=full_url,
@@ -201,9 +218,20 @@ async def process_account_listings(
             )
 
             thread_id = extract_thread_id(final_url)
+            if not thread_id:
+                existing_thread_id = await get_existing_thread_id(page)
+                thread_id = existing_thread_id or extract_thread_id(page.url)
 
             print("Extracted thread ID:", thread_id)
             logger.info(f"Extracted thread ID: {thread_id}")
+
+            if not thread_id:
+                logger.warning(
+                    f"Initial send did not produce a thread for "
+                    f"listing {listing.listing_id}; final_url={final_url}"
+                )
+                mark_listing_failed(listing.id)
+                continue
 
             mark_listing_contacted(
                 listing.id,
@@ -220,7 +248,10 @@ async def process_account_listings(
                     conversation_style=persona.get("conversation_style"),
                 )
                 update_conversation_status(thread_id, "INITIAL_MESSAGE_SENT")
-                save_message(thread_id, "outbound", message_text)
+                save_message_once(thread_id, "outbound", message_text)
+                logger.info(
+                    f"Initial outbound message persisted for thread {thread_id}"
+                )
 
                 print("Conversation created")
                 await handle_confirmation_popups(page)

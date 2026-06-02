@@ -71,6 +71,7 @@ function LeadsPage() {
   } = useQuery({
     queryKey: ["leads", status],
     queryFn: () => getLeads(status),
+    refetchInterval: 10000,
   });
 
   const { data: accounts = [] } = useQuery({

@@ -355,6 +355,15 @@ def update_account_worker_state(account_id, status, phase=None, error=None):
         db.commit()
 
 
+def account_stop_requested(account_id):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return True
+
+        return account.active is False or account.worker_status == "stopping"
+
+
 # ---------------- SEARCH PROFILES ----------------
 
 def create_search_profile(
@@ -711,6 +720,55 @@ def save_message(thread_id, direction, content, created_at=None):
         db.add(message)
         db.commit()
 
+
+def save_message_once(thread_id, direction, content, created_at=None):
+    content = (content or "").strip()
+    if not content:
+        return
+
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if not conversation:
+            conversation = Conversation(
+                thread_id=thread_id,
+                conversation_stage="NEW_REPLY",
+            )
+            db.add(conversation)
+            db.flush()
+
+        existing = db.query(Message).filter(
+            Message.conversation_id == conversation.id,
+            Message.direction == direction,
+            Message.content == content,
+        ).first()
+
+        if existing:
+            return
+
+        message = Message(
+            conversation_id=conversation.id,
+            direction=direction,
+            content=content,
+            created_at=created_at or datetime.utcnow(),
+        )
+        conversation.last_message_at = message.created_at
+        db.add(message)
+        db.commit()
+
+
+def save_inbound_messages(thread_id, messages):
+    for message in messages or []:
+        if message.get("sender") != "landlord":
+            continue
+        save_message_once(
+            thread_id,
+            "inbound",
+            message.get("message") or message.get("content") or "",
+        )
+
 def save_viewing_datetime(
     thread_id,
     viewing_datetime
@@ -907,6 +965,32 @@ def save_ai_reply(
             conversation.last_ai_reply = reply
             conversation.status = "AI_REPLIED"
             db.commit()
+
+
+def get_conversation_messages(thread_id):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if not conversation:
+            return []
+
+        return [
+            {
+                "id": message.id,
+                "thread_id": thread_id,
+                "direction": message.direction,
+                "content": message.content,
+                "created_at": message.created_at,
+            }
+            for message in (
+                db.query(Message)
+                .filter(Message.conversation_id == conversation.id)
+                .order_by(Message.created_at.asc(), Message.id.asc())
+                .all()
+            )
+        ]
 
 
 def mark_listing_skipped(listing_id, reason="SKIPPED"):
@@ -1137,6 +1221,7 @@ def get_dashboard_leads(status=None):
                 ),
                 "last_stage_change": conversation.last_stage_change,
                 "phone": conversation.extracted_phone or "",
+                "phone_number": conversation.extracted_phone or "",
                 "last_processed_message": conversation.last_processed_message or "",
                 "last_ai_reply": conversation.last_ai_reply or "",
                 "persona_name": persona["persona_name"] if persona else account.persona_name,

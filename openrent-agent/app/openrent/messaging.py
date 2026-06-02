@@ -346,6 +346,12 @@ async def send_initial_message(
             "Correct submit button not found"
         )
 
+    disabled = await submit_button.get_attribute("disabled")
+    if disabled is not None:
+        raise Exception(
+            "Submit button is disabled"
+        )
+
     await submit_button.click()
 
     print("Clicked submit button")
