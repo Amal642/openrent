@@ -37,8 +37,6 @@ from app.db.repository import (
 from app.proxy.check_proxy import check_proxy
 
 from app.queue.queues import worker_queue
-from app.workers.rq_worker import run_account_worker_sync
-
 
 ACTIVE_WORKERS = {}
 ACTIVE_BROWSER_RESOURCES = {}
@@ -403,7 +401,7 @@ def _forget_worker(account_id):
 # =========================================================
 
 async def start_account_worker(account_id):
-
+    from app.workers.rq_worker import run_account_worker_sync
     logger.info(
         f"Queueing worker for account {account_id}"
     )
