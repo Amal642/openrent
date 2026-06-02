@@ -150,6 +150,37 @@ def test_corpus_number_capture_design_is_selectable_and_delays_phone(monkeypatch
     assert "number" not in opener
 
 
+def test_corpus_number_capture_v2_design_is_selectable_and_delays_phone(monkeypatch, tmp_path):
+    from simulation import interactive as interactive_module
+    from simulation.sessions import store as session_store_module
+
+    class TmpStore(session_store_module.JSONSessionStore):
+        def __init__(self):
+            super().__init__(base_dir=str(tmp_path))
+
+    monkeypatch.setattr(interactive_module, "JSONSessionStore", TmpStore)
+
+    client = TestClient(app)
+    designs_response = client.get("/simulation/conversation-designs")
+    assert designs_response.status_code == 200
+    design_ids = {design["id"] for design in designs_response.json()}
+    assert "corpus_number_capture_v2" in design_ids
+
+    start_response = client.post(
+        "/simulation/interactive/start",
+        json={"conversation_design_id": "corpus_number_capture_v2"},
+    )
+    assert start_response.status_code == 200
+    payload = start_response.json()
+    opener = payload["initial_message"].lower()
+    assert payload["conversation_design_id"] == "corpus_number_capture_v2"
+    assert payload["conversation_design_name"] == "Corpus number capture v2"
+    assert "viewing" in opener
+    assert "phone" not in opener
+    assert "whatsapp" not in opener
+    assert "number" not in opener
+
+
 def test_compare_designs_returns_result_for_each_selected_design(monkeypatch):
     from app.ai import replies
 

@@ -9,6 +9,7 @@ CONFIRMATION_CLOSE_V1 = "confirmation_close_v1"
 TENANT_SHARES_FIRST_V1 = "tenant_shares_first_v1"
 LANDLORD_PREFERENCE_V1 = "landlord_preference_v1"
 CORPUS_NUMBER_CAPTURE_V1 = "corpus_number_capture_v1"
+CORPUS_NUMBER_CAPTURE_V2 = "corpus_number_capture_v2"
 
 
 @dataclass(frozen=True)
@@ -239,6 +240,47 @@ CONVERSATION_DESIGNS = {
             "Pushed again after the landlord resisted off-platform contact.",
         ],
     ),
+    CORPUS_NUMBER_CAPTURE_V2: ConversationDesign(
+        design_id=CORPUS_NUMBER_CAPTURE_V2,
+        name="Corpus number capture v2",
+        description=(
+            "A safer landlord-number strategy that respects refusals, avoids "
+            "tenant-number sharing, and uses human viewing logistics."
+        ),
+        opening_message=(
+            "Hi, I'm {persona_name}. {my_partner_and_i_are} interested in {property_phrase}. "
+            "Would it be possible to arrange a viewing?"
+        ),
+        reply_prompt_rules=[
+            "Primary goal: get the landlord's number naturally, but never make the number look like the main goal.",
+            "Do not share the tenant mobile number. If pressed for it, say you would rather not share yours just yet because of past bad experiences, and offer to keep it on OpenRent if they prefer.",
+            "Answer landlord screening questions first using only persona facts, especially work, household, income/affordability, and move timing.",
+            "When answering work screening, use explicit human wording like 'I work full-time as...' or 'my partner works as...' rather than only giving job titles.",
+            "If one partner is at home or not working, say that plainly using persona facts; do not invent a second income.",
+            "Before any phone ask, create a practical viewing reason: agreed or proposed viewing, video viewing, travel, delays, entrance, directions, or same-day updates.",
+            "If the landlord is withholding contact details until screening is answered, answer screening and then use a direct but soft line like 'Could I get your number just in case we're delayed getting there?'",
+            "Avoid polished phrases like 'best number', 'coordinate', 'contact details', 'sort timing', or 'kindly share'. Use normal wording like 'could I get your number' or 'just in case we're delayed'.",
+            "If the landlord refuses to share a number before a viewing is booked, do not ask again in the next tenant reply. Accept it and keep arranging the viewing on OpenRent.",
+            "After a phone refusal, only ask again later if there is a new practical reason, such as travel on the day, finding the entrance, or a video viewing setup.",
+            "If the landlord seems suspicious, stop phone pressure, give one brief trust-building detail from the persona, and continue on OpenRent.",
+            "If the viewing is confirmed immediately after a refusal, acknowledge the booking and keep it on OpenRent; do not instantly ask for the number.",
+        ],
+        success_criteria=[
+            "Captured the landlord's number through a practical viewing/logistics reason.",
+            "Did not share the tenant number.",
+            "Respected phone refusal for at least one tenant turn.",
+            "Answered screening with persona-grounded facts.",
+            "Sounded like a normal tenant rather than assistant or sales language.",
+        ],
+        failure_criteria=[
+            "Shared or volunteered the tenant mobile number.",
+            "Asked for the landlord number before viewing/logistics progress.",
+            "Asked again immediately after a landlord refused phone sharing.",
+            "Asked immediately after booking when the landlord had just refused pre-booking phone sharing.",
+            "Used call-centre wording like 'best number', 'coordinate', or 'contact details'.",
+            "Invented employment, income, household, or move-in facts not in the persona.",
+        ],
+    ),
 }
 
 
@@ -297,6 +339,8 @@ def build_simulation_persona(
         "message_tone": template.get("message_tone", "friendly, direct, brief"),
         "home_city": template.get("home_city", "Manchester"),
         "display_name": template.get("display_name", "Tenant"),
+        "screening_posture": template.get("screening_posture"),
+        "phone_boundary": template.get("phone_boundary"),
         "bedrooms": (property or {}).get("bedrooms") or 2,
         "rent_pcm": rent_pcm,
         "salary": (rent_pcm * 30) + 20000,

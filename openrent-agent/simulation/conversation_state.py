@@ -157,7 +157,10 @@ def analyze_conversation_state(
         )
 
     if signals.phone_requested:
-        if conversation_design_id == "corpus_number_capture_v1":
+        if conversation_design_id in {
+            "corpus_number_capture_v1",
+            "corpus_number_capture_v2",
+        }:
             signals.phone_requested_too_early = not (
                 signals.viewing_requested
                 or signals.viewing_time_offered

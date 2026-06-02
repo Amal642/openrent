@@ -20,6 +20,7 @@ from simulation.sessions.models import EvaluationResult
 VIEWING_PROGRESS_DESIGNS = {
     "viewing_first_v1",
     "corpus_number_capture_v1",
+    "corpus_number_capture_v2",
 }
 
 

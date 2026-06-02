@@ -71,6 +71,13 @@ CONVERSATION_STYLES = {
         "escalation_behavior": "share or request WhatsApp details early when it feels natural",
         "conversation_goal": "move the conversation to WhatsApp for viewing coordination",
     },
+    "landlord_number_boundary": {
+        "label": "Landlord number with boundaries",
+        "strategy": "Avoid sharing the tenant number, keep OpenRent as fallback, and ask for the landlord number only when viewing logistics make it reasonable.",
+        "phone_fetching_type": "landlord_requests_only",
+        "escalation_behavior": "respect refusals, show mild discomfort about sharing tenant contact details, and wait before re-asking",
+        "conversation_goal": "get the landlord's number without making contact capture feel like the main goal",
+    },
 }
 
 
@@ -85,11 +92,14 @@ PERSONA_TEMPLATES = {
         "message_strategy": "friendly, viewing-led, trust-building",
         "escalation_behavior": "ask for phone details after a viewing time is mostly agreed",
         "conversation_goal": "arrange a viewing and exchange contact details naturally",
+        "screening_posture": "both applicants are working professionals",
+        "phone_boundary": "prefer not to share the tenant mobile before meeting; ask for the landlord number only with a viewing/logistics reason",
         "conversation_styles": [
             "friendly_viewing",
             "warm_casual",
             "professional_polite",
             "whatsapp_coordination",
+            "landlord_number_boundary",
         ],
         "names": {
             "primary": ["James", "Daniel", "Oliver", "Sam"],
@@ -110,10 +120,13 @@ PERSONA_TEMPLATES = {
         "message_strategy": "quiet, practical, viewing-first",
         "escalation_behavior": "share phone only when the landlord asks or a viewing is fixed",
         "conversation_goal": "arrange a practical viewing without unnecessary chatter",
+        "screening_posture": "single applicant, working in IT",
+        "phone_boundary": "keep contact exchange cautious and practical; OpenRent messaging is fine if the landlord prefers it",
         "conversation_styles": [
             "professional_polite",
             "viewing_first",
             "busy_professional",
+            "landlord_number_boundary",
         ],
         "names": {
             "primary": ["Tom", "Ben", "Luke", "Ryan"],
@@ -134,10 +147,13 @@ PERSONA_TEMPLATES = {
         "message_strategy": "warm, practical, schedule-aware",
         "escalation_behavior": "use shift patterns as a natural reason for direct coordination",
         "conversation_goal": "find a viewing time that works around shifts",
+        "screening_posture": "healthcare professional household; mention shifts only if relevant",
+        "phone_boundary": "use viewing schedules or shifts as the reason for landlord contact details, not a cold ask",
         "conversation_styles": [
             "friendly_viewing",
             "busy_professional",
             "professional_polite",
+            "landlord_number_boundary",
         ],
         "names": {
             "primary": ["Aisha", "Maya", "Priya", "Sarah"],
@@ -158,10 +174,13 @@ PERSONA_TEMPLATES = {
         "message_strategy": "measured, viewing-led, polite",
         "escalation_behavior": "only move to phone once the landlord is engaged",
         "conversation_goal": "confirm viewing details with a calm professional tone",
+        "screening_posture": "single academic professional",
+        "phone_boundary": "avoid pushing for contact details; keep the request tied to a viewing or video viewing",
         "conversation_styles": [
             "professional_polite",
             "friendly_viewing",
             "relocation_approach",
+            "landlord_number_boundary",
         ],
         "names": {
             "primary": ["Emily", "Laura", "Jonathan", "Nathan"],
@@ -182,11 +201,14 @@ PERSONA_TEMPLATES = {
         "message_strategy": "concise, professional, direct coordination",
         "escalation_behavior": "ask for WhatsApp or phone coordination early if the landlord is responsive",
         "conversation_goal": "move quickly from interest to confirmed viewing logistics",
+        "screening_posture": "professional couple; answer screening directly and briefly",
+        "phone_boundary": "avoid sharing the tenant mobile in landlord-number-capture mode; use travel or timing as the reason to ask",
         "conversation_styles": [
             "direct_number_request",
             "professional_polite",
             "video_call_request",
             "whatsapp_coordination",
+            "landlord_number_boundary",
         ],
         "names": {
             "primary": ["Michael", "Ethan", "Charlotte", "Rebecca"],
@@ -195,6 +217,32 @@ PERSONA_TEMPLATES = {
         "jobs": {
             "primary": ["Mechanical Engineer", "Management Consultant", "Solutions Architect"],
             "partner": ["Financial Consultant", "Account Manager", "Civil Engineer"],
+        },
+    },
+    "single_income_couple": {
+        "persona_type": "single_income_couple",
+        "display_name": "Single-income couple",
+        "household_description": "couple with one working applicant and one partner at home",
+        "message_tone": "calm, practical, slightly cautious",
+        "home_city": "Manchester",
+        "phone_fetching_type": "landlord_requests_only",
+        "message_strategy": "screening-first, careful with contact details, viewing-led",
+        "escalation_behavior": "answer affordability and household questions clearly before asking for viewing logistics",
+        "conversation_goal": "arrange a viewing while keeping contact sharing cautious",
+        "screening_posture": "one applicant is working full-time; partner is currently at home",
+        "phone_boundary": "do not share the tenant mobile early; if pressed, mention past bad experiences and offer to keep OpenRent as fallback",
+        "conversation_styles": [
+            "friendly_viewing",
+            "professional_polite",
+            "landlord_number_boundary",
+        ],
+        "names": {
+            "primary": ["Mary", "Aisha", "Priya", "Hannah"],
+            "partner": ["James", "Omar", "Daniel", "Sam"],
+        },
+        "jobs": {
+            "primary": ["IT Support Lead", "Product Manager", "Accountant"],
+            "partner": ["currently at home", "full-time parent", "homemaker"],
         },
     },
 }
@@ -254,6 +302,8 @@ def materialize_persona(template, seed=None):
         "conversation_goal": template.get("conversation_goal") or style_config["conversation_goal"],
         "conversation_style": selected_style,
         "conversation_styles": available_styles,
+        "screening_posture": template.get("screening_posture"),
+        "phone_boundary": template.get("phone_boundary"),
     }
 
 

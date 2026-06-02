@@ -186,7 +186,8 @@ def generate_reply(
     if (
         landlord_asked_number
         and not number_shared
-        and conversation_design_id != "corpus_number_capture_v1"
+        and conversation_design_id
+        not in {"corpus_number_capture_v1", "corpus_number_capture_v2"}
     ):
         phone_reply = generate_phone_share_reply(
             persona,

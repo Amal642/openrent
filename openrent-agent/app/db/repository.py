@@ -284,6 +284,8 @@ def ensure_account_persona(account_or_id):
             ),
             "conversation_style": conversation_style,
             "conversation_styles": template.get("conversation_styles") or [],
+            "screening_posture": template.get("screening_posture"),
+            "phone_boundary": template.get("phone_boundary"),
         }
 
 
@@ -318,6 +320,8 @@ def serialize_account(account):
         "conversation_goal": persona["conversation_goal"] if persona else None,
         "conversation_style": persona["conversation_style"] if persona else None,
         "conversation_styles": persona["conversation_styles"] if persona else [],
+        "screening_posture": persona.get("screening_posture") if persona else None,
+        "phone_boundary": persona.get("phone_boundary") if persona else None,
         "worker_status": account.worker_status or "idle",
         "worker_last_heartbeat": account.worker_last_heartbeat,
         "worker_last_error": account.worker_last_error,

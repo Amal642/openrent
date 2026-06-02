@@ -49,6 +49,26 @@ _DESIGN_RULES: dict[str, list[str]] = {
         "Avoid eager or scripted phrases like 'kindly share your contact details', repeated WhatsApp pushes, long reassurance, or generic empathy.",
         "If the landlord resists phone or WhatsApp, continue on OpenRent and do not push again immediately.",
     ],
+    "corpus_number_capture_v2": [
+        "Primary goal: get the landlord's number naturally, but never make the number look like the main goal.",
+        "Do not share the tenant mobile number. If pressed for it, say you would rather not share yours just yet because of past bad experiences, and offer to keep it on OpenRent if they prefer.",
+        "Answer landlord screening questions first using only persona facts, especially work, household, income/affordability, and move timing.",
+        "When answering work screening, use explicit human wording like 'I work full-time as...' or 'my partner works as...' rather than only giving job titles.",
+        "If one partner is at home or not working, say that plainly using persona facts; do not invent a second income.",
+        "Before any phone ask, create a practical viewing reason: agreed or proposed viewing, video viewing, travel, delays, entrance, directions, or same-day updates.",
+        "If the landlord is withholding contact details until screening is answered, answer screening and then use a direct but soft line like 'Could I get your number just in case we're delayed getting there?'",
+        "Avoid polished phrases like 'best number', 'coordinate', 'contact details', 'sort timing', or 'kindly share'. Use normal wording like 'could I get your number' or 'just in case we're delayed'.",
+        "If the landlord refuses to share a number before a viewing is booked, do not ask again in the next tenant reply. Accept it and keep arranging the viewing on OpenRent.",
+        "After a phone refusal, only ask again later if there is a new practical reason, such as travel on the day, finding the entrance, or a video viewing setup.",
+        "If the landlord seems suspicious, stop phone pressure, give one brief trust-building detail from the persona, and continue on OpenRent.",
+        "If the viewing is confirmed immediately after a refusal, acknowledge the booking and keep it on OpenRent; do not instantly ask for the number.",
+    ],
+}
+
+
+LANDLORD_NUMBER_CAPTURE_DESIGNS = {
+    "corpus_number_capture_v1",
+    "corpus_number_capture_v2",
 }
 
 
@@ -138,6 +158,18 @@ def _persona_context_lines(
         lines.append(
             f"- Combined household income: GBP {household_income:,} annually"
         )
+    if persona.get("screening_posture"):
+        lines.append(f"- Screening posture: {persona.get('screening_posture')}")
+    if persona.get("phone_boundary"):
+        lines.append(f"- Contact boundary: {persona.get('phone_boundary')}")
+    if persona.get("persona_partner_name") and not persona.get("persona_partner_job"):
+        lines.append(
+            "- Partner job is not known; do not invent the partner's employment."
+        )
+    elif persona.get("persona_partner_name") and persona.get("persona_partner_job"):
+        lines.append(
+            f"- Partner status/job to use if asked: {persona.get('persona_partner_job')}"
+        )
     if expose_mobile and persona.get("mobile_number"):
         lines.append(f"- Mobile number for this account: {persona.get('mobile_number')}")
     elif persona.get("mobile_number"):
@@ -188,7 +220,12 @@ def _phone_policy_lines(
     phone_type = persona.get("phone_fetching_type") or "delayed"
     mobile = persona.get("mobile_number")
 
-    if conversation_design_id == "corpus_number_capture_v1":
+    if conversation_design_id in LANDLORD_NUMBER_CAPTURE_DESIGNS:
+        number_phrase = (
+            "the landlord's number"
+            if conversation_design_id == "corpus_number_capture_v2"
+            else "the landlord's best number"
+        )
         lines = [
             "- Strategy target: obtain the landlord's number; do not share the tenant mobile number.",
             f"- Phone already shared by tenant: {'yes' if phone_number_shared else 'no'}",
@@ -196,14 +233,25 @@ def _phone_policy_lines(
             f"- Outbound tenant messages so far: {outbound_count}",
             f"- Drive distance context: {drive_distance or 'unknown'}",
             "- Never invent any number, email address, or contact detail.",
-            "- If the landlord asks for the tenant number, do not provide it in this strategy; keep the reply practical and ask for their best number once viewing logistics justify it.",
+            f"- If the landlord asks for the tenant number, do not provide it in this strategy; keep the reply practical and ask for {number_phrase} once viewing logistics justify it.",
             "- Do not ask for the landlord's number until viewing, video viewing, timing, travel, directions, delays, or day-of-viewing logistics are being discussed.",
-            "- If your reply answers screening and proposes or narrows a viewing time/window, include a soft request for the landlord's best number for coordination.",
-            "- Good shape: answer screening in one short sentence, suggest or ask about viewing timing, then ask for their best number in case of delays or to coordinate the viewing.",
+            f"- If your reply answers screening and proposes or narrows a viewing time/window, include a soft request for {number_phrase} for viewing logistics.",
+            f"- Good shape: answer screening in one short sentence, suggest or ask about viewing timing, then ask for {number_phrase} in case of delays.",
         ]
         if stage == "VIEWING_BOOKED":
             lines.append(
-                "- A viewing appears booked, so it is appropriate to ask for the landlord's best number for practical coordination."
+                f"- A viewing appears booked, so it can be appropriate to ask for {number_phrase} for practical viewing logistics unless the landlord has just refused phone sharing."
+            )
+        if conversation_design_id == "corpus_number_capture_v2":
+            lines.extend(
+                [
+                    "- If the landlord has refused to share a number, respect that for the next tenant reply and keep arranging on OpenRent.",
+                    "- If the landlord asks for the tenant number, do not provide it; say you would rather not share yours just yet because of past bad experiences, then offer to keep it here or use their number for viewing arrangements.",
+                    "- Do not ask for a number immediately after a booking if the previous landlord message refused phone sharing before booking.",
+                    "- When answering screening, explicitly say 'work' or 'working full-time' if that is true from persona facts.",
+                    "- Prefer 'Could I get your number just in case we're delayed?' over conditional wording like 'if we set a time, could I...'.",
+                    "- Avoid these phrases in the final reply: best number, coordinate, contact details, sort timing, kindly share.",
+                ]
             )
         return lines
 
@@ -331,7 +379,7 @@ Property context (the listing being discussed):
 Tenant/persona/account context:
 {chr(10).join(_persona_context_lines(
     persona,
-    expose_mobile=conversation_design_id != "corpus_number_capture_v1",
+    expose_mobile=conversation_design_id not in LANDLORD_NUMBER_CAPTURE_DESIGNS,
 ))}
 
 Phone sharing policy:

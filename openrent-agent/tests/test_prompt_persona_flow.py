@@ -83,6 +83,32 @@ def test_corpus_number_capture_prompt_hides_tenant_mobile_and_targets_landlord_n
     assert "follow the phone sharing policy for this conversation design" in prompt
 
 
+def test_corpus_number_capture_v2_uses_boundary_and_refusal_rules():
+    prompt = generate_message_persona_prompt(
+        conversation=(
+            "LANDLORD: I don't share my number before a viewing is booked.\n"
+            "TENANT: No worries, we can keep it here for now. Would Saturday work?\n"
+            "LANDLORD: Saturday at 2pm is booked."
+        ),
+        stage="VIEWING_BOOKED",
+        persona={
+            **PERSONA,
+            "screening_posture": "both applicants are working professionals",
+            "phone_boundary": "prefer not to share the tenant mobile before meeting",
+        },
+        conversation_design_id="corpus_number_capture_v2",
+        viewing_requested=True,
+        landlord_asked_for_number=True,
+    )
+
+    assert ASSIGNED_MOBILE not in prompt
+    assert "past bad experiences" in prompt
+    assert "do not share the tenant mobile number" in prompt
+    assert "do not ask again in the next tenant reply" in prompt
+    assert "do not instantly ask for the number" in prompt
+    assert "Screening posture: both applicants are working professionals" in prompt
+
+
 def test_generate_reply_shares_correct_number_when_landlord_asks():
     reply, error = generate_reply(
         [{"sender": "landlord", "message": "Can you share your WhatsApp number?"}],

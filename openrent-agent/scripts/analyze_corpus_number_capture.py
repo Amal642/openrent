@@ -5,9 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
+
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.ingest_corpus import (
     contains_phone_literal,
@@ -131,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(payload + "\n", encoding="utf-8")
     else:
-        print(payload)
+        print(json.dumps(report, indent=2, ensure_ascii=True))
     return 0
 
 
