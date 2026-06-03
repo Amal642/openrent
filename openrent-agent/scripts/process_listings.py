@@ -78,6 +78,12 @@ async def process_account_listings(
 
 
     for listing in listings:
+        # Snapshot all primitives immediately — the ORM object becomes detached
+        # once the session_scope in claim_uncontacted_listings closes.
+        # All subsequent attribute access must go through these local variables.
+        listing_pk = listing.id
+        property_url = listing.property_url
+        listing_ext_id = listing.listing_id
 
         try:
             if account_stop_requested(account.id):
@@ -86,19 +92,18 @@ async def process_account_listings(
                 )
                 break
 
+            logger.info(f"Opening listing: {property_url}")
             await open_listing(page, listing)
 
             existing_thread_id = await get_existing_thread_id(page)
 
             if existing_thread_id:
 
-                print(
-                    f"Already enquired. Thread ID: {existing_thread_id}"
-                )
+                logger.info(f"Already enquired. Thread ID: {existing_thread_id}")
 
                 mark_listing_contacted(
-                    listing.id,
-                    thread_id=existing_thread_id
+                    listing_pk,
+                    thread_id=existing_thread_id,
                 )
 
                 existing_conversation = get_conversation_by_thread_id(
@@ -109,76 +114,55 @@ async def process_account_listings(
 
                     create_conversation(
                         thread_id=existing_thread_id,
-                        listing_id=listing.id,
+                        listing_id=listing_pk,
                         conversation_style=persona.get("conversation_style"),
                     )
 
                     update_conversation_status(
                         existing_thread_id,
-                        "INITIAL_MESSAGE_SENT"
+                        "INITIAL_MESSAGE_SENT",
                     )
 
                 continue
 
             await random_sleep(2, 5)
+
+            logger.info(f"Checking agent status for listing {listing_ext_id}")
             is_agent = await landlord_is_agent(
                 page,
-                listing.property_url,
+                property_url,
             )
 
             if is_agent is None:
                 logger.warning(
-                    "Skipping listing because landlord agent status is unknown"
+                    f"Skipping listing {listing_ext_id}: agent status unknown"
                 )
-                mark_listing_skipped(
-                    listing.id,
-                    reason="agent_status_unknown",
-                )
+                mark_listing_skipped(listing_pk, reason="agent_status_unknown")
                 continue
 
             if is_agent:
-
-                logger.info(
-                    "Skipping agent landlord"
-                )
-
-                mark_listing_skipped(
-                    listing.id,
-                    reason="agent",
-                )
-
+                logger.info(f"Skipping agent landlord for listing {listing_ext_id}")
+                mark_listing_skipped(listing_pk, reason="agent")
                 continue
-            # reopen original listing page
+
+            # Reopen the original listing page after agent check navigation
+            logger.info(f"Reopening listing page: {property_url}")
             await open_listing(page, listing)
 
             await random_sleep(2, 4)
-            
-            metadata = await extract_listing_metadata(
-                page
-            )
 
-            print("Listing metadata:", metadata)
+            metadata = await extract_listing_metadata(page)
+            logger.info(f"Listing metadata: {metadata}")
 
             message_link = await get_message_link(page)
-
             contactable = message_link is not None
-
-            print(
-                f"Listing {listing.listing_id} "
-                f"contactable: {contactable}"
-            )
-            logger.info(f"Listing {listing.listing_id} contactable: {contactable}")
+            logger.info(f"Listing {listing_ext_id} contactable: {contactable}")
 
             if not contactable:
-                mark_listing_skipped(
-                    listing.id,
-                    reason="not_contactable",
-                )
+                mark_listing_skipped(listing_pk, reason="not_contactable")
                 continue
 
             if not can_send_message(account.id):
-
-                print("Daily limit reached")
                 logger.info(f"Daily limit reached for account {account.id}")
                 break
 
@@ -190,53 +174,31 @@ async def process_account_listings(
                 break
 
             full_url = f"https://www.openrent.co.uk{message_link}"
-
-            save_message_url(
-                listing.id,
-                full_url
-            )
-
-            print("Message route saved:", full_url)
+            save_message_url(listing_pk, full_url)
             logger.info(f"Message route saved: {full_url}")
 
-            # Initial message generation stage: create a persona-aware opener
-            # before touching the OpenRent send path.
-            logger.info(
-                f"Generating initial message for listing {listing.listing_id}"
-            )
-            message_text, error = (
-                generate_initial_property_message(
-                    metadata,
-                    persona=persona
-                )
+            logger.info(f"Generating initial message for listing {listing_ext_id}")
+            message_text, error = generate_initial_property_message(
+                metadata,
+                persona=persona,
             )
 
             if not message_text:
-
-                logger.warning(
-                    f"Failed generating message: {error}"
-                )
-
-                mark_listing_failed(
-                    listing.id
-                )
-
+                logger.warning(f"Failed generating message: {error}")
+                mark_listing_failed(listing_pk)
                 continue
 
-            print("Generated message:")
-            print(message_text)
             logger.info(
-                f"Initial message generated for listing {listing.listing_id}: "
+                f"Initial message generated for listing {listing_ext_id}: "
                 f"{message_text}"
             )
 
-            # Initial outbound send stage: only mark the listing contacted after
-            # OpenRent returns a thread URL that can be persisted.
+            # Send — only mark contacted after OpenRent returns a thread URL.
             final_url = await send_initial_message(
                 page=page,
                 message_url=full_url,
                 message_text=message_text,
-                metadata=metadata
+                metadata=metadata,
             )
 
             thread_id = extract_thread_id(final_url)
@@ -244,52 +206,43 @@ async def process_account_listings(
                 existing_thread_id = await get_existing_thread_id(page)
                 thread_id = existing_thread_id or extract_thread_id(page.url)
 
-            print("Extracted thread ID:", thread_id)
             logger.info(f"Extracted thread ID: {thread_id}")
 
             if not thread_id:
                 logger.warning(
                     f"Initial send did not produce a thread for "
-                    f"listing {listing.listing_id}; final_url={final_url}"
+                    f"listing {listing_ext_id}; final_url={final_url}"
                 )
-                mark_listing_failed(listing.id)
+                mark_listing_failed(listing_pk)
                 continue
 
-            mark_listing_contacted(
-                listing.id,
-                thread_id=thread_id
-            )
-
+            mark_listing_contacted(listing_pk, thread_id=thread_id)
             increment_message_count(account.id)
 
-            if thread_id:
+            create_conversation(
+                thread_id=thread_id,
+                listing_id=listing_pk,
+                conversation_style=persona.get("conversation_style"),
+            )
+            update_conversation_status(thread_id, "INITIAL_MESSAGE_SENT")
+            save_message_once(thread_id, "outbound", message_text)
+            logger.info(
+                f"Initial outbound message persisted for thread {thread_id}"
+            )
 
-                create_conversation(
-                    thread_id=thread_id,
-                    listing_id=listing.id,
-                    conversation_style=persona.get("conversation_style"),
-                )
-                update_conversation_status(thread_id, "INITIAL_MESSAGE_SENT")
-                save_message_once(thread_id, "outbound", message_text)
-                logger.info(
-                    f"Initial outbound message persisted for thread {thread_id}"
-                )
-
-                print("Conversation created")
-                await handle_confirmation_popups(page)
-
-            delay = random.randint(3000, 7000)
-
-            await page.wait_for_timeout(delay)
+            await handle_confirmation_popups(page)
+            await page.wait_for_timeout(random.randint(3000, 7000))
             await close_popups(page)
+
         except Exception as e:
+            logger.exception(
+                f"Processing failed for listing {listing_ext_id} "
+                f"(pk={listing_pk}): {e}"
+            )
+            mark_listing_failed(listing_pk)
 
-            print("Processing failed:", e)
-            logger.exception(f"Processing failed for listing {listing.id}: {e}")
-
-            mark_listing_failed(listing.id)
         finally:
             release_listing_claim(
-                listing.id,
-                worker_id or f"account-{account.id}"
+                listing_pk,
+                worker_id or f"account-{account.id}",
             )
