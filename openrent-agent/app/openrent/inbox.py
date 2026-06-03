@@ -14,7 +14,7 @@ async def open_inbox_page(page, start=0):
 
     print(f"\nOpening inbox page: {url}")
 
-    await page.goto(url)
+    await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
     await page.wait_for_load_state("networkidle")
 
@@ -166,7 +166,7 @@ async def open_thread(page, thread_id):
 
     print(f"\nOpening thread: {url}")
 
-    await page.goto(url)
+    await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
     await page.wait_for_load_state("networkidle")
 

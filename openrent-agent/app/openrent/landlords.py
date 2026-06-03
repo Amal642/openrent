@@ -53,9 +53,16 @@ async def extract_landlord_id(
 
     await random_sleep(2, 5)
 
-    await page.goto(
-        rent_info_url
-    )
+    try:
+        await page.goto(
+            rent_info_url,
+            wait_until="domcontentloaded",
+            timeout=30_000,
+        )
+    except Exception:
+        logger.warning(
+            f"rent info page timeout — continuing with loaded DOM: {rent_info_url}"
+        )
 
     await random_sleep(3, 6)
 
@@ -119,7 +126,16 @@ async def get_landlord_property_count(
 
     await random_sleep(2, 5)
 
-    await page.goto(url)
+    try:
+        await page.goto(
+            url,
+            wait_until="domcontentloaded",
+            timeout=30_000,
+        )
+    except Exception:
+        logger.warning(
+            f"Landlord page timeout — continuing with loaded DOM: {url}"
+        )
 
     await random_sleep(3, 6)
 

@@ -41,9 +41,7 @@ async def open_listing(page, property_url: str):
 
     logger.info(f"Opening listing: {property_url}")
 
-    await page.goto(property_url, timeout=30_000)
-
-    await page.wait_for_load_state("load")
+    await page.goto(property_url, wait_until="domcontentloaded", timeout=30_000)
 
 async def extract_listing_metadata(page):
 
@@ -156,31 +154,65 @@ async def detect_form_type(page):
 
     return 1
 
+async def _click_radio_label(page, selector: str, field_name: str) -> None:
+    """
+    OpenRent Type 2 screening uses hidden radio inputs with Bootstrap btn-check
+    labels.  The visible/interactable element is the <label>, not the <input>,
+    so we locate the input's id then click its matching label.
+    """
+    try:
+        logger.info(f"Clicking label for screening field: {field_name}")
+        locator = page.locator(selector)
+        input_id = await locator.get_attribute("id")
+        if input_id:
+            await page.locator(f'label[for="{input_id}"]').click()
+        else:
+            # Fallback: force-click the input directly
+            await locator.click(force=True)
+    except Exception as exc:
+        logger.warning(f"Screening field {field_name} click failed: {exc}")
+        try:
+            import os
+            from datetime import datetime
+            os.makedirs("debug", exist_ok=True)
+            ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            await page.screenshot(path=f"debug/form_type_2_failure_{ts}.png", full_page=True)
+        except Exception:
+            pass
+        raise
+
+
 async def fill_screening_form(
     page,
     metadata
 ):
+    # OpenRent Type 2 screening form uses Bootstrap btn-check hidden radio
+    # inputs.  The clickable element is the <label for="...">, not the input.
 
-    # ---------------- QUESTIONS ----------------
-
-    await page.check(
-        'input[name="ScreeningInfo.IsStudent"][value="false"]'
+    await _click_radio_label(
+        page,
+        'input[name="ScreeningInfo.IsStudent"][value="false"]',
+        "IsStudent=No",
     )
-
-    await page.check(
-        'input[name="ScreeningInfo.OnBenefits"][value="false"]'
+    await _click_radio_label(
+        page,
+        'input[name="ScreeningInfo.OnBenefits"][value="false"]',
+        "OnBenefits=No",
     )
-
-    await page.check(
-        'input[name="ScreeningInfo.HasPets"][value="false"]'
+    await _click_radio_label(
+        page,
+        'input[name="ScreeningInfo.HasPets"][value="false"]',
+        "HasPets=No",
     )
-
-    await page.check(
-        'input[name="ScreeningInfo.IsSmoker"][value="false"]'
+    await _click_radio_label(
+        page,
+        'input[name="ScreeningInfo.IsSmoker"][value="false"]',
+        "IsSmoker=No",
     )
-
-    await page.check(
-        'input[name="ScreeningInfo.HasRightToRent"][value="true"]'
+    await _click_radio_label(
+        page,
+        'input[name="ScreeningInfo.HasRightToRent"][value="true"]',
+        "HasRightToRent=Yes",
     )
 
     # ---------------- FURNISHING ----------------
@@ -277,7 +309,7 @@ async def send_initial_message(
     metadata,
 ):
     logger.info(f"Opening message page: {message_url}")
-    await page.goto(message_url, timeout=30_000)
+    await page.goto(message_url, wait_until="domcontentloaded", timeout=30_000)
 
     # ── Wait for form — selector-based, no networkidle ────────
     logger.info("Waiting for message form")

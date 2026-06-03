@@ -61,7 +61,7 @@ async def scrape_search_results(
 
     # ── Navigate ──────────────────────────────────────────────
     try:
-        await page.goto(search_url, timeout=30_000)
+        await page.goto(search_url, wait_until="domcontentloaded", timeout=30_000)
         await page.wait_for_load_state("networkidle", timeout=20_000)
     except Exception as exc:
         logger.error(f"PAGE LOAD FAILED: {exc}")
