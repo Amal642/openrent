@@ -28,17 +28,15 @@ async def launch_browser(account):
             "password": account.proxy_password
         }
 
-    browser = await playwright.chromium.launch(
-        headless=True,
-        slow_mo=500,
-        args=[
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-        ],
-    )
+    browser = await playwright.chromium.launch()
 
     session_file = get_session_file(account)
-    context_kwargs = {"proxy": proxy} if proxy else {}
+    context_kwargs = {
+        "ignore_https_errors": True,
+    }
+
+    if proxy:
+        context_kwargs["proxy"] = proxy
 
     if session_file and os.path.exists(session_file):
 
