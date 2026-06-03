@@ -81,6 +81,8 @@ class Account(Base):
     last_exception = Column(Text, nullable=True)
     permanently_failed = Column(Boolean, default=False)
 
+    listings_last_scraped_at = Column(DateTime, nullable=True)
+
     # relationships
     search_profiles = relationship("SearchProfile", back_populates="account")
 

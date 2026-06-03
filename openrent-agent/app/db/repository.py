@@ -551,6 +551,22 @@ def get_search_profiles(account_id):
         ).all()
 
 
+def has_scraped_today(account_id):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account or not account.listings_last_scraped_at:
+            return False
+        return account.listings_last_scraped_at.date() == uk_now().date()
+
+
+def mark_scraped_today(account_id):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if account:
+            account.listings_last_scraped_at = datetime.utcnow()
+            db.commit()
+
+
 # ---------------- LISTINGS ----------------
 
 def listing_exists(listing_id):

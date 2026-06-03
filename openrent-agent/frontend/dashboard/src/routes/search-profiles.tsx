@@ -311,12 +311,18 @@ function ProfileDialog({
             </Select>
           </div>
           <div className="col-span-2 space-y-1.5">
-            <Label>Location</Label>
-            <Input
+            <Label>City</Label>
+            <Select
               value={data.location ?? ""}
-              onChange={(e) => setData({ ...data, location: e.target.value })}
-              placeholder="e.g. Hackney, London"
-            />
+              onValueChange={(v) => setData({ ...data, location: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select city" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Manchester">Manchester</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label>Search radius</Label>

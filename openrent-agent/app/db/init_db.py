@@ -56,6 +56,7 @@ REQUIRED_COLUMNS = {
         "proxy_password": "VARCHAR",
 
         "messages_sent_reset_at": "TIMESTAMP",
+        "listings_last_scraped_at": "TIMESTAMP",
     },
 
     "listings": {

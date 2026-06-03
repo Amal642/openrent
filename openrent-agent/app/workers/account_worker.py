@@ -20,6 +20,10 @@ from scripts.process_listings import (
     process_account_listings
 )
 
+from scripts.scrape_listings import (
+    scrape_account_listings
+)
+
 from scripts.process_replies import (
     process_account_replies
 )
@@ -31,6 +35,7 @@ from scripts.process_viewing_reminders import (
 from app.db.repository import (
     account_stop_requested,
     get_active_accounts,
+    has_scraped_today,
     update_account_worker_state,
     update_proxy_health,
 )
@@ -80,28 +85,14 @@ async def _heartbeat_loop(account_id, phase_getter):
         await asyncio.sleep(45)
 
 
-def account_phase(account, now=None):
-    now = now or datetime.utcnow()
-
-    if now.weekday() == 6:
-        return "reply_only"
-
-    active_parity = 0 if now.weekday() in (0, 2, 4) else 1
-
-    if account.id % 2 == active_parity:
-        return "send_and_reply"
-
-    return "reply_only"
-
-
 async def run_account_worker(account):
 
     worker_id = f"account-{account.id}-{uuid4().hex[:8]}"
-    phase = account_phase(account)
+    phase = "send_and_reply"
 
     logger.info(
         f"Starting worker for "
-        f"account {account.email} in {phase}"
+        f"account {account.email}"
     )
 
     update_account_worker_state(
@@ -187,7 +178,7 @@ async def run_account_worker(account):
             )
             raise
 
-        phase = account_phase(account)
+        phase = "send_and_reply"
         update_account_worker_state(
             account.id,
             "running",
@@ -209,16 +200,38 @@ async def run_account_worker(account):
             return
 
         # =====================================================
-        # INITIAL OUTREACH PHASE
+        # SCRAPING PHASE — once per calendar day per account
         # =====================================================
 
-        if phase == "send_and_reply":
-
-            await process_account_listings(
-                account,
-                page,
-                worker_id=worker_id
+        if not has_scraped_today(account.id):
+            phase = "scraping"
+            update_account_worker_state(
+                account.id,
+                "running",
+                phase=phase,
             )
+            try:
+                await scrape_account_listings(account, page)
+            except Exception as exc:
+                logger.exception(
+                    f"Scraping failed for {account.email}: {exc}"
+                )
+            phase = "send_and_reply"
+            update_account_worker_state(
+                account.id,
+                "running",
+                phase=phase,
+            )
+
+        # =====================================================
+        # INITIAL OUTREACH PHASE (limited to 8/day via can_send_message)
+        # =====================================================
+
+        await process_account_listings(
+            account,
+            page,
+            worker_id=worker_id
+        )
 
         # =====================================================
         # STOP CHECK BEFORE REPLY PROCESSING

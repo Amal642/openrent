@@ -51,10 +51,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   controlAccountWorker,
   createAccount,
+  createSearchProfile,
   deleteAccount,
   getAccounts,
   invalidateAccountSession,
@@ -105,6 +113,39 @@ const proxyTone: Record<ProxyStatus, "success" | "warning" | "destructive" | "mu
   unknown: "warning",
 };
 
+const CITIES = [
+  { value: "Manchester", label: "Manchester" },
+];
+
+const CONVERSATION_STYLES = [
+  { value: "friendly_viewing", label: "Friendly viewing first" },
+  { value: "direct_number_request", label: "Direct professional number request" },
+  { value: "video_call_request", label: "Relocation video call request" },
+  { value: "warm_casual", label: "Warm casual couple" },
+  { value: "professional_polite", label: "Professional polite" },
+  { value: "busy_professional", label: "Busy professional" },
+  { value: "whatsapp_coordination", label: "WhatsApp coordination" },
+  { value: "landlord_number_boundary", label: "Landlord number with boundaries" },
+];
+
+const PHONE_STRATEGIES = [
+  { value: "delayed", label: "Delayed" },
+  { value: "immediate", label: "Immediate" },
+  { value: "viewing_first", label: "Viewing first" },
+  { value: "whatsapp_first", label: "WhatsApp first" },
+  { value: "landlord_requests_only", label: "Landlord requests only" },
+  { value: "adaptive", label: "Adaptive" },
+];
+
+interface ProfileDraft {
+  city: string;
+  area: number;
+  priceMin: number;
+  priceMax: number;
+  bedroomsMin: number;
+  bedroomsMax: number;
+}
+
 function AccountsPage() {
   const {
     data: list = [],
@@ -138,12 +179,33 @@ function AccountsPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (account: Partial<Account> & { password?: string; id?: string }) =>
-      account.id
-        ? updateAccount(account as Partial<Account> & { id: string })
-        : createAccount(account),
+    mutationFn: async (payload: {
+      account: Partial<Account> & { password?: string; id?: string };
+      profile?: ProfileDraft;
+    }) => {
+      const { account, profile } = payload;
+      if (account.id) {
+        return updateAccount(account as Partial<Account> & { id: string });
+      }
+      const created = await createAccount(account);
+      if (profile?.city) {
+        await createSearchProfile({
+          accountId: created.id,
+          location: profile.city,
+          area: profile.area,
+          priceMin: profile.priceMin,
+          priceMax: profile.priceMax,
+          bedroomsMin: profile.bedroomsMin,
+          bedroomsMax: profile.bedroomsMax,
+          petsAllowed: false,
+          active: true,
+        });
+      }
+      return created;
+    },
     onSuccess: () => {
       invalidate();
+      queryClient.invalidateQueries({ queryKey: ["search-profiles"] });
       toast.success("Account saved");
       setOpen(false);
       setEditing(null);
@@ -186,8 +248,8 @@ function AccountsPage() {
   });
 
   const filtered = list.filter((a) => a.email.toLowerCase().includes(query.toLowerCase()));
-  const save = (data: Partial<Account> & { password?: string }) => {
-    saveMutation.mutate({ ...editing, ...data });
+  const save = (data: Partial<Account> & { password?: string }, profile?: ProfileDraft) => {
+    saveMutation.mutate({ account: { ...editing, ...data }, profile });
   };
 
   if (isLoading) {
