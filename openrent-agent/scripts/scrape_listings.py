@@ -9,7 +9,7 @@ async def scrape_account_listings(account, page):
     """
     Fetch all search profile URLs for the account,
     scrape OpenRent for new listings, and persist them to DB.
-    Runs once per calendar day per account (gated by has_scraped_today).
+    Gated by should_scrape_now() in account_worker.py (2-hour cooldown).
     """
     logger.info("=" * 60)
     logger.info("STARTING LISTING DISCOVERY")
@@ -25,7 +25,8 @@ async def scrape_account_listings(account, page):
             f"({account.email}) — skipping scrape. "
             "Create a search profile in the dashboard first."
         )
-        mark_scraped_today(account.id)
+        # Do NOT mark as scraped — no profiles means nothing was discovered.
+        # The worker will retry on the next tick once a profile is created.
         return
 
     logger.info(f"FOUND {len(search_urls)} SEARCH PROFILE(S)")

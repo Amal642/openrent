@@ -552,11 +552,29 @@ def get_search_profiles(account_id):
 
 
 def has_scraped_today(account_id):
+    """Legacy helper — use should_scrape_now() for new code."""
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
         if not account or not account.listings_last_scraped_at:
             return False
         return account.listings_last_scraped_at.date() == uk_now().date()
+
+
+def should_scrape_now(account_id, cooldown_hours=2):
+    """
+    Returns True if a scrape should run for this account.
+    Scrapes run when listings_last_scraped_at is NULL (never scraped)
+    or older than cooldown_hours, whichever comes first.
+    Using a time-based cooldown instead of a calendar-day gate avoids
+    locking out an account for a full day if the first stamp was premature
+    (e.g., the account had no search profiles at the time).
+    """
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account or not account.listings_last_scraped_at:
+            return True
+        cutoff = datetime.utcnow() - timedelta(hours=cooldown_hours)
+        return account.listings_last_scraped_at < cutoff
 
 
 def mark_scraped_today(account_id):

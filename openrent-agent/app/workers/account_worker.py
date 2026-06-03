@@ -35,7 +35,7 @@ from scripts.process_viewing_reminders import (
 from app.db.repository import (
     account_stop_requested,
     get_active_accounts,
-    has_scraped_today,
+    should_scrape_now,
     update_account_worker_state,
     update_proxy_health,
 )
@@ -203,7 +203,7 @@ async def run_account_worker(account):
         # SCRAPING PHASE — once per calendar day per account
         # =====================================================
 
-        if not has_scraped_today(account.id):
+        if should_scrape_now(account.id):
             phase = "scraping"
             update_account_worker_state(
                 account.id,
