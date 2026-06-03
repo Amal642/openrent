@@ -538,7 +538,7 @@ function AccountDialog({
   const reset = () => {
     setData({
       email: editing?.email ?? "",
-      dailyMessageLimit: editing?.dailyMessageLimit ?? 8,
+      dailyMessageLimit: editing?.dailyMessageLimit ?? 5,
       mobileNumber: editing?.mobileNumber ?? "",
       phoneFetchingType: editing?.phoneFetchingType ?? "",
       conversationStyle: editing?.conversationStyle ?? "",
@@ -589,7 +589,7 @@ function AccountDialog({
           <Field label="Daily message limit">
             <Input
               type="number"
-              value={data.dailyMessageLimit ?? 8}
+              value={data.dailyMessageLimit ?? 5}
               onChange={(e) => setData({ ...data, dailyMessageLimit: Number(e.target.value) })}
             />
           </Field>

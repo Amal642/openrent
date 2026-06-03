@@ -91,6 +91,24 @@ async def scrape_search_results(
         logger.warning(f"FIRST 1000 CHARS: {html[:1000]}")
         await _save_debug_artifacts(page, "unexpected_redirect")
 
+    # ── Scroll to load more results (infinite scroll / lazy-load) ─
+    logger.info("Scrolling to load more listings...")
+    previous_height = 0
+    for scroll_pass in range(10):
+        await page.mouse.wheel(0, 5000)
+        await page.wait_for_timeout(2000)
+        try:
+            current_height = await page.evaluate("document.body.scrollHeight")
+        except Exception:
+            break
+        logger.info(
+            f"Scroll pass {scroll_pass + 1}: height {previous_height} → {current_height}"
+        )
+        if current_height == previous_height:
+            logger.info("No new content after scroll — stopping")
+            break
+        previous_height = current_height
+
     # ── Save debug artifacts for every run ────────────────────
     await _save_debug_artifacts(page, "search_results")
 

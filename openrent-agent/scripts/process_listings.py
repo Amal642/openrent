@@ -57,16 +57,15 @@ async def process_account_listings(
         return
 
     persona = ensure_account_persona(account.id)
+    # Claim 30 candidates so agent filtering doesn't exhaust the daily quota.
+    # can_send_message() enforces the hard cap of 5 actual messages sent.
     listings = claim_uncontacted_listings(
         account.id,
         worker_id or f"account-{account.id}",
-        limit=5
+        limit=30,
     )
 
-    logger.info(
-        f"UNCONTACTED LISTINGS CLAIMED: {len(listings)} "
-        f"(account {account.email})"
-    )
+    logger.info(f"CANDIDATE LISTINGS CLAIMED: {len(listings)}")
 
     if not listings:
         logger.warning(
@@ -75,7 +74,8 @@ async def process_account_listings(
         )
         return
 
-
+    messages_sent = 0
+    agent_skipped = 0
 
     for listing in listings:
         # Snapshot all primitives immediately — the ORM object becomes detached
@@ -143,6 +143,7 @@ async def process_account_listings(
             if is_agent:
                 logger.info(f"Skipping agent landlord for listing {listing_ext_id}")
                 mark_listing_skipped(listing_pk, reason="agent")
+                agent_skipped += 1
                 continue
 
             # Reopen the original listing page after agent check navigation
@@ -218,6 +219,7 @@ async def process_account_listings(
 
             mark_listing_contacted(listing_pk, thread_id=thread_id)
             increment_message_count(account.id)
+            messages_sent += 1
 
             create_conversation(
                 thread_id=thread_id,
@@ -246,3 +248,15 @@ async def process_account_listings(
                 listing_pk,
                 worker_id or f"account-{account.id}",
             )
+
+    logger.info(
+        f"OUTREACH RUN COMPLETE — "
+        f"candidates: {len(listings)} | "
+        f"agent skipped: {agent_skipped} | "
+        f"landlord messages sent this run: {messages_sent}"
+    )
+    if messages_sent == 0 and agent_skipped == len(listings):
+        logger.info(
+            "All candidates were agents — outreach skipped this run. "
+            "Next run will evaluate newly discovered listings."
+        )

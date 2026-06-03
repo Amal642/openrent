@@ -1,3 +1,4 @@
+import os
 import random
 import re
 
@@ -7,21 +8,42 @@ from datetime import (
 )
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
+from app.utils.logger import logger
+
 AVAILABILITY_OPTIONS = [
-    "Available after 5pm most weekdays.",
-    "Flexible this week including weekends.",
-    "Usually free evenings after work.",
-    "Can do evenings or weekends.",
-    "Available most days this week."
+    "Weekday evenings after 6pm and weekends work well for us.",
+    "Flexible this week, especially evenings and weekends.",
+    "Available most evenings after work and weekends.",
+    "Can do weekday evenings or weekends — happy to arrange.",
+    "Usually free after 5:30pm on weekdays, and most of the weekend.",
+    "Evenings from around 6pm work well, or any time at the weekend.",
+    "Free most evenings this week and Saturday mornings.",
+    "Weekday evenings after work or weekends suit us best.",
 ]
+
+
+async def _save_form_debug(page, tag: str) -> None:
+    """Save screenshot + HTML to debug/ on form interaction failure."""
+    try:
+        os.makedirs("debug", exist_ok=True)
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        screenshot_path = f"debug/{tag}_{ts}.png"
+        html_path = f"debug/{tag}_{ts}.html"
+        await page.screenshot(path=screenshot_path, full_page=True)
+        html = await page.content()
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        logger.info(f"Form debug artifacts: {screenshot_path} | {html_path}")
+    except Exception as exc:
+        logger.warning(f"Could not save form debug artifacts: {exc}")
 
 async def open_listing(page, property_url: str):
 
-    print(f"\nOpening listing: {property_url}")
+    logger.info(f"Opening listing: {property_url}")
 
-    await page.goto(property_url)
+    await page.goto(property_url, timeout=30_000)
 
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("load")
 
 async def extract_listing_metadata(page):
 
@@ -252,118 +274,98 @@ async def send_initial_message(
     page,
     message_url,
     message_text,
-    metadata
+    metadata,
 ):
+    logger.info(f"Opening message page: {message_url}")
+    await page.goto(message_url, timeout=30_000)
 
-    print(f"\nOpening message page: {message_url}")
+    # ── Wait for form — selector-based, no networkidle ────────
+    logger.info("Waiting for message form")
+    try:
+        await page.locator("#Availability").wait_for(
+            state="visible", timeout=15_000
+        )
+    except Exception:
+        logger.error("Availability field not visible after 15s")
+        await _save_form_debug(page, "availability_field_missing")
+        raise Exception("Form did not load: #Availability not visible")
 
-    await page.goto(message_url)
+    try:
+        await page.locator("#Message").wait_for(
+            state="visible", timeout=15_000
+        )
+    except Exception:
+        logger.error("Message textarea not visible after 15s")
+        await _save_form_debug(page, "message_field_missing")
+        raise Exception("Form did not load: #Message not visible")
 
-    await page.wait_for_load_state(
-        "networkidle"
-    )
-
-    form_type = await detect_form_type(
-        page
-    )
-
-    print(
-        f"Detected form type: {form_type}"
-    )
-
-    # ---------------- TYPE 2 ----------------
-
+    # ── Optional screening form (type 2) ──────────────────────
+    form_type = await detect_form_type(page)
+    logger.info(f"Form type detected: {form_type}")
     if form_type == 2:
+        await fill_screening_form(page, metadata)
 
-        await fill_screening_form(
-            page,
-            metadata
-        )
+    # ── Availability ──────────────────────────────────────────
+    logger.info("Filling availability field")
+    availability_text = random.choice(AVAILABILITY_OPTIONS)
+    await page.locator("#Availability").fill(availability_text)
 
-    # ---------------- AVAILABILITY ----------------
+    # ── Message ───────────────────────────────────────────────
+    logger.info("Filling message textarea")
+    await page.locator("#Message").fill(message_text)
 
-    availability_text = random.choice(
-        AVAILABILITY_OPTIONS
-    )
-
-    availability_input = await page.query_selector(
-        "#Availability"
-    )
-
-    if not availability_input:
-
-        availability_input = await page.query_selector(
-            'input[name="Availability"]'
-        )
-
-    if availability_input:
-
-        await availability_input.fill(
-            availability_text
-        )
-
-    # ---------------- MESSAGE ----------------
-
-    textarea = await find_message_textarea(page)
-
-    if not textarea:
-        raise Exception(
-            "Message textarea not found"
-        )
-
-    # await textarea.fill(
-    #     message_text
-    # )
-    await safe_fill(
-        textarea,
-        message_text
-    )
-    print("Message inserted")
-
-    # ---------------- CHECKBOX ----------------
-
-    checkbox = await page.query_selector(
-        'input[type="checkbox"]'
-    )
-
-    if not checkbox:
-
-        checkbox = await page.query_selector(
-            'input[type="checkbox"]'
-        )
-
+    # ── Checkbox (optional) ───────────────────────────────────
+    checkbox = await page.query_selector('input[type="checkbox"]')
     if checkbox:
-
         await checkbox.check()
 
-    # ---------------- SUBMIT ----------------
+    # ── Submit ────────────────────────────────────────────────
+    logger.info("Submitting viewing request")
 
-    submit_button = await find_submit_button(page)
-
-    if not submit_button:
-
-        raise Exception(
-            "Correct submit button not found"
-        )
-
-    disabled = await submit_button.get_attribute("disabled")
-    if disabled is not None:
-        raise Exception(
-            "Submit button is disabled"
-        )
-
-    await submit_button.click()
-
-    print("Clicked submit button")
-
-    await page.wait_for_load_state(
-        "networkidle"
+    # Try role-based selector first (most reliable)
+    submit_btn = page.get_by_role(
+        "button", name=re.compile(r"request viewing", re.IGNORECASE)
     )
+    if await submit_btn.count() == 0:
+        submit_btn = page.get_by_role(
+            "button",
+            name=re.compile(r"send enquiry|send message|submit", re.IGNORECASE),
+        )
 
+    if await submit_btn.count() > 0:
+        btn = submit_btn.first
+        disabled = await btn.get_attribute("disabled")
+        if disabled is not None:
+            await _save_form_debug(page, "submit_button_disabled")
+            raise Exception("Submit button is disabled")
+        await btn.click()
+    else:
+        # Fallback: scan all submit elements
+        fallback = await find_submit_button(page)
+        if not fallback:
+            await _save_form_debug(page, "submit_button_missing")
+            raise Exception("Submit button not found")
+        disabled = await fallback.get_attribute("disabled")
+        if disabled is not None:
+            raise Exception("Submit button is disabled")
+        await fallback.click()
+
+    # ── Wait for post-submit navigation ───────────────────────
+    # Prefer myenquiries redirect; fall back to messages thread;
+    # finally accept any URL change. Never use networkidle.
     final_url = page.url
+    try:
+        await page.wait_for_url("**/myenquiries**", timeout=15_000)
+        final_url = page.url
+    except Exception:
+        try:
+            await page.wait_for_url("**/messages/**", timeout=8_000)
+            final_url = page.url
+        except Exception:
+            # Navigation may have already completed or gone elsewhere
+            final_url = page.url
 
-    print("Final URL:", final_url)
-
+    logger.info(f"Post-submit URL: {final_url}")
     return final_url
 
 

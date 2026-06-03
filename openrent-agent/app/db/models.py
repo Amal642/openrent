@@ -33,7 +33,7 @@ class Account(Base):
     proxy_username = Column(String, nullable=True)
     proxy_password = Column(String, nullable=True)
 
-    daily_limit = Column(Integer, default=8)
+    daily_limit = Column(Integer, default=5)
     messages_sent_today = Column(Integer, default=0)
     messages_sent_reset_at = Column(DateTime, nullable=True)
 

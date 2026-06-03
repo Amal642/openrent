@@ -2879,6 +2879,28 @@ You can give him a text"
 Landlord: "Sure. Will text him."
 
 
+|Opening listing: https://www.openrent.co.uk/2738042
+Checking agent status for listing 2738042
+Opening rent info page: https://www.openrent.co.uk/rent/rentnowinfo/2738042
+ Landlord ID found: 6250116
+ Checking landlord properties: 6250116
+ Landlord 6250116 has 13 properties
+ Agent check result: True
+ Skipping agent landlord for listing 2738042
+ Opening listing: https://www.openrent.co.uk/2878116
+ Checking agent status for listing 2878116
+ Opening rent info page: https://www.openrent.co.uk/rent/rentnowinfo/2878116
+ Landlord ID found: 3140812
+ Checking landlord properties: 3140812
+ Landlord 3140812 has 1 properties
+ Agent check result: False
+ Reopening listing page: https://www.openrent.co.uk/2878116
+ Listing metadata: {'rent_pcm': 1500, 'available_from': datetime.datetime(2026, 6, 3, 16, 26, 14, 747232), 'bedrooms': 2, 'max_tenants': None}
+ Listing 2878116 contactable: True
+ Generating initial message for listing 2878116
+ HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+Initial message generated for listing 2878116: Hi, I’m interested in the 2-bedroom property listed at £1500 pcm. My partner Hannah and I are both professionals—I'm a software engineer and she’s a UX designer—and we’re looking for a comfortable place to settle. The flat looks just right for us. Could you let me know when it would be possible to arrange a viewing? Thanks!
+
 
 ## Conversation 64
 Source: https://www.openrent.co.uk/messages/42830127

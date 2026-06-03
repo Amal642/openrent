@@ -53,6 +53,16 @@ class ReplyGenerationResult:
     latency_ms: int = 0
 
 
+def _sanitize_dashes(text: str) -> str:
+    """
+    Replace em and en dashes with commas so generated messages
+    feel natural rather than AI-polished.
+    """
+    text = text.replace("—", ",")  # em dash —
+    text = text.replace("–", ",")  # en dash –
+    return text
+
+
 def _default_completion_create(**kwargs):
     return client.chat.completions.create(**kwargs)
 
@@ -269,7 +279,7 @@ def generate_reply_result(
                 temperature=temperature,
             )
             latency_ms = int((time.perf_counter() - started_at) * 1000)
-            completion = (response.choices[0].message.content or "").strip()
+            completion = _sanitize_dashes((response.choices[0].message.content or "").strip())
             usage = getattr(response, "usage", None)
             prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
@@ -341,7 +351,7 @@ def generate_cancellation_message(messages=None, retries=3, base_delay=2):
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.6,
             )
-            reply = response.choices[0].message.content.strip()
+            reply = _sanitize_dashes(response.choices[0].message.content.strip())
             if not is_valid_reply(reply):
                 return None, "invalid_cancellation_reply"
             return reply, None
@@ -393,7 +403,7 @@ def generate_initial_property_message(
                 temperature=0.8,
             )
 
-            reply = response.choices[0].message.content.strip()
+            reply = _sanitize_dashes(response.choices[0].message.content.strip())
             reply = remove_unapproved_phone_numbers(
                 reply,
                 (persona or {}).get("mobile_number"),
