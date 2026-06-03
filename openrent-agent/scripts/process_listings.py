@@ -93,7 +93,7 @@ async def process_account_listings(
                 break
 
             logger.info(f"Opening listing: {property_url}")
-            await open_listing(page, listing)
+            await open_listing(page, property_url)
 
             existing_thread_id = await get_existing_thread_id(page)
 
@@ -147,7 +147,7 @@ async def process_account_listings(
 
             # Reopen the original listing page after agent check navigation
             logger.info(f"Reopening listing page: {property_url}")
-            await open_listing(page, listing)
+            await open_listing(page, property_url)
 
             await random_sleep(2, 4)
 

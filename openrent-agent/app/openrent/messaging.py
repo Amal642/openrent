@@ -15,11 +15,11 @@ AVAILABILITY_OPTIONS = [
     "Available most days this week."
 ]
 
-async def open_listing(page, listing):
+async def open_listing(page, property_url: str):
 
-    print(f"\nOpening listing: {listing.property_url}")
+    print(f"\nOpening listing: {property_url}")
 
-    await page.goto(listing.property_url)
+    await page.goto(property_url)
 
     await page.wait_for_load_state("networkidle")
 
