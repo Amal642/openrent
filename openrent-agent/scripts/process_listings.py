@@ -46,8 +46,15 @@ async def process_account_listings(
     page,
     worker_id=None
 ):
+    logger.info("=" * 60)
+    logger.info("PROCESSING INITIAL OUTREACH")
+    logger.info(f"ACCOUNT: {account.email} (id={account.id})")
 
-   
+    if not can_send_message(account.id):
+        logger.info(
+            f"DAILY LIMIT REACHED for {account.email} — skipping outreach"
+        )
+        return
 
     persona = ensure_account_persona(account.id)
     listings = claim_uncontacted_listings(
@@ -56,9 +63,16 @@ async def process_account_listings(
         limit=5
     )
 
+    logger.info(
+        f"UNCONTACTED LISTINGS CLAIMED: {len(listings)} "
+        f"(account {account.email})"
+    )
+
     if not listings:
-        print("No listings to process")
-        logger.warning("No listings to process")
+        logger.warning(
+            f"NO LISTINGS TO PROCESS for {account.email}. "
+            "If scraping just ran, check debug/ artifacts for why 0 listings were found."
+        )
         return
 
 
