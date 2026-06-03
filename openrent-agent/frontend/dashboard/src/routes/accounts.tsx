@@ -522,11 +522,20 @@ function AccountDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: Account | null;
-  onSave: (data: Partial<Account> & { password?: string }) => void;
+  onSave: (data: Partial<Account> & { password?: string }, profile?: ProfileDraft) => void;
   saving: boolean;
 }) {
   const [data, setData] = useState<Partial<Account> & { password?: string }>({});
-  const reset = () =>
+  const [profile, setProfile] = useState<ProfileDraft>({
+    city: "",
+    area: 10,
+    priceMin: 600,
+    priceMax: 1500,
+    bedroomsMin: 1,
+    bedroomsMax: 3,
+  });
+
+  const reset = () => {
     setData({
       email: editing?.email ?? "",
       dailyMessageLimit: editing?.dailyMessageLimit ?? 8,
@@ -544,6 +553,8 @@ function AccountDialog({
       active: editing?.active ?? true,
       password: "",
     });
+    setProfile({ city: "", area: 10, priceMin: 600, priceMax: 1500, bedroomsMin: 1, bedroomsMax: 3 });
+  };
 
   return (
     <Dialog
@@ -553,7 +564,7 @@ function AccountDialog({
         if (v) reset();
       }}
     >
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit account" : "Add account"}</DialogTitle>
           <DialogDescription>
@@ -615,26 +626,55 @@ function AccountDialog({
               onChange={(e) => setData({ ...data, mobileNumber: e.target.value })}
             />
           </Field>
+
           <Field label="Phone strategy">
-            <Input
+            <Select
               value={data.phoneFetchingType ?? ""}
-              onChange={(e) => setData({ ...data, phoneFetchingType: e.target.value })}
-              placeholder="delayed"
-            />
+              onValueChange={(v) => setData({ ...data, phoneFetchingType: v })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select strategy" />
+              </SelectTrigger>
+              <SelectContent>
+                {PHONE_STRATEGIES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
+
           <Field label="Conversation style">
-            <Input
+            <Select
               value={data.conversationStyle ?? ""}
-              onChange={(e) => setData({ ...data, conversationStyle: e.target.value })}
-              placeholder="friendly_viewing"
-            />
+              onValueChange={(v) => setData({ ...data, conversationStyle: v })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select style" />
+              </SelectTrigger>
+              <SelectContent>
+                {CONVERSATION_STYLES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
+
           <Field label="Message strategy">
-            <Input
+            <Select
               value={data.messageStrategy ?? ""}
-              onChange={(e) => setData({ ...data, messageStrategy: e.target.value })}
-            />
+              onValueChange={(v) => setData({ ...data, messageStrategy: v })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select strategy" />
+              </SelectTrigger>
+              <SelectContent>
+                {CONVERSATION_STYLES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
+
           <Field label="Escalation behavior">
             <Input
               value={data.escalationBehavior ?? ""}
@@ -648,6 +688,79 @@ function AccountDialog({
               onChange={(e) => setData({ ...data, initialMessage: e.target.value })}
             />
           </div>
+
+          {!editing && (
+            <div className="sm:col-span-2 border-t pt-4 space-y-3">
+              <div>
+                <p className="text-sm font-semibold">Search Profile</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Optionally create a search profile so the worker starts finding listings immediately.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Target city</Label>
+                  <Select
+                    value={profile.city}
+                    onValueChange={(v) => setProfile({ ...profile, city: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select city (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CITIES.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {profile.city && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label>Price min (£/mo)</Label>
+                      <Input
+                        type="number"
+                        value={profile.priceMin}
+                        onChange={(e) => setProfile({ ...profile, priceMin: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Price max (£/mo)</Label>
+                      <Input
+                        type="number"
+                        value={profile.priceMax}
+                        onChange={(e) => setProfile({ ...profile, priceMax: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Bedrooms min</Label>
+                      <Input
+                        type="number"
+                        value={profile.bedroomsMin}
+                        onChange={(e) => setProfile({ ...profile, bedroomsMin: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Bedrooms max</Label>
+                      <Input
+                        type="number"
+                        value={profile.bedroomsMax}
+                        onChange={(e) => setProfile({ ...profile, bedroomsMax: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Search radius (miles)</Label>
+                      <Input
+                        type="number"
+                        value={profile.area}
+                        onChange={(e) => setProfile({ ...profile, area: Number(e.target.value) })}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -658,7 +771,7 @@ function AccountDialog({
               const payload = { ...data };
               if (!payload.password) delete payload.password;
               if (!payload.proxyPassword && editing) delete payload.proxyPassword;
-              onSave(payload);
+              onSave(payload, profile.city ? profile : undefined);
             }}
             disabled={saving || !data.email}
           >
