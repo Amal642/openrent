@@ -314,13 +314,8 @@ async def send_initial_message(
     logger.info("Filling message textarea")
     await page.locator("#Message").fill(message_text)
 
-    # ── Checkbox (optional) ───────────────────────────────────
-    checkbox = await page.query_selector('input[type="checkbox"]')
-    if checkbox:
-        await checkbox.check()
-
     # ── Submit ────────────────────────────────────────────────
-    logger.info("Submitting viewing request")
+    logger.info("Submitting Request Viewing form")
 
     # Try role-based selector first (most reliable)
     submit_btn = page.get_by_role(
