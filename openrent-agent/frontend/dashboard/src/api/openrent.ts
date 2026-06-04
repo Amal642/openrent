@@ -40,6 +40,7 @@ const VALID_STAGES: ConversationStage[] = [
   "VIEWING_BOOKED",
   "PRE_VIEWING",
   "CONTACT_REQUESTED",
+  "HANDOFF_COMPLETE",
   "VIEWING_CANCELLED",
   "CLOSED",
 ];
@@ -132,6 +133,7 @@ type BackendLead = {
   persona_name?: string;
   persona_partner_name?: string;
   persona_job?: string;
+  handoff_completed_at?: string;
   persona_partner_job?: string;
   home_city?: string;
   mobile_number?: string;

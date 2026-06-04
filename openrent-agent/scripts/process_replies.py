@@ -12,6 +12,7 @@ from app.db.repository import (
     get_conversation_by_thread_id,
     update_last_processed_message,
     phone_exists,
+    mark_handoff_complete,
     mark_phone_requested,
     mark_phone_number_shared,
     mark_landlord_asked_phone,
@@ -45,6 +46,7 @@ from app.ai.extractors import (
 )
 
 from app.ai.replies import (
+    generate_handoff_message,
     generate_reply
 )
 
@@ -69,7 +71,34 @@ from app.db.status import (
     REPLY_DISABLED,
     AI_FAILED,
     AI_REPLIED,
+    HANDOFF_COMPLETE,
 )
+
+
+async def _send_handoff_message(thread_id, messages, latest_landlord_message, page):
+    logger.info("PHONE NUMBER EXTRACTED")
+
+    handoff_message, handoff_error = generate_handoff_message(messages)
+    if not handoff_message or handoff_error:
+        logger.error(
+            f"Handoff message generation failed for thread {thread_id}: "
+            f"{handoff_error or 'empty_handoff_message'}"
+        )
+        return False
+
+    logger.info("HANDOFF MESSAGE GENERATED")
+
+    sent = await send_reply(page, handoff_message)
+    if not sent:
+        logger.warning(f"Handoff message send failed for thread {thread_id}")
+        return False
+
+    logger.info("HANDOFF MESSAGE SENT")
+    save_message(thread_id, "outbound", handoff_message)
+    update_last_processed_message(thread_id, latest_landlord_message)
+    mark_handoff_complete(thread_id)
+    logger.info("CONVERSATION HANDOFF COMPLETE")
+    return True
 
 async def process_account_replies(
     account,
@@ -120,6 +149,20 @@ async def process_account_replies(
                     thread_id
                 )
             )
+
+            if (
+                conversation
+                and
+                conversation.conversation_stage
+                ==
+                HANDOFF_COMPLETE
+            ):
+                logger.info(
+                    "Conversation handed off. "
+                    "Skipping AI responses."
+                )
+                update_last_processed_message(thread_id, latest_landlord_message)
+                continue
 
             if (
                 conversation
@@ -213,6 +256,21 @@ async def process_account_replies(
                     phone = normalize_uk_phone(
                         phone
                     )
+                    if (
+                        conversation
+                        and conversation.extracted_phone == phone
+                        and conversation.conversation_stage != HANDOFF_COMPLETE
+                    ):
+                        handoff_sent = await _send_handoff_message(
+                            thread_id,
+                            messages,
+                            latest_landlord_message,
+                            page,
+                        )
+                        if not handoff_sent:
+                            continue
+                        continue
+
                     if phone_exists(phone):
 
                         print(
@@ -228,6 +286,14 @@ async def process_account_replies(
                         continue
 
                     save_phone_number(thread_id, phone)
+                    handoff_sent = await _send_handoff_message(
+                        thread_id,
+                        messages,
+                        latest_landlord_message,
+                        page,
+                    )
+                    if not handoff_sent:
+                        continue
                     logger.info(
                         f"Phone number acquired for thread {thread_id}: "
                         f"{phone} — marking conversation complete"
@@ -250,6 +316,21 @@ async def process_account_replies(
                 phone = normalize_uk_phone(
                     phone
                 )
+                if (
+                    conversation
+                    and conversation.extracted_phone == phone
+                    and conversation.conversation_stage != HANDOFF_COMPLETE
+                ):
+                    handoff_sent = await _send_handoff_message(
+                        thread_id,
+                        messages,
+                        latest_landlord_message,
+                        page,
+                    )
+                    if not handoff_sent:
+                        continue
+                    continue
+
                 if phone_exists(phone):
 
                     print(
@@ -264,6 +345,14 @@ async def process_account_replies(
 
                     continue
                 save_phone_number(thread_id, phone)
+                handoff_sent = await _send_handoff_message(
+                    thread_id,
+                    messages,
+                    latest_landlord_message,
+                    page,
+                )
+                if not handoff_sent:
+                    continue
                 # PHONE_ACQUIRED was already set above; add completion log here.
                 logger.info(
                     f"Phone number acquired for thread {thread_id}: "

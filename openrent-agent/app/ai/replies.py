@@ -370,6 +370,62 @@ def generate_cancellation_message(messages=None, retries=3, base_delay=2):
     return None, last_error or "cancellation_reply_failed"
 
 
+def generate_handoff_message(messages=None, retries=3, base_delay=2):
+    conversation = format_conversation(messages or [])
+    prompt = f"""
+You are writing one final OpenRent reply after a landlord has shared their contact details.
+
+Write a short, natural acknowledgement.
+
+Guidelines:
+- Friendly and human
+- One sentence only
+- No mention of AI
+- No mention of automation
+- No mention of phone extraction
+- No mention of handoff
+- No mention of internal workflow
+- Do not ask a question
+
+Examples:
+Perfect, thanks for sharing your number. I'll be in touch.
+Thanks for sending that over. I'll save your details and look forward to speaking soon.
+Brilliant, thanks for sharing your contact details. Looking forward to arranging everything.
+
+Conversation:
+{conversation}
+
+Return only the message text.
+""".strip()
+
+    last_error = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+            )
+            reply = _sanitize_dashes(response.choices[0].message.content.strip())
+            if not is_valid_reply(reply):
+                return None, "invalid_handoff_reply"
+            return reply, None
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            last_error = str(exc)
+            logger.warning(
+                f"Handoff message attempt {attempt}/{retries} failed: {exc}"
+            )
+            if attempt < retries:
+                time.sleep(base_delay * attempt)
+        except Exception as exc:
+            last_error = str(exc)
+            logger.exception(f"Unexpected handoff message error: {exc}")
+            break
+
+    return None, last_error or "handoff_reply_failed"
+
+
 def generate_initial_property_message(
     metadata,
     persona=None,

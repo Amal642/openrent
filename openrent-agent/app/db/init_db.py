@@ -87,6 +87,7 @@ REQUIRED_COLUMNS = {
         "phone_found_at": "TIMESTAMP",
         "phone_number_shared_at": "TIMESTAMP",
         "landlord_asked_phone_at": "TIMESTAMP",
+        "handoff_completed_at": "TIMESTAMP",
 
         "landlord_attitude": "VARCHAR DEFAULT 'responsive'",
         "conversation_style": "VARCHAR",

@@ -14,7 +14,7 @@ from app.db.models import (
     Message,
     SearchProfile,
 )
-from app.db.status import VIEWING_CANCELLED
+from app.db.status import HANDOFF_COMPLETE, VIEWING_CANCELLED
 from app.utils.scheduling import uk_now
 from app.ai.personas import (
     get_conversation_style,
@@ -1209,6 +1209,20 @@ def update_conversation_stage(thread_id, stage):
                 conversation.conversation_stage = stage
                 conversation.last_stage_change = datetime.utcnow()
             db.commit()
+
+
+def mark_handoff_complete(thread_id):
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if conversation:
+            now = datetime.utcnow()
+            conversation.conversation_stage = HANDOFF_COMPLETE
+            conversation.handoff_completed_at = now
+            conversation.last_stage_change = now
+            db.commit()
 def update_conversation_status(
     thread_id,
     status
@@ -1559,6 +1573,7 @@ def get_dashboard_leads(status=None):
                 "phone_found_at": conversation.phone_found_at,
                 "phone_number_shared_at": conversation.phone_number_shared_at,
                 "landlord_asked_phone_at": conversation.landlord_asked_phone_at,
+                "handoff_completed_at": conversation.handoff_completed_at,
                 "landlord_attitude": conversation.landlord_attitude,
                 "conversation_style": (
                     conversation.conversation_style

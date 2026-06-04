@@ -17,6 +17,7 @@ export type ConversationStage =
   | "VIEWING_BOOKED"
   | "PRE_VIEWING"
   | "CONTACT_REQUESTED"
+  | "HANDOFF_COMPLETE"
   | "VIEWING_CANCELLED"
   | "CLOSED";
 
