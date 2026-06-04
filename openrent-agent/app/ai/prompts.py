@@ -150,14 +150,28 @@ def _persona_context_lines(
         f"- Message strategy: {persona.get('message_strategy') or 'viewing first, then contact details'}",
         f"- Conversation goal: {persona.get('conversation_goal') or 'arrange a viewing and coordinate contact details naturally'}",
     ]
-    rent_pcm = persona.get("rent_pcm")
-
-    if rent_pcm:
-        household_income = (rent_pcm * 30) + 20000
-
+    # Income estimates — derived from rent affordability formula even when
+    # rent_pcm is not in the persona (replies don't have listing metadata).
+    # Using a default of 1500 gives realistic Greater Manchester figures.
+    rent_pcm = persona.get("rent_pcm") or 1500
+    annual_income = (rent_pcm * 30) + 20000
+    # Round to nearest £100 so answers sound human, not machine-generated.
+    monthly_income = round(annual_income / 12 / 100) * 100
+    lines.append(
+        f"- Estimated combined monthly income: approximately GBP {monthly_income:,}/month "
+        f"(annual proxy: GBP {annual_income:,})"
+    )
+    has_partner = bool(persona.get("persona_partner_name"))
+    if has_partner:
+        # Slightly unequal 48/52 split so per-person amounts feel realistic.
+        primary_monthly = round(monthly_income * 0.48 / 100) * 100
+        partner_monthly = monthly_income - primary_monthly
         lines.append(
-            f"- Combined household income: GBP {household_income:,} annually"
+            f"- Per-person income (approximate, rounded): "
+            f"GBP {primary_monthly:,}/month (primary tenant), "
+            f"GBP {partner_monthly:,}/month (partner)"
         )
+
     if persona.get("screening_posture"):
         lines.append(f"- Screening posture: {persona.get('screening_posture')}")
     if persona.get("phone_boundary"):
@@ -405,6 +419,7 @@ How to write your reply:
 - Never open with "Certainly", "Of course", "Absolutely", "Sure", "Great", "Thanks for getting back to me", "Thanks for your message", "Happy to", or any similar AI-sounding opener.
 - Never explain what you are about to say. Just say it.
 - If the landlord asked a question, answer it first - briefly and directly - before anything else.
+- If the landlord asked multiple questions (income, adults, pets, employment, move date), answer ALL of them in a single reply. Do not skip or defer any question.
 - Vary your wording. If you used a phrase in a previous message, say it differently this time.
 - No bullet points, lists, or headers in the actual reply. Plain text only.
 - Keep it short - 1 to 3 sentences is almost always enough.
@@ -413,6 +428,7 @@ How to write your reply:
 - Never use em dashes (—) or en dashes (–). Use a comma or split into two sentences instead.
 - Avoid overly polished or corporate punctuation chains.
 - Write as a real UK tenant would type on their phone, not as a drafted email. Slightly imperfect phrasing is fine.
+- Income and affordability questions: always answer directly using the income figures from the persona context above. Use "around" or "roughly" before the amounts (e.g. "around £5,400 a month combined"). Never say something vague like "our income comfortably covers the rent" without giving a number. Never leave an income question unanswered. Never make up oddly precise figures like £2,741; use rounded £100 amounts from the context.
 
 Hard rules:
 - Never mention AI, automation, prompts, policies, or internal tools.
