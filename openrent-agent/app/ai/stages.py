@@ -43,6 +43,9 @@ TIME_PATTERN = re.compile(
     r"\b([01]?\d|2[0-3])(?::([0-5]\d))?\s*(am|pm)?\b",
     re.I,
 )
+NUMERIC_DATE_PATTERN = re.compile(
+    r"\b([0-3]?\d)[/-]([01]?\d)(?:[/-](\d{2,4}))?\b"
+)
 
 
 def _message_text(message):
@@ -55,6 +58,70 @@ def _recent_messages(messages, limit=8):
 
 def _matches_any(text, patterns):
     return any(re.search(pattern, text, re.I) for pattern in patterns)
+
+
+def _date_spans(text):
+    return [match.span() for match in NUMERIC_DATE_PATTERN.finditer(text)]
+
+
+def _overlaps_any(span, spans):
+    start, end = span
+    return any(start < other_end and end > other_start for other_start, other_end in spans)
+
+
+def _target_date_from_text(text, now):
+    if "day after tomorrow" in text:
+        return (now + timedelta(days=2)).date()
+    if "tomorrow" in text:
+        return (now + timedelta(days=1)).date()
+    if "today" in text:
+        return now.date()
+
+    for match in NUMERIC_DATE_PATTERN.finditer(text):
+        day = int(match.group(1))
+        month = int(match.group(2))
+        year_text = match.group(3)
+        year = now.year
+        if year_text:
+            year = int(year_text)
+            if year < 100:
+                year += 2000
+        try:
+            candidate = datetime(year, month, day).date()
+        except ValueError:
+            continue
+        if candidate < now.date() and not year_text:
+            try:
+                candidate = datetime(year + 1, month, day).date()
+            except ValueError:
+                continue
+        return candidate
+
+    weekdays = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }
+    for name, index in weekdays.items():
+        if name in text:
+            days_ahead = (index - now.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            return (now + timedelta(days=days_ahead)).date()
+
+    return now.date()
+
+
+def _has_time(text):
+    date_spans = _date_spans(text)
+    return any(
+        not _overlaps_any(match.span(), date_spans)
+        for match in TIME_PATTERN.finditer(text)
+    )
 
 
 def detect_stage(messages):
@@ -84,12 +151,12 @@ def detect_stage(messages):
         message
         for message in recent
         if _matches_any(_message_text(message).lower(), BOOKED_PATTERNS)
-        or TIME_PATTERN.search(_message_text(message))
+        or _has_time(_message_text(message).lower())
     ]
 
     if booking_context:
         combined_booking = "\n".join(_message_text(m).lower() for m in booking_context[-4:])
-        if _matches_any(combined_booking, BOOKED_PATTERNS) and TIME_PATTERN.search(combined_booking):
+        if _matches_any(combined_booking, BOOKED_PATTERNS) and _has_time(combined_booking):
             return VIEWING_BOOKED
         if _matches_any(latest_text, BOOKED_PATTERNS):
             return VIEWING_BOOKED
@@ -115,7 +182,10 @@ def extract_viewing_datetime(messages, now=None):
             )
         ):
             continue
+        date_spans = _date_spans(text)
         for match in TIME_PATTERN.finditer(text):
+            if _overlaps_any(match.span(), date_spans):
+                continue
             candidates.append((text, match))
 
     if not candidates:
@@ -128,38 +198,16 @@ def extract_viewing_datetime(messages, now=None):
 
     hour = int(time_match.group(1))
     minute = int(time_match.group(2) or 0)
-    suffix = time_match.group(3)
+    suffix = (time_match.group(3) or "").lower()
 
     if suffix == "pm" and hour < 12:
         hour += 12
     elif suffix == "am" and hour == 12:
         hour = 0
+    elif not suffix and 1 <= hour <= 7:
+        hour += 12
 
-    target_date = now.date()
-
-    if "day after tomorrow" in combined:
-        target_date = (now + timedelta(days=2)).date()
-    elif "tomorrow" in combined:
-        target_date = (now + timedelta(days=1)).date()
-    elif "today" in combined:
-        target_date = now.date()
-    else:
-        weekdays = {
-            "monday": 0,
-            "tuesday": 1,
-            "wednesday": 2,
-            "thursday": 3,
-            "friday": 4,
-            "saturday": 5,
-            "sunday": 6,
-        }
-        for name, index in weekdays.items():
-            if name in combined:
-                days_ahead = (index - now.weekday()) % 7
-                if days_ahead == 0:
-                    days_ahead = 7
-                target_date = (now + timedelta(days=days_ahead)).date()
-                break
+    target_date = _target_date_from_text(combined, now)
 
     candidate = datetime.combine(target_date, datetime.min.time()).replace(
         hour=hour,

@@ -39,3 +39,25 @@ def test_extract_viewing_datetime_ignores_old_time_after_reschedule():
     viewing = extract_viewing_datetime(messages, now=now)
 
     assert viewing == datetime(2026, 5, 21, 20, 0)
+
+
+def test_extract_viewing_datetime_treats_bare_afternoon_hour_as_pm():
+    now = datetime(2026, 6, 4, 17, 0)
+    messages = [
+        {"sender": "landlord", "message": "Viewing booked for tomorrow at 3."},
+    ]
+
+    viewing = extract_viewing_datetime(messages, now=now)
+
+    assert viewing == datetime(2026, 6, 5, 15, 0)
+
+
+def test_extract_viewing_datetime_uses_uk_numeric_date():
+    now = datetime(2026, 6, 4, 9, 0)
+    messages = [
+        {"sender": "landlord", "message": "Confirmed for 05/06 at 3."},
+    ]
+
+    viewing = extract_viewing_datetime(messages, now=now)
+
+    assert viewing == datetime(2026, 6, 5, 15, 0)

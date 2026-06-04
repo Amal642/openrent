@@ -1,18 +1,12 @@
-import random
-from datetime import datetime, timedelta
-
 from app.db.repository import (
     account_stop_requested,
     claim_conversation,
-    clear_reply_due_at,
     ensure_account_persona,
-    is_reply_due,
     release_conversation_claim,
     save_ai_reply,
     save_inbound_messages,
     save_message,
     save_phone_number,
-    set_reply_due_at,
     update_conversation_stage,
     update_conversation_status,
     get_conversation_by_thread_id,
@@ -62,10 +56,6 @@ from app.ai.conversation_memory import (
     detect_landlord_attitude,
     latest_landlord_asked_for_phone,
 )
-
-from app.utils.human import random_sleep
-
-from app.config import settings
 
 from app.utils.phone import (
     normalize_uk_phone
@@ -146,28 +136,6 @@ async def process_account_replies(
                 logger.info(f"No new landlord activity for thread {thread_id}. Skipping.")
                 update_conversation_status(thread_id, SKIPPED)
                 continue
-
-            # ── Reply delay gate ──────────────────────────────────────
-            # New landlord message detected.
-            # If no delay has been set yet, generate one (20–50 min) and
-            # skip this tick.  On subsequent ticks the check just waits.
-            if conversation and not conversation.reply_due_at:
-                delay_minutes = random.randint(20, 50)
-                due_at = datetime.utcnow() + timedelta(minutes=delay_minutes)
-                set_reply_due_at(thread_id, due_at)
-                logger.info(
-                    f"Reply delayed for thread {thread_id}: "
-                    f"{delay_minutes} min (due at {due_at.strftime('%H:%M')} UTC)"
-                )
-                continue
-
-            if not is_reply_due(thread_id):
-                logger.info(
-                    f"Reply not yet due for thread {thread_id} "
-                    f"(due at {conversation.reply_due_at.strftime('%H:%M')} UTC)"
-                )
-                continue
-            # ─────────────────────────────────────────────────────────
 
             print(
                 f"\nTHREAD {thread_id}"
@@ -425,6 +393,7 @@ async def process_account_replies(
 
             print("\nAI REPLY:")
             print(reply)
+            logger.info("Reply generated")
             logger.info(
                 f"AI reply generated for thread {thread_id}: {reply}"
             )
@@ -436,44 +405,25 @@ async def process_account_replies(
                 reply
             )
 
-            await random_sleep(2, 5)
-
-            sent = False
-
-            # Autosend stage: only persist an outbound message after the
-            # OpenRent send path reports success.
-            if settings.AI_AUTOSEND:
-
-                print("\nAUTO-SEND ENABLED")
-                logger.info(f"Auto-send enabled for thread {thread_id}")
-
-                sent = await send_reply(
-                    page,
-                    reply
+            sent = await send_reply(
+                page,
+                reply
+            )
+            if not sent:
+                logger.warning(f"Reply send failed for thread {thread_id}")
+                update_conversation_status(
+                    thread_id,
+                    AI_FAILED
                 )
-                if not sent:
-                    logger.warning(f"Reply send failed for thread {thread_id}")
-                    update_conversation_status(
-                        thread_id,
-                        AI_FAILED
-                    )
-                    continue
+                continue
 
-                save_message(thread_id, "outbound", reply)
-                logger.info(f"Outbound reply persisted for thread {thread_id}")
-
-            else:
-
-                print(
-                    "\nREVIEW MODE "
-                    "(reply not sent)"
-                )
-                logger.info(f"Review mode enabled for thread {thread_id}")
+            logger.info("Reply sent")
+            save_message(thread_id, "outbound", reply)
+            logger.info(f"Outbound reply persisted for thread {thread_id}")
 
             # Conversation status updates: move metadata forward after a valid
-            # reply is generated, and after send when autosend is enabled.
+            # reply is generated and sent.
             update_last_processed_message(thread_id, latest_landlord_message)
-            clear_reply_due_at(thread_id)   # reset so next message gets a fresh delay
 
             if stage == "VIEWING_BOOKED" and not landlord_asked_number:
                 if conversation and conversation.phone_requested_at:
@@ -490,9 +440,10 @@ async def process_account_replies(
                 mark_phone_number_shared(thread_id)
 
             update_conversation_status(thread_id, AI_REPLIED)
+            logger.info("Reply pipeline completed")
             logger.info(
                 f"Reply pipeline completed for thread {thread_id}; "
-                f"autosend={settings.AI_AUTOSEND}; sent={sent}"
+                f"sent={sent}"
             )
 
         except Exception as e:

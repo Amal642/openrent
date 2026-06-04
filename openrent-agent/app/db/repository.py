@@ -705,45 +705,6 @@ def mark_scraped_today(account_id):
             db.commit()
 
 
-# ---------------- REPLY DELAYS ----------------
-
-def set_reply_due_at(thread_id: str, due_at) -> None:
-    """Store the earliest time at which the AI may reply to this thread."""
-    with session_scope() as db:
-        conv = db.query(Conversation).filter(
-            Conversation.thread_id == thread_id
-        ).first()
-        if conv:
-            conv.reply_due_at = due_at
-            db.commit()
-
-
-def clear_reply_due_at(thread_id: str) -> None:
-    """Clear the delay after a reply is successfully sent."""
-    with session_scope() as db:
-        conv = db.query(Conversation).filter(
-            Conversation.thread_id == thread_id
-        ).first()
-        if conv:
-            conv.reply_due_at = None
-            db.commit()
-
-
-def is_reply_due(thread_id: str) -> bool:
-    """
-    Return True when the AI may send a reply for this thread.
-    If reply_due_at is NULL the reply is immediately eligible
-    (covers the brief window before set_reply_due_at is called).
-    """
-    with session_scope() as db:
-        conv = db.query(Conversation).filter(
-            Conversation.thread_id == thread_id
-        ).first()
-        if not conv or conv.reply_due_at is None:
-            return True
-        return conv.reply_due_at <= datetime.utcnow()
-
-
 # ---------------- ACCOUNT COOLDOWNS ----------------
 
 def set_account_cooldown(account_id: int) -> None:

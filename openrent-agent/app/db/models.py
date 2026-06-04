@@ -276,8 +276,6 @@ class Conversation(Base):
         nullable=True
     )
 
-    reply_due_at = Column(DateTime, nullable=True)
-
     processing_owner = Column(String, nullable=True)
 
     processing_started_at = Column(
