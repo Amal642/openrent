@@ -9,6 +9,7 @@ import type {
   LeadStatus,
   LogEntry,
   Message,
+  Proxy,
   ProxyHealthRow,
   ProxyTestResult,
   SearchProfile,
@@ -48,6 +49,8 @@ type BackendAccount = {
   email: string;
   session_file?: string;
   initial_message?: string;
+  proxy_id?: number | string;
+  proxy_name?: string;
   proxy_server?: string;
   proxy_username?: string;
   proxy_password?: string;
@@ -233,6 +236,8 @@ function mapAccount(account: BackendAccount): Account {
     sessionFile: account.session_file,
     initialMessage: account.initial_message,
     active,
+    proxyId: account.proxy_id ? String(account.proxy_id) : undefined,
+    proxyName: account.proxy_name,
     sessionStatus: asSessionStatus(account.session_status, workerStatus),
     workerStatus,
     dailyMessageLimit: account.daily_limit ?? 0,
@@ -366,6 +371,8 @@ function accountPayload(account: Partial<Account> & { password?: string }) {
   const payload: Record<string, unknown> = {};
   if (account.email !== undefined) payload.email = account.email;
   if (account.password) payload.password = account.password;
+  if (account.proxyId !== undefined)
+    payload.proxy_id = account.proxyId ? Number(account.proxyId) : null;
   if (account.sessionFile !== undefined) payload.session_file = account.sessionFile;
   if (account.initialMessage !== undefined) payload.initial_message = account.initialMessage;
   if (account.proxyServer !== undefined) payload.proxy_server = account.proxyServer || "";
@@ -559,4 +566,73 @@ export function messagesForLead(lead: Lead): Message[] {
   }
 
   return messages;
+}
+
+// ── Proxy management ──────────────────────────────────────────────────────────
+
+type BackendProxy = {
+  id: number | string;
+  name: string;
+  host: string;
+  port: number;
+  username?: string;
+  is_active?: boolean;
+  created_at?: string;
+  account_count?: number;
+};
+
+function mapProxy(p: BackendProxy): Proxy {
+  return {
+    id: String(p.id),
+    name: p.name,
+    host: p.host,
+    port: p.port,
+    username: p.username,
+    isActive: p.is_active ?? true,
+    createdAt: p.created_at || new Date().toISOString(),
+    accountCount: p.account_count ?? 0,
+  };
+}
+
+export async function getProxies(): Promise<Proxy[]> {
+  const rows = await get<BackendProxy[]>("/proxies");
+  return rows.map(mapProxy);
+}
+
+export async function createProxy(data: {
+  name?: string;
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  isActive?: boolean;
+}): Promise<Proxy> {
+  const created = await post<BackendProxy>("/proxies", {
+    name: data.name || undefined,
+    host: data.host,
+    port: data.port,
+    username: data.username || undefined,
+    password: data.password || undefined,
+    is_active: data.isActive ?? true,
+  });
+  return mapProxy(created);
+}
+
+export async function updateProxy(
+  proxyId: string,
+  data: { name?: string; host?: string; port?: number; username?: string; password?: string; isActive?: boolean },
+): Promise<Proxy> {
+  const updated = await patch<BackendProxy>(`/proxies/${proxyId}`, {
+    name: data.name,
+    host: data.host,
+    port: data.port,
+    username: data.username,
+    password: data.password,
+    is_active: data.isActive,
+  });
+  return mapProxy(updated);
+}
+
+export async function deleteProxy(proxyId: string): Promise<{ deleted: boolean }> {
+  return del(`/proxies/${proxyId}`);
 }

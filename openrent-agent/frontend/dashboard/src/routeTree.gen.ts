@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchProfilesRouteImport } from './routes/search-profiles'
+import { Route as ProxiesRouteImport } from './routes/proxies'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as AccountsRouteImport } from './routes/accounts'
@@ -21,6 +22,11 @@ import { Route as LeadsThreadIdRouteImport } from './routes/leads.$threadId'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProxiesRoute = ProxiesRouteImport.update({
+  id: '/proxies',
+  path: '/proxies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchProfilesRoute = SearchProfilesRouteImport.update({
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
+  '/proxies': typeof ProxiesRoute
   '/search-profiles': typeof SearchProfilesRoute
   '/settings': typeof SettingsRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
+  '/proxies': typeof ProxiesRoute
   '/search-profiles': typeof SearchProfilesRoute
   '/settings': typeof SettingsRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
+  '/proxies': typeof ProxiesRoute
   '/search-profiles': typeof SearchProfilesRoute
   '/settings': typeof SettingsRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/workers'
     | '/leads'
     | '/logs'
+    | '/proxies'
     | '/search-profiles'
     | '/settings'
     | '/leads/$threadId'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/workers'
     | '/leads'
     | '/logs'
+    | '/proxies'
     | '/search-profiles'
     | '/settings'
     | '/leads/$threadId'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/workers'
     | '/leads'
     | '/logs'
+    | '/proxies'
     | '/search-profiles'
     | '/settings'
     | '/leads/$threadId'
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   WorkersRoute: typeof WorkersRoute
   LeadsRoute: typeof LeadsRouteWithChildren
   LogsRoute: typeof LogsRoute
+  ProxiesRoute: typeof ProxiesRoute
   SearchProfilesRoute: typeof SearchProfilesRoute
   SettingsRoute: typeof SettingsRoute
 }
@@ -140,6 +153,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/proxies': {
+      id: '/proxies'
+      path: '/proxies'
+      fullPath: '/proxies'
+      preLoaderRoute: typeof ProxiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search-profiles': {
@@ -210,6 +230,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkersRoute: WorkersRoute,
   LeadsRoute: LeadsRouteWithChildren,
   LogsRoute: LogsRoute,
+  ProxiesRoute: ProxiesRoute,
   SearchProfilesRoute: SearchProfilesRoute,
   SettingsRoute: SettingsRoute,
 }

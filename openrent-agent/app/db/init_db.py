@@ -5,6 +5,14 @@ from app.db.models import Base
 
 
 REQUIRED_COLUMNS = {
+    "proxies": {
+        "health_status":  "VARCHAR",
+        "last_check_at":  "TIMESTAMP",
+        "country":        "VARCHAR",
+        "provider":       "VARCHAR",
+        "failure_count":  "INTEGER DEFAULT 0",
+    },
+
     "accounts": {
         "persona_name": "VARCHAR",
         "persona_partner_name": "VARCHAR",
@@ -57,6 +65,7 @@ REQUIRED_COLUMNS = {
 
         "messages_sent_reset_at": "TIMESTAMP",
         "listings_last_scraped_at": "TIMESTAMP",
+        "proxy_id": "INTEGER",
     },
 
     "listings": {
@@ -122,9 +131,53 @@ def apply_schema_updates():
                 connection.execute(text(query))
 
 
+def _migrate_account_proxies():
+    """
+    One-time migration: lift legacy per-account proxy credentials into
+    shared Proxy records and set account.proxy_id.
+    Idempotent — skips accounts that already have a proxy_id.
+    """
+    from app.db.connection import SessionLocal
+    from app.db.models import Account, Proxy
+
+    db = SessionLocal()
+    try:
+        accounts = (
+            db.query(Account)
+            .filter(Account.proxy_server != None, Account.proxy_id == None)
+            .all()
+        )
+
+        proxy_counter = db.query(Proxy).count()
+
+        for account in accounts:
+            proxy_counter += 1
+            proxy = Proxy(
+                name=f"Proxy {proxy_counter}",
+                host=account.proxy_server or "",
+                port=0,
+                username=account.proxy_username,
+                password=account.proxy_password,
+                is_active=True,
+            )
+            db.add(proxy)
+            db.flush()
+            account.proxy_id = proxy.id
+
+        if accounts:
+            db.commit()
+            print(f"Migrated {len(accounts)} account proxy credential(s) to proxy records")
+    except Exception as exc:
+        db.rollback()
+        print(f"Proxy migration skipped (will retry next start): {exc}")
+    finally:
+        db.close()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 
     apply_schema_updates()
+    _migrate_account_proxies()
 
     print("Database initialized successfully")

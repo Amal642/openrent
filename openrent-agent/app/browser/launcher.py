@@ -14,19 +14,33 @@ def get_session_file(account):
     return str(sessions_dir / f"account_{account.id}.json")
 
 
+def _proxy_config_for_account(account) -> dict | None:
+    """
+    Resolve proxy credentials: prefer the linked Proxy record (proxy_id),
+    fall back to legacy direct fields (proxy_server).
+    """
+    linked = getattr(account, "proxy", None)
+    if linked and linked.is_active and linked.host:
+        server = f"http://{linked.host}:{linked.port}"
+        return {
+            "server": server,
+            "username": linked.username or "",
+            "password": linked.password or "",
+        }
+    if account.proxy_server:
+        return {
+            "server": account.proxy_server,
+            "username": account.proxy_username or "",
+            "password": account.proxy_password or "",
+        }
+    return None
+
+
 async def launch_browser(account):
 
     playwright = await async_playwright().start()
 
-    proxy = None
-
-    # Load proxy if account has one
-    if account.proxy_server:
-        proxy = {
-            "server": account.proxy_server,
-            "username": account.proxy_username,
-            "password": account.proxy_password
-        }
+    proxy = _proxy_config_for_account(account)
 
     browser = await playwright.chromium.launch()
 

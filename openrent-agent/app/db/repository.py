@@ -35,6 +35,107 @@ def session_scope():
         db.close()
 
 
+# ---------------- PROXIES ----------------
+
+def _next_proxy_name(db) -> str:
+    from app.db.models import Proxy as _Proxy
+    count = db.query(_Proxy).count()
+    return f"Proxy {count + 1}"
+
+
+def create_proxy(name=None, host="", port=0, username=None, password=None, is_active=True):
+    from app.db.models import Proxy as _Proxy
+    with session_scope() as db:
+        proxy = _Proxy(
+            name=name or _next_proxy_name(db),
+            host=host,
+            port=port,
+            username=username or None,
+            password=password or None,
+            is_active=is_active,
+        )
+        db.add(proxy)
+        db.commit()
+        db.refresh(proxy)
+        return {
+            "id": proxy.id,
+            "name": proxy.name,
+            "host": proxy.host,
+            "port": proxy.port,
+            "username": proxy.username,
+            "is_active": proxy.is_active,
+            "created_at": proxy.created_at,
+            "account_count": 0,
+        }
+
+
+def get_proxies():
+    from app.db.models import Proxy as _Proxy
+    with session_scope() as db:
+        proxies = db.query(_Proxy).order_by(_Proxy.id.asc()).all()
+        return [_serialize_proxy(p, db) for p in proxies]
+
+
+def get_proxy(proxy_id: int):
+    from app.db.models import Proxy as _Proxy
+    with session_scope() as db:
+        p = db.query(_Proxy).filter(_Proxy.id == proxy_id).first()
+        if not p:
+            return None
+        return _serialize_proxy(p, db)
+
+
+def _serialize_proxy(proxy, db) -> dict:
+    from app.db.models import Account as _Account
+    count = db.query(_Account).filter(_Account.proxy_id == proxy.id).count()
+    return {
+        "id": proxy.id,
+        "name": proxy.name,
+        "host": proxy.host,
+        "port": proxy.port,
+        "username": proxy.username,
+        "is_active": proxy.is_active,
+        "created_at": proxy.created_at,
+        "updated_at": proxy.updated_at,
+        "account_count": count,
+    }
+
+
+def update_proxy(proxy_id: int, **kwargs):
+    from app.db.models import Proxy as _Proxy
+    with session_scope() as db:
+        p = db.query(_Proxy).filter(_Proxy.id == proxy_id).first()
+        if not p:
+            return None
+        allowed = {"name", "host", "port", "username", "password", "is_active"}
+        for key, value in kwargs.items():
+            if key in allowed and value is not None:
+                setattr(p, key, value)
+        p.updated_at = datetime.utcnow()
+        db.commit()
+        return _serialize_proxy(p, db)
+
+
+def delete_proxy(proxy_id: int):
+    from app.db.models import Proxy as _Proxy, Account as _Account
+    with session_scope() as db:
+        p = db.query(_Proxy).filter(_Proxy.id == proxy_id).first()
+        if not p:
+            return None, "not_found"
+        in_use = db.query(_Account).filter(_Account.proxy_id == proxy_id).count()
+        if in_use:
+            return None, f"in_use:{in_use}"
+        db.delete(p)
+        db.commit()
+        return {"deleted": True, "id": proxy_id}, None
+
+
+def proxy_account_count(proxy_id: int) -> int:
+    with session_scope() as db:
+        from app.db.models import Account as _Account
+        return db.query(_Account).filter(_Account.proxy_id == proxy_id).count()
+
+
 # ---------------- ACCOUNTS ----------------
 
 def create_account(
@@ -84,6 +185,7 @@ def update_account(
     password=None,
     session_file=None,
     initial_message=None,
+    proxy_id=None,
     proxy_server=None,
     proxy_username=None,
     proxy_password=None,
@@ -110,6 +212,8 @@ def update_account(
             account.session_file = session_file
         if initial_message is not None:
             account.initial_message = initial_message
+        if proxy_id is not None:
+            account.proxy_id = proxy_id
         if proxy_server is not None:
             account.proxy_server = proxy_server
         if proxy_username is not None:
@@ -298,6 +402,8 @@ def serialize_account(account):
         "id": account.id,
         "email": account.email,
         "session_file": account.session_file,
+        "proxy_id": account.proxy_id,
+        "proxy_name": account.proxy.name if account.proxy else None,
         "proxy_server": account.proxy_server,
         "proxy_username": account.proxy_username,
         "proxy_password": account.proxy_password,

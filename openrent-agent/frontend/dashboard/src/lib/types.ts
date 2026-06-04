@@ -41,12 +41,25 @@ export type WorkerStatus =
   | "error";
 export type ProxyStatus = "ok" | "degraded" | "down" | "not_configured" | "unknown";
 
+export interface Proxy {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username?: string;
+  isActive: boolean;
+  createdAt: string;
+  accountCount: number;
+}
+
 export interface Account {
   id: string;
   email: string;
   sessionFile?: string;
   initialMessage?: string;
   active: boolean;
+  proxyId?: string;
+  proxyName?: string;
   sessionStatus: SessionStatus;
   workerStatus: WorkerStatus;
   dailyMessageLimit: number;

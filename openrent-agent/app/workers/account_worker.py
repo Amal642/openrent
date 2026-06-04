@@ -48,6 +48,19 @@ ACTIVE_BROWSER_RESOURCES = {}
 
 
 def _proxy_url_for_account(account):
+    """
+    Build a proxy URL for the Playwright proxy option.
+    Prefers the linked Proxy record (proxy_id), falls back to legacy fields.
+    """
+    linked = getattr(account, "proxy", None)
+    if linked and linked.is_active and linked.host:
+        server = f"http://{linked.host}:{linked.port}"
+        if not linked.username:
+            return server
+        username = quote(linked.username, safe="")
+        password = quote(linked.password or "", safe="")
+        return f"http://{username}:{password}@{linked.host}:{linked.port}"
+
     proxy_server = (account.proxy_server or "").strip()
     if not proxy_server:
         return None

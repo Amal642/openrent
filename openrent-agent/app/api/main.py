@@ -14,14 +14,19 @@ from pydantic import BaseModel
 from app.db.init_db import init_db
 from app.db.repository import (
     create_account,
+    create_proxy,
     create_search_profile,
     deactivate_search_profile,
     delete_account,
+    delete_proxy,
     get_account,
     get_conversation_messages,
     get_dashboard_accounts,
     get_dashboard_leads,
     get_dashboard_search_profiles,
+    get_proxies,
+    get_proxy,
+    update_proxy,
     update_proxy_health,
     update_account,
     update_conversation_status,
@@ -42,11 +47,22 @@ class SearchProfilePayload(BaseModel):
     active: bool = True
 
 
+class ProxyPayload(BaseModel):
+    name: str | None = None
+    host: str
+    port: int
+    username: str | None = None
+    password: str | None = None
+    is_active: bool = True
+
+
 class AccountCreatePayload(BaseModel):
     email: str
     password: str = ""
     session_file: str = "session.json"
     initial_message: str = ""
+    proxy_id: int | None = None
+    # Legacy direct fields — kept for backward compat; proxy_id takes priority
     proxy_server: str | None = None
     proxy_username: str | None = None
     proxy_password: str | None = None
@@ -66,6 +82,7 @@ class AccountUpdatePayload(BaseModel):
     password: str | None = None
     session_file: str | None = None
     initial_message: str | None = None
+    proxy_id: int | None = None
     proxy_server: str | None = None
     proxy_username: str | None = None
     proxy_password: str | None = None
@@ -338,6 +355,7 @@ def api_create_account(payload: AccountCreatePayload):
         account.id,
         daily_limit=payload.daily_limit,
         active=payload.active,
+        proxy_id=payload.proxy_id,
         mobile_number=payload.mobile_number,
         persona_type=payload.persona_type,
         phone_fetching_type=payload.phone_fetching_type,
@@ -357,6 +375,7 @@ def api_update_account(account_id: int, payload: AccountUpdatePayload):
         password=payload.password,
         session_file=payload.session_file,
         initial_message=payload.initial_message,
+        proxy_id=payload.proxy_id,
         proxy_server=payload.proxy_server,
         proxy_username=payload.proxy_username,
         proxy_password=payload.proxy_password,
@@ -510,6 +529,53 @@ def api_delete_search_profile(profile_id: int):
     if not profile:
         raise HTTPException(status_code=404, detail="Search profile not found")
     return profile
+
+
+@app.get("/api/proxies")
+def api_list_proxies():
+    return get_proxies()
+
+
+@app.post("/api/proxies")
+def api_create_proxy(payload: ProxyPayload):
+    return create_proxy(
+        name=payload.name or None,
+        host=payload.host,
+        port=payload.port,
+        username=payload.username or None,
+        password=payload.password or None,
+        is_active=payload.is_active,
+    )
+
+
+@app.patch("/api/proxies/{proxy_id}")
+def api_update_proxy(proxy_id: int, payload: ProxyPayload):
+    updated = update_proxy(
+        proxy_id,
+        name=payload.name,
+        host=payload.host,
+        port=payload.port,
+        username=payload.username,
+        password=payload.password,
+        is_active=payload.is_active,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Proxy not found")
+    return updated
+
+
+@app.delete("/api/proxies/{proxy_id}")
+def api_delete_proxy(proxy_id: int):
+    result, error = delete_proxy(proxy_id)
+    if error == "not_found":
+        raise HTTPException(status_code=404, detail="Proxy not found")
+    if error and error.startswith("in_use:"):
+        count = error.split(":")[1]
+        raise HTTPException(
+            status_code=409,
+            detail=f"Proxy is assigned to {count} account(s). Reassign accounts before deleting.",
+        )
+    return result
 
 
 @app.post("/api/leads/{thread_id}/complete")

@@ -15,6 +15,31 @@ from datetime import datetime
 Base = declarative_base()
 
 
+# ---------------- PROXIES ----------------
+
+class Proxy(Base):
+    __tablename__ = "proxies"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    host = Column(String, nullable=False)
+    port = Column(Integer, nullable=False)
+    username = Column(String, nullable=True)
+    password = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    # Future-ready fields (nullable, not enforced yet)
+    health_status = Column(String, nullable=True)
+    last_check_at = Column(DateTime, nullable=True)
+    country = Column(String, nullable=True)
+    provider = Column(String, nullable=True)
+    failure_count = Column(Integer, default=0)
+
+    accounts = relationship("Account", back_populates="proxy")
+
+
 # ---------------- ACCOUNTS ----------------
 
 class Account(Base):
@@ -83,8 +108,11 @@ class Account(Base):
 
     listings_last_scraped_at = Column(DateTime, nullable=True)
 
+    proxy_id = Column(Integer, ForeignKey("proxies.id"), nullable=True)
+
     # relationships
     search_profiles = relationship("SearchProfile", back_populates="account")
+    proxy = relationship("Proxy", back_populates="accounts")
 
         
 

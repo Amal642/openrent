@@ -64,11 +64,13 @@ import {
   createAccount,
   deleteAccount,
   getAccounts,
+  getProxies,
   invalidateAccountSession,
   refreshAccountSession,
   testAccountProxy,
   updateAccount,
 } from "@/lib/api";
+import type { Proxy } from "@/lib/types";
 import type { Account, ProxyStatus, SessionStatus, WorkerStatus } from "@/lib/types";
 import { fmtRelative } from "@/lib/format";
 import { toast } from "sonner";
@@ -320,7 +322,7 @@ function AccountsPage() {
                   <TableCell>
                     <DotBadge tone={proxyTone[a.proxyStatus]} label={a.proxyStatus} />
                     <div className="mt-1 max-w-[180px] truncate text-xs text-muted-foreground">
-                      {a.proxyServer || "No proxy assigned"}
+                      {a.proxyName || "No proxy assigned"}
                     </div>
                     {a.proxyIp || a.proxyLatency ? (
                       <div className="mt-1 max-w-[180px] truncate text-xs text-muted-foreground">
@@ -490,6 +492,10 @@ function AccountDialog({
   onSave: (data: Partial<Account> & { password?: string }) => void;
   saving: boolean;
 }) {
+  const { data: proxies = [] } = useQuery<Proxy[]>({
+    queryKey: ["proxies"],
+    queryFn: getProxies,
+  });
   const [data, setData] = useState<Partial<Account> & { password?: string }>({});
 
   const reset = () => {
@@ -504,9 +510,7 @@ function AccountDialog({
       conversationGoal: editing?.conversationGoal ?? "",
       sessionFile: editing?.sessionFile ?? "session.json",
       initialMessage: editing?.initialMessage ?? "",
-      proxyServer: editing?.proxyServer ?? "",
-      proxyUsername: editing?.proxyUsername ?? "",
-      proxyPassword: "",
+      proxyId: editing?.proxyId ?? "",
       active: editing?.active ?? true,
       password: "",
     });
@@ -555,26 +559,23 @@ function AccountDialog({
               onChange={(e) => setData({ ...data, sessionFile: e.target.value })}
             />
           </Field>
-          <Field label="Proxy server">
-            <Input
-              value={data.proxyServer ?? ""}
-              onChange={(e) => setData({ ...data, proxyServer: e.target.value })}
-              placeholder="http://host:port"
-            />
-          </Field>
-          <Field label="Proxy username">
-            <Input
-              value={data.proxyUsername ?? ""}
-              onChange={(e) => setData({ ...data, proxyUsername: e.target.value })}
-            />
-          </Field>
-          <Field label="Proxy password">
-            <Input
-              type="password"
-              value={data.proxyPassword ?? ""}
-              onChange={(e) => setData({ ...data, proxyPassword: e.target.value })}
-              placeholder={editing ? "Leave blank to keep existing" : ""}
-            />
+          <Field label="Proxy">
+            <Select
+              value={data.proxyId ?? ""}
+              onValueChange={(v) => setData({ ...data, proxyId: v === "__none__" ? "" : v })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="No proxy" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No proxy</SelectItem>
+                {proxies.filter((p) => p.isActive).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} — {p.host}:{p.port}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
           <Field label="Mobile number">
             <Input
