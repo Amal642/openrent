@@ -1,6 +1,7 @@
 import math
 
 from app.utils.human import random_sleep
+from app.utils.logger import logger
 import re
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
@@ -16,7 +17,7 @@ async def open_inbox_page(page, start=0):
 
     await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("load")
 
 
 async def get_total_pages(page):
@@ -168,7 +169,12 @@ async def open_thread(page, thread_id):
 
     await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
 
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("load")
+    logger.info("THREAD PAGE LOAD COMPLETE")
+    print("THREAD PAGE LOAD COMPLETE")
+    await page.wait_for_selector(".message-content", timeout=15_000)
+    logger.info("THREAD ELEMENT DETECTED")
+    print("THREAD ELEMENT DETECTED")
 
 async def extract_conversation(page):
 

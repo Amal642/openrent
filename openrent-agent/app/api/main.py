@@ -329,8 +329,12 @@ async def api_run_account(account_id: int):
     _require_account(account_id)
     from app.workers.account_worker import start_account_worker
 
-    await start_account_worker(account_id)
-    return {"status": "queued", "account_id": account_id}
+    result = await start_account_worker(account_id)
+    return {
+        "status": "queued" if result.get("queued") else "skipped",
+        "account_id": account_id,
+        **result,
+    }
 
 
 @app.post("/api/accounts")
@@ -455,8 +459,9 @@ async def api_refresh_session(account_id: int):
     _require_account(account_id)
     from app.workers.account_worker import start_account_worker
 
-    await start_account_worker(account_id)
-    _set_worker_state(account_id, "running", phase="refreshing_session")
+    result = await start_account_worker(account_id)
+    if result.get("queued"):
+        _set_worker_state(account_id, "running", phase="refreshing_session")
     return get_account(account_id)
 
 

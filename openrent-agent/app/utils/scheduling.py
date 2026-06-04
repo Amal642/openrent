@@ -36,4 +36,4 @@ def is_operating_hours(now: datetime | None = None) -> bool:
     Outside this window the scheduler logs a sleep message and skips the tick.
     """
     current = now.astimezone(UK_TZ) if now else uk_now()
-    return OPERATING_START <= current.time() <= OPERATING_END
+    return OPERATING_START <= current.time() < OPERATING_END

@@ -3,6 +3,8 @@ import random
 import re
 from datetime import datetime, timedelta
 
+from sqlalchemy.orm import joinedload
+
 from app.db.connection import SessionLocal
 from app.db.models import (
     Account,
@@ -462,7 +464,12 @@ def serialize_account(account):
 
 def get_active_accounts():
     with session_scope() as db:
-        accounts = db.query(Account).filter(Account.active == True).all()
+        accounts = (
+            db.query(Account)
+            .options(joinedload(Account.proxy))
+            .filter(Account.active == True)
+            .all()
+        )
         for account in accounts:
             ensure_account_persona(account.id)
         return accounts
@@ -537,6 +544,12 @@ def update_proxy_health(account_id, result):
             account.proxy_failures = (account.proxy_failures or 0) + 1
         else:
             account.proxy_failures = 0
+        if account.proxy:
+            account.proxy.health_status = "ok" if healthy else "down"
+            account.proxy.last_check_at = account.proxy_last_checked
+            account.proxy.failure_count = (
+                0 if healthy else (account.proxy.failure_count or 0) + 1
+            )
         db.commit()
         db.refresh(account)
         return serialize_account(account)
@@ -746,8 +759,8 @@ def set_account_cooldown(account_id: int) -> None:
             db.commit()
             from app.utils.logger import logger
             logger.info(
-                f"Cooldown set for account {account_id}: "
-                f"{minutes} min (until {account.cooldown_until.strftime('%H:%M')} UTC)"
+                "Account cooling down until: "
+                f"{account.cooldown_until.strftime('%Y-%m-%d %H:%M')}"
             )
 
 
@@ -1447,28 +1460,36 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
     upper_cutoff = now + timedelta(hours=5)
 
     with session_scope() as db:
-        rows = (
+        query = (
             db.query(Conversation, Listing, SearchProfile, Account)
             .join(Listing, Conversation.listing_id == Listing.id)
             .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
             .join(Account, SearchProfile.account_id == Account.id)
-            .filter(
-                Conversation.viewing_datetime != None,
-                Conversation.viewing_datetime <= upper_cutoff,
-                Conversation.viewing_datetime > now,
-                Conversation.viewing_cancelled == False,
-                Conversation.cancel_required == True,
-                Conversation.cancellation_sent_at == None,
-            )
-            .order_by(Conversation.viewing_datetime.asc())
-            .limit(limit)
+        )
+        logger.info("VIEWING QUERY BUILT")
+
+        query = query.filter(
+            Conversation.viewing_datetime != None,
+            Conversation.viewing_datetime <= upper_cutoff,
+            Conversation.viewing_datetime > now,
+            Conversation.viewing_cancelled == False,
+            Conversation.cancel_required == True,
+            Conversation.cancellation_sent_at == None,
         )
 
         if account_id is not None:
-            rows = rows.filter(Account.id == account_id)
+            query = query.filter(Account.id == account_id)
+
+        logger.info("VIEWING FILTERS APPLIED")
+
+        query = query.order_by(Conversation.viewing_datetime.asc())
+        logger.info("VIEWING ORDERING APPLIED")
+
+        query = query.limit(limit)
+        logger.info("VIEWING LIMIT APPLIED")
 
         results = []
-        for conversation, listing, search_profile, account in rows.all():
+        for conversation, listing, search_profile, account in query.all():
             target_h = conversation.cancel_target_hours or 4.0
             cancel_at = conversation.viewing_datetime - timedelta(hours=target_h)
 

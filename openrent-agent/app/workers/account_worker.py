@@ -35,6 +35,8 @@ from scripts.process_viewing_reminders import (
 from app.db.repository import (
     account_stop_requested,
     get_active_accounts,
+    is_account_on_cooldown,
+    set_account_cooldown,
     should_scrape_now,
     update_account_worker_state,
     update_proxy_health,
@@ -42,9 +44,29 @@ from app.db.repository import (
 from app.proxy.check_proxy import check_proxy
 
 from app.queue.queues import worker_queue
+from app.utils.scheduling import is_operating_hours
 
 ACTIVE_WORKERS = {}
 ACTIVE_BROWSER_RESOURCES = {}
+IN_FLIGHT_STATUSES = {"running", "queued", "stopping", "retrying"}
+HEALTHY_PROXY_STATUSES = {"ok", "healthy"}
+
+
+def _proxy_is_healthy(account):
+    proxy = getattr(account, "proxy", None)
+    if not proxy or not proxy.is_active:
+        return False
+
+    proxy_status = str(getattr(account, "proxy_status", "") or "").lower()
+    health_status = str(getattr(proxy, "health_status", "") or "").lower()
+    return (
+        proxy_status in HEALTHY_PROXY_STATUSES
+        or health_status in HEALTHY_PROXY_STATUSES
+    )
+
+
+def _status_is_in_flight(account):
+    return str(account.worker_status or "").lower() in IN_FLIGHT_STATUSES
 
 
 def _proxy_url_for_account(account):
@@ -102,6 +124,16 @@ async def run_account_worker(account):
 
     worker_id = f"account-{account.id}-{uuid4().hex[:8]}"
     phase = "send_and_reply"
+
+    if not is_operating_hours():
+        logger.info("Outside operating hours")
+        logger.info("Skipping worker cycle")
+        update_account_worker_state(
+            account.id,
+            "idle",
+            phase="outside_operating_hours",
+        )
+        return
 
     logger.info(
         f"Starting worker for "
@@ -303,6 +335,7 @@ async def run_account_worker(account):
             "completed",
             phase="completed"
         )
+        set_account_cooldown(account.id)
         phase = "completed"
 
     except asyncio.CancelledError:
@@ -428,6 +461,72 @@ def _forget_worker(account_id):
 
 async def start_account_worker(account_id):
     from app.workers.rq_worker import run_account_worker_sync
+
+    if not is_operating_hours():
+        logger.info("Outside operating hours")
+        logger.info("Skipping worker cycle")
+        update_account_worker_state(
+            account_id,
+            "idle",
+            phase="outside_operating_hours",
+        )
+        return {
+            "queued": False,
+            "reason": "outside_operating_hours",
+        }
+
+    accounts = get_active_accounts()
+    account = next(
+        (candidate for candidate in accounts if candidate.id == account_id),
+        None,
+    )
+    if not account:
+        logger.info(f"Account {account_id} is not enabled. Skipping worker cycle.")
+        update_account_worker_state(
+            account_id,
+            "idle",
+            phase="not_enabled",
+        )
+        return {
+            "queued": False,
+            "reason": "not_enabled",
+        }
+
+    if _status_is_in_flight(account):
+        logger.info(
+            f"Account {account_id} already in flight. Skipping worker cycle."
+        )
+        return {
+            "queued": False,
+            "reason": "account_in_flight",
+        }
+
+    if is_account_on_cooldown(account_id):
+        logger.info(f"Account {account_id} is cooling down. Skipping worker cycle.")
+        return {
+            "queued": False,
+            "reason": "cooldown",
+        }
+
+    if not _proxy_is_healthy(account):
+        logger.info(
+            f"Account {account_id} proxy is not healthy. Skipping worker cycle."
+        )
+        return {
+            "queued": False,
+            "reason": "proxy_not_healthy",
+        }
+
+    for candidate in accounts:
+        if candidate.id == account_id or candidate.proxy_id != account.proxy_id:
+            continue
+        if _status_is_in_flight(candidate):
+            logger.info(f"Proxy busy, skipping account {account_id}")
+            return {
+                "queued": False,
+                "reason": "proxy_busy",
+            }
+
     logger.info(
         f"Queueing worker for account {account_id}"
     )
