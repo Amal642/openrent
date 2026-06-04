@@ -105,7 +105,7 @@ function ConversationPage() {
   return (
     <>
       <PageHeader
-        title={lead.landlordName}
+        title={lead.threadId}
         description={lead.propertyTitle}
         actions={
           <>

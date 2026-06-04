@@ -38,10 +38,13 @@ export function Topbar() {
         <DotBadge tone={data?.status === "running" ? "success" : "warning"} label={data?.status ?? "checking"} />
       </div>
       <div className="ml-auto flex items-center gap-2">
-        <div className="hidden h-9 w-56 items-center gap-2 rounded-md border bg-card px-3 text-sm text-muted-foreground md:flex">
+        <a
+          href="/leads"
+          className="hidden h-9 w-56 items-center gap-2 rounded-md border bg-card px-3 text-sm text-muted-foreground transition hover:text-foreground md:flex"
+        >
           <Search className="size-4" />
           <span>Search leads</span>
-        </div>
+        </a>
         <Button variant="outline" size="icon" onClick={toggle} aria-label="Toggle theme">
           {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>

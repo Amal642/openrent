@@ -1,0 +1,232 @@
+{
+  "total_cases": 10,
+  "first_attempt_pass_rate": 1.0,
+  "pass_rate_after_n_attempts": 1.0,
+  "max_attempts": 3,
+  "median_latency_ms": 2618,
+  "smoke_test_excluded": true,
+  "by_failure_mode": {
+    "regex_pattern_missing_case": {
+      "passed": 1,
+      "total": 1
+    },
+    "wrong_conditional": {
+      "passed": 1,
+      "total": 1
+    },
+    "off_by_one_date_window": {
+      "passed": 1,
+      "total": 1
+    },
+    "missing_none_handling": {
+      "passed": 1,
+      "total": 1
+    },
+    "wrong_status_transition": {
+      "passed": 1,
+      "total": 1
+    },
+    "duplicate_counting_issue": {
+      "passed": 1,
+      "total": 1
+    },
+    "parser_edge_case": {
+      "passed": 1,
+      "total": 1
+    },
+    "return_value_mismatch": {
+      "passed": 1,
+      "total": 1
+    },
+    "exception_path": {
+      "passed": 1,
+      "total": 1
+    },
+    "boundary_value": {
+      "passed": 1,
+      "total": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "seed_001",
+      "failure_mode": "regex_pattern_missing_case",
+      "source_type": "seeded_realistic",
+      "target_function": "regex_extract_phone",
+      "target_file": "app/ai/extractors.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 7051,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_002",
+      "failure_mode": "wrong_conditional",
+      "source_type": "seeded_realistic",
+      "target_function": "detect_landlord_attitude",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 4461,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_003",
+      "failure_mode": "off_by_one_date_window",
+      "source_type": "seeded_realistic",
+      "target_function": "extract_viewing_datetime",
+      "target_file": "app/ai/stages.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 7018,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_004",
+      "failure_mode": "missing_none_handling",
+      "source_type": "seeded_realistic",
+      "target_function": "outbound_count",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 1215,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_005",
+      "failure_mode": "wrong_status_transition",
+      "source_type": "seeded_realistic",
+      "target_function": "is_valid_reply",
+      "target_file": "app/ai/validators.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 1943,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_006",
+      "failure_mode": "duplicate_counting_issue",
+      "source_type": "seeded_realistic",
+      "target_function": "landlord_messages",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 895,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_007",
+      "failure_mode": "parser_edge_case",
+      "source_type": "seeded_realistic",
+      "target_function": "normalize_uk_phone",
+      "target_file": "app/utils/phone.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 2618,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_008",
+      "failure_mode": "return_value_mismatch",
+      "source_type": "seeded_realistic",
+      "target_function": "_fallback_distant_location",
+      "target_file": "app/ai/replies.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 1689,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_009",
+      "failure_mode": "exception_path",
+      "source_type": "seeded_realistic",
+      "target_function": "remove_unapproved_phone_numbers",
+      "target_file": "app/ai/validators.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 2661,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "seed_010",
+      "failure_mode": "boundary_value",
+      "source_type": "seeded_realistic",
+      "target_function": "_normalize_place_name",
+      "target_file": "app/ai/replies.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 1775,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    }
+  ]
+}

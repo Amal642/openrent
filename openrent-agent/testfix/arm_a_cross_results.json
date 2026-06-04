@@ -1,0 +1,282 @@
+{
+  "total_cases": 7,
+  "first_attempt_pass_rate": 0.0,
+  "pass_rate_after_n_attempts": 0.0,
+  "max_attempts": 3,
+  "median_latency_ms": 1491,
+  "smoke_test_excluded": true,
+  "triage": {
+    "accuracy": 0.714,
+    "correct": 5,
+    "total": 7,
+    "by_ground_truth": {
+      "cross_function": {
+        "correct": 5,
+        "total": 7
+      }
+    }
+  },
+  "by_failure_mode": {
+    "cross_function_wrong_slice_direction": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_sender_set_trimmed": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_keyword_pattern_truncated": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_wrong_message_key": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_any_vs_all": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_wrong_sender_key": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_sender_scan_excludes_tenant": {
+      "passed": 0,
+      "total": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "cross_001",
+      "failure_mode": "cross_function_wrong_slice_direction",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_recent_messages",
+      "target_file": "app/ai/stages.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "latency_ms": 3200,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "latency_ms": 3845,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "latency_ms": 4059,
+          "verify_error": null
+        }
+      ],
+      "error": null,
+      "triage_prediction": "auto_fixable_local",
+      "triage_latency_ms": 1001
+    },
+    {
+      "case_id": "cross_002",
+      "failure_mode": "cross_function_sender_set_trimmed",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "landlord_messages",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "latency_ms": 3349,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "latency_ms": 3032,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "latency_ms": 3635,
+          "verify_error": null
+        }
+      ],
+      "error": null,
+      "triage_prediction": "auto_fixable_cross_function",
+      "triage_latency_ms": 553
+    },
+    {
+      "case_id": "cross_003",
+      "failure_mode": "cross_function_keyword_pattern_truncated",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "landlord_asked_for_phone",
+      "target_file": "app/ai/personas.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "latency_ms": 1034,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "latency_ms": 887,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "latency_ms": 969,
+          "verify_error": null
+        }
+      ],
+      "error": null,
+      "triage_prediction": "auto_fixable_cross_function",
+      "triage_latency_ms": 725
+    },
+    {
+      "case_id": "cross_004",
+      "failure_mode": "cross_function_wrong_message_key",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_content",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "latency_ms": 1190,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "latency_ms": 1491,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "latency_ms": 1202,
+          "verify_error": null
+        }
+      ],
+      "error": null,
+      "triage_prediction": "auto_fixable_cross_function",
+      "triage_latency_ms": 804
+    },
+    {
+      "case_id": "cross_005",
+      "failure_mode": "cross_function_any_vs_all",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_matches_any",
+      "target_file": "app/ai/stages.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "latency_ms": 3377,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "latency_ms": 3826,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "latency_ms": 5203,
+          "verify_error": null
+        }
+      ],
+      "error": null,
+      "triage_prediction": "auto_fixable_local",
+      "triage_latency_ms": 680
+    },
+    {
+      "case_id": "cross_006",
+      "failure_mode": "cross_function_wrong_sender_key",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_sender",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "latency_ms": 4708,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "latency_ms": 866,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "latency_ms": 1416,
+          "verify_error": null
+        }
+      ],
+      "error": null,
+      "triage_prediction": "auto_fixable_cross_function",
+      "triage_latency_ms": 858
+    },
+    {
+      "case_id": "cross_007",
+      "failure_mode": "cross_function_sender_scan_excludes_tenant",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "tenant_shared_phone",
+      "target_file": "app/ai/personas.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "latency_ms": 1041,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "latency_ms": 988,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "latency_ms": 1248,
+          "verify_error": null
+        }
+      ],
+      "error": null,
+      "triage_prediction": "auto_fixable_cross_function",
+      "triage_latency_ms": 600
+    }
+  ]
+}

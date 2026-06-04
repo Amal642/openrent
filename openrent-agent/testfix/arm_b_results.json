@@ -1,0 +1,222 @@
+{
+  "total_cases": 7,
+  "first_attempt_pass_rate": 1.0,
+  "pass_rate_after_n_attempts": 1.0,
+  "max_attempts": 3,
+  "median_latency_ms": 1723,
+  "arm_a_baseline": "0/7 = 0.0%",
+  "by_failure_mode": {
+    "cross_function_wrong_slice_direction": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_sender_set_trimmed": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_keyword_pattern_truncated": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_wrong_message_key": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_any_vs_all": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_wrong_sender_key": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_sender_scan_excludes_tenant": {
+      "passed": 1,
+      "total": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "cross_001",
+      "failure_mode": "cross_function_wrong_slice_direction",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_recent_messages",
+      "target_file": "app/ai/stages.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "_recent_messages",
+          "fix_function": "_recent_messages",
+          "fix_file": "app/ai/stages.py",
+          "helpers_retrieved": [
+            "_message_text",
+            "_recent_messages",
+            "_matches_any"
+          ],
+          "latency_ms": 1834,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_002",
+      "failure_mode": "cross_function_sender_set_trimmed",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "landlord_messages",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "landlord_messages",
+          "fix_function": "landlord_messages",
+          "fix_file": "app/ai/conversation_memory.py",
+          "helpers_retrieved": [
+            "_content",
+            "landlord_messages"
+          ],
+          "latency_ms": 4719,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_003",
+      "failure_mode": "cross_function_keyword_pattern_truncated",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "landlord_asked_for_phone",
+      "target_file": "app/ai/personas.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "landlord_asked_for_phone",
+          "fix_function": "landlord_asked_for_phone",
+          "fix_file": "app/ai/personas.py",
+          "helpers_retrieved": [
+            "_content",
+            "landlord_messages",
+            "landlord_asked_for_phone"
+          ],
+          "latency_ms": 1723,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_004",
+      "failure_mode": "cross_function_wrong_message_key",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_content",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "_content",
+          "fix_function": "_content",
+          "fix_file": "app/ai/conversation_memory.py",
+          "helpers_retrieved": [
+            "_content"
+          ],
+          "latency_ms": 885,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_005",
+      "failure_mode": "cross_function_any_vs_all",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_matches_any",
+      "target_file": "app/ai/stages.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "_matches_any",
+          "fix_function": "_matches_any",
+          "fix_file": "app/ai/stages.py",
+          "helpers_retrieved": [
+            "_message_text",
+            "_recent_messages",
+            "_matches_any"
+          ],
+          "latency_ms": 1196,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_006",
+      "failure_mode": "cross_function_wrong_sender_key",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_sender",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "_sender",
+          "fix_function": "_sender",
+          "fix_file": "app/ai/conversation_memory.py",
+          "helpers_retrieved": [
+            "_sender"
+          ],
+          "latency_ms": 761,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_007",
+      "failure_mode": "cross_function_sender_scan_excludes_tenant",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "tenant_shared_phone",
+      "target_file": "app/ai/personas.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "tenant_shared_phone",
+          "fix_function": "tenant_shared_phone",
+          "fix_file": "app/ai/personas.py",
+          "helpers_retrieved": [
+            "tenant_shared_phone"
+          ],
+          "latency_ms": 2306,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    }
+  ]
+}

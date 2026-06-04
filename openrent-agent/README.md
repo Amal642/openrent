@@ -168,7 +168,7 @@ Removed designs:
 
 ## Run Main Dashboard
 
-From `openrent-agent/frontend/openrent-command-center/`:
+From `openrent-agent/frontend/dashboard/`:
 
 ```powershell
 npm install
@@ -217,7 +217,7 @@ npm run build
 Main dashboard build:
 
 ```powershell
-cd openrent-agent/frontend/openrent-command-center
+cd openrent-agent/frontend/dashboard
 npm run build
 ```
 

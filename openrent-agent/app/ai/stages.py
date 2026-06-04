@@ -134,7 +134,17 @@ def detect_stage(messages):
 
     if _matches_any(latest_text, NEGATING_PATTERNS):
         return VIEWING_DISCUSSION
-    if _matches_any(latest_text, [r"\brearrange\b", r"\breschedule\b", r"\banother time\b", r"\binstead\b"]):
+    if _matches_any(
+        latest_text,
+        [
+            r"\brearrange\b",
+            r"\breschedule\b",
+            r"\banother time\b",
+            r"\binstead\b",
+            r"\bneed to change\b",
+            r"\bchange it\b",
+        ],
+    ):
         return VIEWING_DISCUSSION
 
     discussion_after_booking = False

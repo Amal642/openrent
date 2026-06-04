@@ -81,8 +81,9 @@ function Dashboard() {
   });
 
   const chartData = useMemo(() => (metrics?.series ?? []).slice(-rangeDays), [metrics, rangeDays]);
-  const totalContacted = leads.length;
-  const totalReplies = leads.filter((l) => l.lastLandlordMessage).length;
+  const leadsInRange = chartData.reduce((sum, item) => sum + item.leads, 0);
+  const totalRepliesReceived = leads.filter((l) => l.lastLandlordMessage).length;
+  const repliesWaiting = leads.filter((l) => l.status === "NEW_REPLY").length;
   const phones = metrics?.total_phones ?? leads.filter((l) => l.phoneNumber).length;
   const active = leads.filter((l) =>
     ["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"].includes(l.status),
@@ -91,7 +92,7 @@ function Dashboard() {
   const skipped = leads.filter((l) => l.status === "AGENT_SKIPPED").length;
   const aiAttempts = leads.filter((l) => l.lastAiReply).length;
   const successRate = aiAttempts ? Math.round(((aiAttempts - failed) / aiAttempts) * 100) : 0;
-  const replyRate = totalContacted ? Math.round((totalReplies / totalContacted) * 100) : 0;
+  const replyRate = leads.length ? Math.round((totalRepliesReceived / leads.length) * 100) : 0;
   const accountsActive =
     metrics?.active_accounts ?? accounts.filter((a) => a.workerStatus !== "paused").length;
   const phonesToday = metrics?.phones_today ?? 0;
@@ -151,7 +152,7 @@ function Dashboard() {
               <MiniMetric
                 label="Reply rate"
                 value={`${replyRate}%`}
-                helper={`${totalReplies} replies`}
+                helper={`${totalRepliesReceived} replies`}
               />
               <MiniMetric
                 label="Phone progress"
@@ -203,13 +204,13 @@ function Dashboard() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
         <StatCard
           label="Landlords contacted"
-          value={totalContacted}
+          value={leadsInRange}
           icon={Send}
           delta={`last ${rangeDays} days`}
         />
         <StatCard
           label="Replies waiting"
-          value={totalReplies}
+          value={repliesWaiting}
           icon={MessageCircle}
           delta={`${replyRate}% reply rate`}
         />
@@ -326,7 +327,7 @@ function Dashboard() {
             <AttentionItem
               icon={MessageCircle}
               label="Replies received"
-              value={totalReplies}
+              value={totalRepliesReceived}
               helper="Check if any need a manual touch"
               tone="info"
             />

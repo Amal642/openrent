@@ -689,9 +689,18 @@ def api_workers():
 
 @app.get("/api/workers/status")
 def api_workers_status():
-    from app.workers.account_worker import get_active_worker_count
-
     workers = api_workers()
+    active_tasks = 0
+    queue_status = "in_process"
+    try:
+        from app.workers.account_worker import get_active_worker_count
+
+        active_tasks = get_active_worker_count()
+    except ModuleNotFoundError:
+        queue_status = "worker_dependencies_missing"
+    except Exception:
+        queue_status = "worker_queue_unavailable"
+
     return {
         "total": len(workers),
         "running": len([worker for worker in workers if worker["status"] in {"running", "stopping"}]),
@@ -700,8 +709,8 @@ def api_workers_status():
             worker for worker in workers
             if worker["status"] in {"error", "proxy_error", "login_error"}
         ]),
-        "queue": "in_process",
-        "active_tasks": get_active_worker_count(),
+        "queue": queue_status,
+        "active_tasks": active_tasks,
     }
 
 

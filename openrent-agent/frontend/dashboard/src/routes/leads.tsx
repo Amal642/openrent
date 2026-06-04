@@ -98,7 +98,7 @@ function LeadsPage() {
         if (q) {
           const t = q.toLowerCase();
           if (
-            !l.landlordName.toLowerCase().includes(t) &&
+            !l.threadId.toLowerCase().includes(t) &&
             !l.area.toLowerCase().includes(t) &&
             !l.propertyTitle.toLowerCase().includes(t)
           )
@@ -144,7 +144,7 @@ function LeadsPage() {
       <div className="sticky top-14 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 mb-4 bg-background/90 backdrop-blur border-b">
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            placeholder="Search landlord, location, property…"
+            placeholder="Search thread, location, property…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="h-9 w-64"
@@ -201,7 +201,7 @@ function LeadsPage() {
             <TableRow className="bg-muted/40">
               <TableHead>Status</TableHead>
               <TableHead>Stage</TableHead>
-              <TableHead>Landlord</TableHead>
+              <TableHead>Thread</TableHead>
               <TableHead>Property</TableHead>
               <TableHead>Location</TableHead>
               <TableHead>Budget</TableHead>
@@ -229,7 +229,7 @@ function LeadsPage() {
                     params={{ threadId: l.id }}
                     className="hover:underline"
                   >
-                    {l.landlordName}
+                    {l.threadId}
                   </Link>
                 </TableCell>
                 <TableCell className="max-w-[220px] truncate">{l.propertyTitle}</TableCell>

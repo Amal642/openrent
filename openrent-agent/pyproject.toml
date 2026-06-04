@@ -14,7 +14,10 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "openai",
-    "pydantic"
+    "pydantic",
+    "redis",
+    "rq",
+    "tzdata"
 ]
 
 [project.optional-dependencies]

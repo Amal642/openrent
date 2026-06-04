@@ -172,7 +172,9 @@ function asDate(value?: string): string {
 }
 
 function asLeadStatus(value?: string): LeadStatus {
-  return VALID_LEAD_STATUSES.includes(value as LeadStatus) ? (value as LeadStatus) : "NEW_REPLY";
+  return VALID_LEAD_STATUSES.includes(value as LeadStatus)
+    ? (value as LeadStatus)
+    : "AGENT_SKIPPED";
 }
 
 function asStage(value?: string): ConversationStage {
@@ -293,6 +295,7 @@ function mapLead(lead: BackendLead): Lead {
   const id = lead.thread_id || lead.listing_id || crypto.randomUUID();
   const propertyUrl = lead.property_url || "";
   const listingName = lead.listing_id ? `Listing ${lead.listing_id}` : "OpenRent property";
+  const threadName = lead.thread_id ? `Thread ${lead.thread_id}` : "OpenRent thread";
   const bedroomsMin = lead.bedrooms_min ?? 0;
   const bedroomsMax = lead.bedrooms_max ?? bedroomsMin;
 
@@ -310,7 +313,7 @@ function mapLead(lead: BackendLead): Lead {
     bedroomsMax,
     area: lead.location || "OpenRent",
     threadId: lead.thread_id || id,
-    landlordName: lead.account_email || "OpenRent lead",
+    landlordName: threadName,
     status: asLeadStatus(lead.status),
     conversationStage: asStage(lead.conversation_stage),
     phoneNumber: lead.phone_number || lead.phone || undefined,

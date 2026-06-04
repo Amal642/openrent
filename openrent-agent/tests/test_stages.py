@@ -61,3 +61,16 @@ def test_extract_viewing_datetime_uses_uk_numeric_date():
     viewing = extract_viewing_datetime(messages, now=now)
 
     assert viewing == datetime(2026, 6, 5, 15, 0)
+
+
+# SMOKE TEST — validates extractor/verifier pipeline only.
+# This is one simple regex gap, not ARM_A evidence.
+# ARM_A baseline requires 10-20 failures across distinct failure modes.
+def test_detect_stage_implicit_reschedule_smoke():
+    """Landlord says 'I may need to change it' after confirming — should revert to VIEWING_DISCUSSION."""
+    messages = [
+        {"sender": "landlord", "message": "Confirmed, see you Thursday at 2pm."},
+        {"sender": "tenant", "message": "Perfect, looking forward to it."},
+        {"sender": "landlord", "message": "I may need to change it, when are you free?"},
+    ]
+    assert detect_stage(messages) == VIEWING_DISCUSSION

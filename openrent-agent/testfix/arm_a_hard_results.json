@@ -1,0 +1,166 @@
+{
+  "total_cases": 7,
+  "first_attempt_pass_rate": 1.0,
+  "pass_rate_after_n_attempts": 1.0,
+  "max_attempts": 3,
+  "median_latency_ms": 4460,
+  "smoke_test_excluded": true,
+  "by_failure_mode": {
+    "wrong_candidate_selection_order": {
+      "passed": 1,
+      "total": 1
+    },
+    "status_stage_logic_ambiguity": {
+      "passed": 1,
+      "total": 1
+    },
+    "phone_normalization_convention": {
+      "passed": 1,
+      "total": 1
+    },
+    "boundary_datetime_behaviour": {
+      "passed": 1,
+      "total": 1
+    },
+    "edge_case_parser_behaviour": {
+      "passed": 1,
+      "total": 1
+    },
+    "none_failure_fallback_behaviour": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_convention": {
+      "passed": 1,
+      "total": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "hard_001",
+      "failure_mode": "wrong_candidate_selection_order",
+      "source_type": "seeded_realistic",
+      "target_function": "extract_viewing_datetime",
+      "target_file": "app/ai/stages.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 10096,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "hard_002",
+      "failure_mode": "status_stage_logic_ambiguity",
+      "source_type": "seeded_realistic",
+      "target_function": "detect_stage",
+      "target_file": "app/ai/stages.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 5737,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "hard_003",
+      "failure_mode": "phone_normalization_convention",
+      "source_type": "seeded_realistic",
+      "target_function": "normalize_uk_phone",
+      "target_file": "app/utils/phone.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 1784,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "hard_004",
+      "failure_mode": "boundary_datetime_behaviour",
+      "source_type": "seeded_realistic",
+      "target_function": "detect_landlord_attitude",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 3921,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "hard_005",
+      "failure_mode": "edge_case_parser_behaviour",
+      "source_type": "seeded_realistic",
+      "target_function": "regex_extract_phone",
+      "target_file": "app/ai/extractors.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 1427,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "hard_006",
+      "failure_mode": "none_failure_fallback_behaviour",
+      "source_type": "seeded_realistic",
+      "target_function": "extract_viewing_datetime",
+      "target_file": "app/ai/stages.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 5372,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "hard_007",
+      "failure_mode": "cross_function_convention",
+      "source_type": "seeded_realistic",
+      "target_function": "detect_stage",
+      "target_file": "app/ai/stages.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "latency_ms": 4460,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    }
+  ]
+}
