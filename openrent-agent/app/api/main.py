@@ -33,6 +33,10 @@ from app.db.repository import (
     update_search_profile,
 )
 from app.db.status import CLOSED, SKIPPED
+from app.services.account_scheduler import (
+    start_account_scheduler,
+    stop_account_scheduler,
+)
 
 
 class SearchProfilePayload(BaseModel):
@@ -154,7 +158,13 @@ RUNTIME_SETTINGS = {
 @asynccontextmanager
 async def lifespan(app_instance):
     init_db()
-    yield
+    app_instance.state.account_scheduler_task = start_account_scheduler()
+    try:
+        yield
+    finally:
+        await stop_account_scheduler(
+            getattr(app_instance.state, "account_scheduler_task", None)
+        )
 
 
 app = FastAPI(

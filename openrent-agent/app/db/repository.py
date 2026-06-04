@@ -399,6 +399,9 @@ def ensure_account_persona(account_or_id):
 
 def serialize_account(account):
     persona = ensure_account_persona(account.id)
+    next_run_at = None
+    if account.cooldown_until and account.cooldown_until > datetime.utcnow():
+        next_run_at = account.cooldown_until
 
     return {
         "id": account.id,
@@ -440,7 +443,10 @@ def serialize_account(account):
         "worker_error": account.worker_error,
         "worker_last_error": account.worker_last_error,
         "worker_last_completed_at": account.worker_last_completed_at,
+        "last_run_at": account.worker_last_completed_at,
         "current_worker_phase": account.current_worker_phase or "idle",
+        "cooldown_until": account.cooldown_until,
+        "next_run_at": next_run_at,
         "last_login_at": account.last_login_at,
         "session_status": account.session_status or "expired",
         "session_last_checked": account.session_last_checked,

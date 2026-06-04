@@ -86,6 +86,9 @@ export interface Account {
   workerJobId?: string;
   workerStartedAt?: string;
   workerLastCompletedAt?: string;
+  lastRunAt?: string;
+  cooldownUntil?: string;
+  nextRunAt?: string;
   workerLastHeartbeat?: string;
   workerLastError?: string;
   sessionLastChecked?: string;

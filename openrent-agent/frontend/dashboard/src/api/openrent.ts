@@ -76,7 +76,10 @@ type BackendAccount = {
   worker_error?: string;
   worker_last_error?: string;
   worker_last_completed_at?: string;
+  last_run_at?: string;
   current_worker_phase?: string;
+  cooldown_until?: string;
+  next_run_at?: string;
   last_login_at?: string;
   session_status?: string;
   session_last_checked?: string;
@@ -264,6 +267,9 @@ function mapAccount(account: BackendAccount): Account {
     workerJobId: account.worker_job_id,
     workerStartedAt: account.worker_started_at,
     workerLastCompletedAt: account.worker_last_completed_at,
+    lastRunAt: account.last_run_at || account.worker_last_completed_at,
+    cooldownUntil: account.cooldown_until,
+    nextRunAt: account.next_run_at,
     workerLastHeartbeat: account.worker_last_heartbeat,
     workerLastError: account.worker_last_error || account.worker_error,
     sessionLastChecked: account.session_last_checked,

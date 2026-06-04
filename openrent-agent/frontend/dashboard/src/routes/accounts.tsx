@@ -72,7 +72,7 @@ import {
 } from "@/lib/api";
 import type { Proxy } from "@/lib/types";
 import type { Account, ProxyStatus, SessionStatus, WorkerStatus } from "@/lib/types";
-import { fmtRelative } from "@/lib/format";
+import { fmtDateTime, fmtRelative } from "@/lib/format";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/accounts")({
@@ -133,6 +133,10 @@ const PHONE_STRATEGIES = [
   { value: "landlord_requests_only", label: "Landlord requests only" },
   { value: "adaptive", label: "Adaptive" },
 ];
+
+function fmtSchedule(value?: string, fallback = "-") {
+  return value ? fmtDateTime(value) : fallback;
+}
 
 function AccountsPage() {
   const {
@@ -263,13 +267,14 @@ function AccountsPage() {
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>Email</TableHead>
-              <TableHead>Session</TableHead>
-              <TableHead>Worker</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Daily usage</TableHead>
-              <TableHead>Proxy</TableHead>
+              <TableHead>Last Run</TableHead>
+              <TableHead>Cooldown Until</TableHead>
+              <TableHead>Next Run</TableHead>
+              <TableHead>Assigned Proxy</TableHead>
               <TableHead>Persona</TableHead>
               <TableHead>Lifecycle</TableHead>
-              <TableHead>Last login</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -296,8 +301,6 @@ function AccountsPage() {
                         {a.sessionAuthFailures} auth / {a.sessionCaptchaTriggers} captcha
                       </div>
                     ) : null}
-                  </TableCell>
-                  <TableCell>
                     <DotBadge tone={workerTone[a.workerStatus]} label={a.workerStatus} />
                     {a.currentWorkerPhase ? (
                       <div className="mt-1 text-xs text-muted-foreground">
@@ -318,6 +321,19 @@ function AccountsPage() {
                         {a.messagesSentToday}/{a.dailyMessageLimit}
                       </span>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {fmtSchedule(a.lastRunAt || a.workerLastCompletedAt)}
+                    {a.workerLastHeartbeat ? <div>{fmtRelative(a.workerLastHeartbeat)}</div> : null}
+                    {a.workerJobId ? (
+                      <div className="max-w-[120px] truncate">job {a.workerJobId}</div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {fmtSchedule(a.cooldownUntil)}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {fmtSchedule(a.nextRunAt, "Ready")}
                   </TableCell>
                   <TableCell>
                     <DotBadge tone={proxyTone[a.proxyStatus]} label={a.proxyStatus} />
@@ -364,16 +380,6 @@ function AccountsPage() {
                       }
                       aria-label={`${a.email} active state`}
                     />
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {fmtRelative(a.lastLoginAt)}
-                    {a.workerLastHeartbeat ? <div>{fmtRelative(a.workerLastHeartbeat)}</div> : null}
-                    {a.workerLastCompletedAt ? (
-                      <div>completed {fmtRelative(a.workerLastCompletedAt)}</div>
-                    ) : null}
-                    {a.workerJobId ? (
-                      <div className="max-w-[120px] truncate">job {a.workerJobId}</div>
-                    ) : null}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
