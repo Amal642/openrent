@@ -321,6 +321,7 @@ function ProfileDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Manchester">Manchester</SelectItem>
+                <SelectItem value="Greater Manchester">Greater Manchester</SelectItem>
               </SelectContent>
             </Select>
           </div>

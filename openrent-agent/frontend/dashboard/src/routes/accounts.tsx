@@ -62,7 +62,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   controlAccountWorker,
   createAccount,
-  createSearchProfile,
   deleteAccount,
   getAccounts,
   invalidateAccountSession,
@@ -113,10 +112,6 @@ const proxyTone: Record<ProxyStatus, "success" | "warning" | "destructive" | "mu
   unknown: "warning",
 };
 
-const CITIES = [
-  { value: "Manchester", label: "Manchester" },
-];
-
 const CONVERSATION_STYLES = [
   { value: "friendly_viewing", label: "Friendly viewing first" },
   { value: "direct_number_request", label: "Direct professional number request" },
@@ -136,15 +131,6 @@ const PHONE_STRATEGIES = [
   { value: "landlord_requests_only", label: "Landlord requests only" },
   { value: "adaptive", label: "Adaptive" },
 ];
-
-interface ProfileDraft {
-  city: string;
-  area: number;
-  priceMin: number;
-  priceMax: number;
-  bedroomsMin: number;
-  bedroomsMax: number;
-}
 
 function AccountsPage() {
   const {
@@ -179,33 +165,12 @@ function AccountsPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (payload: {
-      account: Partial<Account> & { password?: string; id?: string };
-      profile?: ProfileDraft;
-    }) => {
-      const { account, profile } = payload;
-      if (account.id) {
-        return updateAccount(account as Partial<Account> & { id: string });
-      }
-      const created = await createAccount(account);
-      if (profile?.city) {
-        await createSearchProfile({
-          accountId: created.id,
-          location: profile.city,
-          area: profile.area,
-          priceMin: profile.priceMin,
-          priceMax: profile.priceMax,
-          bedroomsMin: profile.bedroomsMin,
-          bedroomsMax: profile.bedroomsMax,
-          petsAllowed: false,
-          active: true,
-        });
-      }
-      return created;
-    },
+    mutationFn: (account: Partial<Account> & { password?: string; id?: string }) =>
+      account.id
+        ? updateAccount(account as Partial<Account> & { id: string })
+        : createAccount(account),
     onSuccess: () => {
       invalidate();
-      queryClient.invalidateQueries({ queryKey: ["search-profiles"] });
       toast.success("Account saved");
       setOpen(false);
       setEditing(null);
@@ -248,8 +213,8 @@ function AccountsPage() {
   });
 
   const filtered = list.filter((a) => a.email.toLowerCase().includes(query.toLowerCase()));
-  const save = (data: Partial<Account> & { password?: string }, profile?: ProfileDraft) => {
-    saveMutation.mutate({ account: { ...editing, ...data }, profile });
+  const save = (data: Partial<Account> & { password?: string }) => {
+    saveMutation.mutate({ ...editing, ...data });
   };
 
   if (isLoading) {
@@ -522,18 +487,10 @@ function AccountDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: Account | null;
-  onSave: (data: Partial<Account> & { password?: string }, profile?: ProfileDraft) => void;
+  onSave: (data: Partial<Account> & { password?: string }) => void;
   saving: boolean;
 }) {
   const [data, setData] = useState<Partial<Account> & { password?: string }>({});
-  const [profile, setProfile] = useState<ProfileDraft>({
-    city: "",
-    area: 10,
-    priceMin: 600,
-    priceMax: 1500,
-    bedroomsMin: 1,
-    bedroomsMax: 3,
-  });
 
   const reset = () => {
     setData({
@@ -553,7 +510,6 @@ function AccountDialog({
       active: editing?.active ?? true,
       password: "",
     });
-    setProfile({ city: "", area: 10, priceMin: 600, priceMax: 1500, bedroomsMin: 1, bedroomsMax: 3 });
   };
 
   return (
@@ -689,78 +645,6 @@ function AccountDialog({
             />
           </div>
 
-          {!editing && (
-            <div className="sm:col-span-2 border-t pt-4 space-y-3">
-              <div>
-                <p className="text-sm font-semibold">Search Profile</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Optionally create a search profile so the worker starts finding listings immediately.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 space-y-1.5">
-                  <Label>Target city</Label>
-                  <Select
-                    value={profile.city}
-                    onValueChange={(v) => setProfile({ ...profile, city: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select city (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CITIES.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {profile.city && (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label>Price min (£/mo)</Label>
-                      <Input
-                        type="number"
-                        value={profile.priceMin}
-                        onChange={(e) => setProfile({ ...profile, priceMin: Number(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Price max (£/mo)</Label>
-                      <Input
-                        type="number"
-                        value={profile.priceMax}
-                        onChange={(e) => setProfile({ ...profile, priceMax: Number(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Bedrooms min</Label>
-                      <Input
-                        type="number"
-                        value={profile.bedroomsMin}
-                        onChange={(e) => setProfile({ ...profile, bedroomsMin: Number(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Bedrooms max</Label>
-                      <Input
-                        type="number"
-                        value={profile.bedroomsMax}
-                        onChange={(e) => setProfile({ ...profile, bedroomsMax: Number(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Search radius (miles)</Label>
-                      <Input
-                        type="number"
-                        value={profile.area}
-                        onChange={(e) => setProfile({ ...profile, area: Number(e.target.value) })}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -771,7 +655,7 @@ function AccountDialog({
               const payload = { ...data };
               if (!payload.password) delete payload.password;
               if (!payload.proxyPassword && editing) delete payload.proxyPassword;
-              onSave(payload, profile.city ? profile : undefined);
+              onSave(payload);
             }}
             disabled={saving || !data.email}
           >
