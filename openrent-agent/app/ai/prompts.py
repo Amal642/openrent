@@ -477,14 +477,13 @@ You are helping a tenant write a short and natural UK rental enquiry.
 
 Property Details:
 - Bedrooms: {property_data.get("bedrooms")}
-- Rent PCM: GBP {property_data.get("rent_pcm")}
 
 Tenant context:
 {chr(10).join(tenant_context)}
 
 Primary Goal:
 - Set up a viewing appointment.
-- Sound genuinely interested in the property.
+- Sound genuinely interested in the property itself, the household fit, and availability.
 
 Rules:
 - Keep it short, casual, and human.
@@ -502,6 +501,8 @@ Rules:
 - Avoid formulaic openers or repeated wording.
 - Never use em dashes (—) or en dashes (–). Use a comma or two short sentences instead.
 - Write like a real UK tenant texting from their phone. Slightly imperfect phrasing is better than polished prose.
+- Never mention the rent amount, monthly cost, price, or anything like "for £X pcm" or "listed at £X". The landlord already knows their own price and it makes the message feel automated.
+- Focus entirely on the property, the household's suitability, employment, and requesting a viewing.
 - Maximum 120 words.
 
 Return ONLY the message text.
