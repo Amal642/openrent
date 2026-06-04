@@ -107,6 +107,7 @@ class Account(Base):
     permanently_failed = Column(Boolean, default=False)
 
     listings_last_scraped_at = Column(DateTime, nullable=True)
+    cooldown_until = Column(DateTime, nullable=True)
 
     proxy_id = Column(Integer, ForeignKey("proxies.id"), nullable=True)
 
@@ -274,6 +275,8 @@ class Conversation(Base):
         Float,
         nullable=True
     )
+
+    reply_due_at = Column(DateTime, nullable=True)
 
     processing_owner = Column(String, nullable=True)
 

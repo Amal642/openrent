@@ -1,12 +1,18 @@
+import random
+from datetime import datetime, timedelta
+
 from app.db.repository import (
     account_stop_requested,
     claim_conversation,
+    clear_reply_due_at,
     ensure_account_persona,
+    is_reply_due,
     release_conversation_claim,
     save_ai_reply,
     save_inbound_messages,
     save_message,
     save_phone_number,
+    set_reply_due_at,
     update_conversation_stage,
     update_conversation_status,
     get_conversation_by_thread_id,
@@ -140,6 +146,28 @@ async def process_account_replies(
                 logger.info(f"No new landlord activity for thread {thread_id}. Skipping.")
                 update_conversation_status(thread_id, SKIPPED)
                 continue
+
+            # ── Reply delay gate ──────────────────────────────────────
+            # New landlord message detected.
+            # If no delay has been set yet, generate one (20–50 min) and
+            # skip this tick.  On subsequent ticks the check just waits.
+            if conversation and not conversation.reply_due_at:
+                delay_minutes = random.randint(20, 50)
+                due_at = datetime.utcnow() + timedelta(minutes=delay_minutes)
+                set_reply_due_at(thread_id, due_at)
+                logger.info(
+                    f"Reply delayed for thread {thread_id}: "
+                    f"{delay_minutes} min (due at {due_at.strftime('%H:%M')} UTC)"
+                )
+                continue
+
+            if not is_reply_due(thread_id):
+                logger.info(
+                    f"Reply not yet due for thread {thread_id} "
+                    f"(due at {conversation.reply_due_at.strftime('%H:%M')} UTC)"
+                )
+                continue
+            # ─────────────────────────────────────────────────────────
 
             print(
                 f"\nTHREAD {thread_id}"
@@ -444,10 +472,9 @@ async def process_account_replies(
 
             # Conversation status updates: move metadata forward after a valid
             # reply is generated, and after send when autosend is enabled.
-            update_last_processed_message(
-                thread_id,
-                latest_landlord_message
-            )
+            update_last_processed_message(thread_id, latest_landlord_message)
+            clear_reply_due_at(thread_id)   # reset so next message gets a fresh delay
+
             if stage == "VIEWING_BOOKED" and not landlord_asked_number:
                 if conversation and conversation.phone_requested_at:
                     logger.info(

@@ -66,6 +66,7 @@ REQUIRED_COLUMNS = {
         "messages_sent_reset_at": "TIMESTAMP",
         "listings_last_scraped_at": "TIMESTAMP",
         "proxy_id": "INTEGER",
+        "cooldown_until": "TIMESTAMP",
     },
 
     "listings": {
@@ -98,6 +99,7 @@ REQUIRED_COLUMNS = {
         "cancellation_sent_at": "TIMESTAMP",
 
         "cancel_target_hours": "FLOAT",
+        "reply_due_at": "TIMESTAMP",
 
         "processing_owner": "VARCHAR",
         "processing_started_at": "TIMESTAMP",

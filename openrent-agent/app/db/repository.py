@@ -692,6 +692,73 @@ def mark_scraped_today(account_id):
             db.commit()
 
 
+# ---------------- REPLY DELAYS ----------------
+
+def set_reply_due_at(thread_id: str, due_at) -> None:
+    """Store the earliest time at which the AI may reply to this thread."""
+    with session_scope() as db:
+        conv = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+        if conv:
+            conv.reply_due_at = due_at
+            db.commit()
+
+
+def clear_reply_due_at(thread_id: str) -> None:
+    """Clear the delay after a reply is successfully sent."""
+    with session_scope() as db:
+        conv = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+        if conv:
+            conv.reply_due_at = None
+            db.commit()
+
+
+def is_reply_due(thread_id: str) -> bool:
+    """
+    Return True when the AI may send a reply for this thread.
+    If reply_due_at is NULL the reply is immediately eligible
+    (covers the brief window before set_reply_due_at is called).
+    """
+    with session_scope() as db:
+        conv = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+        if not conv or conv.reply_due_at is None:
+            return True
+        return conv.reply_due_at <= datetime.utcnow()
+
+
+# ---------------- ACCOUNT COOLDOWNS ----------------
+
+def set_account_cooldown(account_id: int) -> None:
+    """
+    Apply a random 20–40 minute cooldown after an account worker completes.
+    Prevents the same account from running on every scheduler tick.
+    """
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if account:
+            minutes = random.randint(20, 40)
+            account.cooldown_until = datetime.utcnow() + timedelta(minutes=minutes)
+            db.commit()
+            from app.utils.logger import logger
+            logger.info(
+                f"Cooldown set for account {account_id}: "
+                f"{minutes} min (until {account.cooldown_until.strftime('%H:%M')} UTC)"
+            )
+
+
+def is_account_on_cooldown(account_id: int) -> bool:
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account or not account.cooldown_until:
+            return False
+        return account.cooldown_until > datetime.utcnow()
+
+
 # ---------------- LISTINGS ----------------
 
 def listing_exists(listing_id):
