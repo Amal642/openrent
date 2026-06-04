@@ -182,75 +182,165 @@ async def _click_radio_label(page, selector: str, field_name: str) -> None:
         raise
 
 
-async def fill_screening_form(
-    page,
-    metadata
-):
-    # OpenRent Type 2 screening form uses Bootstrap btn-check hidden radio
-    # inputs.  The clickable element is the <label for="...">, not the input.
+# Maps normalised ScreeningInfo field name (lowercase, no prefix) → radio value.
+# Covers both current and known historical OpenRent field names so renaming
+# a field (e.g. OnBenefits → IsDSS) is handled without code changes.
+_RADIO_ANSWER_MAP: dict[str, str] = {
+    "isstudent":       "false",   # not a student
+    "isdss":           "false",   # not on DSS / housing benefit
+    "onbenefits":      "false",   # not on benefits (legacy name)
+    "haspet":          "false",   # no pets
+    "haspets":         "false",   # no pets (legacy plural)
+    "issmoker":        "false",   # non-smoker
+    "smoker":          "false",   # non-smoker variant
+    "hasrighttorent":  "true",    # has right to rent in the UK
+    "righttorent":     "true",    # right to rent variant
+    "minimumtenancy":  "true",    # willing to commit 12+ months
+    "longterm":        "true",    # long-term tenancy
+    "employed":        "true",    # is employed
+}
 
-    await _click_radio_label(
-        page,
-        'input[name="ScreeningInfo.IsStudent"][value="false"]',
-        "IsStudent=No",
+# Fallback: match answer from visible question text when field name is unknown.
+_QUESTION_KEYWORD_ANSWERS: list[tuple[list[str], str]] = [
+    (["student"],                             "false"),
+    (["benefit", "dss", "housing benefit"],   "false"),
+    (["pet"],                                 "false"),
+    (["smok"],                                "false"),
+    (["right to rent"],                       "true"),
+    (["12 month", "minimum tenancy",
+      "longer", "long term"],                 "true"),
+]
+
+
+async def _question_text_for_field(page, field_name: str) -> str:
+    """Read the visible question label for a radio group by walking up the DOM."""
+    try:
+        text: str = await page.evaluate(
+            """(fieldName) => {
+                const inputs = document.querySelectorAll(
+                    `input[name="${fieldName}"]`
+                );
+                if (!inputs.length) return "";
+                let parent = inputs[0].parentElement;
+                for (let depth = 0; depth < 6; depth++) {
+                    if (!parent) break;
+                    // Question labels have no [for] attribute
+                    for (const el of parent.querySelectorAll(
+                            "label:not([for]), legend, p, strong")) {
+                        const t = el.textContent.trim();
+                        if (t.length > 3) return t.toLowerCase();
+                    }
+                    parent = parent.parentElement;
+                }
+                return "";
+            }""",
+            field_name,
+        )
+        return text or ""
+    except Exception:
+        return ""
+
+
+def _desired_radio_value(field_key: str, question_text: str) -> str | None:
+    value = _RADIO_ANSWER_MAP.get(field_key)
+    if value is not None:
+        return value
+    lower_q = question_text.lower()
+    for keywords, answer in _QUESTION_KEYWORD_ANSWERS:
+        if any(kw in lower_q for kw in keywords):
+            return answer
+    return None
+
+
+async def fill_screening_form(page, metadata):
+    """
+    Fill OpenRent Form Type 2 screening questions dynamically.
+
+    Discovers radio groups from the DOM at runtime so the form remains
+    functional when OpenRent renames fields (e.g. OnBenefits → IsDSS).
+    Individual field failures are non-fatal: the form attempts to submit
+    with whatever answers were successfully filled.
+    """
+    # ── Discover radio groups ─────────────────────────────────
+    all_field_names: list[str] = await page.evaluate(
+        """() => {
+            const inputs = document.querySelectorAll(
+                'input[type="radio"][name^="ScreeningInfo."]'
+            );
+            const names = new Set();
+            inputs.forEach(i => names.add(i.name));
+            return Array.from(names);
+        }"""
     )
-    await _click_radio_label(
-        page,
-        'input[name="ScreeningInfo.OnBenefits"][value="false"]',
-        "OnBenefits=No",
-    )
-    await _click_radio_label(
-        page,
-        'input[name="ScreeningInfo.HasPets"][value="false"]',
-        "HasPets=No",
-    )
-    await _click_radio_label(
-        page,
-        'input[name="ScreeningInfo.IsSmoker"][value="false"]',
-        "IsSmoker=No",
-    )
-    await _click_radio_label(
-        page,
-        'input[name="ScreeningInfo.HasRightToRent"][value="true"]',
-        "HasRightToRent=Yes",
-    )
+    logger.info(f"Screening radio fields found: {all_field_names}")
 
-    # ---------------- FURNISHING ----------------
+    for field_name in all_field_names:
+        field_key = field_name.replace("ScreeningInfo.", "").lower()
+        question_text = await _question_text_for_field(page, field_name)
+        desired_value = _desired_radio_value(field_key, question_text)
 
-    await page.select_option(
-        "#ScreeningInfo_FurnishedStateRequired",
-        value="2"
-    )
+        if desired_value is None:
+            logger.warning(
+                f"No answer rule for '{field_name}' "
+                f"(question: '{question_text}') — skipping"
+            )
+            continue
 
-    # ---------------- MOVE IN DATE ----------------
+        logger.info(
+            f"Screening '{field_name}': "
+            f"question='{question_text}' → value={desired_value}"
+        )
+        try:
+            await _click_radio_label(
+                page,
+                f'input[name="{field_name}"][value="{desired_value}"]',
+                f"{field_name}={desired_value}",
+            )
+        except Exception as exc:
+            logger.warning(f"Could not answer '{field_name}': {exc}")
 
-    move_in_date = (
-        metadata["available_from"]
-        +
-        timedelta(days=14)
-    )
+    # ── Furnished preference (select) ─────────────────────────
+    if await page.query_selector("#ScreeningInfo_FurnishedStateRequired"):
+        logger.info("Setting furnished preference: don't mind (2)")
+        await page.select_option(
+            "#ScreeningInfo_FurnishedStateRequired", value="2"
+        )
 
-    formatted_date = move_in_date.strftime(
-        "%d %B %Y"
-    )
+    # ── Move-in date ──────────────────────────────────────────
+    if await page.query_selector("#ScreeningInfo_MustMoveInBy"):
+        base = metadata.get("available_from") or datetime.utcnow()
+        move_in = base + timedelta(days=14)
+        formatted = move_in.strftime("%d %B %Y")
+        logger.info(f"Setting move-in date: {formatted}")
+        await page.fill("#ScreeningInfo_MustMoveInBy", formatted)
 
-    await page.fill(
-        "#ScreeningInfo_MustMoveInBy",
-        formatted_date
-    )
+    # ── Combined monthly income ───────────────────────────────
+    if await page.query_selector("#ScreeningInfo_CombinedMonthlyIncome"):
+        rent = metadata.get("rent_pcm") or 1000
+        income = (rent * 30) + 20000
+        logger.info(f"Setting combined monthly income: {income}")
+        await page.fill("#ScreeningInfo_CombinedMonthlyIncome", str(income))
 
-    # ---------------- INCOME ----------------
-
-    rent = metadata["rent_pcm"] or 1000
-
-    income = (
-        rent * 30
-    ) + 20000
-
-    await page.fill(
-        "#ScreeningInfo_CombinedMonthlyIncome",
-        str(income)
-    )
+    # ── Declaration checkbox ──────────────────────────────────
+    # Locate by label text rather than a generated element id.
+    try:
+        declaration_label = page.locator(
+            "label",
+            has_text=re.compile(r"confirm.*correct|correct.*confirm|declaration", re.I),
+        )
+        if await declaration_label.count() > 0:
+            logger.info("Checking declaration checkbox")
+            await declaration_label.first.click()
+        else:
+            # Fallback: any unchecked checkbox on the form
+            checkbox = page.locator('input[type="checkbox"]:not(:checked)').first
+            if await checkbox.count() > 0:
+                await checkbox.check(force=True)
+                logger.info("Checked fallback declaration checkbox")
+            else:
+                logger.warning("Declaration checkbox not found")
+    except Exception as exc:
+        logger.warning(f"Declaration checkbox interaction failed: {exc}")
 
 async def get_existing_thread_id(page):
 
