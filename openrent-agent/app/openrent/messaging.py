@@ -213,25 +213,55 @@ _QUESTION_KEYWORD_ANSWERS: list[tuple[list[str], str]] = [
 
 
 async def _question_text_for_field(page, field_name: str) -> str:
-    """Read the visible question label for a radio group by walking up the DOM."""
+    """
+    Read the visible question label for a radio group.
+
+    The previous implementation searched DOWN into parent subtrees, which
+    returns the same first label for every field when all questions share
+    a common container.  This version searches BACKWARDS (preceding siblings
+    only) so each field gets the label immediately before its own inputs.
+    """
     try:
         text: str = await page.evaluate(
             """(fieldName) => {
-                const inputs = document.querySelectorAll(
+                const firstInput = document.querySelector(
                     `input[name="${fieldName}"]`
                 );
-                if (!inputs.length) return "";
-                let parent = inputs[0].parentElement;
-                for (let depth = 0; depth < 6; depth++) {
-                    if (!parent) break;
-                    // Question labels have no [for] attribute
-                    for (const el of parent.querySelectorAll(
-                            "label:not([for]), legend, p, strong")) {
-                        const t = el.textContent.trim();
-                        if (t.length > 3) return t.toLowerCase();
-                    }
-                    parent = parent.parentElement;
+                if (!firstInput) return "";
+
+                function usable(el) {
+                    // Skip inputs, [for] labels (= answer options), and empty nodes.
+                    if (!el || el.matches('input, label[for]')) return false;
+                    const t = el.textContent.trim();
+                    return t.length > 3 && t.length < 300;
                 }
+
+                // 1. Check siblings immediately before this input in the flat DOM
+                let sib = firstInput.previousElementSibling;
+                while (sib) {
+                    if (usable(sib)) return sib.textContent.trim().toLowerCase();
+                    sib = sib.previousElementSibling;
+                }
+
+                // 2. Walk up and check each ancestor's preceding siblings
+                let ancestor = firstInput.parentElement;
+                for (let depth = 0; depth < 5; depth++) {
+                    if (!ancestor) break;
+                    let prev = ancestor.previousElementSibling;
+                    while (prev) {
+                        // Only use this element if it does NOT contain other
+                        // radio inputs (which would be a different question).
+                        if (
+                            !prev.querySelector('input[type="radio"]')
+                            && usable(prev)
+                        ) {
+                            return prev.textContent.trim().toLowerCase();
+                        }
+                        prev = prev.previousElementSibling;
+                    }
+                    ancestor = ancestor.parentElement;
+                }
+
                 return "";
             }""",
             field_name,
@@ -317,9 +347,15 @@ async def fill_screening_form(page, metadata):
     # ── Combined monthly income ───────────────────────────────
     if await page.query_selector("#ScreeningInfo_CombinedMonthlyIncome"):
         rent = metadata.get("rent_pcm") or 1000
-        income = (rent * 30) + 20000
-        logger.info(f"Setting combined monthly income: {income}")
-        await page.fill("#ScreeningInfo_CombinedMonthlyIncome", str(income))
+        # Field expects MONTHLY income.
+        # Derive from annual affordability proxy, then divide to monthly.
+        annual_proxy = (rent * 30) + 20000
+        monthly_income = round(annual_proxy / 12)
+        logger.info(
+            f"Setting combined monthly income: {monthly_income} "
+            f"(annual proxy {annual_proxy} / 12)"
+        )
+        await page.fill("#ScreeningInfo_CombinedMonthlyIncome", str(monthly_income))
 
     # ── Declaration checkbox ──────────────────────────────────
     # Locate by label text rather than a generated element id.
@@ -391,6 +427,26 @@ async def can_contact_landlord(page):
     message_link = await get_message_link(page)
 
     return message_link is not None
+
+async def _collect_validation_errors(page) -> list[str]:
+    """Scrape OpenRent validation error messages from the current page."""
+    selectors = [
+        ".text-danger",
+        ".invalid-feedback",
+        ".validation-summary-errors li",
+        ".field-validation-error",
+    ]
+    seen: set[str] = set()
+    errors: list[str] = []
+    for sel in selectors:
+        elements = await page.query_selector_all(sel)
+        for el in elements:
+            text = (await el.inner_text()).strip()
+            if text and text not in seen:
+                seen.add(text)
+                errors.append(text)
+    return errors
+
 
 async def send_initial_message(
     page,
@@ -467,22 +523,47 @@ async def send_initial_message(
             raise Exception("Submit button is disabled")
         await fallback.click()
 
-    # ── Wait for post-submit navigation ───────────────────────
-    # Prefer myenquiries redirect; fall back to messages thread;
-    # finally accept any URL change. Never use networkidle.
-    final_url = page.url
+    # ── Post-submit: verify success ───────────────────────────
+    # Wait up to 10 s for the page to navigate away from the message form.
+    # Success = URL no longer contains "messagelandlord".
+    # Failure = URL still on messagelandlord → collect validation errors,
+    #           save screenshot, raise so the caller marks the listing failed.
+    submit_origin = page.url
     try:
-        await page.wait_for_url("**/myenquiries**", timeout=15_000)
-        final_url = page.url
+        await page.wait_for_url(
+            lambda url: "messagelandlord" not in url,
+            timeout=10_000,
+        )
     except Exception:
-        try:
-            await page.wait_for_url("**/messages/**", timeout=8_000)
-            final_url = page.url
-        except Exception:
-            # Navigation may have already completed or gone elsewhere
-            final_url = page.url
+        pass  # Handle below after inspecting current URL
 
+    final_url = page.url
     logger.info(f"Post-submit URL: {final_url}")
+
+    if "messagelandlord" in final_url:
+        # Still on the form page — collect any validation feedback
+        errors = await _collect_validation_errors(page)
+        for err in errors:
+            logger.warning(f"Validation error: {err}")
+        await _save_form_debug(page, "form2_after_submit")
+
+        # Check if "already enquired" banner appeared (counts as success)
+        already = await page.query_selector(
+            "text=You have already enquired about this property"
+        )
+        if already:
+            logger.info("Already-enquired banner detected — treating as success")
+            existing = await get_existing_thread_id(page)
+            if existing:
+                return f"/messages/{existing}"
+            return final_url
+
+        err_summary = "; ".join(errors) if errors else "no validation details captured"
+        raise Exception(
+            f"Form submission did not navigate away from message page. "
+            f"Errors: {err_summary}"
+        )
+
     return final_url
 
 
