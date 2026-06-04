@@ -88,6 +88,8 @@ REQUIRED_COLUMNS = {
 
         "cancellation_sent_at": "TIMESTAMP",
 
+        "cancel_target_hours": "FLOAT",
+
         "processing_owner": "VARCHAR",
         "processing_started_at": "TIMESTAMP",
     },

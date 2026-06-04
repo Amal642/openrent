@@ -242,6 +242,11 @@ class Conversation(Base):
         nullable=True
     )
 
+    cancel_target_hours = Column(
+        Float,
+        nullable=True
+    )
+
     processing_owner = Column(String, nullable=True)
 
     processing_started_at = Column(

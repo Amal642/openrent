@@ -231,20 +231,17 @@ async def process_account_replies(
 
                         continue
 
-                    save_phone_number(
-                        thread_id,
-                        phone
+                    save_phone_number(thread_id, phone)
+                    logger.info(
+                        f"Phone number acquired for thread {thread_id}: "
+                        f"{phone} — marking conversation complete"
                     )
                     phones_today = count_phones_today(account.id)
                     if phones_today >= 3:
                         logger.info(
                             f"Daily phone target reached for {account.email}: {phones_today}/3"
                         )
-                    update_last_processed_message(
-                        thread_id,
-                        latest_landlord_message
-                    )
-
+                    update_last_processed_message(thread_id, latest_landlord_message)
                     continue
 
             if phone:
@@ -270,21 +267,18 @@ async def process_account_replies(
                     )
 
                     continue
-                save_phone_number(
-                    thread_id,
-                    phone
+                save_phone_number(thread_id, phone)
+                # PHONE_ACQUIRED was already set above; add completion log here.
+                logger.info(
+                    f"Phone number acquired for thread {thread_id}: "
+                    f"{phone} — marking conversation complete"
                 )
                 phones_today = count_phones_today(account.id)
                 if phones_today >= 3:
                     logger.info(
                         f"Daily phone target reached for {account.email}: {phones_today}/3"
                     )
-                update_last_processed_message(
-                    thread_id,
-                    latest_landlord_message
-                )
-
-
+                update_last_processed_message(thread_id, latest_landlord_message)
                 continue
             
             
@@ -307,6 +301,10 @@ async def process_account_replies(
                     viewing_datetime = extract_viewing_datetime(messages)
                     if viewing_datetime:
                         save_viewing_datetime(thread_id, viewing_datetime)
+                        logger.info(
+                            f"Viewing booked for thread {thread_id} "
+                            f"at {viewing_datetime}"
+                        )
 
             if not should_ai_reply(messages):
                 print("\nNo reply needed")
@@ -451,7 +449,16 @@ async def process_account_replies(
                 latest_landlord_message
             )
             if stage == "VIEWING_BOOKED" and not landlord_asked_number:
-                mark_phone_requested(thread_id)
+                if conversation and conversation.phone_requested_at:
+                    logger.info(
+                        f"Phone already requested for thread {thread_id} "
+                        f"(requested at {conversation.phone_requested_at})"
+                    )
+                else:
+                    mark_phone_requested(thread_id)
+                    logger.info(
+                        f"Phone number request sent for thread {thread_id}"
+                    )
             if mobile and mobile in reply:
                 mark_phone_number_shared(thread_id)
 

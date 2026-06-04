@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import random
 import re
 from datetime import datetime, timedelta
 
@@ -922,31 +923,29 @@ def save_inbound_messages(thread_id, messages):
             message.get("message") or message.get("content") or "",
         )
 
-def save_viewing_datetime(
-    thread_id,
-    viewing_datetime
-):
+def save_viewing_datetime(thread_id, viewing_datetime):
+    from app.utils.logger import logger
 
     with session_scope() as db:
-
-        conversation = db.query(
-            Conversation
-        ).filter(
+        conversation = db.query(Conversation).filter(
             Conversation.thread_id == thread_id
         ).first()
 
         if conversation:
-
-            conversation.viewing_datetime = (
-                viewing_datetime
-            )
-
+            conversation.viewing_datetime = viewing_datetime
             conversation.viewing_confirmed = True
             conversation.conversation_stage = "VIEWING_BOOKED"
+            conversation.last_stage_change = datetime.utcnow()
 
-            conversation.last_stage_change = (
-                datetime.utcnow()
-            )
+            # Randomize when to send the cancellation so the timing varies
+            # naturally between conversations (3.2–4.8 hours before viewing).
+            if not conversation.cancel_target_hours:
+                cancel_target = round(random.uniform(3.2, 4.8), 1)
+                conversation.cancel_target_hours = cancel_target
+                logger.info(
+                    f"Viewing booked for thread {thread_id}. "
+                    f"Cancellation target: {cancel_target}h before viewing."
+                )
 
             db.commit()
 
@@ -1255,68 +1254,73 @@ def mark_listing_skipped_agent(listing_id, property_count=None):
             db.commit()
 
 
-def get_due_viewing_cancellations(
-    account_id=None,
-    hours_before=5,
-    limit=25
-):
-    cutoff = datetime.utcnow() + timedelta(hours=hours_before)
+def get_due_viewing_cancellations(account_id=None, limit=25):
+    """
+    Return conversations whose viewing cancellation is due.
+
+    Each conversation stores a randomised cancel_target_hours (3.2–4.8 h)
+    set when the viewing was first confirmed.  A cancellation is due when:
+
+        now >= viewing_datetime - cancel_target_hours
+
+    The DB query uses a broad upper-bound filter (≤ 5 hours away) to pull
+    candidates; the per-conversation target is then applied in Python.
+    Safety guards: viewing not yet cancelled, cancellation not yet sent,
+    and viewing still in the future.
+    """
+    from app.utils.logger import logger
+
+    now = datetime.utcnow()
+    upper_cutoff = now + timedelta(hours=5)
 
     with session_scope() as db:
-
-        query = (
-            db.query(
-                Conversation,
-                Listing,
-                SearchProfile,
-                Account
-            )
-            .join(
-                Listing,
-                Conversation.listing_id == Listing.id
-            )
-            .join(
-                SearchProfile,
-                Listing.search_profile_id == SearchProfile.id
-            )
-            .join(
-                Account,
-                SearchProfile.account_id == Account.id
-            )
+        rows = (
+            db.query(Conversation, Listing, SearchProfile, Account)
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .join(Account, SearchProfile.account_id == Account.id)
             .filter(
                 Conversation.viewing_datetime != None,
-                Conversation.viewing_datetime <= cutoff,
-                Conversation.viewing_datetime > datetime.utcnow(),
+                Conversation.viewing_datetime <= upper_cutoff,
+                Conversation.viewing_datetime > now,
                 Conversation.viewing_cancelled == False,
                 Conversation.cancel_required == True,
                 Conversation.cancellation_sent_at == None,
             )
-        )
-
-        if account_id is not None:
-            query = query.filter(
-                Account.id == account_id
-            )
-
-        query = (
-            query
-            .order_by(
-                Conversation.viewing_datetime.asc()
-            )
+            .order_by(Conversation.viewing_datetime.asc())
             .limit(limit)
         )
 
-        return [
-            {
+        if account_id is not None:
+            rows = rows.filter(Account.id == account_id)
+
+        results = []
+        for conversation, listing, search_profile, account in rows.all():
+            target_h = conversation.cancel_target_hours or 4.0
+            cancel_at = conversation.viewing_datetime - timedelta(hours=target_h)
+
+            if now < cancel_at:
+                # Not yet in the cancellation window for this conversation
+                continue
+
+            hours_remaining = (
+                conversation.viewing_datetime - now
+            ).total_seconds() / 3600
+            logger.info(
+                f"Viewing cancellation triggered for thread "
+                f"{conversation.thread_id}: "
+                f"{target_h}h target, {hours_remaining:.1f}h remaining"
+            )
+            results.append({
                 "thread_id": conversation.thread_id,
                 "viewing_datetime": conversation.viewing_datetime,
                 "property_url": listing.property_url,
                 "location": search_profile.location,
                 "account_id": account.id,
                 "conversation_stage": conversation.conversation_stage,
-            }
-            for conversation, listing, search_profile, account in query.all()
-        ]
+            })
+
+        return results
 
 
 def count_phones_today(account_id=None):
