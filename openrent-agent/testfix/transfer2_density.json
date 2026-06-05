@@ -1,0 +1,128 @@
+[
+  {
+    "model": "models/orders.sql",
+    "lineno": 24,
+    "operator": "sum_to_count",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 26,
+    "operator": "count_to_sum",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 65,
+    "operator": "eq_to_neq",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "model": "models/orders.sql",
+    "lineno": 52,
+    "operator": "eq_to_neq",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 62,
+    "operator": "eq_to_neq",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 61,
+    "operator": "leftjoin_to_innerjoin",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/orders.sql",
+    "lineno": 21,
+    "operator": "sum_to_count",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 37,
+    "operator": "sum_to_count",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/orders.sql",
+    "lineno": 21,
+    "operator": "else0_to_else1",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 42,
+    "operator": "eq_to_neq",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/orders.sql",
+    "lineno": 51,
+    "operator": "leftjoin_to_innerjoin",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 64,
+    "operator": "leftjoin_to_innerjoin",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 25,
+    "operator": "max_to_min",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 24,
+    "operator": "min_to_max",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/staging/stg_payments.sql",
+    "lineno": 19,
+    "operator": "div_to_mul",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/orders.sql",
+    "lineno": 21,
+    "operator": "eq_to_neq",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "model": "models/customers.sql",
+    "lineno": 41,
+    "operator": "leftjoin_to_innerjoin",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "model": "models/orders.sql",
+    "lineno": 1,
+    "operator": "eq_to_neq",
+    "native_kill": true,
+    "diff_catch": true
+  }
+]

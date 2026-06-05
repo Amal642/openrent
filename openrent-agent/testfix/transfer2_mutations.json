@@ -1,0 +1,34 @@
+[
+  {
+    "case_id": "d001",
+    "model": "models/customers.sql",
+    "lineno": 65,
+    "operator": "eq_to_neq",
+    "original_line": "        on  customers.customer_id = customer_payments.customer_id\n",
+    "mutated_line": "        on  customers.customer_id != customer_payments.customer_id\n"
+  },
+  {
+    "case_id": "d002",
+    "model": "models/orders.sql",
+    "lineno": 52,
+    "operator": "eq_to_neq",
+    "original_line": "        on orders.order_id = order_payments.order_id\n",
+    "mutated_line": "        on orders.order_id != order_payments.order_id\n"
+  },
+  {
+    "case_id": "d003",
+    "model": "models/customers.sql",
+    "lineno": 62,
+    "operator": "eq_to_neq",
+    "original_line": "        on customers.customer_id = customer_orders.customer_id\n",
+    "mutated_line": "        on customers.customer_id != customer_orders.customer_id\n"
+  },
+  {
+    "case_id": "d004",
+    "model": "models/orders.sql",
+    "lineno": 1,
+    "operator": "eq_to_neq",
+    "original_line": "{% set payment_methods = ['credit_card', 'coupon', 'bank_transfer', 'gift_card'] %}\n",
+    "mutated_line": "{% set payment_methods != ['credit_card', 'coupon', 'bank_transfer', 'gift_card'] %}\n"
+  }
+]

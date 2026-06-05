@@ -136,4 +136,237 @@ SEEDS_CROSS = [
         "original_snippet": '        if sender not in {"user", "tenant", "outbound", "ai"}:',
         "mutated_snippet":  '        if sender not in {"user", "outbound", "ai"}:',
     },
+
+    # ── OPEN-53 expansion ──────────────────────────────────────────────────────
+    # cross_008–cross_013 : name-hidden (B absent from test docstring)
+    # cross_014–cross_020 : name-visible (B named in test docstring)
+    # cross_015           : depth-2 (B not directly called by A)
+
+    {
+        "case_id": "cross_008",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_detect_stage_booking_in_message_field",
+        "target_file": "app/ai/stages.py",
+        "target_function": "_message_text",
+        "failure_mode": "cross_function_wrong_message_key",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore 'message' as the primary key in _message_text (stages.py). "
+            "Using 'body' means all message text is read as empty string. "
+            "detect_stage then finds no booking patterns and returns None instead of VIEWING_BOOKED. "
+            "ARM_A sees detect_stage source, which calls _message_text — fix is invisible."
+        ),
+        "original_snippet": '    return str(message.get("message") or message.get("content") or "")',
+        "mutated_snippet":  '    return str(message.get("body") or message.get("content") or "")',
+    },
+    {
+        "case_id": "cross_009",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_detect_stage_booking_requires_time_confirmation",
+        "target_file": "app/ai/stages.py",
+        "target_function": "_has_time",
+        "failure_mode": "cross_function_has_time_always_false",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore the time-presence check in _has_time. Returning False unconditionally means "
+            "detect_stage cannot confirm a booking via the 'booked pattern + time present' path. "
+            "The combined booking context has patterns but _has_time returns False, so the check "
+            "fails and detect_stage falls through to None. "
+            "ARM_A sees detect_stage source and cannot locate _has_time."
+        ),
+        "original_snippet": "        not _overlaps_any(match.span(), date_spans)",
+        "mutated_snippet":  "        False",
+    },
+    {
+        "case_id": "cross_010",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_extract_viewing_datetime_tomorrow_resolves_to_next_day",
+        "target_file": "app/ai/stages.py",
+        "target_function": "_target_date_from_text",
+        "failure_mode": "cross_function_tomorrow_keyword_removed",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore 'tomorrow' as a keyword in _target_date_from_text. "
+            "Changing it to 'yesterday' means 'tomorrow at 3pm' is not recognized as tomorrow's date; "
+            "the function falls through to today's date, returning the wrong datetime. "
+            "ARM_A sees extract_viewing_datetime and cannot find the keyword bug in the helper."
+        ),
+        "original_snippet": '    if "tomorrow" in text:',
+        "mutated_snippet":  '    if "yesterday" in text:',
+    },
+    {
+        "case_id": "cross_011",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_extract_viewing_datetime_time_without_date",
+        "target_file": "app/ai/stages.py",
+        "target_function": "_date_spans",
+        "failure_mode": "cross_function_date_spans_fake_huge_span",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore _date_spans to return actual date match spans. "
+            "Returning a fake huge span [(0, 10000)] causes every time match to 'overlap' with a date, "
+            "so _overlaps_any filters all candidates out and extract_viewing_datetime returns None "
+            "even for clean time-only messages. ARM_A sees extract_viewing_datetime and cannot "
+            "find the date-span corruption in the helper."
+        ),
+        "original_snippet": "    return [match.span() for match in NUMERIC_DATE_PATTERN.finditer(text)]",
+        "mutated_snippet":  "    return [(0, 10000)]",
+    },
+    {
+        "case_id": "cross_012",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_get_conversation_style_resolves_alias",
+        "target_file": "app/ai/personas.py",
+        "target_function": "normalize_conversation_style",
+        "failure_mode": "cross_function_alias_resolution_broken",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore STYLE_ALIASES lookup in normalize_conversation_style. "
+            "Returning the raw style string for unrecognized names means aliases like "
+            "'friendly_couple' pass through unresolved. get_conversation_style then tries "
+            "CONVERSATION_STYLES['friendly_couple'] and raises KeyError. "
+            "ARM_A sees get_conversation_style which calls normalize_conversation_style — fix "
+            "is in the helper."
+        ),
+        "original_snippet": '    return STYLE_ALIASES.get(style, "friendly_viewing")',
+        "mutated_snippet":  '    return style',
+    },
+    {
+        "case_id": "cross_013",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_should_share_phone_respects_immediate_style_alias",
+        "target_file": "app/ai/personas.py",
+        "target_function": "normalize_conversation_style",
+        "failure_mode": "cross_function_alias_resolution_broken",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore STYLE_ALIASES lookup in normalize_conversation_style. "
+            "With alias resolution broken, 'direct_professional' is not resolved to "
+            "'direct_number_request', so should_share_phone_now treats the style as unknown "
+            "and falls back to the conservative phone_fetching_type='delayed' path, returning False "
+            "instead of True. ARM_A sees should_share_phone_now and cannot locate the alias bug."
+        ),
+        "original_snippet": '    return STYLE_ALIASES.get(style, "friendly_viewing")',
+        "mutated_snippet":  '    return style',
+    },
+    {
+        "case_id": "cross_014",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_detect_landlord_attitude_aggressive_from_message_field",
+        "target_file": "app/ai/conversation_memory.py",
+        "target_function": "_content",
+        "failure_mode": "cross_function_wrong_message_key",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore 'message' as the primary key in _content (conversation_memory.py). "
+            "Using 'body' means _content returns empty string for messages stored under 'message'. "
+            "detect_landlord_attitude's pattern matching is applied to empty text and defaults to "
+            "'responsive'. ARM_A sees detect_landlord_attitude, which calls _content — fix invisible."
+        ),
+        "original_snippet": '    return str(message.get("message") or message.get("content") or "")',
+        "mutated_snippet":  '    return str(message.get("body") or message.get("content") or "")',
+    },
+    {
+        "case_id": "cross_015",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_detect_landlord_attitude_sender_case_sensitivity",
+        "target_file": "app/ai/conversation_memory.py",
+        "target_function": "_sender",
+        "failure_mode": "cross_function_sender_uppercase",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore .lower() in _sender. Returning uppercase sender values means landlord_messages "
+            "checks 'LANDLORD' in {'landlord', 'inbound'} → False, so no landlord messages are "
+            "returned. detect_landlord_attitude sees an empty landlord list and defaults to "
+            "'responsive'. ARM_A sees detect_landlord_attitude, which calls landlord_messages; "
+            "_sender is an indirect (depth-2) dependency not shown to ARM_A."
+        ),
+        "original_snippet": '    return str(message.get("sender") or message.get("direction") or "").lower()',
+        "mutated_snippet":  '    return str(message.get("sender") or message.get("direction") or "").upper()',
+    },
+    {
+        "case_id": "cross_016",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_phone_shared_state_digit_extraction",
+        "target_file": "app/ai/personas.py",
+        "target_function": "tenant_shared_phone",
+        "failure_mode": "cross_function_digit_strip_inverted",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore r'\\D' (non-digit strip) in tenant_shared_phone. Using r'\\d' strips digits "
+            "instead of non-digits, so content_digits contains only letters and punctuation. "
+            "The phone number can never be found in a digit-free string and phone_shared_state "
+            "always returns False. ARM_A sees phone_shared_state — fix is in tenant_shared_phone."
+        ),
+        "original_snippet": '        content_digits = re.sub(r"\\D", "", str(message.get("message") or message.get("content") or ""))',
+        "mutated_snippet":  '        content_digits = re.sub(r"\\d", "", str(message.get("message") or message.get("content") or ""))',
+    },
+    {
+        "case_id": "cross_017",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_outbound_count_case_insensitive_sender",
+        "target_file": "app/ai/conversation_memory.py",
+        "target_function": "_sender",
+        "failure_mode": "cross_function_sender_uppercase",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore .lower() in _sender. Returning uppercase values ('TENANT', 'OUTBOUND') means "
+            "outbound_count's set membership check in lowercase {'user', 'tenant', 'outbound', 'ai'} "
+            "always fails and returns 0. ARM_A sees outbound_count source which calls _sender — "
+            "the bug is in the helper."
+        ),
+        "original_snippet": '    return str(message.get("sender") or message.get("direction") or "").lower()',
+        "mutated_snippet":  '    return str(message.get("sender") or message.get("direction") or "").upper()',
+    },
+    {
+        "case_id": "cross_018",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_extract_viewing_datetime_time_not_excluded_when_no_dates",
+        "target_file": "app/ai/stages.py",
+        "target_function": "_overlaps_any",
+        "failure_mode": "cross_function_overlaps_any_always_true",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore the actual overlap check in _overlaps_any. Returning True unconditionally means "
+            "every time match 'overlaps' with date spans (even an empty list), so all time candidates "
+            "are filtered out in extract_viewing_datetime and it returns None. "
+            "ARM_A sees extract_viewing_datetime — _overlaps_any is the hidden dependency."
+        ),
+        "original_snippet": "    return any(start < other_end and end > other_start for other_start, other_end in spans)",
+        "mutated_snippet":  "    return True",
+    },
+    {
+        "case_id": "cross_019",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_detect_stage_reschedule_mid_sentence",
+        "target_file": "app/ai/stages.py",
+        "target_function": "_matches_any",
+        "failure_mode": "cross_function_search_vs_match",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore re.search in _matches_any. Using re.match checks only at the start of the "
+            "string, so patterns like r'\\breschedule\\b' fail to match mid-sentence text like "
+            "'I need to reschedule our appointment.' detect_stage returns None instead of "
+            "VIEWING_DISCUSSION. ARM_A sees detect_stage which calls _matches_any — fix in helper."
+        ),
+        "original_snippet": "    return any(re.search(pattern, text, re.I) for pattern in patterns)",
+        "mutated_snippet":  "    return any(re.match(pattern, text, re.I) for pattern in patterns)",
+    },
+    {
+        "case_id": "cross_020",
+        "source_type": "seeded_realistic",
+        "test_id": "tests/test_arm_a_cross_function.py::test_landlord_messages_reads_direction_key",
+        "target_file": "app/ai/conversation_memory.py",
+        "target_function": "_sender",
+        "failure_mode": "cross_function_direction_key_dropped",
+        "triage_ground_truth": "cross_function",
+        "expected_fix_summary": (
+            "Restore the 'direction' fallback in _sender. Without it, messages that use 'direction' "
+            "instead of 'sender' (OpenRent's outbound format) return empty string from _sender. "
+            "landlord_messages then sees '' which is not in {'landlord', 'inbound'} and filters "
+            "them out. ARM_A sees landlord_messages source — the bug is in _sender."
+        ),
+        "original_snippet": '    return str(message.get("sender") or message.get("direction") or "").lower()',
+        "mutated_snippet":  '    return str(message.get("sender") or "").lower()',
+    },
 ]

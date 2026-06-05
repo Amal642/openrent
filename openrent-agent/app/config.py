@@ -14,6 +14,10 @@ class Settings:
 
     HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
     SLOW_MO = int(os.getenv("SLOW_MO", 500))
+    PLAYWRIGHT_BLOCK_IMAGE_MEDIA = (
+        os.getenv("PLAYWRIGHT_BLOCK_IMAGE_MEDIA", "true").lower()
+        not in {"0", "false", "no", "off"}
+    )
 
     SESSION_FILE = os.getenv("SESSION_FILE", "session.json")
 

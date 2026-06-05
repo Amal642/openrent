@@ -1,0 +1,836 @@
+{
+  "retrieval_recall_in_set": "7/7",
+  "avg_candidate_count": 14.4,
+  "first_attempt_pass_rate": 0.429,
+  "pass_rate_after_n_attempts": 0.429,
+  "max_attempts": 3,
+  "median_latency_ms": 4278,
+  "arm_a_baseline": "0/7 = 0.0%",
+  "arm_b_oracle": "7/7 = 100.0%",
+  "by_failure_mode": {
+    "cross_function_wrong_slice_direction": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_sender_set_trimmed": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_keyword_pattern_truncated": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_wrong_message_key": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_any_vs_all": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_wrong_sender_key": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_sender_scan_excludes_tenant": {
+      "passed": 1,
+      "total": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "cross_001",
+      "failure_mode": "cross_function_wrong_slice_direction",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_recent_messages",
+      "target_file": "app/ai/stages.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "retrieval": {
+        "candidate_count": 8,
+        "candidates": [
+          {
+            "position": 1,
+            "function_name": "_message_text",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 2,
+            "function_name": "_recent_messages",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 3,
+            "function_name": "_matches_any",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 4,
+            "function_name": "_date_spans",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 5,
+            "function_name": "_overlaps_any",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 6,
+            "function_name": "_target_date_from_text",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 7,
+            "function_name": "_has_time",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 8,
+            "function_name": "extract_viewing_datetime",
+            "file_path": "app/ai/stages.py"
+          }
+        ],
+        "correct_function": "_recent_messages",
+        "correct_in_set": true,
+        "correct_position": 2,
+        "entry_module": "app/ai/stages.py"
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 7162,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 5093,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 4278,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_002",
+      "failure_mode": "cross_function_sender_set_trimmed",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "landlord_messages",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "retrieval": {
+        "candidate_count": 17,
+        "candidates": [
+          {
+            "position": 1,
+            "function_name": "_content",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 2,
+            "function_name": "_sender",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 3,
+            "function_name": "landlord_messages",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 4,
+            "function_name": "outbound_count",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 5,
+            "function_name": "viewing_requested",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 6,
+            "function_name": "latest_landlord_asked_for_phone",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 7,
+            "function_name": "phone_shared_state",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 8,
+            "function_name": "normalize_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 9,
+            "function_name": "get_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 10,
+            "function_name": "get_persona_template",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 11,
+            "function_name": "materialize_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 12,
+            "function_name": "select_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 13,
+            "function_name": "persona_summary",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 14,
+            "function_name": "landlord_asked_for_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 15,
+            "function_name": "tenant_shared_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 16,
+            "function_name": "should_share_phone_now",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 17,
+            "function_name": "generate_phone_share_reply",
+            "file_path": "app/ai/personas.py"
+          }
+        ],
+        "correct_function": "landlord_messages",
+        "correct_in_set": true,
+        "correct_position": 3,
+        "entry_module": "app/ai/conversation_memory.py"
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "proposed_function": "detect_landlord_attitude",
+          "fix_function": "detect_landlord_attitude",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 5564,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "proposed_function": "detect_landlord_attitude",
+          "fix_function": "detect_landlord_attitude",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 4567,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "proposed_function": "detect_landlord_attitude",
+          "fix_function": "detect_landlord_attitude",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 4865,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_003",
+      "failure_mode": "cross_function_keyword_pattern_truncated",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "landlord_asked_for_phone",
+      "target_file": "app/ai/personas.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "retrieval": {
+        "candidate_count": 17,
+        "candidates": [
+          {
+            "position": 1,
+            "function_name": "_content",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 2,
+            "function_name": "_sender",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 3,
+            "function_name": "landlord_messages",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 4,
+            "function_name": "outbound_count",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 5,
+            "function_name": "viewing_requested",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 6,
+            "function_name": "detect_landlord_attitude",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 7,
+            "function_name": "phone_shared_state",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 8,
+            "function_name": "normalize_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 9,
+            "function_name": "get_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 10,
+            "function_name": "get_persona_template",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 11,
+            "function_name": "materialize_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 12,
+            "function_name": "select_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 13,
+            "function_name": "persona_summary",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 14,
+            "function_name": "landlord_asked_for_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 15,
+            "function_name": "tenant_shared_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 16,
+            "function_name": "should_share_phone_now",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 17,
+            "function_name": "generate_phone_share_reply",
+            "file_path": "app/ai/personas.py"
+          }
+        ],
+        "correct_function": "landlord_asked_for_phone",
+        "correct_in_set": true,
+        "correct_position": 14,
+        "entry_module": "app/ai/conversation_memory.py"
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "proposed_function": "latest_landlord_asked_for_phone",
+          "fix_function": "latest_landlord_asked_for_phone",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1467,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "proposed_function": "latest_landlord_asked_for_phone",
+          "fix_function": "latest_landlord_asked_for_phone",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1220,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "proposed_function": "latest_landlord_asked_for_phone",
+          "fix_function": "latest_landlord_asked_for_phone",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1462,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_004",
+      "failure_mode": "cross_function_wrong_message_key",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_content",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "retrieval": {
+        "candidate_count": 17,
+        "candidates": [
+          {
+            "position": 1,
+            "function_name": "_content",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 2,
+            "function_name": "_sender",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 3,
+            "function_name": "landlord_messages",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 4,
+            "function_name": "outbound_count",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 5,
+            "function_name": "latest_landlord_asked_for_phone",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 6,
+            "function_name": "detect_landlord_attitude",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 7,
+            "function_name": "phone_shared_state",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 8,
+            "function_name": "normalize_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 9,
+            "function_name": "get_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 10,
+            "function_name": "get_persona_template",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 11,
+            "function_name": "materialize_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 12,
+            "function_name": "select_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 13,
+            "function_name": "persona_summary",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 14,
+            "function_name": "landlord_asked_for_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 15,
+            "function_name": "tenant_shared_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 16,
+            "function_name": "should_share_phone_now",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 17,
+            "function_name": "generate_phone_share_reply",
+            "file_path": "app/ai/personas.py"
+          }
+        ],
+        "correct_function": "_content",
+        "correct_in_set": true,
+        "correct_position": 1,
+        "entry_module": "app/ai/conversation_memory.py"
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "viewing_requested",
+          "fix_function": "viewing_requested",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 974,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_005",
+      "failure_mode": "cross_function_any_vs_all",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_matches_any",
+      "target_file": "app/ai/stages.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "retrieval": {
+        "candidate_count": 8,
+        "candidates": [
+          {
+            "position": 1,
+            "function_name": "_message_text",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 2,
+            "function_name": "_recent_messages",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 3,
+            "function_name": "_matches_any",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 4,
+            "function_name": "_date_spans",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 5,
+            "function_name": "_overlaps_any",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 6,
+            "function_name": "_target_date_from_text",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 7,
+            "function_name": "_has_time",
+            "file_path": "app/ai/stages.py"
+          },
+          {
+            "position": 8,
+            "function_name": "extract_viewing_datetime",
+            "file_path": "app/ai/stages.py"
+          }
+        ],
+        "correct_function": "_matches_any",
+        "correct_in_set": true,
+        "correct_position": 3,
+        "entry_module": "app/ai/stages.py"
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 3591,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 5188,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 5555,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_006",
+      "failure_mode": "cross_function_wrong_sender_key",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_sender",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "retrieval": {
+        "candidate_count": 17,
+        "candidates": [
+          {
+            "position": 1,
+            "function_name": "_content",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 2,
+            "function_name": "_sender",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 3,
+            "function_name": "landlord_messages",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 4,
+            "function_name": "viewing_requested",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 5,
+            "function_name": "latest_landlord_asked_for_phone",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 6,
+            "function_name": "detect_landlord_attitude",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 7,
+            "function_name": "phone_shared_state",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 8,
+            "function_name": "normalize_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 9,
+            "function_name": "get_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 10,
+            "function_name": "get_persona_template",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 11,
+            "function_name": "materialize_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 12,
+            "function_name": "select_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 13,
+            "function_name": "persona_summary",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 14,
+            "function_name": "landlord_asked_for_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 15,
+            "function_name": "tenant_shared_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 16,
+            "function_name": "should_share_phone_now",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 17,
+            "function_name": "generate_phone_share_reply",
+            "file_path": "app/ai/personas.py"
+          }
+        ],
+        "correct_function": "_sender",
+        "correct_in_set": true,
+        "correct_position": 2,
+        "entry_module": "app/ai/conversation_memory.py"
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "_sender",
+          "fix_function": "_sender",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1256,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_007",
+      "failure_mode": "cross_function_sender_scan_excludes_tenant",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "tenant_shared_phone",
+      "target_file": "app/ai/personas.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "retrieval": {
+        "candidate_count": 17,
+        "candidates": [
+          {
+            "position": 1,
+            "function_name": "_content",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 2,
+            "function_name": "_sender",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 3,
+            "function_name": "landlord_messages",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 4,
+            "function_name": "outbound_count",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 5,
+            "function_name": "viewing_requested",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 6,
+            "function_name": "latest_landlord_asked_for_phone",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 7,
+            "function_name": "detect_landlord_attitude",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "position": 8,
+            "function_name": "normalize_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 9,
+            "function_name": "get_conversation_style",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 10,
+            "function_name": "get_persona_template",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 11,
+            "function_name": "materialize_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 12,
+            "function_name": "select_persona",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 13,
+            "function_name": "persona_summary",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 14,
+            "function_name": "landlord_asked_for_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 15,
+            "function_name": "tenant_shared_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 16,
+            "function_name": "should_share_phone_now",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "position": 17,
+            "function_name": "generate_phone_share_reply",
+            "file_path": "app/ai/personas.py"
+          }
+        ],
+        "correct_function": "tenant_shared_phone",
+        "correct_in_set": true,
+        "correct_position": 15,
+        "entry_module": "app/ai/conversation_memory.py"
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "phone_shared_state",
+          "fix_function": "phone_shared_state",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 2268,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    }
+  ]
+}

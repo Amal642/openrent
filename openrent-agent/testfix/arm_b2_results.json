@@ -1,0 +1,535 @@
+{
+  "corpus_size": 266,
+  "random_recall_at_5": 0.0188,
+  "retrieval_recall": {
+    "in_top_1": "0/7",
+    "in_top_3": "1/7",
+    "in_top_5": "2/7"
+  },
+  "first_attempt_pass_rate": 0.571,
+  "pass_rate_after_n_attempts": 0.571,
+  "max_attempts": 3,
+  "median_latency_ms": 2337,
+  "arm_a_baseline": "0/7 = 0.0%",
+  "arm_b_oracle": "7/7 = 100.0%",
+  "by_failure_mode": {
+    "cross_function_wrong_slice_direction": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_sender_set_trimmed": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_keyword_pattern_truncated": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_wrong_message_key": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_any_vs_all": {
+      "passed": 0,
+      "total": 1
+    },
+    "cross_function_wrong_sender_key": {
+      "passed": 1,
+      "total": 1
+    },
+    "cross_function_sender_scan_excludes_tenant": {
+      "passed": 1,
+      "total": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "cross_001",
+      "failure_mode": "cross_function_wrong_slice_direction",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_recent_messages",
+      "target_file": "app/ai/stages.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "retrieval": {
+        "query_tokens_preview": "test_detect_stage_booking_confirmed_after_long_discussion def test_detect_stage_booking_confirmed_after_long_discussion(): \"\"\"With messages,",
+        "candidates": [
+          {
+            "rank": 1,
+            "score": 53.1016,
+            "function_name": "_phone_policy_lines",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 2,
+            "score": 45.6115,
+            "function_name": "build_viewing_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 3,
+            "score": 37.254,
+            "function_name": "build_phone_request_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 4,
+            "score": 36.7366,
+            "function_name": "generate_message_persona_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 5,
+            "score": 35.9723,
+            "function_name": "build_cancel_viewing_prompt",
+            "file_path": "app/ai/prompts.py"
+          }
+        ],
+        "correct_function": "_recent_messages",
+        "correct_rank": null,
+        "correct_in_top_1": false,
+        "correct_in_top_3": false,
+        "correct_in_top_5": false
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 10650,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 4233,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 6016,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_002",
+      "failure_mode": "cross_function_sender_set_trimmed",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "landlord_messages",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "retrieval": {
+        "query_tokens_preview": "test_detect_landlord_attitude_inbound_aggression_detected def test_detect_landlord_attitude_inbound_aggression_detected(): \"\"\"Aggressive mes",
+        "candidates": [
+          {
+            "rank": 1,
+            "score": 37.3558,
+            "function_name": "generate_phone_share_reply",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "rank": 2,
+            "score": 27.4686,
+            "function_name": "extract_conversation",
+            "file_path": "app/openrent/inbox.py"
+          },
+          {
+            "rank": 3,
+            "score": 26.0018,
+            "function_name": "generate_message_persona_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 4,
+            "score": 24.7792,
+            "function_name": "build_cancel_viewing_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 5,
+            "score": 23.5987,
+            "function_name": "landlord_messages",
+            "file_path": "app/ai/conversation_memory.py"
+          }
+        ],
+        "correct_function": "landlord_messages",
+        "correct_rank": 5,
+        "correct_in_top_1": false,
+        "correct_in_top_3": false,
+        "correct_in_top_5": true
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "landlord_messages",
+          "fix_function": "landlord_messages",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 937,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_003",
+      "failure_mode": "cross_function_keyword_pattern_truncated",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "landlord_asked_for_phone",
+      "target_file": "app/ai/personas.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "retrieval": {
+        "query_tokens_preview": "test_latest_landlord_asked_for_phone_detects_phone_keyword def test_latest_landlord_asked_for_phone_detects_phone_keyword(): \"\"\"'Can you sen",
+        "candidates": [
+          {
+            "rank": 1,
+            "score": 33.5104,
+            "function_name": "build_phone_request_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 2,
+            "score": 25.9516,
+            "function_name": "build_phone_extraction_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 3,
+            "score": 24.1888,
+            "function_name": "_phone_policy_lines",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 4,
+            "score": 23.782,
+            "function_name": "should_ai_reply",
+            "file_path": "app/openrent/inbox.py"
+          },
+          {
+            "rank": 5,
+            "score": 23.6936,
+            "function_name": "generate_message_persona_prompt",
+            "file_path": "app/ai/prompts.py"
+          }
+        ],
+        "correct_function": "landlord_asked_for_phone",
+        "correct_rank": null,
+        "correct_in_top_1": false,
+        "correct_in_top_3": false,
+        "correct_in_top_5": false
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "proposed_function": "latest_landlord_asked_for_phone",
+          "fix_function": "latest_landlord_asked_for_phone",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1025,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "proposed_function": "latest_landlord_asked_for_phone",
+          "fix_function": "latest_landlord_asked_for_phone",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1278,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "proposed_function": "latest_landlord_asked_for_phone",
+          "fix_function": "latest_landlord_asked_for_phone",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1995,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_004",
+      "failure_mode": "cross_function_wrong_message_key",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_content",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "retrieval": {
+        "query_tokens_preview": "test_viewing_requested_finds_keyword_in_message_key def test_viewing_requested_finds_keyword_in_message_key(): \"\"\"viewing_requested must fin",
+        "candidates": [
+          {
+            "rank": 1,
+            "score": 26.4339,
+            "function_name": "build_phone_request_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 2,
+            "score": 23.9455,
+            "function_name": "_question_text_for_field",
+            "file_path": "app/openrent/messaging.py"
+          },
+          {
+            "rank": 3,
+            "score": 22.3982,
+            "function_name": "build_viewing_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 4,
+            "score": 21.9894,
+            "function_name": "generate_message_persona_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 5,
+            "score": 21.5397,
+            "function_name": "_phone_policy_lines",
+            "file_path": "app/ai/prompts.py"
+          }
+        ],
+        "correct_function": "_content",
+        "correct_rank": null,
+        "correct_in_top_1": false,
+        "correct_in_top_3": false,
+        "correct_in_top_5": false
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "viewing_requested",
+          "fix_function": "viewing_requested",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1238,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_005",
+      "failure_mode": "cross_function_any_vs_all",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_matches_any",
+      "target_file": "app/ai/stages.py",
+      "passed": false,
+      "passed_on_attempt": null,
+      "retrieval": {
+        "query_tokens_preview": "test_detect_stage_single_booked_pattern_is_sufficient def test_detect_stage_single_booked_pattern_is_sufficient(): \"\"\"A single BOOKED patter",
+        "candidates": [
+          {
+            "rank": 1,
+            "score": 30.9584,
+            "function_name": "build_phone_request_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 2,
+            "score": 29.7554,
+            "function_name": "build_cancel_viewing_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 3,
+            "score": 28.6092,
+            "function_name": "build_viewing_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 4,
+            "score": 28.2395,
+            "function_name": "detect_landlord_attitude",
+            "file_path": "app/ai/conversation_memory.py"
+          },
+          {
+            "rank": 5,
+            "score": 28.1966,
+            "function_name": "generate_message_persona_prompt",
+            "file_path": "app/ai/prompts.py"
+          }
+        ],
+        "correct_function": "_matches_any",
+        "correct_rank": null,
+        "correct_in_top_1": false,
+        "correct_in_top_3": false,
+        "correct_in_top_5": false
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 5296,
+          "verify_error": null
+        },
+        {
+          "attempt": 2,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 5027,
+          "verify_error": null
+        },
+        {
+          "attempt": 3,
+          "passed": false,
+          "proposed_function": "detect_stage",
+          "fix_function": "detect_stage",
+          "fix_file": "app/ai/stages.py",
+          "latency_ms": 6531,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_006",
+      "failure_mode": "cross_function_wrong_sender_key",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "_sender",
+      "target_file": "app/ai/conversation_memory.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "retrieval": {
+        "query_tokens_preview": "test_outbound_count_reads_sender_key def test_outbound_count_reads_sender_key(): \"\"\"outbound_count must correctly identify tenant messages v",
+        "candidates": [
+          {
+            "rank": 1,
+            "score": 26.6111,
+            "function_name": "_phone_policy_lines",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 2,
+            "score": 22.3486,
+            "function_name": "generate_message_persona_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 3,
+            "score": 22.1708,
+            "function_name": "build_initial_enquiry_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 4,
+            "score": 21.6884,
+            "function_name": "build_phone_request_prompt",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 5,
+            "score": 21.4602,
+            "function_name": "build_viewing_prompt",
+            "file_path": "app/ai/prompts.py"
+          }
+        ],
+        "correct_function": "_sender",
+        "correct_rank": null,
+        "correct_in_top_1": false,
+        "correct_in_top_3": false,
+        "correct_in_top_5": false
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "_sender",
+          "fix_function": "_sender",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 1438,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "case_id": "cross_007",
+      "failure_mode": "cross_function_sender_scan_excludes_tenant",
+      "source_type": "seeded_realistic",
+      "triage_ground_truth": "cross_function",
+      "target_function": "tenant_shared_phone",
+      "target_file": "app/ai/personas.py",
+      "passed": true,
+      "passed_on_attempt": 1,
+      "retrieval": {
+        "query_tokens_preview": "test_phone_shared_state_detects_tenant_sender def test_phone_shared_state_detects_tenant_sender(): \"\"\"phone_shared_state must detect when 't",
+        "candidates": [
+          {
+            "rank": 1,
+            "score": 33.9805,
+            "function_name": "_phone_policy_lines",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 2,
+            "score": 33.6521,
+            "function_name": "tenant_shared_phone",
+            "file_path": "app/ai/personas.py"
+          },
+          {
+            "rank": 3,
+            "score": 29.967,
+            "function_name": "_persona_context_lines",
+            "file_path": "app/ai/prompts.py"
+          },
+          {
+            "rank": 4,
+            "score": 28.9482,
+            "function_name": "generate_reply",
+            "file_path": "app/ai/replies.py"
+          },
+          {
+            "rank": 5,
+            "score": 27.7788,
+            "function_name": "build_initial_enquiry_prompt",
+            "file_path": "app/ai/prompts.py"
+          }
+        ],
+        "correct_function": "tenant_shared_phone",
+        "correct_rank": 2,
+        "correct_in_top_1": false,
+        "correct_in_top_3": true,
+        "correct_in_top_5": true
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "passed": true,
+          "proposed_function": "phone_shared_state",
+          "fix_function": "phone_shared_state",
+          "fix_file": "app/ai/conversation_memory.py",
+          "latency_ms": 2337,
+          "verify_error": null
+        }
+      ],
+      "error": null
+    }
+  ]
+}

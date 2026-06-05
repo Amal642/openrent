@@ -1,0 +1,2453 @@
+{
+  "strategies": [
+    "random",
+    "bm25",
+    "embedding",
+    "call_graph"
+  ],
+  "n_cases": 20,
+  "n_with_B_in_pool": 20,
+  "aggregate": {
+    "random": {
+      "top1": "1/20",
+      "top3": "4/20",
+      "top5": "8/20",
+      "mrr": 0.221
+    },
+    "bm25": {
+      "top1": "1/20",
+      "top3": "7/20",
+      "top5": "11/20",
+      "mrr": 0.273
+    },
+    "embedding": {
+      "top1": "5/20",
+      "top3": "8/20",
+      "top5": "9/20",
+      "mrr": 0.371
+    },
+    "call_graph": {
+      "top1": "10/20",
+      "top3": "18/20",
+      "top5": "20/20",
+      "mrr": 0.683
+    }
+  },
+  "cases": [
+    {
+      "case_id": "cross_001",
+      "failure_mode": "cross_function_wrong_slice_direction",
+      "true_B": "_recent_messages",
+      "true_B_in_pool": true,
+      "pool_size": 17,
+      "pool_names": [
+        "viewing_requested",
+        "should_ai_reply",
+        "detect_landlord_attitude",
+        "latest_landlord_asked_for_phone",
+        "build_reply_prompt",
+        "extract_viewing_datetime",
+        "_phone_policy_lines",
+        "generate_message_persona_prompt",
+        "landlord_messages",
+        "build_viewing_prompt",
+        "_message_text",
+        "_recent_messages",
+        "_matches_any",
+        "_date_spans",
+        "_overlaps_any",
+        "_target_date_from_text",
+        "_has_time"
+      ],
+      "rankings": {
+        "random": [
+          "detect_landlord_attitude",
+          "_overlaps_any",
+          "latest_landlord_asked_for_phone",
+          "_has_time",
+          "_message_text",
+          "should_ai_reply",
+          "build_viewing_prompt",
+          "extract_viewing_datetime",
+          "_recent_messages",
+          "_target_date_from_text",
+          "_phone_policy_lines",
+          "generate_message_persona_prompt",
+          "landlord_messages",
+          "build_reply_prompt",
+          "viewing_requested",
+          "_date_spans",
+          "_matches_any"
+        ],
+        "bm25": [
+          "_phone_policy_lines",
+          "build_viewing_prompt",
+          "generate_message_persona_prompt",
+          "viewing_requested",
+          "build_reply_prompt",
+          "extract_viewing_datetime",
+          "_target_date_from_text",
+          "should_ai_reply",
+          "detect_landlord_attitude",
+          "landlord_messages",
+          "latest_landlord_asked_for_phone",
+          "_has_time",
+          "_recent_messages",
+          "_message_text",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any"
+        ],
+        "embedding": [
+          "viewing_requested",
+          "should_ai_reply",
+          "detect_landlord_attitude",
+          "latest_landlord_asked_for_phone",
+          "build_reply_prompt",
+          "extract_viewing_datetime",
+          "_phone_policy_lines",
+          "generate_message_persona_prompt",
+          "landlord_messages",
+          "build_viewing_prompt",
+          "_message_text",
+          "_recent_messages",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any",
+          "_target_date_from_text",
+          "_has_time"
+        ],
+        "call_graph": [
+          "_target_date_from_text",
+          "_has_time",
+          "_recent_messages",
+          "_message_text",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any",
+          "_phone_policy_lines",
+          "build_viewing_prompt",
+          "generate_message_persona_prompt",
+          "viewing_requested",
+          "build_reply_prompt",
+          "extract_viewing_datetime",
+          "should_ai_reply",
+          "detect_landlord_attitude",
+          "landlord_messages",
+          "latest_landlord_asked_for_phone"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.1111111111111111,
+          "rank": 9
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.07692307692307693,
+          "rank": 13
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.08333333333333333,
+          "rank": 12
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_002",
+      "failure_mode": "cross_function_sender_set_trimmed",
+      "true_B": "landlord_messages",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "landlord_messages",
+        "latest_landlord_asked_for_phone",
+        "get_landlord_messages",
+        "should_ai_reply",
+        "landlord_is_agent",
+        "get_latest_landlord_message",
+        "can_contact_landlord",
+        "is_uk_outreach_window",
+        "generate_message_persona_prompt",
+        "landlord_asked_for_phone",
+        "_content",
+        "_sender",
+        "tenant_shared_phone"
+      ],
+      "rankings": {
+        "random": [
+          "latest_landlord_asked_for_phone",
+          "_content",
+          "landlord_asked_for_phone",
+          "get_latest_landlord_message",
+          "_sender",
+          "get_landlord_messages",
+          "should_ai_reply",
+          "is_uk_outreach_window",
+          "generate_message_persona_prompt",
+          "landlord_is_agent",
+          "landlord_messages",
+          "tenant_shared_phone",
+          "can_contact_landlord"
+        ],
+        "bm25": [
+          "generate_message_persona_prompt",
+          "landlord_messages",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "is_uk_outreach_window",
+          "get_landlord_messages",
+          "tenant_shared_phone",
+          "_sender",
+          "latest_landlord_asked_for_phone",
+          "landlord_is_agent",
+          "can_contact_landlord",
+          "landlord_asked_for_phone",
+          "_content"
+        ],
+        "embedding": [
+          "landlord_messages",
+          "latest_landlord_asked_for_phone",
+          "get_landlord_messages",
+          "should_ai_reply",
+          "landlord_is_agent",
+          "get_latest_landlord_message",
+          "can_contact_landlord",
+          "is_uk_outreach_window",
+          "generate_message_persona_prompt",
+          "landlord_asked_for_phone",
+          "_content",
+          "_sender",
+          "tenant_shared_phone"
+        ],
+        "call_graph": [
+          "landlord_messages",
+          "tenant_shared_phone",
+          "_sender",
+          "landlord_asked_for_phone",
+          "_content",
+          "generate_message_persona_prompt",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "is_uk_outreach_window",
+          "get_landlord_messages",
+          "latest_landlord_asked_for_phone",
+          "landlord_is_agent",
+          "can_contact_landlord"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        },
+        "embedding": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_003",
+      "failure_mode": "cross_function_keyword_pattern_truncated",
+      "true_B": "landlord_asked_for_phone",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "landlord_asked_for_phone",
+        "should_ai_reply",
+        "detect_landlord_attitude",
+        "build_phone_extraction_prompt",
+        "build_phone_request_prompt",
+        "can_contact_landlord",
+        "tenant_shared_phone",
+        "mark_landlord_asked_phone",
+        "get_latest_landlord_message",
+        "is_uk_outreach_window",
+        "_content",
+        "_sender",
+        "landlord_messages"
+      ],
+      "rankings": {
+        "random": [
+          "should_ai_reply",
+          "_content",
+          "is_uk_outreach_window",
+          "can_contact_landlord",
+          "_sender",
+          "detect_landlord_attitude",
+          "build_phone_extraction_prompt",
+          "mark_landlord_asked_phone",
+          "get_latest_landlord_message",
+          "build_phone_request_prompt",
+          "landlord_asked_for_phone",
+          "landlord_messages",
+          "tenant_shared_phone"
+        ],
+        "bm25": [
+          "build_phone_request_prompt",
+          "build_phone_extraction_prompt",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "landlord_messages",
+          "tenant_shared_phone",
+          "mark_landlord_asked_phone",
+          "can_contact_landlord",
+          "_sender",
+          "is_uk_outreach_window",
+          "_content"
+        ],
+        "embedding": [
+          "landlord_asked_for_phone",
+          "should_ai_reply",
+          "detect_landlord_attitude",
+          "build_phone_extraction_prompt",
+          "build_phone_request_prompt",
+          "can_contact_landlord",
+          "tenant_shared_phone",
+          "mark_landlord_asked_phone",
+          "get_latest_landlord_message",
+          "is_uk_outreach_window",
+          "_content",
+          "_sender",
+          "landlord_messages"
+        ],
+        "call_graph": [
+          "landlord_asked_for_phone",
+          "landlord_messages",
+          "tenant_shared_phone",
+          "_sender",
+          "_content",
+          "build_phone_request_prompt",
+          "build_phone_extraction_prompt",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "detect_landlord_attitude",
+          "mark_landlord_asked_phone",
+          "can_contact_landlord",
+          "is_uk_outreach_window"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.2,
+          "rank": 5
+        },
+        "embedding": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_004",
+      "failure_mode": "cross_function_wrong_message_key",
+      "true_B": "_content",
+      "true_B_in_pool": true,
+      "pool_size": 14,
+      "pool_names": [
+        "detect_stage",
+        "latest_landlord_asked_for_phone",
+        "extract_viewing_datetime",
+        "mark_viewing_cancelled",
+        "should_ai_reply",
+        "detect_landlord_attitude",
+        "build_viewing_prompt",
+        "landlord_messages",
+        "mark_phone_requested",
+        "save_viewing_datetime",
+        "_content",
+        "_sender",
+        "landlord_asked_for_phone",
+        "tenant_shared_phone"
+      ],
+      "rankings": {
+        "random": [
+          "latest_landlord_asked_for_phone",
+          "_content",
+          "save_viewing_datetime",
+          "detect_landlord_attitude",
+          "_sender",
+          "extract_viewing_datetime",
+          "mark_viewing_cancelled",
+          "landlord_messages",
+          "mark_phone_requested",
+          "should_ai_reply",
+          "detect_stage",
+          "landlord_asked_for_phone",
+          "build_viewing_prompt",
+          "tenant_shared_phone"
+        ],
+        "bm25": [
+          "build_viewing_prompt",
+          "landlord_messages",
+          "tenant_shared_phone",
+          "should_ai_reply",
+          "save_viewing_datetime",
+          "latest_landlord_asked_for_phone",
+          "detect_stage",
+          "detect_landlord_attitude",
+          "_sender",
+          "_content",
+          "extract_viewing_datetime",
+          "mark_phone_requested",
+          "mark_viewing_cancelled",
+          "landlord_asked_for_phone"
+        ],
+        "embedding": [
+          "detect_stage",
+          "latest_landlord_asked_for_phone",
+          "extract_viewing_datetime",
+          "mark_viewing_cancelled",
+          "should_ai_reply",
+          "detect_landlord_attitude",
+          "build_viewing_prompt",
+          "landlord_messages",
+          "mark_phone_requested",
+          "save_viewing_datetime",
+          "_content",
+          "_sender",
+          "landlord_asked_for_phone",
+          "tenant_shared_phone"
+        ],
+        "call_graph": [
+          "landlord_messages",
+          "tenant_shared_phone",
+          "_sender",
+          "_content",
+          "landlord_asked_for_phone",
+          "build_viewing_prompt",
+          "should_ai_reply",
+          "save_viewing_datetime",
+          "latest_landlord_asked_for_phone",
+          "detect_stage",
+          "detect_landlord_attitude",
+          "extract_viewing_datetime",
+          "mark_phone_requested",
+          "mark_viewing_cancelled"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.1,
+          "rank": 10
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.25,
+          "rank": 4
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_005",
+      "failure_mode": "cross_function_any_vs_all",
+      "true_B": "_matches_any",
+      "true_B_in_pool": true,
+      "pool_size": 16,
+      "pool_names": [
+        "detect_landlord_attitude",
+        "viewing_requested",
+        "_matches_any",
+        "latest_landlord_asked_for_phone",
+        "generate_message_persona_prompt",
+        "extract_viewing_datetime",
+        "detect_form_type",
+        "should_share_phone_now",
+        "_phone_policy_lines",
+        "_is_authenticated",
+        "_message_text",
+        "_recent_messages",
+        "_date_spans",
+        "_overlaps_any",
+        "_target_date_from_text",
+        "_has_time"
+      ],
+      "rankings": {
+        "random": [
+          "_message_text",
+          "_target_date_from_text",
+          "extract_viewing_datetime",
+          "viewing_requested",
+          "_is_authenticated",
+          "_matches_any",
+          "latest_landlord_asked_for_phone",
+          "_recent_messages",
+          "_overlaps_any",
+          "should_share_phone_now",
+          "_phone_policy_lines",
+          "generate_message_persona_prompt",
+          "detect_landlord_attitude",
+          "detect_form_type",
+          "_has_time",
+          "_date_spans"
+        ],
+        "bm25": [
+          "detect_landlord_attitude",
+          "generate_message_persona_prompt",
+          "_phone_policy_lines",
+          "extract_viewing_datetime",
+          "_matches_any",
+          "viewing_requested",
+          "should_share_phone_now",
+          "_target_date_from_text",
+          "_date_spans",
+          "_has_time",
+          "latest_landlord_asked_for_phone",
+          "detect_form_type",
+          "_recent_messages",
+          "_message_text",
+          "_overlaps_any",
+          "_is_authenticated"
+        ],
+        "embedding": [
+          "detect_landlord_attitude",
+          "viewing_requested",
+          "_matches_any",
+          "latest_landlord_asked_for_phone",
+          "generate_message_persona_prompt",
+          "extract_viewing_datetime",
+          "detect_form_type",
+          "should_share_phone_now",
+          "_phone_policy_lines",
+          "_is_authenticated",
+          "_message_text",
+          "_recent_messages",
+          "_date_spans",
+          "_overlaps_any",
+          "_target_date_from_text",
+          "_has_time"
+        ],
+        "call_graph": [
+          "_matches_any",
+          "_target_date_from_text",
+          "_date_spans",
+          "_has_time",
+          "_recent_messages",
+          "_message_text",
+          "_overlaps_any",
+          "detect_landlord_attitude",
+          "generate_message_persona_prompt",
+          "_phone_policy_lines",
+          "extract_viewing_datetime",
+          "viewing_requested",
+          "should_share_phone_now",
+          "latest_landlord_asked_for_phone",
+          "detect_form_type",
+          "_is_authenticated"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.16666666666666666,
+          "rank": 6
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.2,
+          "rank": 5
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_006",
+      "failure_mode": "cross_function_wrong_sender_key",
+      "true_B": "_sender",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "tenant_shared_phone",
+        "should_ai_reply",
+        "landlord_messages",
+        "save_inbound_messages",
+        "latest_landlord_asked_for_phone",
+        "detect_landlord_attitude",
+        "get_landlord_messages",
+        "phone_shared_state",
+        "is_uk_outreach_window",
+        "should_share_phone_now",
+        "_content",
+        "_sender",
+        "landlord_asked_for_phone"
+      ],
+      "rankings": {
+        "random": [
+          "should_ai_reply",
+          "_content",
+          "should_share_phone_now",
+          "detect_landlord_attitude",
+          "_sender",
+          "landlord_messages",
+          "save_inbound_messages",
+          "phone_shared_state",
+          "is_uk_outreach_window",
+          "latest_landlord_asked_for_phone",
+          "tenant_shared_phone",
+          "landlord_asked_for_phone",
+          "get_landlord_messages"
+        ],
+        "bm25": [
+          "tenant_shared_phone",
+          "landlord_messages",
+          "get_landlord_messages",
+          "save_inbound_messages",
+          "should_share_phone_now",
+          "should_ai_reply",
+          "_sender",
+          "latest_landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "phone_shared_state",
+          "landlord_asked_for_phone",
+          "_content",
+          "is_uk_outreach_window"
+        ],
+        "embedding": [
+          "tenant_shared_phone",
+          "should_ai_reply",
+          "landlord_messages",
+          "save_inbound_messages",
+          "latest_landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "get_landlord_messages",
+          "phone_shared_state",
+          "is_uk_outreach_window",
+          "should_share_phone_now",
+          "_content",
+          "_sender",
+          "landlord_asked_for_phone"
+        ],
+        "call_graph": [
+          "tenant_shared_phone",
+          "landlord_messages",
+          "_sender",
+          "landlord_asked_for_phone",
+          "_content",
+          "get_landlord_messages",
+          "save_inbound_messages",
+          "should_share_phone_now",
+          "should_ai_reply",
+          "latest_landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "phone_shared_state",
+          "is_uk_outreach_window"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.2,
+          "rank": 5
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.14285714285714285,
+          "rank": 7
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.08333333333333333,
+          "rank": 12
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_007",
+      "failure_mode": "cross_function_sender_scan_excludes_tenant",
+      "true_B": "tenant_shared_phone",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "tenant_shared_phone",
+        "should_share_phone_now",
+        "phone_exists",
+        "latest_landlord_asked_for_phone",
+        "mark_phone_number_shared",
+        "_phone_policy_lines",
+        "generate_phone_share_reply",
+        "landlord_asked_for_phone",
+        "should_ai_reply",
+        "build_phone_extraction_prompt",
+        "_content",
+        "_sender",
+        "landlord_messages"
+      ],
+      "rankings": {
+        "random": [
+          "should_share_phone_now",
+          "_content",
+          "build_phone_extraction_prompt",
+          "_phone_policy_lines",
+          "_sender",
+          "phone_exists",
+          "latest_landlord_asked_for_phone",
+          "landlord_asked_for_phone",
+          "should_ai_reply",
+          "mark_phone_number_shared",
+          "tenant_shared_phone",
+          "landlord_messages",
+          "generate_phone_share_reply"
+        ],
+        "bm25": [
+          "_phone_policy_lines",
+          "tenant_shared_phone",
+          "generate_phone_share_reply",
+          "should_share_phone_now",
+          "build_phone_extraction_prompt",
+          "mark_phone_number_shared",
+          "landlord_messages",
+          "landlord_asked_for_phone",
+          "_sender",
+          "should_ai_reply",
+          "latest_landlord_asked_for_phone",
+          "phone_exists",
+          "_content"
+        ],
+        "embedding": [
+          "tenant_shared_phone",
+          "should_share_phone_now",
+          "phone_exists",
+          "latest_landlord_asked_for_phone",
+          "mark_phone_number_shared",
+          "_phone_policy_lines",
+          "generate_phone_share_reply",
+          "landlord_asked_for_phone",
+          "should_ai_reply",
+          "build_phone_extraction_prompt",
+          "_content",
+          "_sender",
+          "landlord_messages"
+        ],
+        "call_graph": [
+          "tenant_shared_phone",
+          "landlord_messages",
+          "landlord_asked_for_phone",
+          "_sender",
+          "_content",
+          "_phone_policy_lines",
+          "generate_phone_share_reply",
+          "should_share_phone_now",
+          "build_phone_extraction_prompt",
+          "mark_phone_number_shared",
+          "should_ai_reply",
+          "latest_landlord_asked_for_phone",
+          "phone_exists"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        },
+        "embedding": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_008",
+      "failure_mode": "cross_function_wrong_message_key",
+      "true_B": "_message_text",
+      "true_B_in_pool": true,
+      "pool_size": 17,
+      "pool_names": [
+        "viewing_requested",
+        "latest_landlord_asked_for_phone",
+        "detect_landlord_attitude",
+        "should_ai_reply",
+        "mark_viewing_cancelled",
+        "get_latest_landlord_message",
+        "save_viewing_datetime",
+        "extract_viewing_datetime",
+        "generate_message_persona_prompt",
+        "build_viewing_prompt",
+        "_message_text",
+        "_recent_messages",
+        "_matches_any",
+        "_date_spans",
+        "_overlaps_any",
+        "_target_date_from_text",
+        "_has_time"
+      ],
+      "rankings": {
+        "random": [
+          "detect_landlord_attitude",
+          "_overlaps_any",
+          "should_ai_reply",
+          "_has_time",
+          "_message_text",
+          "latest_landlord_asked_for_phone",
+          "build_viewing_prompt",
+          "get_latest_landlord_message",
+          "_recent_messages",
+          "_target_date_from_text",
+          "save_viewing_datetime",
+          "extract_viewing_datetime",
+          "generate_message_persona_prompt",
+          "mark_viewing_cancelled",
+          "viewing_requested",
+          "_date_spans",
+          "_matches_any"
+        ],
+        "bm25": [
+          "build_viewing_prompt",
+          "detect_landlord_attitude",
+          "generate_message_persona_prompt",
+          "get_latest_landlord_message",
+          "save_viewing_datetime",
+          "should_ai_reply",
+          "viewing_requested",
+          "_target_date_from_text",
+          "latest_landlord_asked_for_phone",
+          "extract_viewing_datetime",
+          "mark_viewing_cancelled",
+          "_message_text",
+          "_recent_messages",
+          "_has_time",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any"
+        ],
+        "embedding": [
+          "viewing_requested",
+          "latest_landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "should_ai_reply",
+          "mark_viewing_cancelled",
+          "get_latest_landlord_message",
+          "save_viewing_datetime",
+          "extract_viewing_datetime",
+          "generate_message_persona_prompt",
+          "build_viewing_prompt",
+          "_message_text",
+          "_recent_messages",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any",
+          "_target_date_from_text",
+          "_has_time"
+        ],
+        "call_graph": [
+          "_target_date_from_text",
+          "_message_text",
+          "_recent_messages",
+          "_has_time",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any",
+          "build_viewing_prompt",
+          "detect_landlord_attitude",
+          "generate_message_persona_prompt",
+          "get_latest_landlord_message",
+          "save_viewing_datetime",
+          "should_ai_reply",
+          "viewing_requested",
+          "latest_landlord_asked_for_phone",
+          "extract_viewing_datetime",
+          "mark_viewing_cancelled"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.2,
+          "rank": 5
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.08333333333333333,
+          "rank": 12
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_009",
+      "failure_mode": "cross_function_has_time_always_false",
+      "true_B": "_has_time",
+      "true_B_in_pool": true,
+      "pool_size": 17,
+      "pool_names": [
+        "viewing_requested",
+        "generate_message_persona_prompt",
+        "build_viewing_prompt",
+        "extract_viewing_datetime",
+        "detect_landlord_attitude",
+        "save_viewing_datetime",
+        "build_cancel_viewing_prompt",
+        "_phone_policy_lines",
+        "build_reply_prompt",
+        "should_share_phone_now",
+        "_message_text",
+        "_recent_messages",
+        "_matches_any",
+        "_date_spans",
+        "_overlaps_any",
+        "_target_date_from_text",
+        "_has_time"
+      ],
+      "rankings": {
+        "random": [
+          "build_viewing_prompt",
+          "_overlaps_any",
+          "extract_viewing_datetime",
+          "_has_time",
+          "_message_text",
+          "generate_message_persona_prompt",
+          "should_share_phone_now",
+          "save_viewing_datetime",
+          "_recent_messages",
+          "_target_date_from_text",
+          "build_cancel_viewing_prompt",
+          "_phone_policy_lines",
+          "build_reply_prompt",
+          "detect_landlord_attitude",
+          "viewing_requested",
+          "_date_spans",
+          "_matches_any"
+        ],
+        "bm25": [
+          "_phone_policy_lines",
+          "generate_message_persona_prompt",
+          "build_cancel_viewing_prompt",
+          "build_viewing_prompt",
+          "save_viewing_datetime",
+          "viewing_requested",
+          "build_reply_prompt",
+          "detect_landlord_attitude",
+          "extract_viewing_datetime",
+          "should_share_phone_now",
+          "_has_time",
+          "_recent_messages",
+          "_target_date_from_text",
+          "_message_text",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any"
+        ],
+        "embedding": [
+          "viewing_requested",
+          "generate_message_persona_prompt",
+          "build_viewing_prompt",
+          "extract_viewing_datetime",
+          "detect_landlord_attitude",
+          "save_viewing_datetime",
+          "build_cancel_viewing_prompt",
+          "_phone_policy_lines",
+          "build_reply_prompt",
+          "should_share_phone_now",
+          "_message_text",
+          "_recent_messages",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any",
+          "_target_date_from_text",
+          "_has_time"
+        ],
+        "call_graph": [
+          "_has_time",
+          "_recent_messages",
+          "_target_date_from_text",
+          "_message_text",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any",
+          "_phone_policy_lines",
+          "generate_message_persona_prompt",
+          "build_cancel_viewing_prompt",
+          "build_viewing_prompt",
+          "save_viewing_datetime",
+          "viewing_requested",
+          "build_reply_prompt",
+          "detect_landlord_attitude",
+          "extract_viewing_datetime",
+          "should_share_phone_now"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.25,
+          "rank": 4
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.058823529411764705,
+          "rank": 17
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_010",
+      "failure_mode": "cross_function_tomorrow_keyword_removed",
+      "true_B": "_target_date_from_text",
+      "true_B_in_pool": true,
+      "pool_size": 15,
+      "pool_names": [
+        "extract_viewing_datetime",
+        "_target_date_from_text",
+        "has_scraped_today",
+        "is_operating_hours",
+        "uk_now",
+        "save_viewing_datetime",
+        "is_uk_outreach_window",
+        "build_viewing_prompt",
+        "detect_stage",
+        "_has_time",
+        "_message_text",
+        "_recent_messages",
+        "_matches_any",
+        "_date_spans",
+        "_overlaps_any"
+      ],
+      "rankings": {
+        "random": [
+          "_target_date_from_text",
+          "_message_text",
+          "_has_time",
+          "save_viewing_datetime",
+          "_recent_messages",
+          "has_scraped_today",
+          "is_operating_hours",
+          "build_viewing_prompt",
+          "detect_stage",
+          "uk_now",
+          "extract_viewing_datetime",
+          "_overlaps_any",
+          "_matches_any",
+          "is_uk_outreach_window",
+          "_date_spans"
+        ],
+        "bm25": [
+          "build_viewing_prompt",
+          "_target_date_from_text",
+          "extract_viewing_datetime",
+          "is_operating_hours",
+          "has_scraped_today",
+          "is_uk_outreach_window",
+          "save_viewing_datetime",
+          "detect_stage",
+          "uk_now",
+          "_date_spans",
+          "_has_time",
+          "_recent_messages",
+          "_message_text",
+          "_matches_any",
+          "_overlaps_any"
+        ],
+        "embedding": [
+          "extract_viewing_datetime",
+          "_target_date_from_text",
+          "has_scraped_today",
+          "is_operating_hours",
+          "uk_now",
+          "save_viewing_datetime",
+          "is_uk_outreach_window",
+          "build_viewing_prompt",
+          "detect_stage",
+          "_has_time",
+          "_message_text",
+          "_recent_messages",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any"
+        ],
+        "call_graph": [
+          "_target_date_from_text",
+          "_date_spans",
+          "_has_time",
+          "_recent_messages",
+          "_message_text",
+          "_matches_any",
+          "_overlaps_any",
+          "build_viewing_prompt",
+          "extract_viewing_datetime",
+          "is_operating_hours",
+          "has_scraped_today",
+          "is_uk_outreach_window",
+          "save_viewing_datetime",
+          "detect_stage",
+          "uk_now"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_011",
+      "failure_mode": "cross_function_date_spans_fake_huge_span",
+      "true_B": "_date_spans",
+      "true_B_in_pool": true,
+      "pool_size": 15,
+      "pool_names": [
+        "extract_viewing_datetime",
+        "_has_time",
+        "_target_date_from_text",
+        "detect_stage",
+        "detect_landlord_attitude",
+        "regex_extract_phone",
+        "viewing_requested",
+        "should_ai_reply",
+        "is_uk_outreach_window",
+        "tenant_shared_phone",
+        "_message_text",
+        "_recent_messages",
+        "_matches_any",
+        "_date_spans",
+        "_overlaps_any"
+      ],
+      "rankings": {
+        "random": [
+          "_has_time",
+          "_message_text",
+          "tenant_shared_phone",
+          "regex_extract_phone",
+          "_recent_messages",
+          "_target_date_from_text",
+          "detect_stage",
+          "should_ai_reply",
+          "is_uk_outreach_window",
+          "detect_landlord_attitude",
+          "extract_viewing_datetime",
+          "_overlaps_any",
+          "_matches_any",
+          "viewing_requested",
+          "_date_spans"
+        ],
+        "bm25": [
+          "extract_viewing_datetime",
+          "_date_spans",
+          "_has_time",
+          "should_ai_reply",
+          "_target_date_from_text",
+          "is_uk_outreach_window",
+          "detect_landlord_attitude",
+          "_overlaps_any",
+          "regex_extract_phone",
+          "detect_stage",
+          "tenant_shared_phone",
+          "viewing_requested",
+          "_recent_messages",
+          "_message_text",
+          "_matches_any"
+        ],
+        "embedding": [
+          "extract_viewing_datetime",
+          "_has_time",
+          "_target_date_from_text",
+          "detect_stage",
+          "detect_landlord_attitude",
+          "regex_extract_phone",
+          "viewing_requested",
+          "should_ai_reply",
+          "is_uk_outreach_window",
+          "tenant_shared_phone",
+          "_message_text",
+          "_recent_messages",
+          "_matches_any",
+          "_date_spans",
+          "_overlaps_any"
+        ],
+        "call_graph": [
+          "_date_spans",
+          "_has_time",
+          "_target_date_from_text",
+          "_overlaps_any",
+          "_recent_messages",
+          "_message_text",
+          "_matches_any",
+          "extract_viewing_datetime",
+          "should_ai_reply",
+          "is_uk_outreach_window",
+          "detect_landlord_attitude",
+          "regex_extract_phone",
+          "detect_stage",
+          "tenant_shared_phone",
+          "viewing_requested"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.06666666666666667,
+          "rank": 15
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.07142857142857142,
+          "rank": 14
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_012",
+      "failure_mode": "cross_function_alias_resolution_broken",
+      "true_B": "normalize_conversation_style",
+      "true_B_in_pool": true,
+      "pool_size": 11,
+      "pool_names": [
+        "normalize_conversation_style",
+        "update_conversation_memory",
+        "get_or_create_conversation",
+        "create_conversation",
+        "get_conversation_by_thread_id",
+        "_proxy_config_for_account",
+        "should_ai_reply",
+        "ensure_account_persona",
+        "update_conversation_status",
+        "claim_conversation",
+        "materialize_persona"
+      ],
+      "rankings": {
+        "random": [
+          "update_conversation_status",
+          "claim_conversation",
+          "update_conversation_memory",
+          "get_or_create_conversation",
+          "_proxy_config_for_account",
+          "create_conversation",
+          "ensure_account_persona",
+          "get_conversation_by_thread_id",
+          "normalize_conversation_style",
+          "materialize_persona",
+          "should_ai_reply"
+        ],
+        "bm25": [
+          "materialize_persona",
+          "ensure_account_persona",
+          "normalize_conversation_style",
+          "update_conversation_memory",
+          "create_conversation",
+          "get_or_create_conversation",
+          "_proxy_config_for_account",
+          "claim_conversation",
+          "update_conversation_status",
+          "get_conversation_by_thread_id",
+          "should_ai_reply"
+        ],
+        "embedding": [
+          "normalize_conversation_style",
+          "update_conversation_memory",
+          "get_or_create_conversation",
+          "create_conversation",
+          "get_conversation_by_thread_id",
+          "_proxy_config_for_account",
+          "should_ai_reply",
+          "ensure_account_persona",
+          "update_conversation_status",
+          "claim_conversation",
+          "materialize_persona"
+        ],
+        "call_graph": [
+          "materialize_persona",
+          "normalize_conversation_style",
+          "ensure_account_persona",
+          "update_conversation_memory",
+          "create_conversation",
+          "get_or_create_conversation",
+          "_proxy_config_for_account",
+          "claim_conversation",
+          "update_conversation_status",
+          "get_conversation_by_thread_id",
+          "should_ai_reply"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.1111111111111111,
+          "rank": 9
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        },
+        "embedding": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_013",
+      "failure_mode": "cross_function_alias_resolution_broken",
+      "true_B": "normalize_conversation_style",
+      "true_B_in_pool": true,
+      "pool_size": 12,
+      "pool_names": [
+        "should_share_phone_now",
+        "phone_shared_state",
+        "generate_phone_share_reply",
+        "_phone_policy_lines",
+        "phone_exists",
+        "tenant_shared_phone",
+        "mark_phone_number_shared",
+        "should_ai_reply",
+        "normalize_conversation_style",
+        "generate_reply",
+        "get_conversation_style",
+        "materialize_persona"
+      ],
+      "rankings": {
+        "random": [
+          "phone_shared_state",
+          "generate_reply",
+          "normalize_conversation_style",
+          "tenant_shared_phone",
+          "get_conversation_style",
+          "generate_phone_share_reply",
+          "_phone_policy_lines",
+          "should_ai_reply",
+          "phone_exists",
+          "should_share_phone_now",
+          "materialize_persona",
+          "mark_phone_number_shared"
+        ],
+        "bm25": [
+          "should_share_phone_now",
+          "generate_reply",
+          "_phone_policy_lines",
+          "generate_phone_share_reply",
+          "phone_shared_state",
+          "materialize_persona",
+          "tenant_shared_phone",
+          "mark_phone_number_shared",
+          "should_ai_reply",
+          "get_conversation_style",
+          "normalize_conversation_style",
+          "phone_exists"
+        ],
+        "embedding": [
+          "should_share_phone_now",
+          "phone_shared_state",
+          "generate_phone_share_reply",
+          "_phone_policy_lines",
+          "phone_exists",
+          "tenant_shared_phone",
+          "mark_phone_number_shared",
+          "should_ai_reply",
+          "normalize_conversation_style",
+          "generate_reply",
+          "get_conversation_style",
+          "materialize_persona"
+        ],
+        "call_graph": [
+          "materialize_persona",
+          "get_conversation_style",
+          "normalize_conversation_style",
+          "should_share_phone_now",
+          "generate_reply",
+          "_phone_policy_lines",
+          "generate_phone_share_reply",
+          "phone_shared_state",
+          "tenant_shared_phone",
+          "mark_phone_number_shared",
+          "should_ai_reply",
+          "phone_exists"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.1111111111111111,
+          "rank": 9
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_014",
+      "failure_mode": "cross_function_wrong_message_key",
+      "true_B": "_content",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "latest_landlord_asked_for_phone",
+        "should_ai_reply",
+        "get_landlord_messages",
+        "landlord_messages",
+        "can_contact_landlord",
+        "get_latest_landlord_message",
+        "landlord_asked_for_phone",
+        "generate_message_persona_prompt",
+        "landlord_is_agent",
+        "detect_stage",
+        "_content",
+        "_sender",
+        "tenant_shared_phone"
+      ],
+      "rankings": {
+        "random": [
+          "should_ai_reply",
+          "_content",
+          "detect_stage",
+          "get_latest_landlord_message",
+          "_sender",
+          "get_landlord_messages",
+          "landlord_messages",
+          "generate_message_persona_prompt",
+          "landlord_is_agent",
+          "can_contact_landlord",
+          "latest_landlord_asked_for_phone",
+          "tenant_shared_phone",
+          "landlord_asked_for_phone"
+        ],
+        "bm25": [
+          "landlord_messages",
+          "generate_message_persona_prompt",
+          "detect_stage",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "get_landlord_messages",
+          "tenant_shared_phone",
+          "latest_landlord_asked_for_phone",
+          "_sender",
+          "_content",
+          "landlord_asked_for_phone",
+          "can_contact_landlord",
+          "landlord_is_agent"
+        ],
+        "embedding": [
+          "latest_landlord_asked_for_phone",
+          "should_ai_reply",
+          "get_landlord_messages",
+          "landlord_messages",
+          "can_contact_landlord",
+          "get_latest_landlord_message",
+          "landlord_asked_for_phone",
+          "generate_message_persona_prompt",
+          "landlord_is_agent",
+          "detect_stage",
+          "_content",
+          "_sender",
+          "tenant_shared_phone"
+        ],
+        "call_graph": [
+          "landlord_messages",
+          "tenant_shared_phone",
+          "_sender",
+          "_content",
+          "landlord_asked_for_phone",
+          "generate_message_persona_prompt",
+          "detect_stage",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "get_landlord_messages",
+          "latest_landlord_asked_for_phone",
+          "can_contact_landlord",
+          "landlord_is_agent"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.1,
+          "rank": 10
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.25,
+          "rank": 4
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_015",
+      "failure_mode": "cross_function_sender_uppercase",
+      "true_B": "_sender",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "should_ai_reply",
+        "get_landlord_messages",
+        "latest_landlord_asked_for_phone",
+        "landlord_messages",
+        "get_latest_landlord_message",
+        "landlord_is_agent",
+        "_sender",
+        "can_contact_landlord",
+        "generate_phone_share_reply",
+        "is_uk_outreach_window",
+        "_content",
+        "landlord_asked_for_phone",
+        "tenant_shared_phone"
+      ],
+      "rankings": {
+        "random": [
+          "get_landlord_messages",
+          "_content",
+          "is_uk_outreach_window",
+          "landlord_is_agent",
+          "landlord_asked_for_phone",
+          "latest_landlord_asked_for_phone",
+          "landlord_messages",
+          "can_contact_landlord",
+          "generate_phone_share_reply",
+          "get_latest_landlord_message",
+          "should_ai_reply",
+          "tenant_shared_phone",
+          "_sender"
+        ],
+        "bm25": [
+          "generate_phone_share_reply",
+          "should_ai_reply",
+          "landlord_messages",
+          "get_latest_landlord_message",
+          "get_landlord_messages",
+          "can_contact_landlord",
+          "tenant_shared_phone",
+          "landlord_is_agent",
+          "_sender",
+          "is_uk_outreach_window",
+          "latest_landlord_asked_for_phone",
+          "landlord_asked_for_phone",
+          "_content"
+        ],
+        "embedding": [
+          "should_ai_reply",
+          "get_landlord_messages",
+          "latest_landlord_asked_for_phone",
+          "landlord_messages",
+          "get_latest_landlord_message",
+          "landlord_is_agent",
+          "_sender",
+          "can_contact_landlord",
+          "generate_phone_share_reply",
+          "is_uk_outreach_window",
+          "_content",
+          "landlord_asked_for_phone",
+          "tenant_shared_phone"
+        ],
+        "call_graph": [
+          "landlord_messages",
+          "tenant_shared_phone",
+          "_sender",
+          "landlord_asked_for_phone",
+          "_content",
+          "generate_phone_share_reply",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "get_landlord_messages",
+          "can_contact_landlord",
+          "landlord_is_agent",
+          "is_uk_outreach_window",
+          "latest_landlord_asked_for_phone"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.07692307692307693,
+          "rank": 13
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.1111111111111111,
+          "rank": 9
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.14285714285714285,
+          "rank": 7
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_016",
+      "failure_mode": "cross_function_digit_strip_inverted",
+      "true_B": "tenant_shared_phone",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "tenant_shared_phone",
+        "build_phone_extraction_prompt",
+        "should_share_phone_now",
+        "landlord_asked_for_phone",
+        "regex_extract_phone",
+        "latest_landlord_asked_for_phone",
+        "_phone_policy_lines",
+        "ai_extract_phone",
+        "phone_exists",
+        "generate_phone_share_reply",
+        "_content",
+        "_sender",
+        "landlord_messages"
+      ],
+      "rankings": {
+        "random": [
+          "build_phone_extraction_prompt",
+          "_content",
+          "generate_phone_share_reply",
+          "latest_landlord_asked_for_phone",
+          "_sender",
+          "should_share_phone_now",
+          "landlord_asked_for_phone",
+          "ai_extract_phone",
+          "phone_exists",
+          "regex_extract_phone",
+          "tenant_shared_phone",
+          "landlord_messages",
+          "_phone_policy_lines"
+        ],
+        "bm25": [
+          "tenant_shared_phone",
+          "_phone_policy_lines",
+          "generate_phone_share_reply",
+          "build_phone_extraction_prompt",
+          "ai_extract_phone",
+          "should_share_phone_now",
+          "landlord_asked_for_phone",
+          "landlord_messages",
+          "_sender",
+          "latest_landlord_asked_for_phone",
+          "regex_extract_phone",
+          "phone_exists",
+          "_content"
+        ],
+        "embedding": [
+          "tenant_shared_phone",
+          "build_phone_extraction_prompt",
+          "should_share_phone_now",
+          "landlord_asked_for_phone",
+          "regex_extract_phone",
+          "latest_landlord_asked_for_phone",
+          "_phone_policy_lines",
+          "ai_extract_phone",
+          "phone_exists",
+          "generate_phone_share_reply",
+          "_content",
+          "_sender",
+          "landlord_messages"
+        ],
+        "call_graph": [
+          "tenant_shared_phone",
+          "landlord_asked_for_phone",
+          "landlord_messages",
+          "_sender",
+          "_content",
+          "_phone_policy_lines",
+          "generate_phone_share_reply",
+          "build_phone_extraction_prompt",
+          "ai_extract_phone",
+          "should_share_phone_now",
+          "latest_landlord_asked_for_phone",
+          "regex_extract_phone",
+          "phone_exists"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.09090909090909091,
+          "rank": 11
+        },
+        "bm25": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        },
+        "embedding": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_017",
+      "failure_mode": "cross_function_sender_uppercase",
+      "true_B": "_sender",
+      "true_B_in_pool": true,
+      "pool_size": 12,
+      "pool_names": [
+        "landlord_messages",
+        "tenant_shared_phone",
+        "should_ai_reply",
+        "save_inbound_messages",
+        "_sender",
+        "detect_landlord_attitude",
+        "latest_landlord_asked_for_phone",
+        "get_landlord_messages",
+        "is_uk_outreach_window",
+        "should_share_phone_now",
+        "_content",
+        "landlord_asked_for_phone"
+      ],
+      "rankings": {
+        "random": [
+          "tenant_shared_phone",
+          "should_share_phone_now",
+          "is_uk_outreach_window",
+          "detect_landlord_attitude",
+          "_content",
+          "should_ai_reply",
+          "save_inbound_messages",
+          "get_landlord_messages",
+          "_sender",
+          "landlord_messages",
+          "landlord_asked_for_phone",
+          "latest_landlord_asked_for_phone"
+        ],
+        "bm25": [
+          "tenant_shared_phone",
+          "should_share_phone_now",
+          "landlord_messages",
+          "get_landlord_messages",
+          "save_inbound_messages",
+          "should_ai_reply",
+          "_sender",
+          "latest_landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "landlord_asked_for_phone",
+          "_content",
+          "is_uk_outreach_window"
+        ],
+        "embedding": [
+          "landlord_messages",
+          "tenant_shared_phone",
+          "should_ai_reply",
+          "save_inbound_messages",
+          "_sender",
+          "detect_landlord_attitude",
+          "latest_landlord_asked_for_phone",
+          "get_landlord_messages",
+          "is_uk_outreach_window",
+          "should_share_phone_now",
+          "_content",
+          "landlord_asked_for_phone"
+        ],
+        "call_graph": [
+          "tenant_shared_phone",
+          "landlord_messages",
+          "_sender",
+          "landlord_asked_for_phone",
+          "_content",
+          "should_share_phone_now",
+          "get_landlord_messages",
+          "save_inbound_messages",
+          "should_ai_reply",
+          "latest_landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "is_uk_outreach_window"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.1111111111111111,
+          "rank": 9
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.14285714285714285,
+          "rank": 7
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.2,
+          "rank": 5
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_018",
+      "failure_mode": "cross_function_overlaps_any_always_true",
+      "true_B": "_overlaps_any",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "extract_viewing_datetime",
+        "_has_time",
+        "_overlaps_any",
+        "detect_stage",
+        "viewing_requested",
+        "is_operating_hours",
+        "is_uk_outreach_window",
+        "detect_landlord_attitude",
+        "_date_spans",
+        "_target_date_from_text",
+        "_message_text",
+        "_recent_messages",
+        "_matches_any"
+      ],
+      "rankings": {
+        "random": [
+          "_has_time",
+          "_message_text",
+          "_target_date_from_text",
+          "is_operating_hours",
+          "_recent_messages",
+          "_overlaps_any",
+          "detect_stage",
+          "detect_landlord_attitude",
+          "_date_spans",
+          "viewing_requested",
+          "extract_viewing_datetime",
+          "_matches_any",
+          "is_uk_outreach_window"
+        ],
+        "bm25": [
+          "extract_viewing_datetime",
+          "_has_time",
+          "_overlaps_any",
+          "is_uk_outreach_window",
+          "is_operating_hours",
+          "_date_spans",
+          "detect_landlord_attitude",
+          "detect_stage",
+          "viewing_requested",
+          "_target_date_from_text",
+          "_recent_messages",
+          "_message_text",
+          "_matches_any"
+        ],
+        "embedding": [
+          "extract_viewing_datetime",
+          "_has_time",
+          "_overlaps_any",
+          "detect_stage",
+          "viewing_requested",
+          "is_operating_hours",
+          "is_uk_outreach_window",
+          "detect_landlord_attitude",
+          "_date_spans",
+          "_target_date_from_text",
+          "_message_text",
+          "_recent_messages",
+          "_matches_any"
+        ],
+        "call_graph": [
+          "_has_time",
+          "_overlaps_any",
+          "_date_spans",
+          "_target_date_from_text",
+          "_recent_messages",
+          "_message_text",
+          "_matches_any",
+          "extract_viewing_datetime",
+          "is_uk_outreach_window",
+          "is_operating_hours",
+          "detect_landlord_attitude",
+          "detect_stage",
+          "viewing_requested"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.16666666666666666,
+          "rank": 6
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.3333333333333333,
+          "rank": 3
+        },
+        "call_graph": {
+          "top1": 0,
+          "top3": 1,
+          "top5": 1,
+          "rr": 0.5,
+          "rank": 2
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_019",
+      "failure_mode": "cross_function_search_vs_match",
+      "true_B": "_matches_any",
+      "true_B_in_pool": true,
+      "pool_size": 16,
+      "pool_names": [
+        "viewing_requested",
+        "detect_landlord_attitude",
+        "should_ai_reply",
+        "update_conversation_stage",
+        "mark_viewing_cancelled",
+        "mark_phone_requested",
+        "_matches_any",
+        "build_viewing_prompt",
+        "claim_conversation",
+        "build_cancel_viewing_prompt",
+        "_message_text",
+        "_recent_messages",
+        "_date_spans",
+        "_overlaps_any",
+        "_target_date_from_text",
+        "_has_time"
+      ],
+      "rankings": {
+        "random": [
+          "_message_text",
+          "_target_date_from_text",
+          "mark_phone_requested",
+          "detect_landlord_attitude",
+          "build_cancel_viewing_prompt",
+          "should_ai_reply",
+          "update_conversation_stage",
+          "_recent_messages",
+          "_overlaps_any",
+          "build_viewing_prompt",
+          "claim_conversation",
+          "mark_viewing_cancelled",
+          "viewing_requested",
+          "_matches_any",
+          "_has_time",
+          "_date_spans"
+        ],
+        "bm25": [
+          "build_cancel_viewing_prompt",
+          "build_viewing_prompt",
+          "viewing_requested",
+          "detect_landlord_attitude",
+          "_matches_any",
+          "should_ai_reply",
+          "mark_viewing_cancelled",
+          "_target_date_from_text",
+          "mark_phone_requested",
+          "_overlaps_any",
+          "_date_spans",
+          "update_conversation_stage",
+          "_has_time",
+          "claim_conversation",
+          "_recent_messages",
+          "_message_text"
+        ],
+        "embedding": [
+          "viewing_requested",
+          "detect_landlord_attitude",
+          "should_ai_reply",
+          "update_conversation_stage",
+          "mark_viewing_cancelled",
+          "mark_phone_requested",
+          "_matches_any",
+          "build_viewing_prompt",
+          "claim_conversation",
+          "build_cancel_viewing_prompt",
+          "_message_text",
+          "_recent_messages",
+          "_date_spans",
+          "_overlaps_any",
+          "_target_date_from_text",
+          "_has_time"
+        ],
+        "call_graph": [
+          "_matches_any",
+          "_target_date_from_text",
+          "_overlaps_any",
+          "_date_spans",
+          "_has_time",
+          "_recent_messages",
+          "_message_text",
+          "build_cancel_viewing_prompt",
+          "build_viewing_prompt",
+          "viewing_requested",
+          "detect_landlord_attitude",
+          "should_ai_reply",
+          "mark_viewing_cancelled",
+          "mark_phone_requested",
+          "update_conversation_stage",
+          "claim_conversation"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.07142857142857142,
+          "rank": 14
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.2,
+          "rank": 5
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.14285714285714285,
+          "rank": 7
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    },
+    {
+      "case_id": "cross_020",
+      "failure_mode": "cross_function_direction_key_dropped",
+      "true_B": "_sender",
+      "true_B_in_pool": true,
+      "pool_size": 13,
+      "pool_names": [
+        "detect_landlord_attitude",
+        "get_landlord_messages",
+        "latest_landlord_asked_for_phone",
+        "should_ai_reply",
+        "get_latest_landlord_message",
+        "save_inbound_messages",
+        "can_contact_landlord",
+        "generate_message_persona_prompt",
+        "detect_stage",
+        "tenant_shared_phone",
+        "_content",
+        "_sender",
+        "landlord_asked_for_phone"
+      ],
+      "rankings": {
+        "random": [
+          "get_landlord_messages",
+          "_content",
+          "tenant_shared_phone",
+          "save_inbound_messages",
+          "_sender",
+          "latest_landlord_asked_for_phone",
+          "should_ai_reply",
+          "generate_message_persona_prompt",
+          "detect_stage",
+          "get_latest_landlord_message",
+          "detect_landlord_attitude",
+          "landlord_asked_for_phone",
+          "can_contact_landlord"
+        ],
+        "bm25": [
+          "save_inbound_messages",
+          "generate_message_persona_prompt",
+          "should_ai_reply",
+          "_sender",
+          "get_latest_landlord_message",
+          "get_landlord_messages",
+          "tenant_shared_phone",
+          "latest_landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "can_contact_landlord",
+          "detect_stage",
+          "landlord_asked_for_phone",
+          "_content"
+        ],
+        "embedding": [
+          "detect_landlord_attitude",
+          "get_landlord_messages",
+          "latest_landlord_asked_for_phone",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "save_inbound_messages",
+          "can_contact_landlord",
+          "generate_message_persona_prompt",
+          "detect_stage",
+          "tenant_shared_phone",
+          "_content",
+          "_sender",
+          "landlord_asked_for_phone"
+        ],
+        "call_graph": [
+          "_sender",
+          "tenant_shared_phone",
+          "landlord_asked_for_phone",
+          "_content",
+          "save_inbound_messages",
+          "generate_message_persona_prompt",
+          "should_ai_reply",
+          "get_latest_landlord_message",
+          "get_landlord_messages",
+          "latest_landlord_asked_for_phone",
+          "detect_landlord_attitude",
+          "can_contact_landlord",
+          "detect_stage"
+        ]
+      },
+      "metrics": {
+        "random": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.2,
+          "rank": 5
+        },
+        "bm25": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 1,
+          "rr": 0.25,
+          "rank": 4
+        },
+        "embedding": {
+          "top1": 0,
+          "top3": 0,
+          "top5": 0,
+          "rr": 0.08333333333333333,
+          "rank": 12
+        },
+        "call_graph": {
+          "top1": 1,
+          "top3": 1,
+          "top5": 1,
+          "rr": 1.0,
+          "rank": 1
+        }
+      },
+      "llm_selected": null,
+      "llm_latency_ms": 0
+    }
+  ]
+}

@@ -2,6 +2,20 @@ from playwright.async_api import async_playwright
 import os
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
+
+from app.config import settings
+
+
+BLOCKED_RASTER_IMAGE_EXTENSIONS = {
+    ".avif",
+    ".bmp",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".webp",
+}
 
 
 def get_session_file(account):
@@ -36,6 +50,33 @@ def _proxy_config_for_account(account) -> dict | None:
     return None
 
 
+def _should_block_bandwidth_heavy_request(resource_type: str, url: str) -> bool:
+    """
+    Keep blocking conservative: media plus obvious raster image files only.
+    SVG/ICO/CSS/JS/fonts are allowed to avoid breaking page controls or styling.
+    """
+    if resource_type == "media":
+        return True
+
+    path = urlsplit(url).path.lower()
+    return any(path.endswith(extension) for extension in BLOCKED_RASTER_IMAGE_EXTENSIONS)
+
+
+async def _install_bandwidth_saver(context):
+    async def route_handler(route):
+        request = route.request
+        if _should_block_bandwidth_heavy_request(
+            request.resource_type,
+            request.url,
+        ):
+            await route.abort()
+            return
+
+        await route.continue_()
+
+    await context.route("**/*", route_handler)
+
+
 async def launch_browser(account):
 
     playwright = await async_playwright().start()
@@ -61,6 +102,9 @@ async def launch_browser(account):
             context_kwargs["storage_state"] = session_file
 
     context = await browser.new_context(**context_kwargs)
+
+    if settings.PLAYWRIGHT_BLOCK_IMAGE_MEDIA:
+        await _install_bandwidth_saver(context)
 
     # Backward compatibility for legacy cookie-only session files.
     if session_file and os.path.exists(session_file):

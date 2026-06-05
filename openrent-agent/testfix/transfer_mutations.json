@@ -1,0 +1,194 @@
+[
+  {
+    "case_id": "t001",
+    "function": "_normalize_tabular_data",
+    "lineno": 1562,
+    "operator": "gt_to_ge",
+    "original_line": "        elif dataclasses is not None and len(rows) > 0 and dataclasses.is_dataclass(rows[0]):\n",
+    "mutated_line": "        elif dataclasses is not None and len(rows) >= 0 and dataclasses.is_dataclass(rows[0]):\n"
+  },
+  {
+    "case_id": "t002",
+    "function": "_type",
+    "lineno": 993,
+    "operator": "or_to_and",
+    "original_line": "        or (\n",
+    "mutated_line": "        and (\n"
+  },
+  {
+    "case_id": "t003",
+    "function": "_normalize_tabular_data",
+    "lineno": 1585,
+    "operator": "eq_to_neq",
+    "original_line": "    elif headers == \"firstrow\":\n",
+    "mutated_line": "    elif headers != \"firstrow\":\n"
+  },
+  {
+    "case_id": "t004",
+    "function": "tabulate",
+    "lineno": 2306,
+    "operator": "eq_to_neq",
+    "original_line": "    if tablefmt == \"colon_grid\":\n",
+    "mutated_line": "    if tablefmt != \"colon_grid\":\n"
+  },
+  {
+    "case_id": "t005",
+    "function": "tabulate",
+    "lineno": 2410,
+    "operator": "or_to_and",
+    "original_line": "        t_cols = cols or [[\"\"]] * len(headers)\n",
+    "mutated_line": "        t_cols = cols and [[\"\"]] * len(headers)\n"
+  },
+  {
+    "case_id": "t006",
+    "function": "_type",
+    "lineno": 991,
+    "operator": "and_to_or",
+    "original_line": "    elif numparse and (\n",
+    "mutated_line": "    elif numparse or (\n"
+  },
+  {
+    "case_id": "t007",
+    "function": "_afterpoint",
+    "lineno": 1031,
+    "operator": "lower_to_upper",
+    "original_line": "            pos = string.lower().rfind(\"e\") if pos < 0 else pos\n",
+    "mutated_line": "            pos = string.upper().rfind(\"e\") if pos < 0 else pos\n"
+  },
+  {
+    "case_id": "t008",
+    "function": "_isbool",
+    "lineno": 956,
+    "operator": "or_to_and",
+    "original_line": "    return type(string) is bool or (\n",
+    "mutated_line": "    return type(string) is bool and (\n"
+  },
+  {
+    "case_id": "t009",
+    "function": "_format_table",
+    "lineno": 2631,
+    "operator": "and_to_or",
+    "original_line": "    if fmt.lineabove and \"lineabove\" not in hidden:\n",
+    "mutated_line": "    if fmt.lineabove or \"lineabove\" not in hidden:\n"
+  },
+  {
+    "case_id": "t010",
+    "function": "_rst_escape_first_column",
+    "lineno": 335,
+    "operator": "and_to_or",
+    "original_line": "        if isinstance(val, (str, bytes)) and not val.strip():\n",
+    "mutated_line": "        if isinstance(val, (str, bytes)) or not val.strip():\n"
+  },
+  {
+    "case_id": "t011",
+    "function": "_expand_iterable",
+    "lineno": 2490,
+    "operator": "and_to_or",
+    "original_line": "    if isinstance(original, Iterable) and not isinstance(original, str):\n",
+    "mutated_line": "    if isinstance(original, Iterable) or not isinstance(original, str):\n"
+  },
+  {
+    "case_id": "t012",
+    "function": "_asciidoc_row",
+    "lineno": 264,
+    "operator": "lt_to_le",
+    "original_line": "        alignment = {\"left\": \"<\", \"right\": \">\", \"center\": \"^\", \"decimal\": \">\"}\n",
+    "mutated_line": "        alignment = {\"left\": \"<=\", \"right\": \">\", \"center\": \"^\", \"decimal\": \">\"}\n"
+  },
+  {
+    "case_id": "t013",
+    "function": "_align_column_choose_padfn",
+    "lineno": 1151,
+    "operator": "eq_to_neq",
+    "original_line": "    if alignment == \"right\":\n",
+    "mutated_line": "    if alignment != \"right\":\n"
+  },
+  {
+    "case_id": "t014",
+    "function": "_pipe_segment_with_colons",
+    "lineno": 142,
+    "operator": "eq_to_neq",
+    "original_line": "    elif align == \"left\":\n",
+    "mutated_line": "    elif align != \"left\":\n"
+  },
+  {
+    "case_id": "t015",
+    "function": "_isint",
+    "lineno": 941,
+    "operator": "or_to_and",
+    "original_line": "        or (\n",
+    "mutated_line": "        and (\n"
+  },
+  {
+    "case_id": "t016",
+    "function": "_html_row_with_attrs",
+    "lineno": 225,
+    "operator": "lt_to_le",
+    "original_line": "    rowhtml = \"<tr>{}</tr>\".format(\"\".join(values_with_attrs).rstrip())\n",
+    "mutated_line": "    rowhtml = \"<=tr>{}</tr>\".format(\"\".join(values_with_attrs).rstrip())\n"
+  },
+  {
+    "case_id": "t017",
+    "function": "_align_header",
+    "lineno": 1370,
+    "operator": "eq_to_neq",
+    "original_line": "    if alignment == \"left\":\n",
+    "mutated_line": "    if alignment != \"left\":\n"
+  },
+  {
+    "case_id": "t018",
+    "function": "_wrap_text_to_colwidths",
+    "lineno": 1651,
+    "operator": "isnone_flip",
+    "original_line": "                    if cell is None\n",
+    "mutated_line": "                    if cell is not None\n"
+  },
+  {
+    "case_id": "t019",
+    "function": "_align_column_choose_padfn",
+    "lineno": 1159,
+    "operator": "eq_to_neq",
+    "original_line": "    elif alignment == \"decimal\":\n",
+    "mutated_line": "    elif alignment != \"decimal\":\n"
+  },
+  {
+    "case_id": "t020",
+    "function": "_grid_segment_with_colons",
+    "lineno": 161,
+    "operator": "eq_to_neq",
+    "original_line": "    if align == \"right\":\n",
+    "mutated_line": "    if align != \"right\":\n"
+  },
+  {
+    "case_id": "t021",
+    "function": "_prepend_row_index",
+    "lineno": 1402,
+    "operator": "isnone_flip",
+    "original_line": "    if index is None or index is False:\n",
+    "mutated_line": "    if index is not None or index is False:\n"
+  },
+  {
+    "case_id": "t022",
+    "function": "_isint",
+    "lineno": 939,
+    "operator": "lt_to_le",
+    "original_line": "            and str(type(string)).startswith(\"<class 'numpy.int\")\n",
+    "mutated_line": "            and str(type(string)).startswith(\"<=class 'numpy.int\")\n"
+  },
+  {
+    "case_id": "t023",
+    "function": "_visible_width",
+    "lineno": 1105,
+    "operator": "isnotnone_flip",
+    "original_line": "    if wcwidth is not None and WIDE_CHARS_MODE:\n",
+    "mutated_line": "    if wcwidth is None and WIDE_CHARS_MODE:\n"
+  },
+  {
+    "case_id": "t024",
+    "function": "_format_table",
+    "lineno": 2665,
+    "operator": "or_to_and",
+    "original_line": "            or fmt.linebelow\n",
+    "mutated_line": "            and fmt.linebelow\n"
+  }
+]

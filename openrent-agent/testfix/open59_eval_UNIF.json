@@ -1,0 +1,591 @@
+{
+  "model": "gpt-4.1-mini",
+  "results": [
+    {
+      "case_id": "cross_001",
+      "stage": "success",
+      "loop_success": true,
+      "ground_truth": true,
+      "entry_points": [
+        "detect_stage",
+        "extract_viewing_datetime"
+      ],
+      "detected_by": "extract_viewing_datetime::test_considers_only_last_8_messages_and_processes_chronologically",
+      "localizer_top": [
+        "_target_date_from_text",
+        "_recent_messages",
+        "_message_text"
+      ],
+      "repaired_fn": "_recent_messages",
+      "attempts": [
+        [
+          "_target_date_from_text",
+          false
+        ],
+        [
+          "_recent_messages",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_002",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "landlord_messages",
+        "detect_landlord_attitude",
+        "latest_landlord_asked_for_phone",
+        "generate_reply"
+      ],
+      "detected_by": "landlord_messages::test_exact_matching_sender_and_direction",
+      "localizer_top": [
+        "tenant_shared_phone",
+        "_sender",
+        "_content"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "tenant_shared_phone",
+          false
+        ],
+        [
+          "_sender",
+          false
+        ],
+        [
+          "landlord_messages",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_003",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "landlord_asked_for_phone",
+        "latest_landlord_asked_for_phone",
+        "generate_reply"
+      ],
+      "detected_by": "landlord_asked_for_phone::test_case_insensitivity_and_word_boundaries",
+      "localizer_top": [
+        "normalize_conversation_style",
+        "materialize_persona",
+        "get_conversation_style"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "normalize_conversation_style",
+          false
+        ],
+        [
+          "materialize_persona",
+          false
+        ],
+        [
+          "landlord_asked_for_phone",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_004",
+      "stage": "success",
+      "loop_success": true,
+      "ground_truth": true,
+      "entry_points": [
+        "detect_landlord_attitude",
+        "latest_landlord_asked_for_phone",
+        "viewing_requested",
+        "build_prompt"
+      ],
+      "detected_by": "latest_landlord_asked_for_phone::test_last_landlord_message_checked_only",
+      "localizer_top": [
+        "landlord_asked_for_phone",
+        "_content",
+        "tenant_shared_phone"
+      ],
+      "repaired_fn": "_content",
+      "attempts": [
+        [
+          "landlord_asked_for_phone",
+          false
+        ],
+        [
+          "_content",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_005",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "detect_stage",
+        "extract_viewing_datetime"
+      ],
+      "detected_by": "detect_stage::test_latest_message_with_discussion_keyword_triggers_viewing_discussion",
+      "localizer_top": [
+        "_message_text",
+        "_recent_messages",
+        "_matches_any"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "_message_text",
+          false
+        ],
+        [
+          "_recent_messages",
+          false
+        ],
+        [
+          "detect_stage",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_006",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "landlord_messages",
+        "outbound_count",
+        "detect_landlord_attitude",
+        "generate_reply"
+      ],
+      "detected_by": "landlord_messages::test_exact_matching_sender_and_direction",
+      "localizer_top": [
+        "tenant_shared_phone",
+        "_sender",
+        "_content"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "tenant_shared_phone",
+          false
+        ],
+        [
+          "_sender",
+          false
+        ],
+        [
+          "landlord_messages",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_007",
+      "stage": "success",
+      "loop_success": true,
+      "ground_truth": true,
+      "entry_points": [
+        "tenant_shared_phone",
+        "phone_shared_state",
+        "generate_reply"
+      ],
+      "detected_by": "phone_shared_state::test_matches_phone_number_with_various_senders_and_keys",
+      "localizer_top": [
+        "tenant_shared_phone",
+        "_sender",
+        "_content"
+      ],
+      "repaired_fn": "tenant_shared_phone",
+      "attempts": [
+        [
+          "tenant_shared_phone",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_008",
+      "stage": "success",
+      "loop_success": true,
+      "ground_truth": true,
+      "entry_points": [
+        "detect_stage",
+        "extract_viewing_datetime"
+      ],
+      "detected_by": "detect_stage::test_latest_message_with_discussion_keyword_triggers_viewing_discussion",
+      "localizer_top": [
+        "_message_text",
+        "_recent_messages",
+        "_matches_any"
+      ],
+      "repaired_fn": "_message_text",
+      "attempts": [
+        [
+          "_message_text",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_009",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "detect_stage"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "repaired_fn": null,
+      "attempts": []
+    },
+    {
+      "case_id": "cross_010",
+      "stage": "success",
+      "loop_success": true,
+      "ground_truth": true,
+      "entry_points": [
+        "extract_viewing_datetime"
+      ],
+      "detected_by": "extract_viewing_datetime::test_target_date_keywords_and_roll_forward_if_past",
+      "localizer_top": [
+        "_target_date_from_text",
+        "_message_text",
+        "_has_time"
+      ],
+      "repaired_fn": "_target_date_from_text",
+      "attempts": [
+        [
+          "_target_date_from_text",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_011",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "extract_viewing_datetime",
+        "detect_stage"
+      ],
+      "detected_by": "extract_viewing_datetime::test_considers_only_last_8_messages_and_processes_chronologically",
+      "localizer_top": [
+        "_recent_messages",
+        "_target_date_from_text",
+        "_message_text"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "_recent_messages",
+          false
+        ],
+        [
+          "_target_date_from_text",
+          false
+        ],
+        [
+          "extract_viewing_datetime",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_012",
+      "stage": "false_success",
+      "loop_success": true,
+      "ground_truth": false,
+      "entry_points": [
+        "normalize_conversation_style",
+        "create_conversation",
+        "ensure_account_persona",
+        "generate_message_persona_prompt"
+      ],
+      "detected_by": "normalize_conversation_style::test_none_input_returns_default",
+      "localizer_top": [
+        "materialize_persona",
+        "get_conversation_style",
+        "_format_simulation_conversation"
+      ],
+      "repaired_fn": "normalize_conversation_style",
+      "attempts": [
+        [
+          "materialize_persona",
+          false
+        ],
+        [
+          "get_conversation_style",
+          false
+        ],
+        [
+          "normalize_conversation_style",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_013",
+      "stage": "false_success",
+      "loop_success": true,
+      "ground_truth": false,
+      "entry_points": [
+        "normalize_conversation_style",
+        "create_conversation",
+        "ensure_account_persona",
+        "generate_message_persona_prompt"
+      ],
+      "detected_by": "normalize_conversation_style::test_none_input_returns_default",
+      "localizer_top": [
+        "materialize_persona",
+        "get_conversation_style",
+        "build_cancel_viewing_prompt"
+      ],
+      "repaired_fn": "normalize_conversation_style",
+      "attempts": [
+        [
+          "materialize_persona",
+          false
+        ],
+        [
+          "get_conversation_style",
+          false
+        ],
+        [
+          "normalize_conversation_style",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_014",
+      "stage": "success",
+      "loop_success": true,
+      "ground_truth": true,
+      "entry_points": [
+        "detect_landlord_attitude",
+        "latest_landlord_asked_for_phone",
+        "viewing_requested",
+        "build_prompt"
+      ],
+      "detected_by": "latest_landlord_asked_for_phone::test_last_landlord_message_checked_only",
+      "localizer_top": [
+        "landlord_asked_for_phone",
+        "_content",
+        "tenant_shared_phone"
+      ],
+      "repaired_fn": "_content",
+      "attempts": [
+        [
+          "landlord_asked_for_phone",
+          false
+        ],
+        [
+          "_content",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_015",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "landlord_messages",
+        "outbound_count",
+        "detect_landlord_attitude",
+        "generate_reply"
+      ],
+      "detected_by": "landlord_messages::test_exact_matching_sender_and_direction",
+      "localizer_top": [
+        "tenant_shared_phone",
+        "_sender",
+        "_content"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "tenant_shared_phone",
+          false
+        ],
+        [
+          "_sender",
+          false
+        ],
+        [
+          "landlord_messages",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_016",
+      "stage": "success",
+      "loop_success": true,
+      "ground_truth": true,
+      "entry_points": [
+        "tenant_shared_phone",
+        "phone_shared_state",
+        "generate_reply"
+      ],
+      "detected_by": "tenant_shared_phone::test_normalization_and_local_number_derivation",
+      "localizer_top": [
+        "normalize_conversation_style",
+        "materialize_persona",
+        "get_conversation_style"
+      ],
+      "repaired_fn": "tenant_shared_phone",
+      "attempts": [
+        [
+          "normalize_conversation_style",
+          false
+        ],
+        [
+          "materialize_persona",
+          false
+        ],
+        [
+          "tenant_shared_phone",
+          true
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_017",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "landlord_messages",
+        "outbound_count",
+        "detect_landlord_attitude",
+        "generate_reply"
+      ],
+      "detected_by": "landlord_messages::test_exact_matching_sender_and_direction",
+      "localizer_top": [
+        "tenant_shared_phone",
+        "_sender",
+        "_content"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "tenant_shared_phone",
+          false
+        ],
+        [
+          "_sender",
+          false
+        ],
+        [
+          "landlord_messages",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_018",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "extract_viewing_datetime",
+        "detect_stage"
+      ],
+      "detected_by": "extract_viewing_datetime::test_considers_only_last_8_messages_and_processes_chronologically",
+      "localizer_top": [
+        "_target_date_from_text",
+        "_recent_messages",
+        "_message_text"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "_target_date_from_text",
+          false
+        ],
+        [
+          "_recent_messages",
+          false
+        ],
+        [
+          "extract_viewing_datetime",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_019",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "detect_stage",
+        "extract_viewing_datetime"
+      ],
+      "detected_by": "detect_stage::test_latest_message_with_discussion_keyword_triggers_viewing_discussion",
+      "localizer_top": [
+        "_message_text",
+        "_recent_messages",
+        "_matches_any"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "_message_text",
+          false
+        ],
+        [
+          "_recent_messages",
+          false
+        ],
+        [
+          "detect_stage",
+          false
+        ]
+      ]
+    },
+    {
+      "case_id": "cross_020",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "landlord_messages",
+        "outbound_count",
+        "detect_landlord_attitude",
+        "generate_reply"
+      ],
+      "detected_by": "landlord_messages::test_exact_matching_sender_and_direction",
+      "localizer_top": [
+        "tenant_shared_phone",
+        "_sender",
+        "_content"
+      ],
+      "repaired_fn": null,
+      "attempts": [
+        [
+          "tenant_shared_phone",
+          false
+        ],
+        [
+          "_sender",
+          false
+        ],
+        [
+          "landlord_messages",
+          false
+        ]
+      ]
+    }
+  ]
+}

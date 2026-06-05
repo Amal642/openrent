@@ -1,0 +1,226 @@
+{
+  "model": "gpt-4.1-mini",
+  "attempts": 1,
+  "results": [
+    {
+      "case_id": "cross_001",
+      "entry_func": "detect_stage",
+      "target_function": "_recent_messages",
+      "outcome": "both_pass",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 3870,
+      "generated_code": "from app.ai.stages import detect_stage\nfrom app.db.status import VIEWING_DISCUSSION, VIEWING_BOOKED\n\n\ndef test_detect_stage_empty_and_no_match():\n    # No messages -> None\n    assert detect_stage([]) is None\n\n    # Messages with no relevant keywords -> None\n    messages = [{\"message\": \"Hello, just checking in.\"}]\n    assert detect_stage(messages) is None\n\n\ndef test_detect_stage_negating_pattern_triggers_discussion():\n    messages = [\n        {\"message\": \"I can't make it tomorrow.\"},\n    ]\n    assert detect_stage(messages) == VIEWING_DISCUSSION\n\n\ndef test_detect_stage_booking_with_time_triggers_booked():\n    messages = [\n        {\"message\": \"Let's meet at 3pm tomorrow.\"},\n    ]\n    assert detect_stage(messages) == VIEWING_BOOKED\n\n\ndef test_detect_stage_discussion_after_booking_triggers_discussion():\n    messages = [\n        {\"message\": \"Confirmed for 2pm on 12/05.\"},\n        {\"message\": \"Actually, can we reschedule?\"},\n    ]\n    # Because the last message contains discussion + negating or \"instead\" pattern,\n    # it should return VIEWING_DISCUSSION\n    assert detect_stage(messages) == VIEWING_DISCUSSION"
+    },
+    {
+      "case_id": "cross_002",
+      "entry_func": "detect_landlord_attitude",
+      "target_function": "landlord_messages",
+      "outcome": "both_pass",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 6532,
+      "generated_code": "from datetime import datetime, timedelta\nimport pytest\nfrom app.ai.conversation_memory import detect_landlord_attitude\n\n\ndef test_detect_landlord_attitude_no_landlord_messages_returns_previous_or_responsive():\n    # No landlord messages, previous is valid attitude\n    assert detect_landlord_attitude([], previous=\"friendly\") == \"friendly\"\n    # No landlord messages, previous is invalid attitude\n    assert detect_landlord_attitude([], previous=\"unknown\") == \"responsive\"\n    # No landlord messages, no previous\n    assert detect_landlord_attitude([]) == \"responsive\"\n\n\ndef test_detect_landlord_attitude_aggressive_pattern_detected():\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Please stop wasting my time.\"},\n        {\"sender\": \"landlord\", \"message\": \"This is serious only.\"},\n    ]\n    assert detect_landlord_attitude(messages) == \"aggressive\"\n\n\ndef test_detect_landlord_attitude_time_gap_returns_slow_reply():\n    now = datetime.now()\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Hello\", \"created_at\": now - timedelta(days=2)},\n        {\"sender\": \"landlord\", \"message\": \"Are you interested?\", \"created_at\": now},\n    ]\n    assert detect_landlord_attitude(messages) == \"slow_reply\"\n\n\ndef test_detect_landlord_attitude_pattern_priority_and_cold_pattern():\n    # Aggressive pattern takes priority over suspicious, helpful, friendly, cold\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"You are rude.\"},\n        {\"sender\": \"landlord\", \"message\": \"Thanks for your interest.\"},\n        {\"sender\": \"landlord\", \"message\": \"Yes\"},\n    ]\n    assert detect_landlord_attitude(messages) == \"aggressive\"\n\n    # Suspicious pattern takes priority over helpful, friendly, cold\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Who are you?\"},\n        {\"sender\": \"landlord\", \"message\": \"I can show you the flat.\"},\n        {\"sender\": \"landlord\", \"message\": \"Ok\"},\n    ]\n    assert detect_landlord_attitude(messages) == \"suspicious\"\n\n    # Helpful pattern takes priority over friendly, cold\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Happy to arrange a viewing.\"},\n        {\"sender\": \"landlord\", \"message\": \"Lovely place.\"},\n        {\"sender\": \"landlord\", \"message\": \"Ok\"},\n    ]\n    assert detect_landlord_attitude(messages) == \"helpful\"\n\n    # Friendly pattern takes priority over cold\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Great!\"},\n        {\"sender\": \"landlord\", \"message\": \"Ok\"},\n    ]\n    assert detect_landlord_attitude(messages) == \"friendly\"\n\n    # Cold pattern matched only if no higher priority patterns\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Yes\"},\n    ]\n    assert detect_landlord_attitude(messages) == \"cold\""
+    },
+    {
+      "case_id": "cross_003",
+      "entry_func": "latest_landlord_asked_for_phone",
+      "target_function": "landlord_asked_for_phone",
+      "outcome": "false_positive",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 5718,
+      "generated_code": "from app.ai.conversation_memory import latest_landlord_asked_for_phone\n\ndef test_latest_landlord_asked_for_phone_no_messages():\n    # No messages, no mobile number, should return False\n    result = latest_landlord_asked_for_phone(messages=[], mobile_number=None, persona=None, outbound_count=0, stage=None, drive_distance_high=False)\n    assert result is False\n\ndef test_latest_landlord_asked_for_phone_landlord_asked_true_phone_not_shared():\n    # Landlord asked explicitly, phone not shared, should return True\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Can you send me your phone number?\"},\n        {\"sender\": \"tenant\", \"message\": \"Sure, I will.\"},\n    ]\n    persona = {\"mobile_number\": \"+447700900123\"}\n    result = latest_landlord_asked_for_phone(messages=messages, mobile_number=persona[\"mobile_number\"], persona=persona, outbound_count=0, stage=None, drive_distance_high=False)\n    assert result is True\n\ndef test_latest_landlord_asked_for_phone_phone_already_shared():\n    # Phone already shared in messages, should return False regardless of landlord asking\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Please share your number.\"},\n        {\"sender\": \"tenant\", \"message\": \"My number is +447700900123.\"},\n    ]\n    persona = {\"mobile_number\": \"+447700900123\"}\n    result = latest_landlord_asked_for_phone(messages=messages, mobile_number=persona[\"mobile_number\"], persona=persona, outbound_count=0, stage=None, drive_distance_high=False)\n    assert result is False\n\ndef test_latest_landlord_asked_for_phone_adaptive_phone_fetching_type_stage_and_outbound():\n    # Adaptive phone_fetching_type, stage not booked but drive_distance_high and outbound_count >=1 triggers share\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Looking forward to hearing from you.\"},\n        {\"sender\": \"tenant\", \"message\": \"Thanks!\"},\n    ]\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"adaptive\", \"conversation_style\": \"professional_polite\"}\n    result = latest_landlord_asked_for_phone(messages=messages, mobile_number=persona[\"mobile_number\"], persona=persona, outbound_count=1, stage=\"PRE_VIEWING\", drive_distance_high=True)\n    assert result is True"
+    },
+    {
+      "case_id": "cross_004",
+      "entry_func": "viewing_requested",
+      "target_function": "_content",
+      "outcome": "inverted",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 3368,
+      "generated_code": "from app.ai.conversation_memory import viewing_requested\n\ndef test_viewing_requested_with_explicit_viewing_word():\n    messages = [\n        {\"body\": \"I would like to schedule a viewing for the apartment.\"},\n        {\"body\": \"When can I come round to see it?\"}\n    ]\n    assert viewing_requested(messages) is True\n\ndef test_viewing_requested_with_no_viewing_related_words():\n    messages = [\n        {\"body\": \"Hello, I am interested in the property.\"},\n        {\"body\": \"Please send me more details.\"}\n    ]\n    assert viewing_requested(messages) is False\n\ndef test_viewing_requested_with_empty_and_none_messages():\n    assert viewing_requested([]) is False\n    assert viewing_requested(None) is False\n\ndef test_viewing_requested_with_partial_word_and_case_insensitivity():\n    messages = [\n        {\"body\": \"Is it possible to come OVER tomorrow?\"},\n        {\"body\": \"Thanks!\"}\n    ]\n    assert viewing_requested(messages) is True"
+    },
+    {
+      "case_id": "cross_005",
+      "entry_func": "detect_stage",
+      "target_function": "_matches_any",
+      "outcome": "killed",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 3281,
+      "generated_code": "from app.ai.stages import detect_stage\nfrom app.db.status import VIEWING_DISCUSSION, VIEWING_BOOKED\n\n\ndef test_detect_stage_empty_messages():\n    # No messages should return None\n    assert detect_stage([]) is None\n\n\ndef test_detect_stage_negating_pattern_triggers_discussion():\n    messages = [\n        {\"message\": \"I need to cancel the appointment\"},\n        {\"message\": \"Can we reschedule?\"},\n    ]\n    # Latest message contains negating pattern \"cancel\"\n    assert detect_stage(messages) == VIEWING_DISCUSSION\n\n\ndef test_detect_stage_booking_with_time_triggers_booked():\n    messages = [\n        {\"message\": \"Let's meet at 3pm tomorrow\"},\n        {\"message\": \"Confirmed, see you then\"},\n    ]\n    # Latest message contains booking pattern and time, should be booked\n    assert detect_stage(messages) == VIEWING_BOOKED\n\n\ndef test_detect_stage_discussion_after_booking_triggers_discussion():\n    messages = [\n        {\"message\": \"Booked for 2pm on 12/12\"},\n        {\"message\": \"Actually, can we rearrange?\"},\n    ]\n    # Discussion patterns combined with negating or rearranging triggers discussion stage\n    assert detect_stage(messages) == VIEWING_DISCUSSION"
+    },
+    {
+      "case_id": "cross_006",
+      "entry_func": "outbound_count",
+      "target_function": "_sender",
+      "outcome": "inverted",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 2811,
+      "generated_code": "from app.ai.conversation_memory import outbound_count\n\ndef test_outbound_count_empty_list():\n    assert outbound_count([]) == 0\n\ndef test_outbound_count_none_input():\n    assert outbound_count(None) == 0\n\ndef test_outbound_count_mixed_senders():\n    messages = [\n        {\"from\": \"landlord\", \"message\": \"Hello\"},\n        {\"from\": \"user\", \"message\": \"Hi\"},\n        {\"direction\": \"outbound\", \"content\": \"Is the place available?\"},\n        {\"from\": \"tenant\", \"message\": \"Yes, I am interested\"},\n        {\"from\": \"inbound\", \"message\": \"Please call me\"},\n        {\"from\": \"ai\", \"message\": \"I can help you\"},\n        {\"from\": \"other\", \"message\": \"Ignore me\"},\n    ]\n    # outbound_count should count user, tenant, outbound, ai only\n    assert outbound_count(messages) == 4\n\ndef test_outbound_count_case_insensitivity_and_missing_keys():\n    messages = [\n        {\"from\": \"User\", \"message\": \"Hello\"},  # case insensitive\n        {\"direction\": \"OUTBOUND\", \"message\": \"Message\"},  # case insensitive\n        {\"from\": \"Tenant\", \"message\": \"Interested\"},  # case insensitive\n        {\"from\": \"AI\", \"message\": \"Reply\"},  # case insensitive\n        {\"from\": \"LANDLORD\", \"message\": \"Not counted\"},\n        {\"content\": \"No sender key\"},  # no sender keys, should not count\n        {\"from\": None, \"message\": \"None sender\"},  # None sender, should not count\n    ]\n    assert outbound_count(messages) == 4"
+    },
+    {
+      "case_id": "cross_007",
+      "entry_func": "phone_shared_state",
+      "target_function": "tenant_shared_phone",
+      "outcome": "both_pass",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 6511,
+      "generated_code": "from app.ai.personas import should_share_phone_now as phone_shared_state\n\ndef test_phone_shared_state_immediate_type_allows_early_sharing():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"immediate\", \"conversation_style\": \"direct_number_request\"}\n    # outbound_count 0 and 1 should allow sharing\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=0, stage=None) is True\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=1, stage=None) is True\n    # outbound_count 2 should disallow sharing\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=2, stage=None) is False\n\ndef test_phone_shared_state_delayed_type_requires_viewing_booked_and_outbound_count():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"delayed\"}\n    # outbound_count less than 2 or stage not VIEWING_BOOKED disallows sharing\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=1, stage=\"VIEWING_BOOKED\") is False\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=2, stage=\"PRE_VIEWING\") is False\n    # outbound_count >= 2 and stage VIEWING_BOOKED allows sharing\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=2, stage=\"VIEWING_BOOKED\") is True\n\ndef test_phone_shared_state_viewing_first_type_requires_viewing_booked_only():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"viewing_first\"}\n    # Only stage VIEWING_BOOKED allows sharing regardless of outbound_count\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=0, stage=\"VIEWING_BOOKED\") is True\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=5, stage=\"VIEWING_BOOKED\") is True\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=5, stage=\"PRE_VIEWING\") is False\n\ndef test_phone_shared_state_adaptive_type_allows_sharing_on_viewing_or_high_drive_and_outbound():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"adaptive\"}\n    # stage VIEWING_BOOKED allows sharing regardless of outbound_count or drive_distance_high\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=0, stage=\"VIEWING_BOOKED\") is True\n    # drive_distance_high True and outbound_count >=1 allows sharing\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=1, stage=\"PRE_VIEWING\", drive_distance_high=True) is True\n    # drive_distance_high False and outbound_count <1 disallows sharing\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=0, stage=\"PRE_VIEWING\", drive_distance_high=False) is False\n    # phone_shared True always disallows sharing\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=True, outbound_count=10, stage=\"VIEWING_BOOKED\") is False"
+    },
+    {
+      "case_id": "cross_008",
+      "entry_func": "detect_stage",
+      "target_function": "_message_text",
+      "outcome": "inverted",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 3833,
+      "generated_code": "from app.ai.stages import detect_stage\nfrom app.db.status import VIEWING_DISCUSSION, VIEWING_BOOKED\n\n\ndef test_detect_stage_empty_messages():\n    # No messages -> None\n    assert detect_stage([]) is None\n    assert detect_stage(None) is None\n\n\ndef test_detect_stage_negating_pattern_triggers_discussion():\n    messages = [\n        {\"body\": \"I can't make it tomorrow\"},\n        {\"content\": \"Are you available on Monday?\"},\n    ]\n    # Latest message contains negating pattern -> VIEWING_DISCUSSION\n    assert detect_stage(messages) == VIEWING_DISCUSSION\n\n\ndef test_detect_stage_booking_with_time_triggers_booked():\n    messages = [\n        {\"body\": \"Let's meet at 3pm tomorrow\"},\n        {\"body\": \"Confirmed, see you then\"},\n    ]\n    # Latest message contains booking pattern and time -> VIEWING_BOOKED\n    assert detect_stage(messages) == VIEWING_BOOKED\n\n\ndef test_detect_stage_discussion_after_booking_triggers_discussion():\n    messages = [\n        {\"body\": \"Booked for 5pm on 12/12\"},\n        {\"body\": \"Can we rearrange to 6pm instead?\"},\n    ]\n    # Discussion pattern + negating or \"instead\" after booking -> VIEWING_DISCUSSION\n    assert detect_stage(messages) == VIEWING_DISCUSSION"
+    },
+    {
+      "case_id": "cross_009",
+      "entry_func": "detect_stage",
+      "target_function": "_has_time",
+      "outcome": "both_pass",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 3500,
+      "generated_code": "from app.ai.stages import detect_stage\nfrom app.db.status import VIEWING_DISCUSSION, VIEWING_BOOKED\n\n\ndef test_detect_stage_empty_messages():\n    # No messages should return None\n    assert detect_stage([]) is None\n\n\ndef test_detect_stage_negating_pattern_triggers_discussion():\n    messages = [\n        {\"message\": \"I need to cancel the appointment\"},\n        {\"message\": \"Can we reschedule?\"},\n    ]\n    # Latest message contains \"cancel\" -> VIEWING_DISCUSSION\n    assert detect_stage(messages) == VIEWING_DISCUSSION\n\n\ndef test_detect_stage_booking_with_time_triggers_booked():\n    messages = [\n        {\"message\": \"Let's meet at 3pm tomorrow\"},\n        {\"message\": \"Confirmed, see you then\"},\n    ]\n    # Latest message contains booking pattern and time -> VIEWING_BOOKED\n    assert detect_stage(messages) == VIEWING_BOOKED\n\n\ndef test_detect_stage_discussion_after_booking_triggers_discussion():\n    messages = [\n        {\"message\": \"Booked for 5pm on 12/12\"},\n        {\"message\": \"Actually, can we rearrange?\"},\n    ]\n    # Discussion after booking with negating pattern triggers VIEWING_DISCUSSION\n    assert detect_stage(messages) == VIEWING_DISCUSSION"
+    },
+    {
+      "case_id": "cross_010",
+      "entry_func": "extract_viewing_datetime",
+      "target_function": "_target_date_from_text",
+      "outcome": "both_pass",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 6774,
+      "generated_code": "from datetime import datetime, timedelta\nimport pytest\nfrom app.ai.stages import extract_viewing_datetime\n\n\ndef test_extract_viewing_datetime_with_explicit_pm_time_and_date():\n    now = datetime(2024, 4, 25, 10, 0)  # April 25, 2024, 10:00 AM\n    messages = [\n        {\"message\": \"Looking forward to the appointment on 26/04 at 3pm.\"}\n    ]\n    result = extract_viewing_datetime(messages, now=now)\n    expected = datetime(2024, 4, 26, 15, 0)\n    assert result == expected\n\n\ndef test_extract_viewing_datetime_with_implicit_pm_time_and_today_date_rollover():\n    now = datetime(2024, 4, 25, 18, 0)  # 6 PM\n    messages = [\n        {\"message\": \"See you at 7\"}\n    ]\n    # 7 without am/pm suffix between 1 and 7 should be interpreted as 7pm\n    # But 7pm today is 19:00, which is after 18:00 now, so same day\n    expected = datetime(2024, 4, 25, 19, 0)\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected\n\n\ndef test_extract_viewing_datetime_with_time_before_now_rolls_to_next_day():\n    now = datetime(2024, 4, 25, 20, 0)  # 8 PM\n    messages = [\n        {\"message\": \"Appointment confirmed at 7am tomorrow.\"}\n    ]\n    # 7am today is before now, so should roll over to tomorrow\n    expected = datetime(2024, 4, 26, 7, 0)\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected\n\n\ndef test_extract_viewing_datetime_ignores_time_overlapping_date():\n    now = datetime(2024, 4, 25, 10, 0)\n    # The time pattern overlaps with the date pattern \"25/04\"\n    messages = [\n        {\"message\": \"Appointment on 25/04 at 14:00.\"}\n    ]\n    # The \"14:00\" time does not overlap with date span \"25/04\", so should be detected\n    expected = datetime(2024, 4, 25, 14, 0)\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected"
+    },
+    {
+      "case_id": "cross_011",
+      "entry_func": "extract_viewing_datetime",
+      "target_function": "_date_spans",
+      "outcome": "false_positive",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 5263,
+      "generated_code": "from datetime import datetime, timedelta\nimport pytest\nfrom app.ai.stages import extract_viewing_datetime\n\ndef test_extract_exact_time_with_pm_suffix_and_tomorrow_date():\n    now = datetime(2024, 6, 10, 15, 0)  # June 10, 2024, 3:00 PM\n    messages = [\n        {\"message\": \"Let's meet tomorrow at 3pm\"}\n    ]\n    expected = datetime(2024, 6, 11, 15, 0)  # June 11, 2024, 3:00 PM\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected\n\ndef test_extract_time_without_am_pm_suffix_after_7am_adds_pm():\n    now = datetime(2024, 6, 10, 8, 0)  # 8:00 AM\n    messages = [\n        {\"message\": \"See you at 6:30\"}\n    ]\n    expected = datetime(2024, 6, 10, 18, 30)  # 6:30 PM same day\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected\n\ndef test_extract_time_with_am_suffix_and_hour_12_is_midnight():\n    now = datetime(2024, 6, 10, 23, 0)  # 11:00 PM\n    messages = [\n        {\"message\": \"Appointment at 12am\"}\n    ]\n    expected = datetime(2024, 6, 11, 0, 0)  # Next day midnight\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected\n\ndef test_extract_date_from_numeric_date_and_time_before_now_rolls_to_next_year():\n    now = datetime(2024, 12, 31, 10, 0)  # Dec 31, 2024, 10:00 AM\n    messages = [\n        {\"message\": \"See you on 31/12 at 9am\"}\n    ]\n    # The 31/12 without year is interpreted as Dec 31 next year because candidate < now.date()\n    expected = datetime(2025, 12, 31, 9, 0)\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected"
+    },
+    {
+      "case_id": "cross_012",
+      "entry_func": "get_conversation_style",
+      "target_function": "normalize_conversation_style",
+      "outcome": "inverted",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 3268,
+      "generated_code": "from app.ai.personas import get_conversation_style\nimport pytest\n\n\ndef test_get_conversation_style_valid_key_returns_correct_dict():\n    style = get_conversation_style(\"friendly_viewing\")\n    assert style[\"label\"] == \"Friendly viewing first\"\n    assert style[\"phone_fetching_type\"] == \"viewing_first\"\n    assert \"strategy\" in style\n    assert style[\"conversation_goal\"].startswith(\"book a viewing\")\n\n\ndef test_get_conversation_style_with_alias_key_returns_key_itself_and_raises_keyerror():\n    # Since normalize_conversation_style returns the input if not in CONVERSATION_STYLES,\n    # get_conversation_style will raise KeyError for alias keys.\n    with pytest.raises(KeyError):\n        get_conversation_style(\"viewing_first\")\n\n\ndef test_get_conversation_style_with_empty_string_raises_keyerror():\n    with pytest.raises(KeyError):\n        get_conversation_style(\"\")\n\n\ndef test_get_conversation_style_with_unknown_style_raises_keyerror():\n    with pytest.raises(KeyError):\n        get_conversation_style(\"non_existent_style\")"
+    },
+    {
+      "case_id": "cross_013",
+      "entry_func": "should_share_phone_now",
+      "target_function": "normalize_conversation_style",
+      "outcome": "both_pass",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 14303,
+      "generated_code": "from app.ai.personas import should_share_phone_now\n\n\ndef test_should_share_phone_now_returns_false_if_phone_already_shared():\n    persona = {\"mobile_number\": \"+447700900123\"}\n    result = should_share_phone_now(persona, phone_shared=True, outbound_count=0, stage=\"VIEWING_BOOKED\")\n    assert result is False\n\n\ndef test_should_share_phone_now_immediate_type_allows_first_outbound_only():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"immediate\"}\n    # outbound_count 0 and 1 should return True\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=0) is True\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=1) is True\n    # outbound_count 2 should return False (off-by-one check)\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=2) is False\n\n\ndef test_should_share_phone_now_delayed_type_requires_stage_and_outbound_count():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"delayed\"}\n    # outbound_count less than 2 returns False even if stage is VIEWING_BOOKED\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=1, stage=\"VIEWING_BOOKED\") is False\n    # outbound_count 2 or more with correct stage returns True\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=2, stage=\"VIEWING_BOOKED\") is True\n    # outbound_count 3 with wrong stage returns False\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=3, stage=\"PRE_VIEWING\") is False\n\n\ndef test_should_share_phone_now_adaptive_type_allows_stage_or_drive_distance():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"adaptive\"}\n    # stage VIEWING_BOOKED returns True regardless of outbound_count or drive_distance_high\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=0, stage=\"VIEWING_BOOKED\") is True\n    # drive_distance_high True and outbound_count >=1 returns True even if stage is None\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=1, stage=None, drive_distance_high=True) is True\n    # drive_distance_high True but outbound_count 0 returns False\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=0, stage=None, drive_distance_high=True) is False\n    # drive_distance_high False and stage None returns False\n    assert should_share_phone_now(persona, phone_shared=False, outbound_count=5, stage=None, drive_distance_high=False) is False"
+    },
+    {
+      "case_id": "cross_014",
+      "entry_func": "detect_landlord_attitude",
+      "target_function": "_content",
+      "outcome": "false_positive",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 4022,
+      "generated_code": "from datetime import datetime, timedelta\nimport pytest\n\nfrom app.ai.conversation_memory import detect_landlord_attitude\n\n\ndef test_detect_landlord_attitude_no_landlord_messages_returns_previous_or_responsive():\n    # No landlord messages, previous is valid attitude\n    assert detect_landlord_attitude([], previous=\"friendly\") == \"friendly\"\n    # No landlord messages, previous is invalid attitude\n    assert detect_landlord_attitude([], previous=\"unknown\") == \"responsive\"\n    # No landlord messages, no previous\n    assert detect_landlord_attitude([]) == \"responsive\"\n\n\ndef test_detect_landlord_attitude_aggressive_overrides_others():\n    messages = [\n        {\"sender\": \"landlord\", \"body\": \"Thanks for your interest!\"},\n        {\"sender\": \"landlord\", \"body\": \"Stop wasting my time please.\"},\n        {\"sender\": \"landlord\", \"body\": \"I can show you tomorrow.\"},\n    ]\n    # Aggressive pattern should take precedence over friendly and helpful\n    assert detect_landlord_attitude(messages) == \"aggressive\"\n\n\ndef test_detect_landlord_attitude_time_gap_returns_slow_reply():\n    now = datetime.now()\n    messages = [\n        {\"sender\": \"landlord\", \"body\": \"Hello\", \"created_at\": now - timedelta(days=2)},\n        {\"sender\": \"landlord\", \"body\": \"Yes\", \"created_at\": now},\n    ]\n    # The gap between last two landlord messages is > 24 hours, so slow_reply\n    assert detect_landlord_attitude(messages) == \"slow_reply\"\n\n\ndef test_detect_landlord_attitude_cold_pattern_exact_match():\n    messages = [\n        {\"sender\": \"landlord\", \"body\": \"Ok\"},\n    ]\n    # Exact match for cold pattern should return \"cold\"\n    assert detect_landlord_attitude(messages) == \"cold\""
+    },
+    {
+      "case_id": "cross_015",
+      "entry_func": "detect_landlord_attitude",
+      "target_function": "_sender",
+      "outcome": "killed",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 5393,
+      "generated_code": "from datetime import datetime, timedelta\nimport pytest\nfrom app.ai.conversation_memory import detect_landlord_attitude\n\ndef test_detect_landlord_attitude_no_landlord_messages_returns_previous_or_default():\n    # No landlord messages, previous is valid attitude\n    assert detect_landlord_attitude([], previous=\"friendly\") == \"friendly\"\n    # No landlord messages, previous is invalid attitude, defaults to \"responsive\"\n    assert detect_landlord_attitude([], previous=\"unknown\") == \"responsive\"\n    # No landlord messages, no previous provided\n    assert detect_landlord_attitude([]) == \"responsive\"\n\ndef test_detect_landlord_attitude_aggressive_pattern_overrides_others():\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Thanks for your interest!\"},\n        {\"sender\": \"landlord\", \"message\": \"Stop wasting my time please.\"},\n        {\"sender\": \"landlord\", \"message\": \"I can show it tomorrow.\"},\n    ]\n    # Aggressive pattern should take precedence over friendly and helpful\n    assert detect_landlord_attitude(messages) == \"aggressive\"\n\ndef test_detect_landlord_attitude_time_gap_returns_slow_reply():\n    now = datetime.now()\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Hello\", \"created_at\": now - timedelta(days=2)},\n        {\"sender\": \"landlord\", \"message\": \"Are you interested?\", \"created_at\": now},\n    ]\n    # More than 24 hours between last two landlord messages triggers slow_reply\n    assert detect_landlord_attitude(messages) == \"slow_reply\"\n\ndef test_detect_landlord_attitude_cold_pattern_exact_match():\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Yes\"},\n        {\"sender\": \"landlord\", \"message\": \"No\"},\n        {\"sender\": \"landlord\", \"message\": \"Ok\"},\n        {\"sender\": \"landlord\", \"message\": \"Fine\"},\n        {\"sender\": \"landlord\", \"message\": \"When?\"},\n        {\"sender\": \"landlord\", \"message\": \"What time?\"},\n    ]\n    # Only the last landlord message is checked for cold patterns\n    assert detect_landlord_attitude([messages[-1]]) == \"cold\"\n    # If last message is not cold, returns responsive\n    assert detect_landlord_attitude([messages[0]]) == \"cold\"\n    assert detect_landlord_attitude([{\"sender\": \"landlord\", \"message\": \"Sure, thanks\"}]) == \"friendly\""
+    },
+    {
+      "case_id": "cross_016",
+      "entry_func": "phone_shared_state",
+      "target_function": "tenant_shared_phone",
+      "outcome": "both_pass",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 5893,
+      "generated_code": "from app.ai.personas import should_share_phone_now as phone_shared_state\n\ndef test_phone_shared_state_immediate_type_allows_early_sharing():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"immediate\", \"conversation_style\": \"direct_number_request\"}\n    # outbound_count 0 and 1 should allow sharing, 2 should not\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=0, stage=None) is True\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=1, stage=None) is True\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=2, stage=None) is False\n\ndef test_phone_shared_state_delayed_type_requires_viewing_booked_and_min_outbound():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"delayed\"}\n    # outbound_count less than 2 should not share even if stage is VIEWING_BOOKED\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=1, stage=\"VIEWING_BOOKED\") is False\n    # outbound_count 2 and stage VIEWING_BOOKED should share\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=2, stage=\"VIEWING_BOOKED\") is True\n    # stage not VIEWING_BOOKED should not share regardless of outbound_count\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=3, stage=\"PRE_VIEWING\") is False\n\ndef test_phone_shared_state_viewing_first_type_shares_only_on_viewing_booked():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"viewing_first\"}\n    # Should share only if stage is VIEWING_BOOKED\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=0, stage=\"VIEWING_BOOKED\") is True\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=5, stage=\"PRE_VIEWING\") is False\n\ndef test_phone_shared_state_adaptive_type_shares_on_viewing_or_drive_distance_and_outbound():\n    persona = {\"mobile_number\": \"+447700900123\", \"phone_fetching_type\": \"adaptive\"}\n    # Should share if stage is VIEWING_BOOKED regardless of outbound_count\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=0, stage=\"VIEWING_BOOKED\") is True\n    # Should share if drive_distance_high and outbound_count >= 1\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=1, stage=\"PRE_VIEWING\", drive_distance_high=True) is True\n    # Should not share if drive_distance_high but outbound_count is 0\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=0, stage=\"PRE_VIEWING\", drive_distance_high=True) is False\n    # Should not share if no viewing booked and no drive distance high\n    assert phone_shared_state(persona, landlord_asked=False, phone_shared=False, outbound_count=5, stage=\"PRE_VIEWING\", drive_distance_high=False) is False"
+    },
+    {
+      "case_id": "cross_017",
+      "entry_func": "outbound_count",
+      "target_function": "_sender",
+      "outcome": "false_positive",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 3347,
+      "generated_code": "from app.ai.conversation_memory import outbound_count\n\ndef test_outbound_count_empty_list():\n    assert outbound_count([]) == 0\n\ndef test_outbound_count_none_input():\n    assert outbound_count(None) == 0\n\ndef test_outbound_count_mixed_senders():\n    messages = [\n        {\"sender\": \"user\", \"message\": \"Hello\"},\n        {\"sender\": \"tenant\", \"message\": \"Is it available?\"},\n        {\"sender\": \"landlord\", \"message\": \"Yes\"},\n        {\"sender\": \"inbound\", \"message\": \"Please call me\"},\n        {\"direction\": \"outbound\", \"message\": \"I will call you\"},\n        {\"direction\": \"inbound\", \"message\": \"Thanks\"},\n        {\"sender\": \"ai\", \"message\": \"Automated reply\"},\n        {\"sender\": \"other\", \"message\": \"Ignore me\"},\n    ]\n    # outbound_count should count user, tenant, outbound, ai only\n    assert outbound_count(messages) == 4\n\ndef test_outbound_count_case_insensitivity_and_missing_keys():\n    messages = [\n        {\"sender\": \"User\", \"message\": \"Hi\"},  # uppercase mismatch, should not count\n        {\"sender\": \"USER\", \"message\": \"Hi\"},  # uppercase match, should count\n        {\"direction\": \"Outbound\", \"message\": \"Hello\"},  # uppercase mismatch, should not count\n        {\"direction\": \"outbound\", \"message\": \"Hello\"},  # lowercase match, should count\n        {\"message\": \"No sender or direction\"},  # no sender/direction, should not count\n        {},  # empty dict, should not count\n    ]\n    assert outbound_count(messages) == 2"
+    },
+    {
+      "case_id": "cross_018",
+      "entry_func": "extract_viewing_datetime",
+      "target_function": "_overlaps_any",
+      "outcome": "killed",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 4861,
+      "generated_code": "from datetime import datetime, timedelta\nimport pytest\nfrom app.ai.stages import extract_viewing_datetime\n\n\ndef test_extract_viewing_datetime_with_explicit_time_and_tomorrow():\n    now = datetime(2024, 4, 25, 10, 0)  # April 25, 2024, 10:00 AM\n    messages = [\n        {\"message\": \"Let's meet tomorrow at 3pm.\"}\n    ]\n    expected = datetime(2024, 4, 26, 15, 0)  # April 26, 2024, 15:00\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected\n\n\ndef test_extract_viewing_datetime_with_numeric_date_and_am_pm():\n    now = datetime(2024, 12, 31, 23, 0)  # Dec 31, 2024, 23:00\n    messages = [\n        {\"message\": \"Appointment on 1/1 at 9am.\"}\n    ]\n    expected = datetime(2025, 1, 1, 9, 0)  # Jan 1, 2025, 09:00\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected\n\n\ndef test_extract_viewing_datetime_with_time_without_am_pm_and_hour_1_to_7_adds_12():\n    now = datetime(2024, 6, 15, 8, 0)  # June 15, 2024, 08:00\n    messages = [\n        {\"message\": \"See you at 6:30.\"}\n    ]\n    expected = datetime(2024, 6, 15, 18, 30)  # 6:30 PM same day\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected\n\n\ndef test_extract_viewing_datetime_skips_time_overlapping_date():\n    now = datetime(2024, 7, 10, 9, 0)  # July 10, 2024, 09:00\n    messages = [\n        {\"message\": \"Meeting on 10/7 at 10:00.\"},  # 10/7 is a date, 10:00 overlaps date pattern span\n        {\"message\": \"Confirmed at 11:00 am.\"}\n    ]\n    expected = datetime(2024, 7, 10, 11, 0)  # 11:00 AM same day\n    result = extract_viewing_datetime(messages, now=now)\n    assert result == expected"
+    },
+    {
+      "case_id": "cross_019",
+      "entry_func": "detect_stage",
+      "target_function": "_matches_any",
+      "outcome": "killed",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 3093,
+      "generated_code": "from app.ai.stages import detect_stage\nfrom app.db.status import VIEWING_DISCUSSION, VIEWING_BOOKED\n\n\ndef test_detect_stage_empty_messages():\n    # No messages should return None\n    assert detect_stage([]) is None\n\n\ndef test_detect_stage_negating_pattern_triggers_discussion():\n    messages = [\n        {\"message\": \"I can't make the appointment tomorrow at 3pm.\"}\n    ]\n    assert detect_stage(messages) == VIEWING_DISCUSSION\n\n\ndef test_detect_stage_booking_with_time_triggers_booked():\n    messages = [\n        {\"message\": \"Let's meet at 4pm tomorrow.\"},\n        {\"message\": \"Confirmed, see you then!\"}\n    ]\n    assert detect_stage(messages) == VIEWING_BOOKED\n\n\ndef test_detect_stage_discussion_after_booking_triggers_discussion():\n    messages = [\n        {\"message\": \"Booked for 3pm tomorrow.\"},\n        {\"message\": \"Can we rearrange to 4pm instead?\"}\n    ]\n    assert detect_stage(messages) == VIEWING_DISCUSSION"
+    },
+    {
+      "case_id": "cross_020",
+      "entry_func": "landlord_messages",
+      "target_function": "_sender",
+      "outcome": "both_pass",
+      "calls_private_helper": false,
+      "has_real_assertion": true,
+      "n_test_functions": 4,
+      "latency_ms": 8219,
+      "generated_code": "from app.ai.conversation_memory import landlord_messages\n\ndef test_landlord_messages_filters_only_landlord_and_inbound():\n    messages = [\n        {\"sender\": \"landlord\", \"message\": \"Hello\"},\n        {\"sender\": \"tenant\", \"message\": \"Hi\"},\n        {\"sender\": \"inbound\", \"message\": \"Is it still available?\"},\n        {\"sender\": \"user\", \"message\": \"Yes\"},\n        {\"sender\": \"Landlord\", \"message\": \"Please call me.\"},\n        {\"sender\": \"INBOUND\", \"message\": \"Can I view it?\"},\n        {\"sender\": \"agent\", \"message\": \"Agent message\"},\n        {\"sender\": None, \"message\": \"No sender\"},\n        {\"message\": \"No sender key\"},\n    ]\n    expected = [\n        {\"sender\": \"landlord\", \"message\": \"Hello\"},\n        {\"sender\": \"inbound\", \"message\": \"Is it still available?\"},\n        {\"sender\": \"Landlord\", \"message\": \"Please call me.\"},\n        {\"sender\": \"INBOUND\", \"message\": \"Can I view it?\"},\n    ]\n    result = landlord_messages(messages)\n    assert result == expected\n\ndef test_landlord_messages_empty_and_none_input():\n    assert landlord_messages([]) == []\n    assert landlord_messages(None) == []\n\ndef test_landlord_messages_handles_missing_sender_key():\n    messages = [\n        {\"message\": \"No sender key\"},\n        {\"sender\": \"\", \"message\": \"Empty sender\"},\n        {\"sender\": None, \"message\": \"None sender\"},\n        {\"sender\": \"landlord\", \"message\": \"Valid landlord message\"},\n    ]\n    expected = [\n        {\"sender\": \"landlord\", \"message\": \"Valid landlord message\"},\n    ]\n    result = landlord_messages(messages)\n    assert result == expected\n\ndef test_landlord_messages_case_insensitivity_of_sender():\n    messages = [\n        {\"sender\": \"Landlord\", \"message\": \"Message 1\"},\n        {\"sender\": \"INBOUND\", \"message\": \"Message 2\"},\n        {\"sender\": \"Tenant\", \"message\": \"Message 3\"},\n        {\"sender\": \"USER\", \"message\": \"Message 4\"},\n    ]\n    expected = [\n        {\"sender\": \"Landlord\", \"message\": \"Message 1\"},\n        {\"sender\": \"INBOUND\", \"message\": \"Message 2\"},\n    ]\n    result = landlord_messages(messages)\n    assert result == expected"
+    }
+  ]
+}

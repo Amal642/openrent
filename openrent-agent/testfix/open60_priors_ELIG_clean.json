@@ -1,0 +1,18 @@
+{
+  "_recent_messages": 0.43955614030183027,
+  "_target_date_from_text": 1.0511125094174203,
+  "extract_viewing_datetime": 0.5706039336837424,
+  "normalize_conversation_style": -1.1330173802811154,
+  "get_conversation_style": -1.4824781626328811,
+  "landlord_asked_for_phone": 0.483238738095801,
+  "_content": -0.34673061998964255,
+  "latest_landlord_asked_for_phone": 1.1821603027993324,
+  "_message_text": -0.7835565979293496,
+  "detect_stage": 0.0027301623621231695,
+  "_sender": -1.2203825758690567,
+  "landlord_messages": -1.045652184693174,
+  "tenant_shared_phone": 1.400573291769186,
+  "materialize_persona": -1.045652184693174,
+  "phone_shared_state": 1.094795107211391,
+  "detect_landlord_attitude": 0.8326995204475667
+}

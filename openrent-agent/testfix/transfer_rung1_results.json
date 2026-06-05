@@ -1,0 +1,494 @@
+{
+  "model": "gpt-4.1-mini",
+  "repo": "python-tabulate",
+  "results": [
+    {
+      "case_id": "t001",
+      "true_fn": "_normalize_tabular_data",
+      "operator": "gt_to_ge",
+      "stage": "success",
+      "loop_success": true,
+      "ground_truth": true,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": "tabulate::test_tabulate_empty_and_none_data_s0",
+      "localizer_top": [
+        "_normalize_tabular_data",
+        "_align_column",
+        "_asciidoc_row"
+      ],
+      "attempts": [
+        [
+          "_normalize_tabular_data",
+          true
+        ]
+      ],
+      "repaired_fn": "_normalize_tabular_data"
+    },
+    {
+      "case_id": "t002",
+      "true_fn": "_type",
+      "operator": "or_to_and",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": "tabulate::test_tabulate_float_and_int_formatting_s0",
+      "localizer_top": [
+        "_format",
+        "_normalize_tabular_data",
+        "_align_column"
+      ],
+      "attempts": [
+        [
+          "_format",
+          false
+        ],
+        [
+          "_normalize_tabular_data",
+          false
+        ],
+        [
+          "tabulate",
+          false
+        ]
+      ],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t003",
+      "true_fn": "_normalize_tabular_data",
+      "operator": "eq_to_neq",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": "tabulate::test_tabulate_headers_firstrow_and_keys_with_list_of_lists_s0",
+      "localizer_top": [
+        "_normalize_tabular_data",
+        "_asciidoc_row",
+        "_align_column"
+      ],
+      "attempts": [
+        [
+          "_normalize_tabular_data",
+          false
+        ],
+        [
+          "_asciidoc_row",
+          false
+        ],
+        [
+          "tabulate",
+          false
+        ]
+      ],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t004",
+      "true_fn": "tabulate",
+      "operator": "eq_to_neq",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t005",
+      "true_fn": "tabulate",
+      "operator": "or_to_and",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t006",
+      "true_fn": "_type",
+      "operator": "and_to_or",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": "tabulate::test_tabulate_float_and_int_formatting_s0",
+      "localizer_top": [
+        "_format",
+        "_normalize_tabular_data",
+        "_align_column"
+      ],
+      "attempts": [
+        [
+          "_format",
+          false
+        ],
+        [
+          "_normalize_tabular_data",
+          false
+        ],
+        [
+          "tabulate",
+          false
+        ]
+      ],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t007",
+      "true_fn": "_afterpoint",
+      "operator": "lower_to_upper",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t008",
+      "true_fn": "_isbool",
+      "operator": "or_to_and",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t009",
+      "true_fn": "_format_table",
+      "operator": "and_to_or",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": "tabulate::test_tabulate_headers_firstrow_and_keys_with_list_of_lists_s0",
+      "localizer_top": [
+        "_normalize_tabular_data",
+        "_asciidoc_row",
+        "_align_column"
+      ],
+      "attempts": [
+        [
+          "_normalize_tabular_data",
+          false
+        ],
+        [
+          "_asciidoc_row",
+          false
+        ],
+        [
+          "tabulate",
+          false
+        ]
+      ],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t010",
+      "true_fn": "_rst_escape_first_column",
+      "operator": "and_to_or",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t011",
+      "true_fn": "_expand_iterable",
+      "operator": "and_to_or",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": "tabulate::test_tabulate_empty_and_none_data_s0",
+      "localizer_top": [
+        "_normalize_tabular_data",
+        "_align_column",
+        "_format_table"
+      ],
+      "attempts": [
+        [
+          "_normalize_tabular_data",
+          false
+        ],
+        [
+          "_align_column",
+          false
+        ],
+        [
+          "tabulate",
+          false
+        ]
+      ],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t012",
+      "true_fn": "_asciidoc_row",
+      "operator": "lt_to_le",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t013",
+      "true_fn": "_align_column_choose_padfn",
+      "operator": "eq_to_neq",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t014",
+      "true_fn": "_pipe_segment_with_colons",
+      "operator": "eq_to_neq",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t015",
+      "true_fn": "_isint",
+      "operator": "or_to_and",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t016",
+      "true_fn": "_html_row_with_attrs",
+      "operator": "lt_to_le",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t017",
+      "true_fn": "_align_header",
+      "operator": "eq_to_neq",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t018",
+      "true_fn": "_wrap_text_to_colwidths",
+      "operator": "isnone_flip",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t019",
+      "true_fn": "_align_column_choose_padfn",
+      "operator": "eq_to_neq",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": "tabulate::test_preserve_whitespace_option_s3",
+      "localizer_top": [
+        "_align_column",
+        "_normalize_tabular_data",
+        "_asciidoc_row"
+      ],
+      "attempts": [
+        [
+          "_align_column",
+          false
+        ],
+        [
+          "_normalize_tabular_data",
+          false
+        ],
+        [
+          "tabulate",
+          false
+        ]
+      ],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t020",
+      "true_fn": "_grid_segment_with_colons",
+      "operator": "eq_to_neq",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t021",
+      "true_fn": "_prepend_row_index",
+      "operator": "isnone_flip",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": "tabulate::test_tabulate_showindex_variants_s0",
+      "localizer_top": [
+        "_normalize_tabular_data",
+        "_align_column",
+        "_asciidoc_row"
+      ],
+      "attempts": [
+        [
+          "_normalize_tabular_data",
+          false
+        ],
+        [
+          "_align_column",
+          false
+        ],
+        [
+          "tabulate",
+          false
+        ]
+      ],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t022",
+      "true_fn": "_isint",
+      "operator": "lt_to_le",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t023",
+      "true_fn": "_visible_width",
+      "operator": "isnotnone_flip",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    },
+    {
+      "case_id": "t024",
+      "true_fn": "_format_table",
+      "operator": "or_to_and",
+      "stage": "missed_detection",
+      "loop_success": false,
+      "ground_truth": false,
+      "entry_points": [
+        "tabulate"
+      ],
+      "detected_by": null,
+      "localizer_top": [],
+      "attempts": [],
+      "repaired_fn": null
+    }
+  ]
+}
