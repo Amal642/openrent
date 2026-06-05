@@ -1,0 +1,150 @@
+{
+  "experiment": "OPEN-72",
+  "margin_threshold": 0.2,
+  "corpus_a": {
+    "name": "turn-derived",
+    "n_episodes": 108,
+    "n_pc": 50,
+    "ssi_raw": 0.7891572608743622,
+    "ssi_adj": 0.774097065222531,
+    "known_positive_groups": 3,
+    "per_feature": [
+      {
+        "name": "idx_mean",
+        "corr_with_pc": NaN,
+        "corr_sq": 0.0,
+        "constant": true
+      },
+      {
+        "name": "spk_mean",
+        "corr_with_pc": -0.2820191795574319,
+        "corr_sq": 0.079534817638247,
+        "constant": false
+      },
+      {
+        "name": "aph_frac",
+        "corr_with_pc": 0.6482540733788343,
+        "corr_sq": 0.4202333436522511,
+        "constant": false
+      },
+      {
+        "name": "mlen_mean",
+        "corr_with_pc": -0.22265131659565604,
+        "corr_sq": 0.049573608781779056,
+        "constant": false
+      },
+      {
+        "name": "state_screening",
+        "corr_with_pc": 0.3585912314553352,
+        "corr_sq": 0.1285876712766538,
+        "constant": false
+      },
+      {
+        "name": "state_viewing_negotiation",
+        "corr_with_pc": -0.4687814845235944,
+        "corr_sq": 0.219756080232145,
+        "constant": false
+      },
+      {
+        "name": "state_viewing_confirmed",
+        "corr_with_pc": -0.40123876302779987,
+        "corr_sq": 0.16099254495607895,
+        "constant": false
+      },
+      {
+        "name": "state_phone_captured",
+        "corr_with_pc": 0.8731178420264527,
+        "corr_sq": 0.7623347660649297,
+        "constant": false
+      },
+      {
+        "name": "state_stalled",
+        "corr_with_pc": -0.02870786221654294,
+        "corr_sq": 0.0008241413530440138,
+        "constant": false
+      },
+      {
+        "name": "branch_initial",
+        "corr_with_pc": -0.23097565606053447,
+        "corr_sq": 0.053349753692594315,
+        "constant": false
+      },
+      {
+        "name": "branch_phone_shared",
+        "corr_with_pc": 0.3247376563483477,
+        "corr_sq": 0.10545454545061758,
+        "constant": false
+      },
+      {
+        "name": "branch_default_screening",
+        "corr_with_pc": -0.5564528029213729,
+        "corr_sq": 0.30963972187905225,
+        "constant": false
+      },
+      {
+        "name": "branch_proactive_offer",
+        "corr_with_pc": 0.5581066698021838,
+        "corr_sq": 0.31148305487768385,
+        "constant": false
+      },
+      {
+        "name": "ce2_frac",
+        "corr_with_pc": 0.7098991526154141,
+        "corr_sq": 0.5039568068840831,
+        "constant": false
+      },
+      {
+        "name": "n_turns_norm",
+        "corr_with_pc": -0.23857960965976605,
+        "corr_sq": 0.056920230145406335,
+        "constant": false
+      }
+    ],
+    "n_constant": 1,
+    "n_locked": 1
+  },
+  "corpus_b": {
+    "name": "dimension_scores",
+    "n_episodes": 208,
+    "n_pc": 143,
+    "ssi_raw": 0.7500000000055944,
+    "ssi_adj": 2.2377655284344655e-11,
+    "known_positive_groups": 0,
+    "per_feature": [
+      {
+        "name": "answered_landlord_naturally",
+        "corr_with_pc": NaN,
+        "corr_sq": 0.0,
+        "constant": true
+      },
+      {
+        "name": "phone_timing_ok",
+        "corr_with_pc": NaN,
+        "corr_sq": 0.0,
+        "constant": true
+      },
+      {
+        "name": "safe_phone_capture",
+        "corr_with_pc": 0.9999999999888112,
+        "corr_sq": 0.9999999999776223,
+        "constant": false
+      },
+      {
+        "name": "viewing_progressed",
+        "corr_with_pc": NaN,
+        "corr_sq": 0.0,
+        "constant": true
+      }
+    ],
+    "n_constant": 3,
+    "n_locked": 1
+  },
+  "gap_raw": 0.03915726086876781,
+  "gap_adj": 0.7740970652001533,
+  "ranked_correctly_raw": true,
+  "ranked_correctly_adj": true,
+  "threshold_stable_raw": false,
+  "threshold_stable_adj": true,
+  "verdict_raw": "YELLOW",
+  "verdict_adj": "GREEN"
+}

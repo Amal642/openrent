@@ -1,0 +1,282 @@
+[
+  {
+    "file": "templates/service.yaml",
+    "lineno": 29,
+    "operator": "proto_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 164,
+    "operator": "mem_to_cpu",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 40,
+    "operator": "port_plus1",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 33,
+    "operator": "true_to_false",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 12,
+    "operator": "pullpolicy_flip2",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 159,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 39,
+    "operator": "port_plus1",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 25,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 269,
+    "operator": "mem_to_cpu",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 134,
+    "operator": "proto_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 179,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 199,
+    "operator": "true_to_false",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 127,
+    "operator": "proto_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 290,
+    "operator": "probe_swap",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 26,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/hpa.yaml",
+    "lineno": 28,
+    "operator": "mem_to_cpu",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/service.yaml",
+    "lineno": 35,
+    "operator": "proto_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 37,
+    "operator": "port_plus1",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 186,
+    "operator": "probe_swap",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 137,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 29,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 24,
+    "operator": "true_to_false",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 102,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 24,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 13,
+    "operator": "strategy_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 81,
+    "operator": "port_plus1",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 109,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 160,
+    "operator": "replica_plus1",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 123,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 36,
+    "operator": "svctype_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 28,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 196,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 38,
+    "operator": "port_plus1",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 46,
+    "operator": "true_to_false",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 142,
+    "operator": "proto_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/hpa.yaml",
+    "lineno": 25,
+    "operator": "mem_to_cpu",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 27,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 242,
+    "operator": "false_to_true",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "templates/deployment.yaml",
+    "lineno": 147,
+    "operator": "proto_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "values.yaml",
+    "lineno": 172,
+    "operator": "false_to_true",
+    "native_kill": false,
+    "diff_catch": true
+  }
+]

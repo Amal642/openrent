@@ -1,0 +1,849 @@
+{
+  "n_episodes": 44,
+  "n_rounds": 4,
+  "n_mutations": 11,
+  "delta_threshold": 0.05,
+  "checkpoints": {
+    "10": {
+      "mrr_static": 0.7143,
+      "mrr_frequency": 0.6619,
+      "mrr_learned": 0.6143
+    },
+    "20": {
+      "mrr_static": 0.7571,
+      "mrr_frequency": 0.806,
+      "mrr_learned": 0.7821
+    },
+    "30": {
+      "mrr_static": 0.7143,
+      "mrr_frequency": 0.804,
+      "mrr_learned": 0.8048
+    },
+    "44": {
+      "mrr_static": 0.7403,
+      "mrr_frequency": 0.8209,
+      "mrr_learned": 0.8328
+    }
+  },
+  "final": {
+    "mrr_static": 0.7403,
+    "mrr_frequency": 0.8209,
+    "mrr_learned": 0.8328,
+    "delta_vs_static": 0.0925,
+    "delta_vs_freq": 0.0119,
+    "verdict": "YELLOW",
+    "interpretation": "Caching works; reuse beyond caching does not"
+  },
+  "feature_weights": {
+    "exact_match": 1.6676,
+    "superset_match": 0.9044,
+    "any_overlap": 1.572,
+    "is_join": -0.0373,
+    "is_agg": -0.1364,
+    "feeds_norm": 0.5609,
+    "n_div_norm": 0.6597,
+    "row_count_changed": 0.6676,
+    "single_col": -0.5066,
+    "hist_freq": 4.1963
+  },
+  "episode_records": {
+    "static": [
+      {
+        "episode_idx": 1,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 2,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 3,
+        "rr": 0.3333333333333333,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 4,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 5,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 6,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 7,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 8,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 9,
+        "rr": 0.14285714285714285,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 10,
+        "rr": 0.16666666666666666,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 11,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 12,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 13,
+        "rr": 0.16666666666666666,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 14,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 15,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 16,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 17,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 18,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 19,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 20,
+        "rr": 0.3333333333333333,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 21,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 22,
+        "rr": 0.14285714285714285,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 23,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 24,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 25,
+        "rr": 0.14285714285714285,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 26,
+        "rr": 0.3333333333333333,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 27,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 28,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 29,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 30,
+        "rr": 0.16666666666666666,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 31,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 32,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 33,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 34,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 35,
+        "rr": 0.16666666666666666,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 36,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 37,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 38,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 39,
+        "rr": 0.3333333333333333,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 40,
+        "rr": 0.14285714285714285,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 41,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 42,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 43,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 44,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      }
+    ],
+    "frequency": [
+      {
+        "episode_idx": 1,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 2,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 3,
+        "rr": 0.3333333333333333,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 4,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 5,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 6,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 7,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 8,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 9,
+        "rr": 0.14285714285714285,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 10,
+        "rr": 0.14285714285714285,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 11,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 12,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 13,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 14,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 15,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 16,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 17,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 18,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 19,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 20,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 21,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 22,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 23,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 24,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 25,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 26,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 27,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 28,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 29,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 30,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 31,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 32,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 33,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 34,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 35,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 36,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 37,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 38,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 39,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 40,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 41,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 42,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 43,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 44,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      }
+    ],
+    "learned": [
+      {
+        "episode_idx": 1,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 2,
+        "rr": 0.5,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 3,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 4,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 5,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 6,
+        "rr": 0.3333333333333333,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 7,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 8,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 9,
+        "rr": 0.14285714285714285,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 10,
+        "rr": 0.16666666666666666,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 11,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 12,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 13,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 14,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 15,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 16,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 17,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 18,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 19,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 20,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 21,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 22,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 23,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      },
+      {
+        "episode_idx": 24,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 25,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 26,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 27,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 28,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 29,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 30,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 31,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 32,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 33,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 34,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o01"
+      },
+      {
+        "episode_idx": 35,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d003"
+      },
+      {
+        "episode_idx": 36,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c01"
+      },
+      {
+        "episode_idx": 37,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_o02"
+      },
+      {
+        "episode_idx": 38,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c03"
+      },
+      {
+        "episode_idx": 39,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d002"
+      },
+      {
+        "episode_idx": 40,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d001"
+      },
+      {
+        "episode_idx": 41,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_s01"
+      },
+      {
+        "episode_idx": 42,
+        "rr": 1.0,
+        "ambiguous": true,
+        "case_id": "d_c05"
+      },
+      {
+        "episode_idx": 43,
+        "rr": 0.5,
+        "ambiguous": true,
+        "case_id": "d_c04"
+      },
+      {
+        "episode_idx": 44,
+        "rr": 1.0,
+        "ambiguous": false,
+        "case_id": "d_c02"
+      }
+    ]
+  }
+}

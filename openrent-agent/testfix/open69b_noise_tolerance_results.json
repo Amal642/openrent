@@ -1,0 +1,71 @@
+{
+  "experiment": "OPEN-69b",
+  "n_episodes": 108,
+  "n_seeds": 8,
+  "delta_threshold": 0.05,
+  "noise_levels": [
+    0.0,
+    0.05,
+    0.1,
+    0.2,
+    0.3,
+    0.4
+  ],
+  "rows": [
+    {
+      "noise": 0.0,
+      "l1_auc": 0.8904807150900901,
+      "mrr_ce2": 0.5300000000000001,
+      "mrr_static": 0.45454545454545453,
+      "delta": 0.07545454545454561,
+      "l1_green": true,
+      "l2_green": true
+    },
+    {
+      "noise": 0.05,
+      "l1_auc": 0.890674268018018,
+      "mrr_ce2": 0.4966666666666667,
+      "mrr_static": 0.45454545454545453,
+      "delta": 0.04212121212121217,
+      "l1_green": true,
+      "l2_green": false
+    },
+    {
+      "noise": 0.1,
+      "l1_auc": 0.8809238926426427,
+      "mrr_ce2": 0.4966666666666667,
+      "mrr_static": 0.45454545454545453,
+      "delta": 0.04212121212121217,
+      "l1_green": true,
+      "l2_green": false
+    },
+    {
+      "noise": 0.2,
+      "l1_auc": 0.8679089245495497,
+      "mrr_ce2": 0.51375,
+      "mrr_static": 0.45454545454545453,
+      "delta": 0.05920454545454551,
+      "l1_green": true,
+      "l2_green": true
+    },
+    {
+      "noise": 0.3,
+      "l1_auc": 0.8388630818318319,
+      "mrr_ce2": 0.47,
+      "mrr_static": 0.45454545454545453,
+      "delta": 0.015454545454545443,
+      "l1_green": true,
+      "l2_green": false
+    },
+    {
+      "noise": 0.4,
+      "l1_auc": 0.7437429617117117,
+      "mrr_ce2": 0.47791666666666666,
+      "mrr_static": 0.45454545454545453,
+      "delta": 0.023371212121212126,
+      "l1_green": true,
+      "l2_green": false
+    }
+  ],
+  "verdict": "RED"
+}

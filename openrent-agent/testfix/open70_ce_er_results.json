@@ -1,0 +1,77 @@
+{
+  "experiment": "OPEN-70",
+  "n_episodes": 108,
+  "n_pc": 50,
+  "n_vc": 27,
+  "crosstab_global": {
+    "pc_vc": 9,
+    "pc_nvc": 41,
+    "npc_vc": 18,
+    "npc_nvc": 40
+  },
+  "l1": {
+    "mean_auc": 0.9853017241379309,
+    "verdict": "GREEN",
+    "per_seed": {
+      "71": 0.98,
+      "72": 0.9872413793103448,
+      "73": 0.9837931034482759,
+      "74": 0.9893103448275862,
+      "75": 0.9872413793103448,
+      "76": 0.9848275862068966,
+      "77": 0.9910344827586207,
+      "78": 0.9789655172413793
+    }
+  },
+  "l2": {
+    "mrr_ce2_mean": 0.21857142857142858,
+    "mrr_static_mean": 0.45454545454545453,
+    "delta": -0.23597402597402595,
+    "threshold": 0.05,
+    "verdict": "RED",
+    "per_seed": [
+      {
+        "seed": 71,
+        "mrr_ce2": 0.21857142857142856,
+        "mrr_static": 0.4545454545454545
+      },
+      {
+        "seed": 72,
+        "mrr_ce2": 0.21857142857142856,
+        "mrr_static": 0.4545454545454545
+      },
+      {
+        "seed": 73,
+        "mrr_ce2": 0.21857142857142856,
+        "mrr_static": 0.4545454545454545
+      },
+      {
+        "seed": 74,
+        "mrr_ce2": 0.21857142857142856,
+        "mrr_static": 0.4545454545454545
+      },
+      {
+        "seed": 75,
+        "mrr_ce2": 0.21857142857142856,
+        "mrr_static": 0.4545454545454545
+      },
+      {
+        "seed": 76,
+        "mrr_ce2": 0.21857142857142856,
+        "mrr_static": 0.4545454545454545
+      },
+      {
+        "seed": 77,
+        "mrr_ce2": 0.21857142857142856,
+        "mrr_static": 0.4545454545454545
+      },
+      {
+        "seed": 78,
+        "mrr_ce2": 0.21857142857142856,
+        "mrr_static": 0.4545454545454545
+      }
+    ]
+  },
+  "overall_verdict": "L1_ONLY",
+  "corpus_expansion_status": "BLOCKED \u2014 scripted LandlordActorV2 deterministically routes to PC under corpus_number_capture_v1 and VC under viewing_first_v1; no mixed corpus achievable without LLM-based actor data"
+}

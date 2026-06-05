@@ -1,0 +1,62 @@
+{
+  "experiment": "OPEN-69",
+  "n_episodes": 108,
+  "n_pos_vc": 27,
+  "ce2_pos_turns": 370,
+  "ce2_total_turns": 658,
+  "l1": {
+    "seeds": [
+      71,
+      72,
+      73,
+      74
+    ],
+    "per_seed_auc": {
+      "71": 0.8885088213213214,
+      "72": 0.8829204204204204,
+      "73": 0.8889217342342343,
+      "74": 0.8778528528528529
+    },
+    "mean_auc": 0.8845509572072072,
+    "threshold": 0.55,
+    "verdict": "GREEN"
+  },
+  "l2": {
+    "seeds": [
+      71,
+      72,
+      73,
+      74
+    ],
+    "per_seed": {
+      "71": {
+        "mrr_ce2": 0.53,
+        "mrr_static": 0.4545454545454545,
+        "mrr_freq": 0.45
+      },
+      "72": {
+        "mrr_ce2": 0.53,
+        "mrr_static": 0.4545454545454545,
+        "mrr_freq": 0.45
+      },
+      "73": {
+        "mrr_ce2": 0.53,
+        "mrr_static": 0.4545454545454545,
+        "mrr_freq": 0.45
+      },
+      "74": {
+        "mrr_ce2": 0.53,
+        "mrr_static": 0.4545454545454545,
+        "mrr_freq": 0.45
+      }
+    },
+    "mrr_ce2_mean": 0.53,
+    "mrr_static_mean": 0.4545454545454545,
+    "mrr_freq_mean": 0.45,
+    "delta_vs_static": 0.07545454545454555,
+    "delta_vs_freq": 0.08000000000000002,
+    "threshold": 0.05,
+    "verdict": "GREEN"
+  },
+  "overall_verdict": "GREEN"
+}

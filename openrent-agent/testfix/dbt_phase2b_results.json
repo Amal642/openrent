@@ -1,0 +1,53 @@
+{
+  "n_episodes": 44,
+  "delta_threshold": 0.05,
+  "final": {
+    "mrr_static": 0.7403,
+    "mrr_frequency": 0.8209,
+    "mrr_learned_2a": 0.8328,
+    "mrr_learned_2b": 0.9053,
+    "delta_2b_vs_static": 0.165,
+    "delta_2b_vs_freq": 0.0844,
+    "delta_2b_vs_2a": 0.0725,
+    "verdict_2b": "GREEN"
+  },
+  "feature_weights_2b": {
+    "exact_match": 1.5568,
+    "superset_match": 1.2174,
+    "any_overlap": 1.7108,
+    "is_join": -0.3506,
+    "is_agg": -0.2034,
+    "feeds_norm": 0.6991,
+    "n_div_norm": 0.8443,
+    "row_count_changed": 0.4934,
+    "single_col": -0.3554,
+    "hist_freq": 3.4036,
+    "diff_kind_match": 2.0464
+  },
+  "checkpoints": {
+    "10": {
+      "mrr_static": 0.7143,
+      "mrr_frequency": 0.6619,
+      "mrr_learned_2a": 0.6143,
+      "mrr_learned_2b": 0.7833
+    },
+    "20": {
+      "mrr_static": 0.7571,
+      "mrr_frequency": 0.806,
+      "mrr_learned_2a": 0.7821,
+      "mrr_learned_2b": 0.8917
+    },
+    "30": {
+      "mrr_static": 0.7143,
+      "mrr_frequency": 0.804,
+      "mrr_learned_2a": 0.8048,
+      "mrr_learned_2b": 0.8778
+    },
+    "44": {
+      "mrr_static": 0.7403,
+      "mrr_frequency": 0.8209,
+      "mrr_learned_2a": 0.8328,
+      "mrr_learned_2b": 0.9053
+    }
+  }
+}

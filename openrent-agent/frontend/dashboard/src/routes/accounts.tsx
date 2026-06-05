@@ -247,7 +247,7 @@ function AccountsPage() {
               placeholder="Search email..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-9 w-56"
+              className="h-9 w-full sm:w-56"
             />
             <Button
               onClick={() => {

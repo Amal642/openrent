@@ -1,0 +1,71 @@
+{
+  "experiment": "OPEN-71b",
+  "n_episodes": 108,
+  "n_pc": 50,
+  "n_vc": 27,
+  "corr_thresholds": {
+    "positive": 0.05,
+    "negative": -0.05
+  },
+  "per_group": {
+    "s02-brusque": {
+      "n": 13,
+      "insample_corr": 0.032904115834848605,
+      "insample_class": "neutral",
+      "loo_corr": -0.061981101081409654,
+      "loo_class": "negative",
+      "classification_flipped": true
+    },
+    "s02-cooperative": {
+      "n": 13,
+      "insample_corr": 0.0,
+      "insample_class": "neutral",
+      "loo_corr": 0.0,
+      "loo_class": "neutral",
+      "classification_flipped": false
+    },
+    "s02-screening-actor-starts-prod": {
+      "n": 23,
+      "insample_corr": 0.3889213544138082,
+      "insample_class": "positive",
+      "loo_corr": 0.38967889560676827,
+      "loo_class": "positive",
+      "classification_flipped": false
+    },
+    "s02-suspicious": {
+      "n": 13,
+      "insample_corr": -0.7848821180480825,
+      "insample_class": "negative",
+      "loo_corr": -0.6013978566935896,
+      "loo_class": "negative",
+      "classification_flipped": false
+    },
+    "s04-phone-request-actor-starts-prod": {
+      "n": 23,
+      "insample_corr": 0.37921252573966385,
+      "insample_class": "positive",
+      "loo_corr": 0.37434855971526604,
+      "loo_class": "positive",
+      "classification_flipped": false
+    },
+    "s05-reply-actor-starts-prod": {
+      "n": 23,
+      "insample_corr": 0.352523629215033,
+      "insample_class": "positive",
+      "loo_corr": 0.34511132206804757,
+      "loo_class": "positive",
+      "classification_flipped": false
+    }
+  },
+  "n_flips": 1,
+  "mrr_static": 0.4545454545454545,
+  "mrr_ungated": 0.21857142857142856,
+  "mrr_insample": 0.54,
+  "mrr_loo": 0.54,
+  "delta_loo_vs_static": 0.08545454545454556,
+  "delta_loo_vs_ungated": 0.3214285714285715,
+  "delta_loo_vs_insample": 0.0,
+  "l1_verdict": "GREEN",
+  "l2_verdict": "GREEN",
+  "overall_verdict": "GREEN"
+}

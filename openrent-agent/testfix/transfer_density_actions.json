@@ -1,0 +1,184 @@
+[
+  {
+    "file": "release.yml",
+    "lineno": 105,
+    "operator": "branch_rename",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 13,
+    "operator": "runner_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 84,
+    "operator": "trigger_push_to_pr",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "test.yml",
+    "lineno": 10,
+    "operator": "permission_escalate",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "release.yml",
+    "lineno": 4,
+    "operator": "trigger_push_to_pr",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 99,
+    "operator": "trigger_push_to_pr",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 57,
+    "operator": "secret_rename",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "cve-scan.yml",
+    "lineno": 17,
+    "operator": "runner_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "e2e.yml",
+    "lineno": 31,
+    "operator": "if_disable",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "cve-scan.yml",
+    "lineno": 5,
+    "operator": "trigger_push_to_pr",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 88,
+    "operator": "trigger_push_to_pr",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 9,
+    "operator": "permission_escalate",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "e2e.yml",
+    "lineno": 5,
+    "operator": "trigger_push_to_pr",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "test.yml",
+    "lineno": 17,
+    "operator": "runner_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "cve-scan.yml",
+    "lineno": 13,
+    "operator": "permission_escalate",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "release.yml",
+    "lineno": 109,
+    "operator": "trigger_push_to_pr",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 158,
+    "operator": "secret_rename",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "release.yml",
+    "lineno": 113,
+    "operator": "trigger_push_to_pr",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "e2e.yml",
+    "lineno": 10,
+    "operator": "permission_escalate",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "e2e.yml",
+    "lineno": 35,
+    "operator": "runner_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 129,
+    "operator": "secret_rename",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "e2e.yml",
+    "lineno": 14,
+    "operator": "runner_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "test.yml",
+    "lineno": 5,
+    "operator": "trigger_push_to_pr",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "release.yml",
+    "lineno": 132,
+    "operator": "trigger_push_to_pr",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "e2e.yml",
+    "lineno": 72,
+    "operator": "if_disable",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "e2e.yml",
+    "lineno": 63,
+    "operator": "trigger_push_to_pr",
+    "native_kill": false,
+    "diff_catch": true
+  }
+]

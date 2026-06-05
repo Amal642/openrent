@@ -1,0 +1,124 @@
+{
+  "experiment": "OPEN-71b-larger-corpus",
+  "data_sources": [
+    "a5_matrix",
+    "a6_matrix",
+    "a7_corpus_preloaded"
+  ],
+  "n_episodes": 208,
+  "n_pc": 143,
+  "n_vc": 33,
+  "features": [
+    "answered_landlord_naturally",
+    "phone_timing_ok",
+    "safe_phone_capture",
+    "viewing_progressed"
+  ],
+  "corr_thresholds": {
+    "positive": 0.05,
+    "negative": -0.05
+  },
+  "per_group": {
+    "s02-brusque": {
+      "n": 49,
+      "pc": 18,
+      "vc": 4,
+      "insample_corr": -0.22718473365213337,
+      "insample_class": "negative",
+      "loo_corr": -0.22718473364944097,
+      "loo_class": "negative",
+      "classification_flipped": false
+    },
+    "s02-cooperative": {
+      "n": 49,
+      "pc": 49,
+      "vc": 0,
+      "insample_corr": 0.0,
+      "insample_class": "neutral",
+      "loo_corr": 0.0,
+      "loo_class": "neutral",
+      "classification_flipped": false
+    },
+    "s02-suspicious": {
+      "n": 50,
+      "pc": 30,
+      "vc": 18,
+      "insample_corr": -0.9185586534433146,
+      "insample_class": "negative",
+      "loo_corr": -0.9185586534424807,
+      "loo_class": "negative",
+      "classification_flipped": false
+    },
+    "s04-brusque": {
+      "n": 10,
+      "pc": 4,
+      "vc": 4,
+      "insample_corr": -0.6666666663081956,
+      "insample_class": "negative",
+      "loo_corr": -0.6666666663063742,
+      "loo_class": "negative",
+      "classification_flipped": false
+    },
+    "s04-cooperative": {
+      "n": 10,
+      "pc": 10,
+      "vc": 0,
+      "insample_corr": 0.0,
+      "insample_class": "neutral",
+      "loo_corr": 0.0,
+      "loo_class": "neutral",
+      "classification_flipped": false
+    },
+    "s04-suspicious": {
+      "n": 10,
+      "pc": 5,
+      "vc": 5,
+      "insample_corr": -0.9999999994838019,
+      "insample_class": "negative",
+      "loo_corr": -0.9999999994827411,
+      "loo_class": "negative",
+      "classification_flipped": false
+    },
+    "s05-brusque": {
+      "n": 10,
+      "pc": 9,
+      "vc": 0,
+      "insample_corr": 0.0,
+      "insample_class": "neutral",
+      "loo_corr": 0.0,
+      "loo_class": "neutral",
+      "classification_flipped": false
+    },
+    "s05-cooperative": {
+      "n": 10,
+      "pc": 10,
+      "vc": 0,
+      "insample_corr": 0.0,
+      "insample_class": "neutral",
+      "loo_corr": 0.0,
+      "loo_class": "neutral",
+      "classification_flipped": false
+    },
+    "s05-suspicious": {
+      "n": 10,
+      "pc": 8,
+      "vc": 2,
+      "insample_corr": -0.9999999991934407,
+      "insample_class": "negative",
+      "loo_corr": -0.9999999991951138,
+      "loo_class": "negative",
+      "classification_flipped": false
+    }
+  },
+  "n_flips": 0,
+  "mrr_static": 0.5833333333333333,
+  "mrr_ungated": 0.10110491281968362,
+  "mrr_insample": 0.6285714285714286,
+  "mrr_loo": 0.6285714285714286,
+  "delta_loo_vs_static": 0.0452380952380953,
+  "delta_loo_vs_ungated": 0.527466515751745,
+  "delta_loo_vs_insample": 0.0,
+  "l1_verdict": "GREEN",
+  "l2_verdict": "YELLOW",
+  "overall_verdict": "L1_ONLY"
+}

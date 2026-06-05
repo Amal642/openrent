@@ -1,0 +1,184 @@
+[
+  {
+    "file": "petstore.yaml",
+    "lineno": 93,
+    "operator": "required_to_deprecated",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 70,
+    "operator": "param_rename",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 72,
+    "operator": "bool_flip",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 117,
+    "operator": "format_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 63,
+    "operator": "param_rename",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 77,
+    "operator": "status_200_to_201",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 72,
+    "operator": "required_to_deprecated",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 22,
+    "operator": "type_int_to_str",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 27,
+    "operator": "array_to_object",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 11,
+    "operator": "method_get_to_post",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 75,
+    "operator": "type_str_to_int",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 64,
+    "operator": "method_get_to_post",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 23,
+    "operator": "max_to_min",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 119,
+    "operator": "type_str_to_int",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 20,
+    "operator": "required_to_deprecated",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 98,
+    "operator": "type_int_to_str",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 111,
+    "operator": "required_to_deprecated",
+    "native_kill": true,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 101,
+    "operator": "type_str_to_int",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 24,
+    "operator": "format_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 32,
+    "operator": "type_str_to_int",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 103,
+    "operator": "type_str_to_int",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 26,
+    "operator": "status_200_to_201",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 116,
+    "operator": "type_int_to_str",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 105,
+    "operator": "array_to_object",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 53,
+    "operator": "bool_flip",
+    "native_kill": false,
+    "diff_catch": true
+  },
+  {
+    "file": "petstore.yaml",
+    "lineno": 53,
+    "operator": "required_to_deprecated",
+    "native_kill": true,
+    "diff_catch": true
+  }
+]

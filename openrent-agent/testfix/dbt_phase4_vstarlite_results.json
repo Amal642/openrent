@@ -1,0 +1,64 @@
+{
+  "exp1_mrr_per_project": {
+    "mrr_pointwise_ph4": 0.9861111111111112,
+    "mrr_pairwise_ph4": 0.9861111111111112,
+    "sub_dk_pointwise": 1.0,
+    "sub_dk_pairwise": 1.0
+  },
+  "exp1_stripe_per_project": {
+    "mrr_pointwise_ph4": 1.0,
+    "mrr_pairwise_ph4": 1.0,
+    "sub_dk_pointwise": 1.0,
+    "sub_dk_pairwise": 1.0
+  },
+  "exp2_mrr_to_stripe_zeroshot": {
+    "mrr_pointwise": 1.0,
+    "mrr_pairwise": 1.0,
+    "sub_dk_pairwise": 1.0,
+    "gap_vs_inproject": -0.049000000000000044
+  },
+  "exp2_stripe_to_mrr_zeroshot": {
+    "mrr_pointwise": 0.9444444444444444,
+    "mrr_pairwise": 0.9722222222222222,
+    "sub_dk_pairwise": 1.0,
+    "gap_vs_inproject": -0.00022222222222223476
+  },
+  "exp3_joint": {
+    "mrr_pointwise_mrr": 0.9861111111111112,
+    "mrr_pairwise_mrr": 0.9861111111111112,
+    "mrr_pointwise_str": 1.0,
+    "mrr_pairwise_str": 1.0,
+    "sub_dk_pairwise_mrr": 1.0,
+    "sub_dk_pairwise_str": 1.0
+  },
+  "transfer_verdict": "CE_UNIVERSAL",
+  "interpretation": "Zero-shot cross-project gap <= 0.05 in both directions. The construction-embedded oracle produces a universal signal: structural features learned from one project generalize without retraining.",
+  "pw_joint_weights": {
+    "exact_match": 1.0388194008322755,
+    "superset_match": 0.5389280620678831,
+    "any_overlap": 0.0011500953327663512,
+    "is_join": -1.1472138827141252,
+    "is_agg": -1.0860087837871162,
+    "feeds_norm": 0.4648641478369567,
+    "n_div_norm": -0.7843615769086164,
+    "row_count_changed": 0.0,
+    "single_col": 0.15104050064201224,
+    "hist_freq": 2.5358515756031137,
+    "diff_kind_match": 1.534177550159378,
+    "alias_in_hunk": 3.12365501396693
+  },
+  "pr_joint_weights": {
+    "exact_match": 1.0992132568208408,
+    "superset_match": 0.7508913083989853,
+    "any_overlap": 0.0,
+    "is_join": -1.1018352109316147,
+    "is_agg": -0.49687547914853625,
+    "feeds_norm": 0.27654692133176284,
+    "n_div_norm": 0.0,
+    "row_count_changed": 0.0,
+    "single_col": 0.0,
+    "hist_freq": 1.2986977696479571,
+    "diff_kind_match": 1.3478839576179338,
+    "alias_in_hunk": 2.9420314654718727
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "project_root": "D:\\transfer-rung3-shopify",
+  "n_models": 11,
+  "total_candidates": 0,
+  "total_ambiguous_groups": 0,
+  "models_with_mixed": 0,
+  "transfer_validity": "THIN",
+  "validity_reason": "No ambiguous pairs found -- diff_kind_match irrelevant; all mutations unambiguously identifiable by structural features alone.",
+  "models": [
+    {
+      "model_rel": "models/base/shopify_checkouts.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [
+        "cart_token",
+        "customer_id",
+        "token"
+      ],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_customers.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [
+        "default_address_id"
+      ],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_discount_codes.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [
+        "order_id"
+      ],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_order_items.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [
+        "item_id",
+        "order_id"
+      ],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_order_items_tax.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [
+        "item_id",
+        "order_id"
+      ],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_orders.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [
+        "cart_token",
+        "checkout_token",
+        "customer_id",
+        "token"
+      ],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_products.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_products_variants.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_refunds.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/base/shopify_transactions.sql",
+      "n_candidates": 0,
+      "n_ctes": 0,
+      "cte_names": [],
+      "final_cols": [],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    },
+    {
+      "model_rel": "models/transform/shopify_orders_xf.sql",
+      "n_candidates": 0,
+      "n_ctes": 1,
+      "cte_names": [
+        "orders"
+      ],
+      "final_cols": [
+        "*",
+        "cancelled",
+        "new_vs_repeat",
+        "order_seq_number"
+      ],
+      "ambiguous_groups": [],
+      "has_mixed": false
+    }
+  ]
+}

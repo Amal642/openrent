@@ -120,7 +120,7 @@ function SettingsPage() {
               value={draft.openai_model}
               onValueChange={(openai_model) => setDraft({ ...draft, openai_model })}
             >
-              <SelectTrigger className="w-56">
+              <SelectTrigger className="w-full sm:w-56">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -165,7 +165,7 @@ function SettingsPage() {
               min={1}
               max={20}
               step={1}
-              className="w-56"
+              className="w-full sm:w-56"
             />
           </Row>
           <Row label="Default daily message limit">

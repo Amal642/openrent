@@ -1,0 +1,121 @@
+[
+  {
+    "file": "main.tf",
+    "lineno": 24,
+    "operator": "port_flip",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "variables.tf",
+    "lineno": 3,
+    "operator": "string_value_suffix",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 6,
+    "operator": "bool_flip",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 22,
+    "operator": "port_flip",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 9,
+    "operator": "string_value_suffix",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 23,
+    "operator": "direction_flip",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 22,
+    "operator": "string_value_suffix",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "outputs.tf",
+    "lineno": 17,
+    "operator": "port_flip",
+    "native_kill": true,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 46,
+    "operator": "port_flip",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 21,
+    "operator": "port_flip",
+    "native_kill": true,
+    "diff_catch": false
+  },
+  {
+    "file": "outputs.tf",
+    "lineno": 2,
+    "operator": "ref_typo",
+    "native_kill": true,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 14,
+    "operator": "string_value_suffix",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 51,
+    "operator": "string_value_suffix",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "outputs.tf",
+    "lineno": 7,
+    "operator": "ref_typo",
+    "native_kill": true,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 41,
+    "operator": "port_flip",
+    "native_kill": true,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 40,
+    "operator": "instance_type_flip",
+    "native_kill": false,
+    "diff_catch": false
+  },
+  {
+    "file": "main.tf",
+    "lineno": 25,
+    "operator": "port_flip",
+    "native_kill": false,
+    "diff_catch": false
+  }
+]

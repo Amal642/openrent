@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { ExternalLink, Copy, MoreHorizontal, MessageSquare, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -46,6 +46,15 @@ export const Route = createFileRoute("/leads")({
 });
 
 function LeadsPage() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (pathname !== "/leads") {
+    return <Outlet />;
+  }
+
+  return <LeadsList />;
+}
+
+function LeadsList() {
   const [status, setStatus] = useState<LeadStatus | "all">("all");
   const [account, setAccount] = useState("all");
   const [profile, setProfile] = useState("all");

@@ -82,15 +82,17 @@ function LogsPage() {
     <>
       <PageHeader title="Logs" description="Worker, AI, login, retry and agent-skip events." />
 
-      <div className="flex flex-col sm:flex-row gap-2 mb-3">
-        <Tabs value={tab} onValueChange={setTab} className="flex-1">
-          <TabsList className="h-9">
-            {tabs.map((t) => (
-              <TabsTrigger key={t.id} value={t.id} className="text-xs">
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+      <div className="flex min-w-0 flex-col gap-2 mb-3 sm:flex-row">
+        <Tabs value={tab} onValueChange={setTab} className="min-w-0 flex-1">
+          <div className="overflow-x-auto pb-1">
+            <TabsList className="h-9 w-max">
+              {tabs.map((t) => (
+                <TabsTrigger key={t.id} value={t.id} className="text-xs">
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
         </Tabs>
         <Input
           placeholder="Filter logs…"

@@ -162,7 +162,7 @@ function SearchProfilesPage() {
         actions={
           <>
             <Select value={accountFilter} onValueChange={setAccountFilter}>
-              <SelectTrigger className="h-9 w-56">
+              <SelectTrigger className="h-9 w-full sm:w-56">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

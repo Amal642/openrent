@@ -1,0 +1,10 @@
+[
+  {
+    "case_id": "k001",
+    "file": "values.yaml",
+    "lineno": 242,
+    "operator": "false_to_true",
+    "original_line": "  enabled: false\n",
+    "mutated_line": "  enabled: true\n"
+  }
+]

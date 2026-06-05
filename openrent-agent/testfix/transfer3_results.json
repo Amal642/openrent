@@ -1,0 +1,20 @@
+{
+  "results": [
+    {
+      "case_id": "k001",
+      "true_file": "values.yaml",
+      "operator": "false_to_true",
+      "stage": "repair_failed",
+      "loop_success": false,
+      "ground_truth": false,
+      "localized": "templates/tests/grpc.yaml",
+      "attempts": [
+        [
+          "values.yaml",
+          false
+        ]
+      ],
+      "repaired_file": null
+    }
+  ]
+}
