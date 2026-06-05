@@ -1,3 +1,77 @@
+from app.utils.logger import logger
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
+
+async def close_verified_tenant_popup(page):
+
+    modal = page.locator("#vt-popup-modal")
+
+    try:
+
+        if await modal.count() == 0:
+            return False
+
+        if not await modal.first.is_visible():
+            return False
+
+        logger.info("VERIFIED TENANT MODAL DETECTED")
+        print("VERIFIED TENANT MODAL DETECTED")
+
+        close_selectors = [
+            '#vt-popup-modal button[data-bs-dismiss="modal"]',
+            '#vt-popup-modal button:has-text("Not Today")',
+            '#vt-popup-modal a:has-text("Not Today")',
+            '#vt-popup-modal button:has-text("Close")',
+            '#vt-popup-modal a:has-text("Close")',
+            '#vt-popup-modal .btn-outline-secondary',
+        ]
+
+        closed = False
+
+        for selector in close_selectors:
+
+            try:
+
+                button = page.locator(selector)
+
+                if await button.count() == 0:
+                    continue
+
+                visible_button = button.first
+
+                if not await visible_button.is_visible():
+                    continue
+
+                await visible_button.click(timeout=3000, force=True)
+                closed = True
+                break
+
+            except Exception as e:
+
+                logger.warning(
+                    f"Verified Tenant modal close attempt failed: "
+                    f"{selector} -> {e}"
+                )
+
+        if not closed:
+            return False
+
+        try:
+            await modal.first.wait_for(state="hidden", timeout=5000)
+        except PlaywrightTimeoutError:
+            await page.wait_for_timeout(500)
+
+        logger.info("VERIFIED TENANT MODAL CLOSED")
+        print("VERIFIED TENANT MODAL CLOSED")
+
+        return True
+
+    except Exception as e:
+
+        logger.warning(f"Verified Tenant modal handling failed: {e}")
+        return False
+
+
 async def close_popups(page):
 
     popup_selectors = [

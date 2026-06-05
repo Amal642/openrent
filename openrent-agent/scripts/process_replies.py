@@ -34,6 +34,7 @@ from app.openrent.inbox import (
     send_reply,
     reveal_hidden_phone_number
 )
+from app.openrent.popups import close_verified_tenant_popup
 
 from app.ai.stages import (
     detect_stage,
@@ -74,6 +75,128 @@ from app.db.status import (
     HANDOFF_COMPLETE,
 )
 
+from datetime import datetime, timezone
+import re
+
+
+def _parse_message_timestamp(value):
+    if not value:
+        return None
+
+    value = str(value).strip()
+    if not value:
+        return None
+
+    try:
+        if value.isdigit():
+            numeric = int(value)
+            if numeric > 10_000_000_000:
+                numeric = numeric / 1000
+            return datetime.fromtimestamp(numeric, tz=timezone.utc)
+    except Exception:
+        pass
+
+    for candidate in (
+        value,
+        value.replace("Z", "+00:00"),
+    ):
+        try:
+            parsed = datetime.fromisoformat(candidate)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except Exception:
+            pass
+
+    return None
+
+
+def _latest_message_by_sender(messages, senders):
+    latest = None
+    latest_ts = None
+
+    for message in messages or []:
+        if message.get("sender") not in senders:
+            continue
+
+        timestamp = _parse_message_timestamp(message.get("timestamp"))
+
+        if latest is None:
+            latest = message
+            latest_ts = timestamp
+            continue
+
+        if timestamp and latest_ts:
+            if timestamp >= latest_ts:
+                latest = message
+                latest_ts = timestamp
+        else:
+            latest = message
+            latest_ts = timestamp
+
+    return latest, latest_ts
+
+
+def _thread_has_unanswered_landlord_message(messages, conversation):
+    latest_landlord, latest_landlord_ts = _latest_message_by_sender(
+        messages,
+        {"landlord"},
+    )
+    latest_reply, latest_reply_ts = _latest_message_by_sender(
+        messages,
+        {"us", "ai", "user"},
+    )
+
+    if not latest_landlord:
+        return False, latest_landlord, latest_reply, latest_reply_ts
+
+    if not latest_reply:
+        return True, latest_landlord, latest_reply, latest_reply_ts
+
+    if latest_landlord_ts and latest_reply_ts:
+        return (
+            latest_landlord_ts > latest_reply_ts,
+            latest_landlord,
+            latest_reply,
+            latest_reply_ts,
+        )
+
+    processed = conversation.last_processed_message if conversation else None
+    return (
+        processed != latest_landlord.get("message"),
+        latest_landlord,
+        latest_reply,
+        latest_reply_ts,
+    )
+
+
+def _is_name_question(message):
+    text = (message or "").lower()
+    text = re.sub(r"[^a-z0-9\s']", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    patterns = [
+        r"\bwhat is your name\b",
+        r"\bwhat's your name\b",
+        r"\bcould i take your name\b",
+        r"\bcan i take your name\b",
+        r"\bmay i take your name\b",
+        r"\bwhat should i call you\b",
+        r"\bwho should i ask for\b",
+    ]
+
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def _build_name_reply(persona):
+    name = (persona or {}).get("persona_name") or (persona or {}).get("name")
+    if not name:
+        return None
+    return (
+        f"Of course, my name is {name}. "
+        "Looking forward to meeting you."
+    )
+
 
 async def _send_handoff_message(thread_id, messages, latest_landlord_message, page):
     logger.info("PHONE NUMBER EXTRACTED")
@@ -97,6 +220,7 @@ async def _send_handoff_message(thread_id, messages, latest_landlord_message, pa
     save_message(thread_id, "outbound", handoff_message)
     update_last_processed_message(thread_id, latest_landlord_message)
     mark_handoff_complete(thread_id)
+    logger.info(f"HANDOFF_COMPLETE thread_id={thread_id}")
     logger.info("CONVERSATION HANDOFF COMPLETE")
     return True
 
@@ -130,6 +254,10 @@ async def process_account_replies(
             owner = worker_id or f"account-{account.id}"
 
             if not claim_conversation(thread_id, owner):
+                logger.info(
+                    f"THREAD_SKIPPED_REASON thread_id={thread_id} "
+                    "reason=already_claimed"
+                )
                 logger.info(f"Thread {thread_id} already claimed. Skipping.")
                 continue
 
@@ -138,16 +266,39 @@ async def process_account_replies(
             messages = await extract_conversation(page)
             save_inbound_messages(thread_id, messages)
 
-            latest_landlord_message = (
-                get_latest_landlord_message(
-                    messages
-                )
-            )
-
             conversation = (
                 get_conversation_by_thread_id(
                     thread_id
                 )
+            )
+
+            (
+                has_unanswered_landlord_message,
+                latest_landlord_entry,
+                latest_reply_entry,
+                latest_reply_timestamp,
+            ) = _thread_has_unanswered_landlord_message(
+                messages,
+                conversation,
+            )
+
+            latest_landlord_message = (
+                latest_landlord_entry.get("message")
+                if latest_landlord_entry
+                else get_latest_landlord_message(messages)
+            )
+
+            logger.info(
+                f"LATEST_LANDLORD_MESSAGE thread_id={thread_id} "
+                f"message={latest_landlord_message!r}"
+            )
+            logger.info(
+                f"LATEST_REPLY_TIMESTAMP thread_id={thread_id} "
+                f"timestamp={latest_reply_timestamp.isoformat() if latest_reply_timestamp else None}"
+            )
+            logger.info(
+                f"THREAD_HAS_UNANSWERED_LANDLORD_MESSAGE thread_id={thread_id} "
+                f"value={has_unanswered_landlord_message}"
             )
 
             if (
@@ -161,6 +312,10 @@ async def process_account_replies(
                     "Conversation handed off. "
                     "Skipping AI responses."
                 )
+                logger.info(
+                    f"THREAD_SKIPPED_REASON thread_id={thread_id} "
+                    "reason=handoff_complete"
+                )
                 update_last_processed_message(thread_id, latest_landlord_message)
                 continue
 
@@ -170,11 +325,16 @@ async def process_account_replies(
                 conversation.last_processed_message
                 ==
                 latest_landlord_message
+                and not has_unanswered_landlord_message
             ):
 
                 print(
                     "\nNo new landlord activity. "
                     "Skipping thread."
+                )
+                logger.info(
+                    f"THREAD_SKIPPED_REASON thread_id={thread_id} "
+                    "reason=no_unanswered_landlord_message"
                 )
                 logger.info(f"No new landlord activity for thread {thread_id}. Skipping.")
                 update_conversation_status(thread_id, SKIPPED)
@@ -219,6 +379,8 @@ async def process_account_replies(
             if landlord_asked_number:
                 mark_landlord_asked_phone(thread_id)
 
+            await close_verified_tenant_popup(page)
+
             phone = regex_extract_phone(
                 landlord_texts
             )
@@ -243,6 +405,8 @@ async def process_account_replies(
             if not phone:
 
 
+                await close_verified_tenant_popup(page)
+
                 phone = ai_extract_phone(
                     landlord_texts
                 )
@@ -252,6 +416,7 @@ async def process_account_replies(
                         f"\nAI PHONE FOUND: {phone}"
                     )
                     logger.info(f"AI Phone found: {phone}")
+                    logger.info(f"PHONE_FOUND thread_id={thread_id} phone={phone}")
                     update_conversation_status(thread_id, PHONE_ACQUIRED)   
                     phone = normalize_uk_phone(
                         phone
@@ -312,6 +477,7 @@ async def process_account_replies(
                     f"\nPHONE FOUND: {phone}"
                 )
                 logger.info(f"Phone found: {phone}")
+                logger.info(f"PHONE_FOUND thread_id={thread_id} phone={phone}")
                 update_conversation_status(thread_id, PHONE_ACQUIRED)
                 phone = normalize_uk_phone(
                     phone
@@ -394,6 +560,10 @@ async def process_account_replies(
             if not should_ai_reply(messages):
                 print("\nNo reply needed")
                 logger.info(f"No AI reply needed for thread {thread_id}")
+                logger.info(
+                    f"THREAD_SKIPPED_REASON thread_id={thread_id} "
+                    "reason=latest_message_not_landlord"
+                )
                 update_conversation_status(thread_id, SKIPPED)
                 continue
 
@@ -417,6 +587,31 @@ async def process_account_replies(
                     latest_landlord_message
                 )
 
+                continue
+
+            name_reply = (
+                _build_name_reply(persona)
+                if _is_name_question(latest_landlord_message)
+                else None
+            )
+
+            if name_reply:
+                logger.info(
+                    f"Name question detected for thread {thread_id}; "
+                    "using persona name reply"
+                )
+                save_ai_reply(thread_id, name_reply)
+                sent = await send_reply(page, name_reply)
+                if not sent:
+                    logger.warning(f"Name reply send failed for thread {thread_id}")
+                    update_conversation_status(thread_id, AI_FAILED)
+                    continue
+
+                logger.info("Reply sent")
+                save_message(thread_id, "outbound", name_reply)
+                update_last_processed_message(thread_id, latest_landlord_message)
+                update_conversation_status(thread_id, AI_REPLIED)
+                logger.info("Reply pipeline completed")
                 continue
 
             # Reply generation stage: use the full conversation, stage memory,

@@ -1,5 +1,6 @@
 import math
 
+from app.openrent.popups import close_verified_tenant_popup
 from app.utils.human import random_sleep
 from app.utils.logger import logger
 import re
@@ -172,11 +173,15 @@ async def open_thread(page, thread_id):
     await page.wait_for_load_state("load")
     logger.info("THREAD PAGE LOAD COMPLETE")
     print("THREAD PAGE LOAD COMPLETE")
+    await close_verified_tenant_popup(page)
     await page.wait_for_selector(".message-content", timeout=15_000)
     logger.info("THREAD ELEMENT DETECTED")
     print("THREAD ELEMENT DETECTED")
+    await close_verified_tenant_popup(page)
 
 async def extract_conversation(page):
+
+    await close_verified_tenant_popup(page)
 
     messages = await page.query_selector_all(
         ".message-content"
@@ -257,6 +262,8 @@ async def send_reply(
     reply_text
 ):
 
+    await close_verified_tenant_popup(page)
+
     textarea = page.locator(
         "#message-compose-textarea"
     )
@@ -278,6 +285,7 @@ async def send_reply(
         return False
 
     # Click textarea
+    await close_verified_tenant_popup(page)
     await textarea.click()
 
     # Type naturally
@@ -308,6 +316,7 @@ async def send_reply(
 
         return False
 
+    await close_verified_tenant_popup(page)
     await submit_button.click()
 
     print("AI reply sent")
@@ -315,6 +324,8 @@ async def send_reply(
     return True
 
 async def can_reply(page):
+
+    await close_verified_tenant_popup(page)
 
     textarea = page.locator(
         "#message-compose-textarea"
@@ -348,6 +359,8 @@ def get_latest_landlord_message(
 
 async def reveal_hidden_phone_number(page):
     try:
+
+        await close_verified_tenant_popup(page)
 
         # Find reveal link inside message thread
         reveal_link = page.locator(
