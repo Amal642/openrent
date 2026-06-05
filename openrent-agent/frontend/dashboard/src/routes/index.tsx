@@ -96,7 +96,7 @@ function Dashboard() {
   const accountsActive =
     metrics?.active_accounts ?? accounts.filter((a) => a.workerStatus !== "paused").length;
   const phonesToday = metrics?.phones_today ?? 0;
-  const phoneTarget = metrics?.daily_phone_target ?? 3;
+  const phoneTarget = metrics?.daily_phone_target ?? accounts.length * 3;
   const phoneProgress = Math.min(100, Math.round((phonesToday / Math.max(phoneTarget, 1)) * 100));
 
   const recent = useMemo(() => {

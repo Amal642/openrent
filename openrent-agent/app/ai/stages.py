@@ -3,8 +3,16 @@ from datetime import datetime, timedelta
 
 from app.db.status import (
     VIEWING_DISCUSSION,
-    VIEWING_BOOKED
+    VIEWING_BOOKED,
+    VIEWING_PENDING,
 )
+
+
+def _stage_log(event: str, detail: str = "") -> None:
+    msg = f"STAGE_EVENT {event}"
+    if detail:
+        msg += f" | {detail}"
+    print(msg)
 
 
 BOOKED_PATTERNS = [
@@ -167,11 +175,15 @@ def detect_stage(messages):
     if booking_context:
         combined_booking = "\n".join(_message_text(m).lower() for m in booking_context[-4:])
         if _matches_any(combined_booking, BOOKED_PATTERNS) and _has_time(combined_booking):
+            _stage_log("VIEWING_CONFIRMATION_DETECTED", "booked pattern + time both present in recent context")
             return VIEWING_BOOKED
-        if _matches_any(latest_text, BOOKED_PATTERNS):
-            return VIEWING_BOOKED
+        # Booked-pattern present but no confirmed time — treat as pending, not booked
+        if _matches_any(combined_booking, BOOKED_PATTERNS):
+            _stage_log("VIEWING_PENDING", "booked pattern found but no specific time agreed")
+            return VIEWING_PENDING
 
     if _matches_any(recent_text, DISCUSSION_PATTERNS):
+        _stage_log("VIEWING_PENDING", "viewing discussion detected, no confirmed time")
         return VIEWING_DISCUSSION
 
     return None
@@ -182,14 +194,13 @@ def extract_viewing_datetime(messages, now=None):
     recent = _recent_messages(messages, limit=8)
 
     candidates = []
-    for index, message in enumerate(recent):
+    for message in recent:
         text = _message_text(message).lower()
+        # Only consider messages that explicitly discuss a viewing — never pick up
+        # arbitrary numbers (e.g. "contact you in 1 day") as phantom datetimes.
         if not (
             TIME_PATTERN.search(text)
-            and (
-                _matches_any(text, BOOKED_PATTERNS + DISCUSSION_PATTERNS)
-                or index >= len(recent) - 3
-            )
+            and _matches_any(text, BOOKED_PATTERNS + DISCUSSION_PATTERNS)
         ):
             continue
         date_spans = _date_spans(text)
@@ -199,6 +210,7 @@ def extract_viewing_datetime(messages, now=None):
             candidates.append((text, match))
 
     if not candidates:
+        _stage_log("VIEWING_DATETIME_EXTRACTED", "no candidates — no time found in booking/discussion messages")
         return None
 
     combined, time_match = candidates[-1]
@@ -227,4 +239,5 @@ def extract_viewing_datetime(messages, now=None):
     if candidate < now:
         candidate += timedelta(days=1)
 
+    _stage_log("VIEWING_DATETIME_EXTRACTED", f"extracted datetime={candidate}")
     return candidate

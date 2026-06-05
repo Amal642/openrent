@@ -92,6 +92,7 @@ REQUIRED_COLUMNS = {
         "landlord_attitude": "VARCHAR DEFAULT 'responsive'",
         "conversation_style": "VARCHAR",
 
+        "viewing_requested": "BOOLEAN DEFAULT FALSE",
         "viewing_confirmed": "BOOLEAN DEFAULT FALSE",
         "viewing_cancelled": "BOOLEAN DEFAULT FALSE",
 

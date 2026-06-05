@@ -18,6 +18,7 @@ from app.db.repository import (
     mark_landlord_asked_phone,
     update_conversation_memory,
     save_viewing_datetime,
+    save_banner_state,
     count_phones_today,
     get_thread_property_location,
 )
@@ -34,6 +35,7 @@ from app.openrent.inbox import (
     send_reply,
     reveal_hidden_phone_number
 )
+from app.openrent.banner_parser import extract_thread_banners
 from app.openrent.popups import close_verified_tenant_popup
 
 from app.ai.stages import (
@@ -73,6 +75,7 @@ from app.db.status import (
     AI_FAILED,
     AI_REPLIED,
     HANDOFF_COMPLETE,
+    VIEWING_PENDING,
 )
 
 from datetime import datetime, timezone
@@ -198,10 +201,21 @@ def _build_name_reply(persona):
     )
 
 
-async def _send_handoff_message(thread_id, messages, latest_landlord_message, page):
+# Fixed message sent once both a phone number and a confirmed viewing are on record.
+_BOOKING_HANDOFF_MSG = (
+    "Thanks for sharing your number, I'll be in touch as we get closer to the viewing."
+)
+
+
+async def _send_handoff_message(thread_id, messages, latest_landlord_message, page, message=None):
     logger.info("PHONE NUMBER EXTRACTED")
 
-    handoff_message, handoff_error = generate_handoff_message(messages)
+    if message:
+        handoff_message = message
+        handoff_error = None
+    else:
+        handoff_message, handoff_error = generate_handoff_message(messages)
+
     if not handoff_message or handoff_error:
         logger.error(
             f"Handoff message generation failed for thread {thread_id}: "
@@ -264,6 +278,21 @@ async def process_account_replies(
             await open_thread(page, thread_id)
 
             messages = await extract_conversation(page)
+
+            # Banner detection — primary source of truth for viewing state.
+            # Run before saving messages so the conversation fetch below
+            # already reflects the banner-derived state.
+            banners = await extract_thread_banners(page)
+            if banners["viewing_confirmed"] and banners["viewing_datetime"]:
+                save_banner_state(
+                    thread_id,
+                    viewing_requested=banners["viewing_requested"],
+                    viewing_confirmed=True,
+                    viewing_datetime=banners["viewing_datetime"],
+                )
+            elif banners["viewing_requested"]:
+                save_banner_state(thread_id, viewing_requested=True)
+
             save_inbound_messages(thread_id, messages)
 
             conversation = (
@@ -318,6 +347,29 @@ async def process_account_replies(
                 )
                 update_last_processed_message(thread_id, latest_landlord_message)
                 continue
+
+            # Post-booking handoff: fire once viewing is confirmed (via banner)
+            # and the landlord's phone number is already on file.
+            if (
+                conversation
+                and conversation.viewing_confirmed
+                and conversation.phone_found
+                and not conversation.handoff_completed_at
+            ):
+                logger.info(
+                    f"HANDOFF_COMPLETE trigger=viewing_confirmed+phone_found "
+                    f"thread_id={thread_id}"
+                )
+                handoff_sent = await _send_handoff_message(
+                    thread_id,
+                    messages,
+                    latest_landlord_message,
+                    page,
+                    message=_BOOKING_HANDOFF_MSG,
+                )
+                if handoff_sent:
+                    update_last_processed_message(thread_id, latest_landlord_message)
+                    continue
 
             if (
                 conversation
@@ -426,14 +478,19 @@ async def process_account_replies(
                         and conversation.extracted_phone == phone
                         and conversation.conversation_stage != HANDOFF_COMPLETE
                     ):
-                        handoff_sent = await _send_handoff_message(
-                            thread_id,
-                            messages,
-                            latest_landlord_message,
-                            page,
-                        )
-                        if not handoff_sent:
-                            continue
+                        if conversation.viewing_confirmed and not conversation.handoff_completed_at:
+                            handoff_sent = await _send_handoff_message(
+                                thread_id, messages, latest_landlord_message, page,
+                                message=_BOOKING_HANDOFF_MSG,
+                            )
+                            if not handoff_sent:
+                                continue
+                        else:
+                            logger.info(
+                                f"PHONE_OBTAINED thread_id={thread_id} "
+                                "viewing_confirmed=False — handoff deferred"
+                            )
+                            update_last_processed_message(thread_id, latest_landlord_message)
                         continue
 
                     if phone_exists(phone):
@@ -451,24 +508,27 @@ async def process_account_replies(
                         continue
 
                     save_phone_number(thread_id, phone)
-                    handoff_sent = await _send_handoff_message(
-                        thread_id,
-                        messages,
-                        latest_landlord_message,
-                        page,
-                    )
-                    if not handoff_sent:
-                        continue
-                    logger.info(
-                        f"Phone number acquired for thread {thread_id}: "
-                        f"{phone} — marking conversation complete"
-                    )
+                    logger.info(f"PHONE_OBTAINED thread_id={thread_id}")
+                    fresh = get_conversation_by_thread_id(thread_id)
+                    if fresh and fresh.viewing_confirmed and not fresh.handoff_completed_at:
+                        handoff_sent = await _send_handoff_message(
+                            thread_id, messages, latest_landlord_message, page,
+                            message=_BOOKING_HANDOFF_MSG,
+                        )
+                        if not handoff_sent:
+                            continue
+                        logger.info(f"PHONE_NUMBER_EXTRACTED+viewing_confirmed handoff sent thread_id={thread_id}")
+                    else:
+                        logger.info(
+                            f"PHONE_OBTAINED thread_id={thread_id} "
+                            "viewing_confirmed=False — handoff deferred"
+                        )
+                        update_last_processed_message(thread_id, latest_landlord_message)
                     phones_today = count_phones_today(account.id)
                     if phones_today >= 3:
                         logger.info(
                             f"Daily phone target reached for {account.email}: {phones_today}/3"
                         )
-                    update_last_processed_message(thread_id, latest_landlord_message)
                     continue
 
             if phone:
@@ -487,14 +547,19 @@ async def process_account_replies(
                     and conversation.extracted_phone == phone
                     and conversation.conversation_stage != HANDOFF_COMPLETE
                 ):
-                    handoff_sent = await _send_handoff_message(
-                        thread_id,
-                        messages,
-                        latest_landlord_message,
-                        page,
-                    )
-                    if not handoff_sent:
-                        continue
+                    if conversation.viewing_confirmed and not conversation.handoff_completed_at:
+                        handoff_sent = await _send_handoff_message(
+                            thread_id, messages, latest_landlord_message, page,
+                            message=_BOOKING_HANDOFF_MSG,
+                        )
+                        if not handoff_sent:
+                            continue
+                    else:
+                        logger.info(
+                            f"PHONE_OBTAINED thread_id={thread_id} "
+                            "viewing_confirmed=False — handoff deferred"
+                        )
+                        update_last_processed_message(thread_id, latest_landlord_message)
                     continue
 
                 if phone_exists(phone):
@@ -511,25 +576,27 @@ async def process_account_replies(
 
                     continue
                 save_phone_number(thread_id, phone)
-                handoff_sent = await _send_handoff_message(
-                    thread_id,
-                    messages,
-                    latest_landlord_message,
-                    page,
-                )
-                if not handoff_sent:
-                    continue
-                # PHONE_ACQUIRED was already set above; add completion log here.
-                logger.info(
-                    f"Phone number acquired for thread {thread_id}: "
-                    f"{phone} — marking conversation complete"
-                )
+                logger.info(f"PHONE_OBTAINED thread_id={thread_id}")
+                fresh = get_conversation_by_thread_id(thread_id)
+                if fresh and fresh.viewing_confirmed and not fresh.handoff_completed_at:
+                    handoff_sent = await _send_handoff_message(
+                        thread_id, messages, latest_landlord_message, page,
+                        message=_BOOKING_HANDOFF_MSG,
+                    )
+                    if not handoff_sent:
+                        continue
+                    logger.info(f"PHONE_NUMBER_EXTRACTED+viewing_confirmed handoff sent thread_id={thread_id}")
+                else:
+                    logger.info(
+                        f"PHONE_OBTAINED thread_id={thread_id} "
+                        "viewing_confirmed=False — handoff deferred until viewing confirmed"
+                    )
+                    update_last_processed_message(thread_id, latest_landlord_message)
                 phones_today = count_phones_today(account.id)
                 if phones_today >= 3:
                     logger.info(
                         f"Daily phone target reached for {account.email}: {phones_today}/3"
                     )
-                update_last_processed_message(thread_id, latest_landlord_message)
                 continue
             
             
@@ -544,18 +611,30 @@ async def process_account_replies(
                     f"Detected stage: {stage}"
                 )
 
-                update_conversation_stage(
-                    thread_id,
-                    stage
-                )
                 if stage == "VIEWING_BOOKED":
                     viewing_datetime = extract_viewing_datetime(messages)
                     if viewing_datetime:
                         save_viewing_datetime(thread_id, viewing_datetime)
                         logger.info(
-                            f"Viewing booked for thread {thread_id} "
-                            f"at {viewing_datetime}"
+                            f"VIEWING_BOOKED_SET thread_id={thread_id} "
+                            f"viewing_datetime={viewing_datetime}"
                         )
+                    else:
+                        # Stage signal seen but no confirmed date+time — record
+                        # as pending so cancellation logic cannot trigger.
+                        logger.warning(
+                            f"VIEWING_PENDING thread_id={thread_id} "
+                            "reason=no_confirmed_datetime stage_signal=VIEWING_BOOKED"
+                        )
+                        update_conversation_stage(thread_id, VIEWING_PENDING)
+                elif stage == VIEWING_PENDING:
+                    logger.info(
+                        f"VIEWING_PENDING thread_id={thread_id} "
+                        "reason=vague_viewing_promise no_specific_time"
+                    )
+                    update_conversation_stage(thread_id, VIEWING_PENDING)
+                else:
+                    update_conversation_stage(thread_id, stage)
 
             if not should_ai_reply(messages):
                 print("\nNo reply needed")

@@ -14,7 +14,7 @@ from app.db.models import (
     Message,
     SearchProfile,
 )
-from app.db.status import HANDOFF_COMPLETE, VIEWING_CANCELLED
+from app.db.status import HANDOFF_COMPLETE, VIEWING_CANCELLED, VIEWING_BOOKED, VIEWING_DISCUSSION
 from app.utils.scheduling import uk_now
 from app.ai.personas import (
     get_conversation_style,
@@ -1102,6 +1102,77 @@ def save_viewing_datetime(thread_id, viewing_datetime):
 
             db.commit()
 
+_STAGE_RANK = {
+    "NEW_LEAD": 0,
+    "NEW_REPLY": 1,
+    "VIEWING_DISCUSSION": 2,
+    "VIEWING_PENDING": 2,
+    "PRE_VIEWING": 2,
+    "CONTACT_REQUESTED": 3,
+    "VIEWING_BOOKED": 4,
+    "PHONE_ACQUIRED": 5,
+    "HANDOFF_COMPLETE": 6,
+    "VIEWING_CANCELLED": 7,
+}
+
+
+def save_banner_state(
+    thread_id,
+    *,
+    viewing_requested: bool = False,
+    viewing_confirmed: bool = False,
+    viewing_datetime=None,
+):
+    """
+    Persist deterministic viewing state extracted from OpenRent system banners.
+    Stage is only advanced, never downgraded.
+    """
+    from app.utils.logger import logger
+
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if not conversation:
+            return
+
+        now = datetime.utcnow()
+        current_rank = _STAGE_RANK.get(conversation.conversation_stage or "", 0)
+
+        if viewing_requested and not conversation.viewing_requested:
+            conversation.viewing_requested = True
+            if current_rank < _STAGE_RANK[VIEWING_BOOKED]:
+                conversation.conversation_stage = VIEWING_DISCUSSION
+                conversation.last_stage_change = now
+                logger.info(
+                    f"VIEWING_REQUESTED_DETECTED thread_id={thread_id} "
+                    "stage=VIEWING_DISCUSSION"
+                )
+
+        if viewing_confirmed and viewing_datetime:
+            conversation.viewing_confirmed = True
+            conversation.viewing_datetime = viewing_datetime
+
+            if not conversation.cancel_target_hours:
+                cancel_target = round(random.uniform(3.2, 4.8), 1)
+                conversation.cancel_target_hours = cancel_target
+
+            if conversation.conversation_stage not in (
+                "HANDOFF_COMPLETE",
+                "VIEWING_CANCELLED",
+            ):
+                conversation.conversation_stage = VIEWING_BOOKED
+                conversation.last_stage_change = now
+
+            logger.info(
+                f"VIEWING_CONFIRMED_BANNER_DETECTED thread_id={thread_id} "
+                f"datetime={viewing_datetime} stage=VIEWING_BOOKED"
+            )
+
+        db.commit()
+
+
 def mark_viewing_cancelled(
     thread_id
 ):
@@ -1456,6 +1527,10 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
             Conversation.viewing_cancelled == False,
             Conversation.cancel_required == True,
             Conversation.cancellation_sent_at == None,
+            Conversation.viewing_confirmed == True,
+            Conversation.conversation_stage == VIEWING_BOOKED,
+            Conversation.phone_found == True,
+            Conversation.handoff_completed_at != None,
         )
 
         if account_id is not None:
@@ -1482,13 +1557,16 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
                 conversation.viewing_datetime - now
             ).total_seconds() / 3600
             logger.info(
-                f"Viewing cancellation triggered for thread "
-                f"{conversation.thread_id}: "
-                f"{target_h}h target, {hours_remaining:.1f}h remaining"
+                f"CANCELLATION_ELIGIBLE thread_id={conversation.thread_id} "
+                f"viewing_datetime={conversation.viewing_datetime} "
+                f"viewing_confirmed={conversation.viewing_confirmed} "
+                f"conversation_stage={conversation.conversation_stage} "
+                f"target_hours={target_h} hours_remaining={hours_remaining:.1f}"
             )
             results.append({
                 "thread_id": conversation.thread_id,
                 "viewing_datetime": conversation.viewing_datetime,
+                "viewing_confirmed": conversation.viewing_confirmed,
                 "property_url": listing.property_url,
                 "location": search_profile.location,
                 "account_id": account.id,
