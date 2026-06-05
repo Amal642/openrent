@@ -300,6 +300,8 @@ function mapLead(lead: BackendLead): Lead {
   const threadName = lead.thread_id ? `Thread ${lead.thread_id}` : "OpenRent thread";
   const bedroomsMin = lead.bedrooms_min ?? 0;
   const bedroomsMax = lead.bedrooms_max ?? bedroomsMin;
+  const phoneNumber = lead.phone_number || lead.phone || undefined;
+  const leadStatus = phoneNumber ? "PHONE_ACQUIRED" : asLeadStatus(lead.status);
 
   return {
     id,
@@ -316,9 +318,9 @@ function mapLead(lead: BackendLead): Lead {
     area: lead.location || "OpenRent",
     threadId: lead.thread_id || id,
     landlordName: threadName,
-    status: asLeadStatus(lead.status),
+    status: leadStatus,
     conversationStage: asStage(lead.conversation_stage),
-    phoneNumber: lead.phone_number || lead.phone || undefined,
+    phoneNumber,
     viewingDatetime: lead.viewing_datetime,
     viewingConfirmed: lead.viewing_confirmed ?? false,
     viewingCancelled: lead.viewing_cancelled ?? false,

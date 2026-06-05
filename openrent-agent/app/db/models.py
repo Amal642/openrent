@@ -252,6 +252,11 @@ class Conversation(Base):
         nullable=True
     )
 
+    viewing_requested = Column(
+        Boolean,
+        default=False
+    )
+
     viewing_confirmed = Column(
         Boolean,
         default=False

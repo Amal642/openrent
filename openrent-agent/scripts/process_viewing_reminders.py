@@ -35,6 +35,23 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
     for viewing in due_viewings:
         thread_id = viewing["thread_id"]
 
+        # Pre-flight guard: all three conditions must hold before any cancellation
+        # is sent.  The DB query already filters on these, but this is a last-line
+        # defence in case a race condition or stale record slips through.
+        viewing_datetime = viewing.get("viewing_datetime")
+        viewing_confirmed = viewing.get("viewing_confirmed")
+        conversation_stage = viewing.get("conversation_stage")
+
+        if not viewing_datetime or not viewing_confirmed or conversation_stage != "VIEWING_BOOKED":
+            logger.warning(
+                f"CANCELLATION_BLOCKED thread_id={thread_id} "
+                f"reason=no_confirmed_viewing_datetime "
+                f"viewing_datetime={viewing_datetime} "
+                f"viewing_confirmed={viewing_confirmed} "
+                f"conversation_stage={conversation_stage}"
+            )
+            continue
+
         try:
             if not claim_conversation(thread_id, owner):
                 logger.info(f"Cancellation skipped for claimed thread {thread_id}")
