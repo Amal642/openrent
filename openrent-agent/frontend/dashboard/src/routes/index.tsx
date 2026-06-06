@@ -9,8 +9,11 @@ import {
   MessageCircle,
   Phone,
   Send,
+  Server,
   Sparkles,
   Users,
+  WifiOff,
+  Zap,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -26,7 +29,7 @@ import {
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { getAccounts, getLeads, getMetrics } from "@/lib/api";
+import { getAccounts, getCapacity, getLeads, getMetrics } from "@/lib/api";
 import { fmtMoney, fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -77,6 +80,12 @@ function Dashboard() {
   const { data: metrics } = useQuery({
     queryKey: ["metrics"],
     queryFn: getMetrics,
+    refetchInterval: 10000,
+  });
+
+  const { data: capacity } = useQuery({
+    queryKey: ["capacity"],
+    queryFn: getCapacity,
     refetchInterval: 10000,
   });
 
@@ -230,6 +239,59 @@ function Dashboard() {
         />
         <StatCard label="AI success" value={`${successRate}%`} icon={CheckCircle2} tone="success" />
       </div>
+
+      <section className="rounded-lg border bg-card shadow-sm p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold">Worker capacity</h2>
+            <p className="text-sm text-muted-foreground">
+              Live view of parallel slots, proxy health, and queue depth.
+            </p>
+          </div>
+          <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Zap className="size-4" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <CapacityTile
+            label="Accounts Running"
+            value={capacity?.accounts_running ?? 0}
+            icon={Activity}
+            tone={capacity?.accounts_running ? "success" : "muted"}
+          />
+          <CapacityTile
+            label="Accounts Queued"
+            value={capacity?.accounts_queued ?? 0}
+            icon={Clock3}
+            tone={capacity?.accounts_queued ? "warning" : "muted"}
+          />
+          <CapacityTile
+            label="Healthy Proxies"
+            value={capacity?.healthy_proxies ?? 0}
+            icon={Server}
+            tone={capacity?.healthy_proxies ? "success" : "muted"}
+          />
+          <CapacityTile
+            label="Failed Proxies"
+            value={capacity?.failed_proxies ?? 0}
+            icon={WifiOff}
+            tone={capacity?.failed_proxies ? "destructive" : "muted"}
+          />
+          <CapacityTile
+            label="Slots Available"
+            value={capacity?.worker_capacity ?? 0}
+            icon={Zap}
+            tone={
+              capacity === undefined
+                ? "muted"
+                : capacity.worker_capacity === 0
+                  ? "warning"
+                  : "success"
+            }
+            suffix={capacity ? `/ ${capacity.max_parallel_workers}` : undefined}
+          />
+        </div>
+      </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]">
         <div className="rounded-lg border bg-card p-4 shadow-sm">
@@ -485,6 +547,44 @@ function AttentionItem({
         <div className="text-xs text-muted-foreground">{helper}</div>
       </div>
       <div className="text-xl font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function CapacityTile({
+  label,
+  value,
+  icon: Icon,
+  tone,
+  suffix,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Activity;
+  tone: "success" | "warning" | "destructive" | "muted";
+  suffix?: string;
+}) {
+  const iconClasses = {
+    success: "bg-success/10 text-success",
+    warning: "bg-warning/10 text-warning",
+    destructive: "bg-destructive/10 text-destructive",
+    muted: "bg-muted text-muted-foreground",
+  }[tone];
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border bg-background/70 p-3">
+      <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-md", iconClasses)}>
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-xs text-muted-foreground">{label}</div>
+        <div className="mt-0.5 text-xl font-semibold tabular-nums">
+          {value}
+          {suffix && (
+            <span className="ml-1 text-sm font-normal text-muted-foreground">{suffix}</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -20,6 +20,7 @@ from app.db.repository import (
     delete_account,
     delete_proxy,
     get_account,
+    get_capacity_stats,
     get_conversation_messages,
     get_dashboard_accounts,
     get_dashboard_leads,
@@ -36,6 +37,10 @@ from app.db.status import CLOSED, SKIPPED
 from app.services.account_scheduler import (
     start_account_scheduler,
     stop_account_scheduler,
+)
+from app.services.proxy_health_monitor import (
+    start_proxy_health_monitor,
+    stop_proxy_health_monitor,
 )
 
 
@@ -159,11 +164,15 @@ RUNTIME_SETTINGS = {
 async def lifespan(app_instance):
     init_db()
     app_instance.state.account_scheduler_task = start_account_scheduler()
+    app_instance.state.proxy_health_monitor_task = start_proxy_health_monitor()
     try:
         yield
     finally:
         await stop_account_scheduler(
             getattr(app_instance.state, "account_scheduler_task", None)
+        )
+        await stop_proxy_health_monitor(
+            getattr(app_instance.state, "proxy_health_monitor_task", None)
         )
 
 
@@ -652,7 +661,7 @@ def api_metrics():
         "total_leads": len(leads),
         "total_phones": len([lead for lead in leads if lead.get("phone")]),
         "phones_today": len(phones_today),
-        "daily_phone_target": 3,
+        "daily_phone_target": len([a for a in accounts if a.get("active")]) * 3,
         "active_accounts": len([account for account in accounts if account.get("active")]),
         "series": [by_day[day] for day in sorted(by_day.keys())[-14:]],
     }
@@ -712,6 +721,16 @@ def api_workers_status():
         "queue": queue_status,
         "active_tasks": active_tasks,
     }
+
+
+@app.get("/api/capacity")
+def api_capacity():
+    from app.services.account_scheduler import MAX_PARALLEL_WORKERS
+
+    stats = get_capacity_stats()
+    stats["max_parallel_workers"] = MAX_PARALLEL_WORKERS
+    stats["worker_capacity"] = max(0, MAX_PARALLEL_WORKERS - stats["accounts_in_flight"])
+    return stats
 
 
 @app.get("/api/settings")

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   KeyRound,
   MoreHorizontal,
@@ -504,31 +504,30 @@ function AccountDialog({
   });
   const [data, setData] = useState<Partial<Account> & { password?: string }>({});
 
-  const reset = () => {
-    setData({
-      email: editing?.email ?? "",
-      dailyMessageLimit: editing?.dailyMessageLimit ?? 5,
-      mobileNumber: editing?.mobileNumber ?? "",
-      phoneFetchingType: editing?.phoneFetchingType ?? "",
-      conversationStyle: editing?.conversationStyle ?? "",
-      messageStrategy: editing?.messageStrategy ?? "",
-      escalationBehavior: editing?.escalationBehavior ?? "",
-      conversationGoal: editing?.conversationGoal ?? "",
-      sessionFile: editing?.sessionFile ?? "session.json",
-      initialMessage: editing?.initialMessage ?? "",
-      proxyId: editing?.proxyId ?? "",
-      active: editing?.active ?? true,
-      password: "",
-    });
-  };
+  useEffect(() => {
+    if (open) {
+      setData({
+        email: editing?.email ?? "",
+        dailyMessageLimit: editing?.dailyMessageLimit ?? 5,
+        mobileNumber: editing?.mobileNumber ?? "",
+        phoneFetchingType: editing?.phoneFetchingType ?? "",
+        conversationStyle: editing?.conversationStyle ?? "",
+        messageStrategy: editing?.messageStrategy ?? "",
+        escalationBehavior: editing?.escalationBehavior ?? "",
+        conversationGoal: editing?.conversationGoal ?? "",
+        sessionFile: editing?.sessionFile ?? "session.json",
+        initialMessage: editing?.initialMessage ?? "",
+        proxyId: editing?.proxyId ?? "",
+        active: editing?.active ?? true,
+        password: "",
+      });
+    }
+  }, [open, editing]);
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v);
-        if (v) reset();
-      }}
+      onOpenChange={onOpenChange}
     >
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "../components/page-header";
 import { Button } from "../components/ui/button";
@@ -278,13 +278,15 @@ function ProfileDialog({
   onSave: (data: Partial<SearchProfile>) => void;
 }) {
   const [data, setData] = useState<Partial<SearchProfile>>(editing ?? {});
+
+  useEffect(() => {
+    if (open) setData(editing ?? {});
+  }, [open, editing]);
+
   return (
     <Dialog
       open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v);
-        if (v) setData(editing ?? {});
-      }}
+      onOpenChange={onOpenChange}
     >
       <DialogContent>
         <DialogHeader>

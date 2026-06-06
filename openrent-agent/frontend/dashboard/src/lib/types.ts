@@ -257,6 +257,17 @@ export interface WorkersStatus {
   active_tasks: number;
 }
 
+export interface CapacityStatus {
+  accounts_running: number;
+  accounts_queued: number;
+  accounts_in_flight: number;
+  healthy_proxies: number;
+  failed_proxies: number;
+  total_proxies: number;
+  max_parallel_workers: number;
+  worker_capacity: number;
+}
+
 export interface AutomationSettings {
   openai_model: string;
   auto_send: boolean;

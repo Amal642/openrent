@@ -3,6 +3,7 @@ import type {
   Account,
   AutomationMetrics,
   AutomationSettings,
+  CapacityStatus,
   ConversationStage,
   HealthStatus,
   Lead,
@@ -529,6 +530,10 @@ export async function getLogs(limit = 250): Promise<LogEntry[]> {
       createdAt: row.created_at || new Date().toISOString(),
     };
   });
+}
+
+export function getCapacity(): Promise<CapacityStatus> {
+  return get<CapacityStatus>("/capacity");
 }
 
 export function getWorkers(): Promise<WorkerSummary[]> {

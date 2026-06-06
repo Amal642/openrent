@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MoreHorizontal, Plus, Pencil, Trash2, PowerOff } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -271,26 +271,28 @@ function ProxyDialog({
   const blank: ProxyFormData = { host: "", port: 0, isActive: true };
   const [data, setData] = useState<ProxyFormData>(blank);
 
+  useEffect(() => {
+    if (open) {
+      setData(
+        editing
+          ? {
+              id: editing.id,
+              name: editing.name,
+              host: editing.host,
+              port: editing.port,
+              username: editing.username ?? "",
+              password: "",
+              isActive: editing.isActive,
+            }
+          : blank,
+      );
+    }
+  }, [open, editing]);
+
   return (
     <Dialog
       open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v);
-        if (v)
-          setData(
-            editing
-              ? {
-                  id: editing.id,
-                  name: editing.name,
-                  host: editing.host,
-                  port: editing.port,
-                  username: editing.username ?? "",
-                  password: "",
-                  isActive: editing.isActive,
-                }
-              : blank,
-          );
-      }}
+      onOpenChange={onOpenChange}
     >
       <DialogContent className="max-w-md">
         <DialogHeader>

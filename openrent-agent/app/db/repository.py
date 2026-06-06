@@ -487,6 +487,38 @@ def get_dashboard_accounts():
         return [serialize_account(account) for account in accounts]
 
 
+def get_capacity_stats():
+    from app.db.models import Proxy as _Proxy
+
+    in_flight_statuses = {"running", "queued", "stopping", "retrying"}
+    with session_scope() as db:
+        all_accounts = db.query(Account).all()
+        all_proxies = db.query(_Proxy).filter(_Proxy.is_active == True).all()
+
+        running = sum(1 for a in all_accounts if (a.worker_status or "").lower() == "running")
+        queued = sum(1 for a in all_accounts if (a.worker_status or "").lower() == "queued")
+        in_flight = sum(
+            1 for a in all_accounts
+            if (a.worker_status or "").lower() in in_flight_statuses
+        )
+        healthy_proxies = sum(
+            1 for p in all_proxies
+            if (p.health_status or "").lower() in {"ok", "healthy"}
+        )
+        failed_proxies = sum(
+            1 for p in all_proxies
+            if (p.health_status or "").lower() in {"down", "failed"}
+        )
+        return {
+            "accounts_running": running,
+            "accounts_queued": queued,
+            "accounts_in_flight": in_flight,
+            "healthy_proxies": healthy_proxies,
+            "failed_proxies": failed_proxies,
+            "total_proxies": len(all_proxies),
+        }
+
+
 def update_account_worker_state(
     account_id,
     status,
