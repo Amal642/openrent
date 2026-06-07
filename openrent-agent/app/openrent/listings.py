@@ -1,6 +1,5 @@
-import os
+
 import re
-from datetime import datetime
 
 from app.db.repository import (
     listing_exists,
@@ -31,97 +30,52 @@ def _is_bot_page(html: str, title: str) -> str | None:
     return None
 
 
-async def _save_debug_artifacts(page, tag: str) -> None:
-    """Save screenshot + HTML to debug/ folder for post-mortem analysis."""
-    try:
-        os.makedirs("debug", exist_ok=True)
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        screenshot_path = f"debug/{tag}_{ts}.png"
-        html_path = f"debug/{tag}_{ts}.html"
-
-        await page.screenshot(path=screenshot_path, full_page=True)
-        html = await page.content()
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(html)
-
-        logger.info(f"DEBUG ARTIFACTS: {screenshot_path} | {html_path}")
-    except Exception as exc:
-        logger.warning(f"Could not save debug artifacts: {exc}")
-
-
 async def scrape_search_results(
     page,
     search_profile_id,
     search_url,
-):
-    logger.info("=" * 60)
-    logger.info("SCRAPING OPENRENT SEARCH RESULTS")
-    logger.info(f"SEARCH URL: {search_url}")
-    logger.info(f"SEARCH PROFILE ID: {search_profile_id}")
-
-    # ── Navigate ──────────────────────────────────────────────
+    new_limit: int = 25,
+) -> int:
+    """
+    Scrape OpenRent search results for a single profile URL.
+    Returns the number of new listings saved.
+    Stops saving after new_limit new listings to cap memory and bandwidth.
+    """
     try:
         await page.goto(search_url, wait_until="domcontentloaded", timeout=30_000)
         await page.wait_for_load_state("networkidle", timeout=20_000)
     except Exception as exc:
-        logger.error(f"PAGE LOAD FAILED: {exc}")
-        await _save_debug_artifacts(page, "load_error")
-        return
+        logger.error(f"DISCOVERY_PAGE_LOAD_FAILED profile_id={search_profile_id} error={exc}")
+        return 0
 
     current_url = page.url
-    logger.info(f"CURRENT URL AFTER LOAD: {current_url}")
 
-    # ── Detect bot walls ──────────────────────────────────────
     title = await page.title()
-    logger.info(f"PAGE TITLE: {title}")
-
     html = await page.content()
     bot_reason = _is_bot_page(html, title)
     if bot_reason:
-        logger.error(f"BOT WALL DETECTED — {bot_reason}")
-        logger.error(f"FIRST 2000 CHARS: {html[:2000]}")
-        await _save_debug_artifacts(page, "bot_wall")
-        return
+        logger.error(f"DISCOVERY_BOT_WALL profile_id={search_profile_id} reason={bot_reason}")
+        return 0
 
-    # Redirect to login / home
     if "openrent.co.uk" in current_url and "/properties-to-rent" not in current_url:
-        logger.warning(
-            f"UNEXPECTED REDIRECT — expected search page, got: {current_url}"
-        )
-        logger.warning(f"FIRST 1000 CHARS: {html[:1000]}")
-        await _save_debug_artifacts(page, "unexpected_redirect")
+        logger.warning(f"DISCOVERY_UNEXPECTED_REDIRECT profile_id={search_profile_id} url={current_url}")
 
-    # ── Scroll to load more results (infinite scroll / lazy-load) ─
-    logger.info("Scrolling to load more listings...")
+    # Scroll to load lazy-loaded listings — capped at 5 passes to limit memory
     previous_height = 0
-    for scroll_pass in range(10):
+    for _ in range(5):
         await page.mouse.wheel(0, 5000)
         await page.wait_for_timeout(2000)
         try:
             current_height = await page.evaluate("document.body.scrollHeight")
         except Exception:
             break
-        logger.info(
-            f"Scroll pass {scroll_pass + 1}: height {previous_height} → {current_height}"
-        )
         if current_height == previous_height:
-            logger.info("No new content after scroll — stopping")
             break
         previous_height = current_height
 
-    # ── Save debug artifacts for every run ────────────────────
-    await _save_debug_artifacts(page, "search_results")
-
-    # ── Extract all <a> hrefs ─────────────────────────────────
+    # Extract all <a> hrefs that look like OpenRent property links
     all_links = await page.query_selector_all("a")
-    logger.info(f"TOTAL <a> TAGS ON PAGE: {len(all_links)}")
-
-    # Collect hrefs that look like OpenRent property links
-    candidate_ids: dict[str, str] = {}  # listing_id → property_url
-
-    raw_numeric = 0   # hrefs that match old /NNNNN pattern exactly
-    regex_match = 0   # hrefs that match via regex (covers new URL formats)
-    skipped_non_slash = 0
+    candidate_ids: dict[str, str] = {}
 
     for link in all_links:
         href = await link.get_attribute("href")
@@ -131,53 +85,35 @@ async def scrape_search_results(
         href = href.strip()
 
         if not href.startswith("/"):
-            skipped_non_slash += 1
             continue
 
-        # Primary: href is exactly /NNNNNN (legacy OpenRent format)
         simple_id = href.strip("/")
         if simple_id.isdigit() and len(simple_id) >= 5:
-            raw_numeric += 1
             candidate_ids[simple_id] = f"https://www.openrent.co.uk/{simple_id}"
             continue
 
-        # Secondary: extract trailing numeric segment for future URL formats
         m = _LISTING_ID_RE.search(href)
         if m:
             listing_id = m.group(1)
-            # Skip if this looks like a page number (< 5 digits) or
-            # known non-listing paths
             if len(listing_id) >= 5 and not any(
                 skip in href
                 for skip in ["/account/", "/search/", "/page/", "/landlord/"]
             ):
-                regex_match += 1
                 candidate_ids[listing_id] = (
                     f"https://www.openrent.co.uk/{listing_id}"
                 )
 
-    logger.info(
-        f"LINK ANALYSIS — total: {len(all_links)} | "
-        f"non-slash skipped: {skipped_non_slash} | "
-        f"simple-pattern matches: {raw_numeric} | "
-        f"regex-pattern matches: {regex_match} | "
-        f"unique candidates: {len(candidate_ids)}"
-    )
-
     if not candidate_ids:
-        logger.warning(f"ZERO LISTING CANDIDATES FOUND ON PAGE: {current_url}")
-        logger.warning(f"PAGE HTML SNIPPET (first 2000 chars):\n{html[:2000]}")
-        return
+        logger.warning(f"DISCOVERY_ZERO_CANDIDATES profile_id={search_profile_id} url={current_url}")
+        return 0
 
-    # ── Save to DB ────────────────────────────────────────────
-    logger.info("SAVING LISTINGS TO DATABASE")
     new_count = 0
-    skipped_existing = 0
 
     for listing_id, property_url in candidate_ids.items():
+        if new_count >= new_limit:
+            break
+
         if listing_exists(listing_id):
-            logger.info(f"LISTING ALREADY EXISTS (SKIP): {property_url}")
-            skipped_existing += 1
             continue
 
         try:
@@ -186,14 +122,8 @@ async def scrape_search_results(
                 property_url=property_url,
                 search_profile_id=search_profile_id,
             )
-            logger.info(f"SAVED LISTING: {property_url}")
             new_count += 1
         except Exception as exc:
-            logger.error(f"FAILED TO SAVE LISTING {property_url}: {exc}")
+            logger.error(f"DISCOVERY_SAVE_FAILED listing_id={listing_id} error={exc}")
 
-    logger.info(
-        f"SCRAPE COMPLETE — new: {new_count} | "
-        f"already existed: {skipped_existing} | "
-        f"total candidates: {len(candidate_ids)}"
-    )
-    logger.info("=" * 60)
+    return new_count

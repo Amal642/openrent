@@ -46,10 +46,6 @@ async def process_account_listings(
     page,
     worker_id=None
 ):
-    logger.info("=" * 60)
-    logger.info("PROCESSING INITIAL OUTREACH")
-    logger.info(f"ACCOUNT: {account.email} (id={account.id})")
-
     if not can_send_message(account.id):
         logger.info(
             f"DAILY LIMIT REACHED for {account.email} — skipping outreach"
@@ -87,19 +83,13 @@ async def process_account_listings(
 
         try:
             if account_stop_requested(account.id):
-                logger.info(
-                    f"Listing processing stopped for account {account.id}"
-                )
                 break
 
-            logger.info(f"Opening listing: {property_url}")
             await open_listing(page, property_url)
 
             existing_thread_id = await get_existing_thread_id(page)
 
             if existing_thread_id:
-
-                logger.info(f"Already enquired. Thread ID: {existing_thread_id}")
 
                 mark_listing_contacted(
                     listing_pk,
@@ -127,7 +117,6 @@ async def process_account_listings(
 
             await random_sleep(2, 5)
 
-            logger.info(f"Checking agent status for listing {listing_ext_id}")
             is_agent = await landlord_is_agent(
                 page,
                 property_url,
@@ -146,18 +135,14 @@ async def process_account_listings(
                 agent_skipped += 1
                 continue
 
-            # Reopen the original listing page after agent check navigation
-            logger.info(f"Reopening listing page: {property_url}")
             await open_listing(page, property_url)
 
             await random_sleep(2, 4)
 
             metadata = await extract_listing_metadata(page)
-            logger.info(f"Listing metadata: {metadata}")
 
             message_link = await get_message_link(page)
             contactable = message_link is not None
-            logger.info(f"Listing {listing_ext_id} contactable: {contactable}")
 
             if not contactable:
                 mark_listing_skipped(listing_pk, reason="not_contactable")
@@ -176,9 +161,7 @@ async def process_account_listings(
 
             full_url = f"https://www.openrent.co.uk{message_link}"
             save_message_url(listing_pk, full_url)
-            logger.info(f"Message route saved: {full_url}")
 
-            logger.info(f"Generating initial message for listing {listing_ext_id}")
             message_text, error = generate_initial_property_message(
                 metadata,
                 persona=persona,
@@ -188,11 +171,6 @@ async def process_account_listings(
                 logger.warning(f"Failed generating message: {error}")
                 mark_listing_failed(listing_pk)
                 continue
-
-            logger.info(
-                f"Initial message generated for listing {listing_ext_id}: "
-                f"{message_text}"
-            )
 
             # Send — only mark contacted after OpenRent returns a thread URL.
             final_url = await send_initial_message(
@@ -206,8 +184,6 @@ async def process_account_listings(
             if not thread_id:
                 existing_thread_id = await get_existing_thread_id(page)
                 thread_id = existing_thread_id or extract_thread_id(page.url)
-
-            logger.info(f"Extracted thread ID: {thread_id}")
 
             if not thread_id:
                 logger.warning(
@@ -228,9 +204,6 @@ async def process_account_listings(
             )
             update_conversation_status(thread_id, "INITIAL_MESSAGE_SENT")
             save_message_once(thread_id, "outbound", message_text)
-            logger.info(
-                f"Initial outbound message persisted for thread {thread_id}"
-            )
 
             await handle_confirmation_popups(page)
             await page.wait_for_timeout(random.randint(3000, 7000))
@@ -250,13 +223,6 @@ async def process_account_listings(
             )
 
     logger.info(
-        f"OUTREACH RUN COMPLETE — "
-        f"candidates: {len(listings)} | "
-        f"agent skipped: {agent_skipped} | "
-        f"landlord messages sent this run: {messages_sent}"
+        f"MESSAGES_SENT account_id={account.id} sent={messages_sent} "
+        f"candidates={len(listings)} agent_skipped={agent_skipped}"
     )
-    if messages_sent == 0 and agent_skipped == len(listings):
-        logger.info(
-            "All candidates were agents — outreach skipped this run. "
-            "Next run will evaluate newly discovered listings."
-        )

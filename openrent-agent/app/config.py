@@ -28,6 +28,9 @@ class Settings:
     AI_AUTOSEND: bool = os.getenv("AI_AUTOSEND", "true").lower() == "true"
     WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
     MAX_PARALLEL_WORKERS = int(os.getenv("MAX_PARALLEL_WORKERS", "2"))
+    DISCOVERY_LIMIT_PER_RUN = int(os.getenv("DISCOVERY_LIMIT_PER_RUN", "25"))
+    DISCOVERY_LIMIT_PER_DAY = int(os.getenv("DISCOVERY_LIMIT_PER_DAY", "100"))
+    DISCOVERY_COOLDOWN_HOURS = int(os.getenv("DISCOVERY_COOLDOWN_HOURS", "4"))
     SIMULATION_DEFAULT_TEMPERATURE = float(
         os.getenv("SIMULATION_DEFAULT_TEMPERATURE", "0.0")
     )

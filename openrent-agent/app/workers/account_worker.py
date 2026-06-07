@@ -32,8 +32,12 @@ from scripts.process_viewing_reminders import (
     process_account_viewing_reminders
 )
 
+from app.config import settings
 from app.db.repository import (
     account_stop_requested,
+    can_send_message,
+    count_available_inventory,
+    count_discovered_today,
     get_active_accounts,
     is_account_on_cooldown,
     set_account_cooldown,
@@ -223,108 +227,120 @@ async def run_account_worker(account):
             )
             raise
 
-        phase = "send_and_reply"
-        update_account_worker_state(
-            account.id,
-            "running",
-            phase=phase
-        )
+        # =====================================================
+        # PHASE 1 — PROCESS ACTIVE CONVERSATIONS (REPLIES)
+        # =====================================================
+
+        phase = "processing_replies"
+        update_account_worker_state(account.id, "running", phase=phase)
+
+        if not account_stop_requested(account.id):
+            await process_account_replies(account, page, worker_id=worker_id)
 
         # =====================================================
-        # STOP CHECK BEFORE LISTING PROCESSING
+        # PHASE 2 — VIEWING REMINDERS / CANCELLATIONS
         # =====================================================
+
+        if not account_stop_requested(account.id):
+            phase = "viewing_reminders"
+            update_account_worker_state(account.id, "running", phase=phase)
+            await process_account_viewing_reminders(account, page, worker_id=worker_id)
 
         if account_stop_requested(account.id):
-
-            logger.info(
-                f"Worker stop requested before "
-                f"listing phase for {account.email}"
-            )
-
             phase = "stopped"
             return
 
         # =====================================================
-        # SCRAPING PHASE — once per calendar day per account
+        # PHASE 3 — DAILY MESSAGING CAPACITY CHECK
+        # If daily limit is already reached, skip discovery and outreach
+        # entirely. This prevents launching a Chromium scrape session that
+        # would waste RAM without being able to send any messages.
         # =====================================================
 
-        if should_scrape_now(account.id):
-            phase = "scraping"
-            update_account_worker_state(
-                account.id,
-                "running",
-                phase=phase,
+        if not can_send_message(account.id):
+            logger.info(
+                f"DAILY_LIMIT_REACHED account_id={account.id} "
+                "skipping_discovery_and_messaging"
             )
-            try:
-                await scrape_account_listings(account, page)
-            except Exception as exc:
-                logger.exception(
-                    f"Scraping failed for {account.email}: {exc}"
+        else:
+            # =====================================================
+            # PHASE 4 — INVENTORY CHECK
+            # Skip discovery if we already have enough uncontacted listings.
+            # =====================================================
+
+            inventory = count_available_inventory(account.id)
+            logger.info(
+                f"INVENTORY_CHECK account_id={account.id} available={inventory}"
+            )
+
+            if inventory >= settings.DISCOVERY_LIMIT_PER_RUN:
+                logger.info(
+                    f"DISCOVERY_SKIPPED account_id={account.id} "
+                    f"reason=sufficient_inventory available={inventory}"
                 )
-            phase = "send_and_reply"
-            update_account_worker_state(
-                account.id,
-                "running",
-                phase=phase,
-            )
+            else:
+                # =====================================================
+                # PHASE 5 — DISCOVERY BUDGET CHECK (per-day cap)
+                # =====================================================
 
-        # =====================================================
-        # INITIAL OUTREACH PHASE (limited to 8/day via can_send_message)
-        # =====================================================
+                discovered_today = count_discovered_today(account.id)
+                logger.info(
+                    f"DISCOVERY_BUDGET account_id={account.id} "
+                    f"discovered_today={discovered_today} "
+                    f"limit={settings.DISCOVERY_LIMIT_PER_DAY}"
+                )
 
-        await process_account_listings(
-            account,
-            page,
-            worker_id=worker_id
-        )
+                if discovered_today >= settings.DISCOVERY_LIMIT_PER_DAY:
+                    logger.info(
+                        f"DISCOVERY_DAILY_LIMIT_REACHED account_id={account.id} "
+                        f"discovered_today={discovered_today}"
+                    )
+                else:
+                    # =====================================================
+                    # PHASE 6 — DISCOVERY COOLDOWN CHECK
+                    # =====================================================
 
-        # =====================================================
-        # STOP CHECK BEFORE REPLY PROCESSING
-        # =====================================================
+                    if not should_scrape_now(
+                        account.id,
+                        cooldown_hours=settings.DISCOVERY_COOLDOWN_HOURS,
+                    ):
+                        logger.info(
+                            f"DISCOVERY_COOLDOWN account_id={account.id} "
+                            f"cooldown_hours={settings.DISCOVERY_COOLDOWN_HOURS}"
+                        )
+                    else:
+                        # =====================================================
+                        # PHASE 7 — DISCOVERY (max DISCOVERY_LIMIT_PER_RUN new)
+                        # =====================================================
 
-        if account_stop_requested(account.id):
+                        phase = "discovery"
+                        update_account_worker_state(
+                            account.id, "running", phase=phase
+                        )
+                        try:
+                            await scrape_account_listings(
+                                account,
+                                page,
+                                new_limit=settings.DISCOVERY_LIMIT_PER_RUN,
+                            )
+                        except Exception as exc:
+                            logger.exception(
+                                f"DISCOVERY_FAILED account_id={account.id} "
+                                f"email={account.email} error={exc}"
+                            )
 
-            logger.info(
-                f"Worker stop requested before "
-                f"reply phase for {account.email}"
-            )
+            # =====================================================
+            # PHASE 8 — INITIAL OUTREACH (messaging)
+            # =====================================================
 
-            phase = "stopped"
-            return
-
-        # =====================================================
-        # AI REPLY PROCESSING PHASE
-        # =====================================================
-
-        await process_account_replies(
-            account,
-            page,
-            worker_id=worker_id
-        )
-
-        # =====================================================
-        # STOP CHECK BEFORE REMINDER PROCESSING
-        # =====================================================
-
-        if account_stop_requested(account.id):
-
-            logger.info(
-                f"Worker stop requested before "
-                f"reminder phase for {account.email}"
-            )
-
-            phase = "stopped"
-            return
-
-        # =====================================================
-        # VIEWING REMINDER PHASE
-        # =====================================================
-
-        await process_account_viewing_reminders(
-            account,
-            page,
-            worker_id=worker_id
-        )
+            if not account_stop_requested(account.id):
+                phase = "send_and_reply"
+                update_account_worker_state(
+                    account.id, "running", phase=phase
+                )
+                await process_account_listings(
+                    account, page, worker_id=worker_id
+                )
 
         # =====================================================
         # SUCCESSFUL COMPLETION

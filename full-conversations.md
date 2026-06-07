@@ -7492,4 +7492,3 @@ Landlord: "My number is (Number Removed) , yes 11am. I’ll book it through Open
 Landlord: "You didn't show up to the viewing"
 
 
-

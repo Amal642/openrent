@@ -746,6 +746,40 @@ def mark_scraped_today(account_id):
             db.commit()
 
 
+def count_available_inventory(account_id: int) -> int:
+    stale_before = datetime.utcnow() - timedelta(minutes=30)
+    with session_scope() as db:
+        return (
+            db.query(Listing)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .filter(
+                SearchProfile.account_id == account_id,
+                Listing.message_sent == False,
+                Listing.processing_failed == False,
+                Listing.skip_reason == None,
+                (
+                    (Listing.processing_owner == None)
+                    | (Listing.processing_started_at < stale_before)
+                ),
+            )
+            .count()
+        )
+
+
+def count_discovered_today(account_id: int) -> int:
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    with session_scope() as db:
+        return (
+            db.query(Listing)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .filter(
+                SearchProfile.account_id == account_id,
+                Listing.first_seen >= today_start,
+            )
+            .count()
+        )
+
+
 # ---------------- ACCOUNT COOLDOWNS ----------------
 
 def set_account_cooldown(account_id: int) -> None:

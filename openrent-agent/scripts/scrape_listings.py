@@ -5,53 +5,42 @@ from app.db.repository import mark_scraped_today
 from app.utils.logger import logger
 
 
-async def scrape_account_listings(account, page):
+async def scrape_account_listings(account, page, new_limit: int = 25) -> int:
     """
-    Fetch all search profile URLs for the account,
-    scrape OpenRent for new listings, and persist them to DB.
-    Gated by should_scrape_now() in account_worker.py (2-hour cooldown).
+    Fetch search profile URLs for the account and scrape OpenRent for new listings.
+    Returns total new listings discovered across all profiles.
+    Caps each profile at new_limit new listings.
     """
-    logger.info("=" * 60)
-    logger.info("STARTING LISTING DISCOVERY")
-    logger.info(f"ACCOUNT: {account.email} (id={account.id})")
-
-    # ── Load search profiles ───────────────────────────────────
-    logger.info("LOADING SEARCH PROFILES")
     search_urls = get_account_search_urls(account.id)
 
     if not search_urls:
         logger.warning(
-            f"NO ACTIVE SEARCH PROFILES for account {account.id} "
-            f"({account.email}) — skipping scrape. "
-            "Create a search profile in the dashboard first."
+            f"DISCOVERY_NO_PROFILES account_id={account.id} email={account.email}"
         )
-        # Do NOT mark as scraped — no profiles means nothing was discovered.
-        # The worker will retry on the next tick once a profile is created.
-        return
+        return 0
 
-    logger.info(f"FOUND {len(search_urls)} SEARCH PROFILE(S)")
-    for item in search_urls:
-        logger.info(
-            f"  profile_id={item['profile_id']} → {item['url']}"
-        )
+    logger.info(
+        f"DISCOVERY_STARTED account_id={account.id} profiles={len(search_urls)}"
+    )
 
-    # ── Scrape each profile URL ────────────────────────────────
+    total_new = 0
     for item in search_urls:
-        logger.info(
-            f"SCRAPING PROFILE {item['profile_id']}: {item['url']}"
-        )
         try:
-            await scrape_search_results(
+            new = await scrape_search_results(
                 page,
                 item["profile_id"],
                 item["url"],
+                new_limit=new_limit,
             )
+            total_new += new
         except Exception as exc:
             logger.exception(
-                f"SCRAPING FAILED for profile {item['profile_id']} "
-                f"(account {account.id}): {exc}"
+                f"DISCOVERY_PROFILE_FAILED profile_id={item['profile_id']} "
+                f"account_id={account.id} error={exc}"
             )
 
     mark_scraped_today(account.id)
-    logger.info(f"LISTING DISCOVERY COMPLETE for account {account.email}")
-    logger.info("=" * 60)
+    logger.info(
+        f"DISCOVERY_COMPLETE account_id={account.id} new_listings={total_new}"
+    )
+    return total_new

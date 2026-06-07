@@ -248,11 +248,7 @@ async def process_account_replies(
 
     threads = await get_all_reply_threads(page)
 
-    print(
-        f"\nFound {len(threads)} "
-        f"reply threads\n"
-    )
-    logger.info(f"Found {len(threads)} reply threads")
+    logger.info(f"REPLIES_STARTED account_id={account.id} threads={len(threads)}")
 
     for thread in threads:
         thread_id = None
@@ -380,30 +376,14 @@ async def process_account_replies(
                 and not has_unanswered_landlord_message
             ):
 
-                print(
-                    "\nNo new landlord activity. "
-                    "Skipping thread."
-                )
                 logger.info(
                     f"THREAD_SKIPPED_REASON thread_id={thread_id} "
                     "reason=no_unanswered_landlord_message"
                 )
-                logger.info(f"No new landlord activity for thread {thread_id}. Skipping.")
                 update_conversation_status(thread_id, SKIPPED)
                 continue
 
-            print(
-                f"\nTHREAD {thread_id}"
-            )
-            logger.info(f"Processing thread {thread_id}")
-
-            for msg in messages:
-
-                print(
-                    f"[{msg['sender']}] "
-                    f"{msg['message']}"
-                )
-                logger.info(f"[{msg['sender']}] {msg['message']}")
+            logger.info(f"THREAD_PROCESSING thread_id={thread_id}")
 
             landlord_messages = get_landlord_messages(
                 messages
@@ -464,9 +444,6 @@ async def process_account_replies(
                 )
                 if phone:
 
-                    print(
-                        f"\nAI PHONE FOUND: {phone}"
-                    )
                     logger.info(f"AI Phone found: {phone}")
                     logger.info(f"PHONE_FOUND thread_id={thread_id} phone={phone}")
                     update_conversation_status(thread_id, PHONE_ACQUIRED)   
@@ -495,9 +472,6 @@ async def process_account_replies(
 
                     if phone_exists(phone):
 
-                        print(
-                            "\nDuplicate phone detected"
-                        )
                         logger.info(f"Duplicate phone detected: {phone}")
 
                         update_conversation_status(
@@ -533,9 +507,6 @@ async def process_account_replies(
 
             if phone:
 
-                print(
-                    f"\nPHONE FOUND: {phone}"
-                )
                 logger.info(f"Phone found: {phone}")
                 logger.info(f"PHONE_FOUND thread_id={thread_id} phone={phone}")
                 update_conversation_status(thread_id, PHONE_ACQUIRED)
@@ -564,9 +535,6 @@ async def process_account_replies(
 
                 if phone_exists(phone):
 
-                    print(
-                        "\nDuplicate phone detected"
-                    )
                     logger.info(f"Duplicate phone detected: {phone}")
 
                     update_conversation_status(
@@ -607,10 +575,6 @@ async def process_account_replies(
 
             if stage:
 
-                print(
-                    f"Detected stage: {stage}"
-                )
-
                 if stage == "VIEWING_BOOKED":
                     viewing_datetime = extract_viewing_datetime(messages)
                     if viewing_datetime:
@@ -637,7 +601,6 @@ async def process_account_replies(
                     update_conversation_stage(thread_id, stage)
 
             if not should_ai_reply(messages):
-                print("\nNo reply needed")
                 logger.info(f"No AI reply needed for thread {thread_id}")
                 logger.info(
                     f"THREAD_SKIPPED_REASON thread_id={thread_id} "
@@ -652,9 +615,6 @@ async def process_account_replies(
 
             if not reply_allowed:
 
-                print(
-                    "\nReply disabled for thread"
-                )
                 logger.warning(f"Reply disabled for thread {thread_id}")
 
                 update_conversation_status(
@@ -693,9 +653,6 @@ async def process_account_replies(
                 logger.info("Reply pipeline completed")
                 continue
 
-            # Reply generation stage: use the full conversation, stage memory,
-            # persona, and landlord attitude to produce a natural response.
-            print("\nGenerating AI reply...")
             logger.info(
                 f"Generating AI reply for thread {thread_id} "
                 f"at stage {stage or 'NEW_REPLY'}"
@@ -713,7 +670,6 @@ async def process_account_replies(
 
             if not reply or error:
 
-                print("\nAI reply generation failed")
                 logger.error(
                     f"AI reply generation failed for thread {thread_id}: "
                     f"{error or 'empty_reply'}"
@@ -754,9 +710,6 @@ async def process_account_replies(
                 update_conversation_status(thread_id, AI_FAILED)
                 continue
 
-            print("\nAI REPLY:")
-            print(reply)
-            logger.info("Reply generated")
             logger.info(
                 f"AI reply generated for thread {thread_id}: {reply}"
             )
@@ -811,10 +764,6 @@ async def process_account_replies(
 
         except Exception as e:
 
-            print(
-                "Failed processing thread:",
-                e
-            )
             logger.exception(f"Failed processing thread {thread_id}: {e}")
             if thread_id:
                 update_conversation_status(thread_id, AI_FAILED)
