@@ -197,6 +197,8 @@ class Listing(Base):
     last_processed_at = Column(DateTime, nullable=True)
     processing_owner = Column(String, nullable=True)
     processing_started_at = Column(DateTime, nullable=True)
+    listing_last_seen = Column(DateTime, nullable=True)
+    listing_archived = Column(Boolean, default=False)
     # relationships
     search_profile = relationship("SearchProfile", back_populates="listings")
 

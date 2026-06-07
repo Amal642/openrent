@@ -757,6 +757,7 @@ def count_available_inventory(account_id: int) -> int:
                 Listing.message_sent == False,
                 Listing.processing_failed == False,
                 Listing.skip_reason == None,
+                Listing.listing_archived == False,
                 (
                     (Listing.processing_owner == None)
                     | (Listing.processing_started_at < stale_before)
@@ -872,6 +873,7 @@ def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30)
                 Listing.message_sent == False,
                 Listing.processing_failed == False,
                 Listing.skip_reason == None,
+                Listing.listing_archived == False,
                 (
                     (Listing.processing_owner == None)
                     | (Listing.processing_started_at < stale_before)
@@ -1503,6 +1505,14 @@ def phone_exists(phone):
         return exists is not None
 
 
+def get_landlord_by_profile_url(profile_url: str):
+    with session_scope() as db:
+        landlord = db.query(Landlord).filter(
+            Landlord.profile_url == profile_url
+        ).first()
+        return landlord
+
+
 def get_or_create_landlord(profile_url):
     with session_scope() as db:
         landlord = db.query(Landlord).filter(
@@ -1546,6 +1556,29 @@ def attach_landlord_to_listing(listing_id, landlord_id):
         if listing:
             listing.landlord_id = landlord_id
             db.commit()
+
+
+def archive_stale_listings(days: int = 30) -> int:
+    """Archive uncontacted listings not seen within the given number of days."""
+    threshold = datetime.utcnow() - timedelta(days=days)
+    with session_scope() as db:
+        stale = (
+            db.query(Listing)
+            .filter(
+                Listing.listing_archived == False,
+                Listing.message_sent == False,
+                Listing.listing_last_seen != None,
+                Listing.listing_last_seen < threshold,
+            )
+            .all()
+        )
+        for listing in stale:
+            listing.listing_archived = True
+        if stale:
+            db.commit()
+            from app.utils.logger import logger
+            logger.info(f"ARCHIVED_LISTINGS_COUNT count={len(stale)}")
+        return len(stale)
 
 
 def mark_listing_skipped_agent(listing_id, property_count=None):

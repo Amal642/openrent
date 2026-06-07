@@ -76,6 +76,8 @@ REQUIRED_COLUMNS = {
     "listings": {
         "processing_owner": "VARCHAR",
         "processing_started_at": "TIMESTAMP",
+        "listing_last_seen": "TIMESTAMP",
+        "listing_archived": "BOOLEAN DEFAULT FALSE",
     },
 
     "conversations": {

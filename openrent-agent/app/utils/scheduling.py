@@ -20,10 +20,8 @@ def uk_now() -> datetime:
 
 
 def is_uk_outreach_window(now: datetime | None = None) -> bool:
-    """True when it is appropriate to send initial landlord enquiries."""
+    """True when it is appropriate to send initial landlord enquiries (Mon–Sun 08:00–21:00)."""
     current = now.astimezone(UK_TZ) if now else uk_now()
-    if current.weekday() == 6:
-        return False
     return OUTREACH_START <= current.time() <= OUTREACH_END
 
 

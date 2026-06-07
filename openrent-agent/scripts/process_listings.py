@@ -46,6 +46,14 @@ async def process_account_listings(
     page,
     worker_id=None
 ):
+    # Check outreach window FIRST — before any DB claims or browser work.
+    if not is_uk_outreach_window():
+        logger.info(
+            f"OUTREACH_WINDOW_BLOCKED account_id={account.id} "
+            f"email={account.email}"
+        )
+        return
+
     if not can_send_message(account.id):
         logger.info(
             f"DAILY LIMIT REACHED for {account.email} — skipping outreach"
@@ -53,12 +61,10 @@ async def process_account_listings(
         return
 
     persona = ensure_account_persona(account.id)
-    # Claim 30 candidates so agent filtering doesn't exhaust the daily quota.
-    # can_send_message() enforces the hard cap of 5 actual messages sent.
     listings = claim_uncontacted_listings(
         account.id,
         worker_id or f"account-{account.id}",
-        limit=30,
+        limit=20,
     )
 
     logger.info(f"CANDIDATE LISTINGS CLAIMED: {len(listings)}")
@@ -150,13 +156,6 @@ async def process_account_listings(
 
             if not can_send_message(account.id):
                 logger.info(f"Daily limit reached for account {account.id}")
-                break
-
-            if not is_uk_outreach_window():
-                logger.info(
-                    "Outside UK outreach window; stopping initial enquiries "
-                    f"for account {account.id}"
-                )
                 break
 
             full_url = f"https://www.openrent.co.uk{message_link}"

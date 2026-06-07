@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import suppress
+from datetime import datetime, timedelta
 
 from app.config import settings
 from app.db.repository import (
@@ -14,6 +15,7 @@ SCHEDULER_INTERVAL_SECONDS = 60
 MAX_PARALLEL_WORKERS = settings.MAX_PARALLEL_WORKERS
 IN_FLIGHT_STATUSES = {"running", "queued", "stopping", "retrying"}
 HEALTHY_PROXY_STATUSES = {"ok", "healthy"}
+STALE_HEARTBEAT_MINUTES = 10
 
 
 def _worker_status(account) -> str:
@@ -33,12 +35,38 @@ def _proxy_is_healthy(account) -> bool:
     )
 
 
-def _is_eligible(account) -> bool:
-    if _worker_status(account) in IN_FLIGHT_STATUSES:
-        return False
-    if is_account_on_cooldown(account.id):
-        return False
-    return _proxy_is_healthy(account)
+def reset_stale_workers():
+    """Reset accounts stuck in running/queued with a stale heartbeat (OOM kill survivor)."""
+    from app.db.connection import SessionLocal
+    from app.db.models import Account as _Account
+
+    stale_before = datetime.utcnow() - timedelta(minutes=STALE_HEARTBEAT_MINUTES)
+    db = SessionLocal()
+    try:
+        stale = (
+            db.query(_Account)
+            .filter(
+                _Account.worker_status.in_(list(IN_FLIGHT_STATUSES)),
+                _Account.worker_last_heartbeat < stale_before,
+            )
+            .all()
+        )
+        for account in stale:
+            logger.info(
+                f"STALE_WORKER_RESET account_id={account.id} "
+                f"email={account.email} "
+                f"was_status={account.worker_status} "
+                f"last_heartbeat={account.worker_last_heartbeat}"
+            )
+            account.worker_status = "idle"
+            account.current_worker_phase = "stale_reset"
+        if stale:
+            db.commit()
+    except Exception as exc:
+        logger.warning(f"reset_stale_workers failed: {exc}")
+        db.rollback()
+    finally:
+        db.close()
 
 
 def _select_accounts(accounts):
@@ -51,16 +79,51 @@ def _select_accounts(accounts):
     selected_proxy_ids = set()
 
     for account in accounts:
-        if not _is_eligible(account):
-            continue
+        worker_status_val = _worker_status(account)
+        proxy = getattr(account, "proxy", None)
+        proxy_assigned = proxy is not None
+        proxy_healthy = _proxy_is_healthy(account)
+        permanently_failed_val = bool(getattr(account, "permanently_failed", False))
+        cooldown_until = getattr(account, "cooldown_until", None)
+        on_cooldown = is_account_on_cooldown(account.id)
 
-        if account.proxy_id in busy_proxy_ids or account.proxy_id in selected_proxy_ids:
-            logger.info("Proxy busy")
-            logger.info(f"Proxy busy. Skipping account {account.id}.")
-            continue
+        skip_reason = None
+        if permanently_failed_val:
+            skip_reason = "PERMANENT_FAILURE"
+        elif worker_status_val in IN_FLIGHT_STATUSES:
+            skip_reason = f"WORKER_{worker_status_val.upper()}"
+        elif on_cooldown:
+            skip_reason = "COOLDOWN"
+        elif not proxy_assigned:
+            skip_reason = "NO_PROXY"
+        elif not proxy_healthy:
+            skip_reason = "PROXY_UNHEALTHY"
 
-        selected.append(account)
-        selected_proxy_ids.add(account.proxy_id)
+        eligible = skip_reason is None
+
+        if eligible:
+            if account.proxy_id in busy_proxy_ids or account.proxy_id in selected_proxy_ids:
+                skip_reason = "PROXY_BUSY"
+                eligible = False
+
+        logger.info(
+            f"ACCOUNT_ELIGIBILITY "
+            f"account_id={account.id} "
+            f"email={account.email} "
+            f"worker_status={worker_status_val} "
+            f"cooldown_until={cooldown_until} "
+            f"cooldown_expired={not on_cooldown} "
+            f"proxy_id={account.proxy_id} "
+            f"proxy_assigned={proxy_assigned} "
+            f"proxy_healthy={proxy_healthy} "
+            f"permanently_failed={permanently_failed_val} "
+            f"eligible={eligible} "
+            f"skip_reason={skip_reason or 'none'}"
+        )
+
+        if eligible:
+            selected.append(account)
+            selected_proxy_ids.add(account.proxy_id)
 
     return selected
 
@@ -68,11 +131,13 @@ def _select_accounts(accounts):
 async def run_scheduler_cycle():
     logger.info("Scheduler cycle started")
     current_uk_time = uk_now()
-    logger.info(f"Current UK time: {current_uk_time.strftime('%Y-%m-%d %H:%M')}")
+    logger.info(f"Current UK time: {current_uk_time.strftime('%Y-%m-%d %H:%M %Z')}")
 
     if not is_operating_hours(current_uk_time):
         logger.info("Outside operating hours. Skipping scheduler cycle.")
         return
+
+    reset_stale_workers()
 
     accounts = get_active_accounts()
 
