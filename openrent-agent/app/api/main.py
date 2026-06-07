@@ -757,10 +757,16 @@ def api_capacity():
 
 @app.get("/api/settings")
 def api_settings():
+    try:
+        from app.queue.redis_conn import redis_conn
+        redis_conn.ping()
+        redis_status = "running"
+    except Exception:
+        redis_status = "error"
     return {
         **RUNTIME_SETTINGS,
         "backend_status": "running",
-        "redis_status": "not_configured",
+        "redis_status": redis_status,
         "api_status": "ok",
     }
 

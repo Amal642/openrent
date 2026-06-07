@@ -91,7 +91,7 @@ function SettingsPage() {
           icon={Database}
           label="Redis"
           value={settings.redis_status}
-          tone={settings.redis_status === "ok" ? "success" : "warning"}
+          tone={settings.redis_status === "running" ? "success" : "destructive"}
         />
         <StatusTile
           icon={Activity}

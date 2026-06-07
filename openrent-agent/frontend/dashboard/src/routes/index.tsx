@@ -98,7 +98,6 @@ function Dashboard() {
   const chartData = useMemo(() => (metrics?.series ?? []).slice(-rangeDays), [metrics, rangeDays]);
   const leadsInRange = chartData.reduce((sum, item) => sum + item.leads, 0);
   const totalRepliesReceived = leads.filter((l) => l.lastLandlordMessage).length;
-  const repliesWaiting = leads.filter((l) => l.status === "NEW_REPLY").length;
   const phones = metrics?.total_phones ?? leads.filter((l) => l.phoneNumber).length;
   const active = leads.filter((l) =>
     ["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"].includes(l.status),
@@ -222,12 +221,6 @@ function Dashboard() {
           value={leadsInRange}
           icon={Send}
           delta={`last ${rangeDays} days`}
-        />
-        <StatCard
-          label="Replies waiting"
-          value={repliesWaiting}
-          icon={MessageCircle}
-          delta={`${replyRate}% reply rate`}
         />
         <StatCard
           label="Phone numbers"

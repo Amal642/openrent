@@ -277,7 +277,6 @@ function AccountsPage() {
               <TableHead>Status</TableHead>
               <TableHead>Daily usage</TableHead>
               <TableHead>Last Run</TableHead>
-              <TableHead>Cooldown Until</TableHead>
               <TableHead>Next Run</TableHead>
               <TableHead>Assigned Proxy</TableHead>
               <TableHead>Persona</TableHead>
@@ -335,9 +334,6 @@ function AccountsPage() {
                     {a.workerJobId ? (
                       <div className="max-w-[120px] truncate">job {a.workerJobId}</div>
                     ) : null}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {fmtSchedule(a.cooldownUntil)}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {fmtSchedule(a.nextRunAt, "Ready")}

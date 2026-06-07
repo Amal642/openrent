@@ -12,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getAccounts, getLogs } from "@/lib/api";
-import { fmtDateTime } from "@/lib/format";
+import { getLogs } from "@/lib/api";
+import { fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import type { LogEntry } from "@/lib/types";
@@ -49,20 +49,18 @@ function LogsPage() {
   const [q, setQ] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(250);
   const pageSize = 50;
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: getAccounts,
-  });
-  const { data: logs = [] } = useQuery<LogEntry[]>({
-    queryKey: ["logs"],
-    queryFn: () => getLogs(),
+
+  const { data: logs = [], isFetching } = useQuery<LogEntry[]>({
+    queryKey: ["logs", limit],
+    queryFn: () => getLogs(limit),
     refetchInterval: 30000,
   });
 
   const filtered = useMemo(
     () =>
-      logs.filter((l) => {
+      [...logs].reverse().filter((l) => {
         if (tab === "errors" && l.level !== "error") return false;
         if (tab === "ai" && !(l.category === "ai" && l.level === "error")) return false;
         if (["worker", "login", "retry", "agent_skip"].includes(tab) && l.category !== tab)
@@ -70,11 +68,9 @@ function LogsPage() {
         if (q && !l.message.toLowerCase().includes(q.toLowerCase())) return false;
         return true;
       }),
-    [tab, q],
+    [tab, q, logs],
   );
 
-  const accountEmail = (id?: string) =>
-    id ? (accounts.find((a) => a.id === id)?.email ?? id) : "—";
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
 
@@ -83,7 +79,7 @@ function LogsPage() {
       <PageHeader title="Logs" description="Worker, AI, login, retry and agent-skip events." />
 
       <div className="flex min-w-0 flex-col gap-2 mb-3 sm:flex-row">
-        <Tabs value={tab} onValueChange={setTab} className="min-w-0 flex-1">
+        <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }} className="min-w-0 flex-1">
           <div className="overflow-x-auto pb-1">
             <TabsList className="h-9 w-max">
               {tabs.map((t) => (
@@ -94,15 +90,28 @@ function LogsPage() {
             </TabsList>
           </div>
         </Tabs>
-        <Input
-          placeholder="Filter logs…"
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setPage(1);
-          }}
-          className="h-9 sm:w-64"
-        />
+        <div className="flex gap-2">
+          <Input
+            placeholder="Filter logs…"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 sm:w-56"
+          />
+          {limit < 2500 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0"
+              onClick={() => { setLimit(2500); setPage(1); }}
+              disabled={isFetching}
+            >
+              {isFetching ? "Loading…" : "Full Logs"}
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="rounded-lg border bg-card overflow-x-auto font-mono text-xs">
@@ -110,9 +119,8 @@ function LogsPage() {
           <TableHeader>
             <TableRow className="bg-muted/40 font-sans">
               <TableHead className="w-20">Level</TableHead>
-              <TableHead className="w-32">Time</TableHead>
+              <TableHead className="w-32">Date</TableHead>
               <TableHead className="w-28">Category</TableHead>
-              <TableHead className="w-48">Account</TableHead>
               <TableHead>Message</TableHead>
             </TableRow>
           </TableHeader>
@@ -127,17 +135,14 @@ function LogsPage() {
                     {l.level}
                   </TableCell>
                   <TableCell className="text-muted-foreground whitespace-nowrap">
-                    {fmtDateTime(l.createdAt)}
+                    {fmtDate(l.createdAt)}
                   </TableCell>
                   <TableCell>{l.category}</TableCell>
-                  <TableCell className="truncate max-w-[200px]">
-                    {accountEmail(l.accountId)}
-                  </TableCell>
                   <TableCell>{l.message}</TableCell>
                 </TableRow>
                 {expanded === l.id && l.context && (
                   <TableRow>
-                    <TableCell colSpan={5} className="bg-muted/30">
+                    <TableCell colSpan={4} className="bg-muted/30">
                       <pre className="whitespace-pre-wrap text-[11px]">
                         {JSON.stringify(l.context, null, 2)}
                       </pre>
@@ -152,6 +157,7 @@ function LogsPage() {
       <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
         <span>
           Page {page} of {totalPages} · {filtered.length} log events
+          {limit === 2500 && " (full log)"}
         </span>
         <div className="flex gap-2">
           <Button
