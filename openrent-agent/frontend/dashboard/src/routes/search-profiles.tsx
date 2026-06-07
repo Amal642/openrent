@@ -39,10 +39,11 @@ import {
   createSearchProfile,
   deleteSearchProfile,
   getAccounts,
+  getLocations,
   getSearchProfiles,
   updateSearchProfile,
 } from "../lib/api";
-import type { Account, SearchProfile } from "../lib/types";
+import type { Account, Location, SearchProfile } from "../lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fmtMoney } from "../lib/format";
@@ -65,6 +66,10 @@ function SearchProfilesPage() {
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: getAccounts,
+  });
+  const { data: locations = [] } = useQuery({
+    queryKey: ["locations"],
+    queryFn: () => getLocations(),
   });
   const {
     data: profiles = [],
@@ -258,6 +263,7 @@ function SearchProfilesPage() {
         onOpenChange={setOpen}
         editing={editing}
         accounts={accounts}
+        locations={locations}
         onSave={save}
       />
     </>
@@ -269,12 +275,14 @@ function ProfileDialog({
   onOpenChange,
   editing,
   accounts,
+  locations,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: SearchProfile | null;
   accounts: Account[];
+  locations: Location[];
   onSave: (data: Partial<SearchProfile>) => void;
 }) {
   const [data, setData] = useState<Partial<SearchProfile>>(editing ?? {});
@@ -313,17 +321,27 @@ function ProfileDialog({
             </Select>
           </div>
           <div className="col-span-2 space-y-1.5">
-            <Label>City</Label>
+            <Label>Location</Label>
             <Select
               value={data.location ?? ""}
               onValueChange={(v) => setData({ ...data, location: v })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select city" />
+                <SelectValue placeholder={locations.length ? "Select location" : "No locations — add one first"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Manchester">Manchester</SelectItem>
-                <SelectItem value="Greater Manchester">Greater Manchester</SelectItem>
+                {locations
+                  .filter((l) => l.active)
+                  .map((l) => (
+                    <SelectItem key={l.id} value={l.termValue}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                {locations.filter((l) => l.active).length === 0 && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    No active locations. Go to Locations to add some.
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </div>

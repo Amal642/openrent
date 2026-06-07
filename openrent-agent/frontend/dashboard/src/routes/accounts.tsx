@@ -258,6 +258,13 @@ function AccountsPage() {
             >
               <Plus className="size-4" /> Add Account
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open("https://signup.live.com", "_blank", "noopener,noreferrer")}
+            >
+              <Plus className="size-4" /> Create Outlook Account
+            </Button>
           </>
         }
       />

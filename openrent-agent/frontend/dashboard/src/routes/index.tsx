@@ -29,7 +29,7 @@ import {
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { getAccounts, getCapacity, getLeads, getMetrics } from "@/lib/api";
+import { getAccounts, getCapacity, getFailedAccountsCount, getLeads, getMetrics } from "@/lib/api";
 import { fmtMoney, fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -87,6 +87,12 @@ function Dashboard() {
     queryKey: ["capacity"],
     queryFn: getCapacity,
     refetchInterval: 10000,
+  });
+
+  const { data: failedCount = 0 } = useQuery({
+    queryKey: ["failed-accounts-count"],
+    queryFn: getFailedAccountsCount,
+    refetchInterval: 60000,
   });
 
   const chartData = useMemo(() => (metrics?.series ?? []).slice(-rangeDays), [metrics, rangeDays]);
@@ -238,7 +244,29 @@ function Dashboard() {
           tone={failed ? "destructive" : "success"}
         />
         <StatCard label="AI success" value={`${successRate}%`} icon={CheckCircle2} tone="success" />
+        <Link to="/failed-accounts" className="block">
+          <StatCard
+            label="Failed Accounts"
+            value={failedCount}
+            icon={AlertTriangle}
+            tone={failedCount ? "destructive" : "success"}
+            delta={failedCount ? "Click to review" : "All accounts healthy"}
+          />
+        </Link>
       </div>
+
+      {failedCount > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="size-4 shrink-0" />
+          <span className="font-medium">
+            ⚠ {failedCount} Failed Account{failedCount !== 1 ? "s" : ""}
+          </span>
+          <span className="text-destructive/80">— sent messages for 2 days with no landlord replies.</span>
+          <Button asChild variant="destructive" size="sm" className="ml-auto">
+            <Link to="/failed-accounts">Review</Link>
+          </Button>
+        </div>
+      )}
 
       <section className="rounded-lg border bg-card shadow-sm p-4">
         <div className="mb-3 flex items-center justify-between">

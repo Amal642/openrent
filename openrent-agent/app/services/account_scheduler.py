@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import suppress
 
+from app.config import settings
 from app.db.repository import (
     get_active_accounts,
     is_account_on_cooldown,
@@ -10,7 +11,7 @@ from app.utils.scheduling import is_operating_hours, uk_now
 
 
 SCHEDULER_INTERVAL_SECONDS = 60
-MAX_PARALLEL_WORKERS = 10
+MAX_PARALLEL_WORKERS = settings.MAX_PARALLEL_WORKERS
 IN_FLIGHT_STATUSES = {"running", "queued", "stopping", "retrying"}
 HEALTHY_PROXY_STATUSES = {"ok", "healthy"}
 

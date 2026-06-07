@@ -15,6 +15,18 @@ from datetime import datetime
 Base = declarative_base()
 
 
+# ---------------- LOCATIONS ----------------
+
+class Location(Base):
+    __tablename__ = "locations"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    term_value = Column(String, nullable=False)
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ---------------- PROXIES ----------------
 
 class Proxy(Base):
@@ -108,6 +120,10 @@ class Account(Base):
 
     listings_last_scraped_at = Column(DateTime, nullable=True)
     cooldown_until = Column(DateTime, nullable=True)
+
+    failed = Column(Boolean, default=False)
+    failed_at = Column(DateTime, nullable=True)
+    failure_reason = Column(Text, nullable=True)
 
     proxy_id = Column(Integer, ForeignKey("proxies.id"), nullable=True)
 

@@ -67,6 +67,10 @@ REQUIRED_COLUMNS = {
         "listings_last_scraped_at": "TIMESTAMP",
         "proxy_id": "INTEGER",
         "cooldown_until": "TIMESTAMP",
+
+        "failed": "BOOLEAN DEFAULT FALSE",
+        "failed_at": "TIMESTAMP",
+        "failure_reason": "TEXT",
     },
 
     "listings": {

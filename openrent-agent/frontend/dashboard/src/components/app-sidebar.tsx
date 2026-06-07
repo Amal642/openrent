@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Users, Search, MessageSquare, ScrollText, Settings, Zap, Cpu, Network } from "lucide-react";
+import { AlertTriangle, Cpu, LayoutDashboard, MapPin, MessageSquare, Network, ScrollText, Search, Settings, Users, Zap } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -11,12 +11,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useQuery } from "@tanstack/react-query";
+import { getFailedAccountsCount } from "@/lib/api";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Accounts", url: "/accounts", icon: Users },
   { title: "Workers", url: "/workers", icon: Cpu },
   { title: "Proxies", url: "/proxies", icon: Network },
+  { title: "Locations", url: "/locations", icon: MapPin },
   { title: "Search Profiles", url: "/search-profiles", icon: Search },
   { title: "Leads", url: "/leads", icon: MessageSquare },
   { title: "Logs", url: "/logs", icon: ScrollText },
@@ -26,6 +29,12 @@ const items = [
 export function AppSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const isActive = (url: string) => (url === "/" ? path === "/" : path.startsWith(url));
+
+  const { data: failedCount = 0 } = useQuery({
+    queryKey: ["failed-accounts-count"],
+    queryFn: getFailedAccountsCount,
+    refetchInterval: 60000,
+  });
 
   return (
     <Sidebar collapsible="icon">
@@ -55,6 +64,23 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive("/failed-accounts")}
+                  tooltip="Failed Accounts"
+                >
+                  <Link to="/failed-accounts" className="flex items-center gap-2">
+                    <AlertTriangle className="size-4" />
+                    <span className="flex-1">Failed Accounts</span>
+                    {failedCount > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                        {failedCount}
+                      </span>
+                    )}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

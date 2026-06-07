@@ -5,9 +5,11 @@ import type {
   AutomationSettings,
   CapacityStatus,
   ConversationStage,
+  FailedAccount,
   HealthStatus,
   Lead,
   LeadStatus,
+  Location,
   LogEntry,
   Message,
   Proxy,
@@ -653,4 +655,113 @@ export async function updateProxy(
 
 export async function deleteProxy(proxyId: string): Promise<{ deleted: boolean }> {
   return del(`/proxies/${proxyId}`);
+}
+
+// ---------------- LOCATIONS ----------------
+
+type BackendLocation = {
+  id: number;
+  name: string;
+  term_value: string;
+  active: boolean;
+  created_at?: string;
+};
+
+function mapLocation(l: BackendLocation): Location {
+  return {
+    id: l.id,
+    name: l.name,
+    termValue: l.term_value,
+    active: l.active,
+    createdAt: l.created_at,
+  };
+}
+
+export async function getLocations(activeOnly = false): Promise<Location[]> {
+  const rows = await get<BackendLocation[]>(`/locations?active_only=${activeOnly}`);
+  return rows.map(mapLocation);
+}
+
+export async function createLocation(data: { name: string; termValue: string; active?: boolean }): Promise<Location> {
+  const created = await post<BackendLocation>("/locations", {
+    name: data.name,
+    term_value: data.termValue,
+    active: data.active ?? true,
+  });
+  return mapLocation(created);
+}
+
+export async function updateLocation(
+  id: number,
+  data: { name: string; termValue: string; active: boolean },
+): Promise<Location> {
+  const updated = await patch<BackendLocation>(`/locations/${id}`, {
+    name: data.name,
+    term_value: data.termValue,
+    active: data.active,
+  });
+  return mapLocation(updated);
+}
+
+export async function toggleLocation(id: number): Promise<Location> {
+  const updated = await post<BackendLocation>(`/locations/${id}/toggle`, {});
+  return mapLocation(updated);
+}
+
+export async function deleteLocation(id: number): Promise<{ deleted: boolean }> {
+  return del(`/locations/${id}`);
+}
+
+// ---------------- FAILED ACCOUNTS ----------------
+
+type BackendFailedAccount = {
+  id: number | string;
+  email: string;
+  proxy_name?: string;
+  proxy_server?: string;
+  failed: boolean;
+  failed_at?: string;
+  failure_reason?: string;
+  worker_last_completed_at?: string;
+  messages_sent?: number;
+  replies_received?: number;
+  active: boolean;
+};
+
+function mapFailedAccount(a: BackendFailedAccount): FailedAccount {
+  return {
+    id: String(a.id),
+    email: a.email,
+    proxyName: a.proxy_name,
+    proxyServer: a.proxy_server,
+    failed: a.failed,
+    failedAt: a.failed_at,
+    failureReason: a.failure_reason,
+    lastRunAt: a.worker_last_completed_at,
+    messagesSet: a.messages_sent,
+    repliesReceived: a.replies_received,
+    active: a.active,
+  };
+}
+
+export async function getFailedAccounts(): Promise<FailedAccount[]> {
+  const rows = await get<BackendFailedAccount[]>("/failed-accounts");
+  return rows.map(mapFailedAccount);
+}
+
+export async function getFailedAccountsCount(): Promise<number> {
+  const data = await get<{ count: number }>("/failed-accounts/count");
+  return data.count;
+}
+
+export async function retryFailedAccount(accountId: string): Promise<unknown> {
+  return post(`/failed-accounts/${accountId}/retry`, {});
+}
+
+export async function clearFailedAccount(accountId: string): Promise<unknown> {
+  return post(`/failed-accounts/${accountId}/clear`, {});
+}
+
+export async function disableFailedAccount(accountId: string): Promise<unknown> {
+  return post(`/failed-accounts/${accountId}/disable`, {});
 }

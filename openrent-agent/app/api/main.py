@@ -13,11 +13,14 @@ from pydantic import BaseModel
 
 from app.db.init_db import init_db
 from app.db.repository import (
+    clear_account_failed,
     create_account,
+    create_location,
     create_proxy,
     create_search_profile,
     deactivate_search_profile,
     delete_account,
+    delete_location,
     delete_proxy,
     get_account,
     get_capacity_stats,
@@ -25,8 +28,13 @@ from app.db.repository import (
     get_dashboard_accounts,
     get_dashboard_leads,
     get_dashboard_search_profiles,
+    get_failed_account_count,
+    get_failed_accounts,
+    get_locations,
     get_proxies,
     get_proxy,
+    mark_account_failed,
+    update_location,
     update_proxy,
     update_proxy_health,
     update_account,
@@ -37,6 +45,10 @@ from app.db.status import CLOSED, SKIPPED
 from app.services.account_scheduler import (
     start_account_scheduler,
     stop_account_scheduler,
+)
+from app.services.failed_account_detector import (
+    start_failed_account_detector,
+    stop_failed_account_detector,
 )
 from app.services.proxy_health_monitor import (
     start_proxy_health_monitor,
@@ -140,6 +152,12 @@ class CompareDesignsPayload(BaseModel):
     max_turns: int = 1
 
 
+class LocationPayload(BaseModel):
+    name: str
+    term_value: str
+    active: bool = True
+
+
 class SettingsPayload(BaseModel):
     openai_model: str | None = None
     auto_send: bool | None = None
@@ -165,6 +183,7 @@ async def lifespan(app_instance):
     init_db()
     app_instance.state.account_scheduler_task = start_account_scheduler()
     app_instance.state.proxy_health_monitor_task = start_proxy_health_monitor()
+    app_instance.state.failed_account_detector_task = start_failed_account_detector()
     try:
         yield
     finally:
@@ -173,6 +192,9 @@ async def lifespan(app_instance):
         )
         await stop_proxy_health_monitor(
             getattr(app_instance.state, "proxy_health_monitor_task", None)
+        )
+        await stop_failed_account_detector(
+            getattr(app_instance.state, "failed_account_detector_task", None)
         )
 
 
@@ -761,7 +783,18 @@ def api_logs(limit: int = 250):
     for idx, line in enumerate(lines):
         parts = [part.strip() for part in line.split("|", 2)]
         if len(parts) == 3:
-            created_at, level, message = parts
+            raw_ts, level, message = parts
+            # Logger uses Python's %(asctime)s format: "2026-06-07 14:23:45,123"
+            # Convert to ISO 8601 so JavaScript Date() can parse it.
+            try:
+                ts = datetime.strptime(raw_ts, "%Y-%m-%d %H:%M:%S,%f")
+                created_at = ts.isoformat()
+            except ValueError:
+                try:
+                    ts = datetime.strptime(raw_ts, "%Y-%m-%d %H:%M:%S")
+                    created_at = ts.isoformat()
+                except ValueError:
+                    created_at = datetime.utcnow().isoformat()
         else:
             created_at, level, message = datetime.utcnow().isoformat(), "INFO", line
 
@@ -791,6 +824,102 @@ def api_logs(limit: int = 250):
         })
 
     return results
+
+
+# =========================================================
+# LOCATIONS
+# =========================================================
+
+@app.get("/api/locations")
+def api_list_locations(active_only: bool = False):
+    return get_locations(active_only=active_only)
+
+
+@app.post("/api/locations")
+def api_create_location(payload: LocationPayload):
+    return create_location(
+        name=payload.name,
+        term_value=payload.term_value,
+        active=payload.active,
+    )
+
+
+@app.patch("/api/locations/{location_id}")
+def api_update_location(location_id: int, payload: LocationPayload):
+    updated = update_location(
+        location_id,
+        name=payload.name,
+        term_value=payload.term_value,
+        active=payload.active,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Location not found")
+    return updated
+
+
+@app.post("/api/locations/{location_id}/toggle")
+def api_toggle_location(location_id: int):
+    from app.db.repository import get_locations as _get_locs
+    locs = _get_locs()
+    loc = next((l for l in locs if l["id"] == location_id), None)
+    if not loc:
+        raise HTTPException(status_code=404, detail="Location not found")
+    updated = update_location(location_id, active=not loc["active"])
+    if not updated:
+        raise HTTPException(status_code=404, detail="Location not found")
+    return updated
+
+
+@app.delete("/api/locations/{location_id}")
+def api_delete_location(location_id: int):
+    result, error = delete_location(location_id)
+    if error == "not_found":
+        raise HTTPException(status_code=404, detail="Location not found")
+    return result
+
+
+# =========================================================
+# FAILED ACCOUNTS
+# =========================================================
+
+@app.get("/api/failed-accounts")
+def api_failed_accounts():
+    return get_failed_accounts()
+
+
+@app.get("/api/failed-accounts/count")
+def api_failed_accounts_count():
+    return {"count": get_failed_account_count()}
+
+
+@app.post("/api/failed-accounts/{account_id}/retry")
+async def api_retry_failed_account(account_id: int):
+    _require_account(account_id)
+    clear_account_failed(account_id)
+    from app.workers.account_worker import start_account_worker
+    result = await start_account_worker(account_id)
+    return {
+        "status": "queued" if result.get("queued") else "skipped",
+        "account_id": account_id,
+        **result,
+    }
+
+
+@app.post("/api/failed-accounts/{account_id}/clear")
+def api_clear_failed_account(account_id: int):
+    account = clear_account_failed(account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return account
+
+
+@app.post("/api/failed-accounts/{account_id}/disable")
+def api_disable_failed_account(account_id: int):
+    _require_account(account_id)
+    account = update_account(account_id=account_id, active=False)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return account
 
 
 @app.post("/simulation/run")

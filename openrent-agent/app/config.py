@@ -27,6 +27,7 @@ class Settings:
 
     AI_AUTOSEND: bool = os.getenv("AI_AUTOSEND", "true").lower() == "true"
     WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
+    MAX_PARALLEL_WORKERS = int(os.getenv("MAX_PARALLEL_WORKERS", "2"))
     SIMULATION_DEFAULT_TEMPERATURE = float(
         os.getenv("SIMULATION_DEFAULT_TEMPERATURE", "0.0")
     )

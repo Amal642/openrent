@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Pause, Play, Power, RefreshCw } from "lucide-react";
+import { Activity, Pause, Play, Power, RefreshCw, Server, Shield, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { StatCard } from "@/components/stat-card";
 import { DotBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { controlAccountWorker, getWorkers, getWorkersStatus } from "@/lib/api";
+import { controlAccountWorker, getCapacity, getWorkers, getWorkersStatus } from "@/lib/api";
 import type { WorkerStatus } from "@/lib/types";
 import { fmtRelative } from "@/lib/format";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -54,12 +55,18 @@ function WorkersPage() {
     queryFn: getWorkersStatus,
     refetchInterval: 10000,
   });
+  const { data: capacity } = useQuery({
+    queryKey: ["capacity"],
+    queryFn: getCapacity,
+    refetchInterval: 10000,
+  });
   const mutation = useMutation({
     mutationFn: controlAccountWorker,
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["workers"] });
       queryClient.invalidateQueries({ queryKey: ["worker-status"] });
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["capacity"] });
       toast.success(`Worker ${variables.action} requested`);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Worker action failed"),
@@ -68,12 +75,55 @@ function WorkersPage() {
   if (isLoading) return <PageHeader title="Workers" description="Loading worker status..." />;
   if (error) return <PageHeader title="Workers" description="Could not load worker status." />;
 
+  const activeWorkers = capacity?.accounts_in_flight ?? 0;
+  const maxWorkers = capacity?.max_parallel_workers ?? 0;
+  const queuedAccounts = capacity?.accounts_queued ?? 0;
+  const runningAccounts = capacity?.accounts_running ?? 0;
+  const healthyProxies = capacity?.healthy_proxies ?? 0;
+  const totalProxies = capacity?.total_proxies ?? 0;
+
   return (
     <>
       <PageHeader
         title="Workers"
         description={`${status?.running ?? 0} running · ${status?.paused ?? 0} paused · ${status?.errored ?? 0} errored`}
       />
+
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard
+          label="Active Workers"
+          value={`${activeWorkers} / ${maxWorkers}`}
+          icon={Server}
+          tone={activeWorkers >= maxWorkers ? "warning" : activeWorkers > 0 ? "success" : "default"}
+          delta={`${capacity?.worker_capacity ?? 0} slot(s) free`}
+        />
+        <StatCard
+          label="Queued Accounts"
+          value={queuedAccounts}
+          icon={Users}
+          tone={queuedAccounts > 0 ? "warning" : "default"}
+        />
+        <StatCard
+          label="Running Accounts"
+          value={runningAccounts}
+          icon={Activity}
+          tone={runningAccounts > 0 ? "success" : "default"}
+        />
+        <StatCard
+          label="Healthy Proxies"
+          value={`${healthyProxies} / ${totalProxies}`}
+          icon={Shield}
+          tone={
+            totalProxies === 0
+              ? "default"
+              : healthyProxies === totalProxies
+              ? "success"
+              : healthyProxies === 0
+              ? "destructive"
+              : "warning"
+          }
+        />
+      </div>
 
       <div className="overflow-x-auto rounded-lg border bg-card">
         <Table>

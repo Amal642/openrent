@@ -5,7 +5,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 from app.utils.logger import logger
 
-RETRY_INTERVALS_MINUTES = [5, 10, 20, 30]
+RETRY_INTERVALS_MINUTES = [1, 2, 4, 5, 10, 15, 30]
 UNHEALTHY_PROXY_STATUSES = {"down", "failed"}
 UNHEALTHY_WORKER_STATUSES = {"proxy_error"}
 MONITOR_POLL_INTERVAL_SECONDS = 60
@@ -110,7 +110,7 @@ async def _run_monitor_cycle():
             continue
 
         logger.info(
-            f"PROXY_RECHECK_STARTED proxy_key={key} "
+            f"PROXY_RETRY proxy_key={key} "
             f"account_id={account.id} "
             f"attempt={state['failures'] + 1}"
         )

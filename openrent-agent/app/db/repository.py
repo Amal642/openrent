@@ -465,6 +465,9 @@ def serialize_account(account):
         "retry_next_at": account.retry_next_at,
         "last_exception": account.last_exception,
         "permanently_failed": bool(account.permanently_failed),
+        "failed": bool(account.failed) if hasattr(account, "failed") else False,
+        "failed_at": account.failed_at if hasattr(account, "failed_at") else None,
+        "failure_reason": account.failure_reason if hasattr(account, "failure_reason") else None,
     }
 
 
@@ -1827,3 +1830,201 @@ def deactivate_search_profile(profile_id):
         profile_id=profile_id,
         active=False
     )
+
+
+# ---------------- LOCATIONS ----------------
+
+def _serialize_location(loc) -> dict:
+    return {
+        "id": loc.id,
+        "name": loc.name,
+        "term_value": loc.term_value,
+        "active": loc.active,
+        "created_at": loc.created_at,
+    }
+
+
+def get_locations(active_only: bool = False):
+    from app.db.models import Location
+    with session_scope() as db:
+        q = db.query(Location)
+        if active_only:
+            q = q.filter(Location.active == True)
+        return [_serialize_location(loc) for loc in q.order_by(Location.name.asc()).all()]
+
+
+def create_location(name: str, term_value: str, active: bool = True):
+    from app.db.models import Location
+    with session_scope() as db:
+        loc = Location(name=name, term_value=term_value, active=active)
+        db.add(loc)
+        db.commit()
+        db.refresh(loc)
+        return _serialize_location(loc)
+
+
+def update_location(location_id: int, name: str | None = None, term_value: str | None = None, active: bool | None = None):
+    from app.db.models import Location
+    with session_scope() as db:
+        loc = db.query(Location).filter(Location.id == location_id).first()
+        if not loc:
+            return None
+        if name is not None:
+            loc.name = name
+        if term_value is not None:
+            loc.term_value = term_value
+        if active is not None:
+            loc.active = active
+        db.commit()
+        db.refresh(loc)
+        return _serialize_location(loc)
+
+
+def delete_location(location_id: int):
+    from app.db.models import Location
+    with session_scope() as db:
+        loc = db.query(Location).filter(Location.id == location_id).first()
+        if not loc:
+            return None, "not_found"
+        db.delete(loc)
+        db.commit()
+        return {"deleted": True, "id": location_id}, None
+
+
+# ---------------- FAILED ACCOUNTS ----------------
+
+def get_failed_accounts():
+    with session_scope() as db:
+        accounts = (
+            db.query(Account)
+            .options(joinedload(Account.proxy))
+            .filter(Account.failed == True)
+            .order_by(Account.failed_at.desc())
+            .all()
+        )
+        results = []
+        for account in accounts:
+            base = serialize_account(account)
+            base["messages_sent"] = _count_account_outbound_messages(db, account.id, days=3)
+            base["replies_received"] = _count_account_inbound_messages(db, account.id, days=3)
+            results.append(base)
+        return results
+
+
+def get_failed_account_count() -> int:
+    with session_scope() as db:
+        return db.query(Account).filter(Account.failed == True).count()
+
+
+def mark_account_failed(account_id: int, reason: str):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return
+        account.failed = True
+        account.failed_at = datetime.utcnow()
+        account.failure_reason = reason
+        db.commit()
+
+
+def clear_account_failed(account_id: int):
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return None
+        account.failed = False
+        account.failed_at = None
+        account.failure_reason = None
+        db.commit()
+        db.refresh(account)
+        return serialize_account(account)
+
+
+def _count_account_outbound_messages(db, account_id: int, days: int = 3) -> int:
+    since = datetime.utcnow() - timedelta(days=days)
+    return (
+        db.query(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .join(Listing, Conversation.listing_id == Listing.id)
+        .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+        .filter(
+            SearchProfile.account_id == account_id,
+            Message.direction == "outbound",
+            Message.created_at >= since,
+        )
+        .count()
+    )
+
+
+def _count_account_inbound_messages(db, account_id: int, days: int = 3) -> int:
+    since = datetime.utcnow() - timedelta(days=days)
+    return (
+        db.query(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .join(Listing, Conversation.listing_id == Listing.id)
+        .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+        .filter(
+            SearchProfile.account_id == account_id,
+            Message.direction == "inbound",
+            Message.created_at >= since,
+        )
+        .count()
+    )
+
+
+def _count_account_outbound_on_day(db, account_id: int, day_start: datetime, day_end: datetime) -> int:
+    return (
+        db.query(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .join(Listing, Conversation.listing_id == Listing.id)
+        .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+        .filter(
+            SearchProfile.account_id == account_id,
+            Message.direction == "outbound",
+            Message.created_at >= day_start,
+            Message.created_at < day_end,
+        )
+        .count()
+    )
+
+
+def detect_and_mark_failed_accounts():
+    """
+    Mark accounts as failed if they sent messages for 2 consecutive calendar days
+    with no inbound (landlord) replies in that window.
+    """
+    from app.utils.scheduling import uk_now
+
+    now_uk = uk_now()
+    today = now_uk.date()
+
+    # Day windows in UTC (approximate — close enough for daily detection)
+    day0_start = datetime(today.year, today.month, today.day) - timedelta(days=1)
+    day0_end = datetime(today.year, today.month, today.day)
+    day1_start = day0_start - timedelta(days=1)
+    day1_end = day0_start
+
+    with session_scope() as db:
+        accounts = db.query(Account).options(joinedload(Account.proxy)).filter(Account.active == True).all()
+
+        for account in accounts:
+            if account.failed:
+                continue
+
+            sent_day0 = _count_account_outbound_on_day(db, account.id, day0_start, day0_end)
+            sent_day1 = _count_account_outbound_on_day(db, account.id, day1_start, day1_end)
+
+            if sent_day0 == 0 or sent_day1 == 0:
+                continue
+
+            replies = _count_account_inbound_messages(db, account.id, days=2)
+
+            if replies == 0:
+                account.failed = True
+                account.failed_at = datetime.utcnow()
+                account.failure_reason = (
+                    f"No landlord replies received after 2 consecutive days of outreach "
+                    f"({sent_day1} messages on day 1, {sent_day0} messages on day 2)."
+                )
+
+        db.commit()

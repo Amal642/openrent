@@ -268,6 +268,28 @@ export interface CapacityStatus {
   worker_capacity: number;
 }
 
+export interface Location {
+  id: number;
+  name: string;
+  termValue: string;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface FailedAccount {
+  id: string;
+  email: string;
+  proxyName?: string;
+  proxyServer?: string;
+  failed: boolean;
+  failedAt?: string;
+  failureReason?: string;
+  lastRunAt?: string;
+  messagesSet?: number;
+  repliesReceived?: number;
+  active: boolean;
+}
+
 export interface AutomationSettings {
   openai_model: string;
   auto_send: boolean;
