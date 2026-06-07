@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import suppress
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.db.repository import (
@@ -8,7 +8,7 @@ from app.db.repository import (
     is_account_on_cooldown,
 )
 from app.utils.logger import logger
-from app.utils.scheduling import is_operating_hours, uk_now
+from app.utils.scheduling import UK_TZ, is_operating_hours, uk_now
 
 
 SCHEDULER_INTERVAL_SECONDS = 60
@@ -87,6 +87,13 @@ def _select_accounts(accounts):
         cooldown_until = getattr(account, "cooldown_until", None)
         on_cooldown = is_account_on_cooldown(account.id)
 
+        # Convert cooldown_until (UTC naive) to BST for human-readable log
+        if cooldown_until:
+            cooldown_uk = cooldown_until.replace(tzinfo=timezone.utc).astimezone(UK_TZ)
+            cooldown_display = cooldown_uk.strftime("%Y-%m-%d %H:%M:%S %Z")
+        else:
+            cooldown_display = "none"
+
         skip_reason = None
         if permanently_failed_val:
             skip_reason = "PERMANENT_FAILURE"
@@ -111,7 +118,7 @@ def _select_accounts(accounts):
             f"account_id={account.id} "
             f"email={account.email} "
             f"worker_status={worker_status_val} "
-            f"cooldown_until={cooldown_until} "
+            f"cooldown_until={cooldown_display} "
             f"cooldown_expired={not on_cooldown} "
             f"proxy_id={account.proxy_id} "
             f"proxy_assigned={proxy_assigned} "

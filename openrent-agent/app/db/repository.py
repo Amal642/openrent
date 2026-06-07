@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import random
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import joinedload
 
@@ -23,6 +23,15 @@ from app.ai.personas import (
     normalize_conversation_style,
     select_persona,
 )
+
+
+def _utc(dt: datetime | None) -> datetime | None:
+    """Attach UTC timezone to a naive datetime so API clients parse it correctly."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 @contextmanager
@@ -415,9 +424,9 @@ def serialize_account(account):
         "initial_message": account.initial_message,
         "daily_limit": account.daily_limit,
         "messages_sent_today": account.messages_sent_today,
-        "messages_sent_reset_at": account.messages_sent_reset_at,
+        "messages_sent_reset_at": _utc(account.messages_sent_reset_at),
         "active": account.active,
-        "created_at": account.created_at,
+        "created_at": _utc(account.created_at),
         "persona_name": persona["persona_name"] if persona else None,
         "persona_partner_name": persona["persona_partner_name"] if persona else None,
         "persona_job": persona["persona_job"] if persona else None,
@@ -438,35 +447,35 @@ def serialize_account(account):
         "phone_boundary": persona.get("phone_boundary") if persona else None,
         "worker_status": account.worker_status or "idle",
         "worker_job_id": account.worker_job_id,
-        "worker_started_at": account.worker_started_at,
-        "worker_last_heartbeat": account.worker_last_heartbeat,
+        "worker_started_at": _utc(account.worker_started_at),
+        "worker_last_heartbeat": _utc(account.worker_last_heartbeat),
         "worker_error": account.worker_error,
         "worker_last_error": account.worker_last_error,
-        "worker_last_completed_at": account.worker_last_completed_at,
-        "last_run_at": account.worker_last_completed_at,
+        "worker_last_completed_at": _utc(account.worker_last_completed_at),
+        "last_run_at": _utc(account.worker_last_completed_at),
         "current_worker_phase": account.current_worker_phase or "idle",
-        "cooldown_until": account.cooldown_until,
-        "next_run_at": next_run_at,
-        "last_login_at": account.last_login_at,
+        "cooldown_until": _utc(account.cooldown_until),
+        "next_run_at": _utc(next_run_at),
+        "last_login_at": _utc(account.last_login_at),
         "session_status": account.session_status or "expired",
-        "session_last_checked": account.session_last_checked,
+        "session_last_checked": _utc(account.session_last_checked),
         "session_last_error": account.session_last_error,
         "session_auth_failures": account.session_auth_failures or 0,
         "session_captcha_triggers": account.session_captcha_triggers or 0,
         "proxy_status": account.proxy_status or "unknown",
         "proxy_ip": account.proxy_ip,
         "proxy_latency": account.proxy_latency,
-        "proxy_last_checked": account.proxy_last_checked,
+        "proxy_last_checked": _utc(account.proxy_last_checked),
         "proxy_last_error": account.proxy_last_error,
         "proxy_failures": account.proxy_failures or 0,
         "retry_count": account.retry_count or 0,
         "retry_limit": account.retry_limit or 3,
         "retry_reason": account.retry_reason,
-        "retry_next_at": account.retry_next_at,
+        "retry_next_at": _utc(account.retry_next_at),
         "last_exception": account.last_exception,
         "permanently_failed": bool(account.permanently_failed),
         "failed": bool(account.failed) if hasattr(account, "failed") else False,
-        "failed_at": account.failed_at if hasattr(account, "failed_at") else None,
+        "failed_at": _utc(account.failed_at) if hasattr(account, "failed_at") else None,
         "failure_reason": account.failure_reason if hasattr(account, "failure_reason") else None,
     }
 
@@ -802,11 +811,34 @@ def set_account_cooldown(account_id: int) -> None:
 
 
 def is_account_on_cooldown(account_id: int) -> bool:
+    from app.utils.scheduling import UK_TZ
+    from app.utils.logger import logger as _logger
+
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
         if not account or not account.cooldown_until:
             return False
-        return account.cooldown_until > datetime.utcnow()
+
+        now_utc = datetime.utcnow()
+        cooldown_utc = account.cooldown_until
+        still_on_cooldown = cooldown_utc > now_utc
+
+        cooldown_uk = cooldown_utc.replace(tzinfo=timezone.utc).astimezone(UK_TZ)
+        now_uk = now_utc.replace(tzinfo=timezone.utc).astimezone(UK_TZ)
+
+        _logger.info(
+            f"ACCOUNT_COOLDOWN_DEBUG account_id={account_id} "
+            f"cooldown_until_raw={cooldown_utc} "
+            f"cooldown_until_timezone=UTC "
+            f"cooldown_until_uk={cooldown_uk.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+            f"current_time_raw={now_utc} "
+            f"current_time_timezone=UTC "
+            f"current_time_uk={now_uk.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+            f"comparison_result={cooldown_utc}>{now_utc}=={still_on_cooldown} "
+            f"cooldown_expired={not still_on_cooldown}"
+        )
+
+        return still_on_cooldown
 
 
 # ---------------- LISTINGS ----------------
