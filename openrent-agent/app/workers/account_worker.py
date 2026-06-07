@@ -273,82 +273,93 @@ async def run_account_worker(account):
                 f"INVENTORY_CHECK account_id={account.id} available={inventory}"
             )
 
+            # =====================================================
+            # PHASES 5-7 — DISCOVERY (gated by inventory caps)
+            # Hard cap and target cap only suppress NEW discovery.
+            # They must never block outreach on existing inventory.
+            # =====================================================
+
             if inventory >= settings.HARD_CAP_INVENTORY:
-                # Too many uncontacted listings — skip both discovery and outreach.
                 logger.info(
                     f"INVENTORY_HARD_CAP_REACHED account_id={account.id} "
-                    f"available={inventory} cap={settings.HARD_CAP_INVENTORY}"
+                    f"available={inventory} cap={settings.HARD_CAP_INVENTORY} "
+                    f"discovery=disabled"
+                )
+            elif inventory >= settings.TARGET_INVENTORY:
+                logger.info(
+                    f"INVENTORY_TARGET_REACHED account_id={account.id} "
+                    f"available={inventory} target={settings.TARGET_INVENTORY} "
+                    f"discovery=skipped"
                 )
             else:
-                if inventory >= settings.TARGET_INVENTORY:
-                    # Enough inventory — skip discovery but still run outreach.
+                # =====================================================
+                # PHASE 5 — DISCOVERY BUDGET CHECK (per-day cap)
+                # =====================================================
+
+                discovered_today = count_discovered_today(account.id)
+                logger.info(
+                    f"DISCOVERY_BUDGET account_id={account.id} "
+                    f"discovered_today={discovered_today} "
+                    f"limit={settings.DISCOVERY_LIMIT_PER_DAY}"
+                )
+
+                if discovered_today >= settings.DISCOVERY_LIMIT_PER_DAY:
                     logger.info(
-                        f"INVENTORY_TARGET_REACHED account_id={account.id} "
-                        f"available={inventory} target={settings.TARGET_INVENTORY}"
+                        f"DISCOVERY_DAILY_LIMIT_REACHED account_id={account.id} "
+                        f"discovered_today={discovered_today}"
                     )
                 else:
                     # =====================================================
-                    # PHASE 5 — DISCOVERY BUDGET CHECK (per-day cap)
+                    # PHASE 6 — DISCOVERY COOLDOWN CHECK
                     # =====================================================
 
-                    discovered_today = count_discovered_today(account.id)
-                    logger.info(
-                        f"DISCOVERY_BUDGET account_id={account.id} "
-                        f"discovered_today={discovered_today} "
-                        f"limit={settings.DISCOVERY_LIMIT_PER_DAY}"
-                    )
-
-                    if discovered_today >= settings.DISCOVERY_LIMIT_PER_DAY:
+                    if not should_scrape_now(
+                        account.id,
+                        cooldown_hours=settings.DISCOVERY_COOLDOWN_HOURS,
+                    ):
                         logger.info(
-                            f"DISCOVERY_DAILY_LIMIT_REACHED account_id={account.id} "
-                            f"discovered_today={discovered_today}"
+                            f"DISCOVERY_COOLDOWN account_id={account.id} "
+                            f"cooldown_hours={settings.DISCOVERY_COOLDOWN_HOURS}"
                         )
                     else:
                         # =====================================================
-                        # PHASE 6 — DISCOVERY COOLDOWN CHECK
+                        # PHASE 7 — DISCOVERY (max DISCOVERY_LIMIT_PER_RUN new)
                         # =====================================================
 
-                        if not should_scrape_now(
-                            account.id,
-                            cooldown_hours=settings.DISCOVERY_COOLDOWN_HOURS,
-                        ):
-                            logger.info(
-                                f"DISCOVERY_COOLDOWN account_id={account.id} "
-                                f"cooldown_hours={settings.DISCOVERY_COOLDOWN_HOURS}"
+                        phase = "discovery"
+                        update_account_worker_state(
+                            account.id, "running", phase=phase
+                        )
+                        try:
+                            await scrape_account_listings(
+                                account,
+                                page,
+                                new_limit=settings.DISCOVERY_LIMIT_PER_RUN,
                             )
-                        else:
-                            # =====================================================
-                            # PHASE 7 — DISCOVERY (max DISCOVERY_LIMIT_PER_RUN new)
-                            # =====================================================
-
-                            phase = "discovery"
-                            update_account_worker_state(
-                                account.id, "running", phase=phase
+                        except Exception as exc:
+                            logger.exception(
+                                f"DISCOVERY_FAILED account_id={account.id} "
+                                f"email={account.email} error={exc}"
                             )
-                            try:
-                                await scrape_account_listings(
-                                    account,
-                                    page,
-                                    new_limit=settings.DISCOVERY_LIMIT_PER_RUN,
-                                )
-                            except Exception as exc:
-                                logger.exception(
-                                    f"DISCOVERY_FAILED account_id={account.id} "
-                                    f"email={account.email} error={exc}"
-                                )
 
-                # =====================================================
-                # PHASE 8 — INITIAL OUTREACH (messaging)
-                # =====================================================
+            # =====================================================
+            # PHASE 8 — INITIAL OUTREACH (messaging)
+            # Runs regardless of inventory level — caps only gate discovery.
+            # =====================================================
 
-                if not account_stop_requested(account.id):
-                    phase = "send_and_reply"
-                    update_account_worker_state(
-                        account.id, "running", phase=phase
-                    )
-                    await process_account_listings(
-                        account, page, worker_id=worker_id
-                    )
+            if not account_stop_requested(account.id):
+                phase = "send_and_reply"
+                update_account_worker_state(
+                    account.id, "running", phase=phase
+                )
+                logger.info(
+                    f"MESSAGE_STAGE_STARTED account_id={account.id} "
+                    f"inventory_available={inventory}"
+                )
+                await process_account_listings(
+                    account, page, worker_id=worker_id
+                )
+                logger.info(f"MESSAGE_STAGE_FINISHED account_id={account.id}")
 
         # =====================================================
         # SUCCESSFUL COMPLETION

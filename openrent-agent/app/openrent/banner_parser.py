@@ -123,11 +123,18 @@ async def extract_thread_banners(page) -> dict:
                 result["viewing_requested"] = True
                 logger.info(f"VIEWING_REQUESTED_DETECTED banner={text!r}")
 
-            if "viewing confirmed for" in tl and not result["viewing_confirmed"]:
+            _confirmed_phrases = (
+                "viewing confirmed for",
+                "viewing confirmed",
+                "viewing booked",
+                "viewing arranged",
+                "viewing for",
+            )
+            if any(p in tl for p in _confirmed_phrases) and not result["viewing_confirmed"]:
+                result["viewing_confirmed"] = True
                 dt = parse_banner_datetime(text)
+                result["viewing_datetime"] = dt
                 if dt:
-                    result["viewing_confirmed"] = True
-                    result["viewing_datetime"] = dt
                     logger.info(
                         f"VIEWING_CONFIRMED_BANNER_DETECTED "
                         f"banner={text!r} datetime={dt}"
@@ -135,8 +142,8 @@ async def extract_thread_banners(page) -> dict:
                     logger.info(f"VIEWING_DATETIME_EXTRACTED datetime={dt}")
                 else:
                     logger.warning(
-                        f"VIEWING_CONFIRMED_BANNER_DETECTED but datetime parse failed "
-                        f"banner={text!r}"
+                        f"VIEWING_CONFIRMED_BANNER_DETECTED datetime_parse_failed "
+                        f"banner={text!r} viewing_confirmed=True viewing_datetime=None"
                     )
 
     except Exception as exc:

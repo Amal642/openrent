@@ -279,7 +279,7 @@ async def process_account_replies(
             # Run before saving messages so the conversation fetch below
             # already reflects the banner-derived state.
             banners = await extract_thread_banners(page)
-            if banners["viewing_confirmed"] and banners["viewing_datetime"]:
+            if banners["viewing_confirmed"]:
                 save_banner_state(
                     thread_id,
                     viewing_requested=banners["viewing_requested"],

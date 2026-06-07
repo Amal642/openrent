@@ -67,17 +67,24 @@ async def process_account_listings(
         limit=20,
     )
 
-    logger.info(f"CANDIDATE LISTINGS CLAIMED: {len(listings)}")
+    logger.info(
+        f"MESSAGE_CANDIDATES_AVAILABLE account_id={account.id} "
+        f"claimed={len(listings)}"
+    )
 
     if not listings:
         logger.warning(
-            f"NO LISTINGS TO PROCESS for {account.email}. "
-            "If scraping just ran, check debug/ artifacts for why 0 listings were found."
+            f"NO_CANDIDATES account_id={account.id} email={account.email} "
+            "no uncontacted listings available for outreach"
         )
         return
 
+    logger.info(f"MESSAGE_STAGE_STARTED account_id={account.id} candidates={len(listings)}")
+
     messages_sent = 0
     agent_skipped = 0
+    skipped_other = 0
+    not_contactable = 0
 
     for listing in listings:
         # Snapshot all primitives immediately — the ORM object becomes detached
@@ -133,6 +140,7 @@ async def process_account_listings(
                     f"Skipping listing {listing_ext_id}: agent status unknown"
                 )
                 mark_listing_skipped(listing_pk, reason="agent_status_unknown")
+                skipped_other += 1
                 continue
 
             if is_agent:
@@ -152,6 +160,7 @@ async def process_account_listings(
 
             if not contactable:
                 mark_listing_skipped(listing_pk, reason="not_contactable")
+                not_contactable += 1
                 continue
 
             if not can_send_message(account.id):
@@ -222,6 +231,9 @@ async def process_account_listings(
             )
 
     logger.info(
-        f"MESSAGES_SENT account_id={account.id} sent={messages_sent} "
-        f"candidates={len(listings)} agent_skipped={agent_skipped}"
+        f"MESSAGES_SENT_THIS_RUN account_id={account.id} "
+        f"sent={messages_sent} candidates={len(listings)} "
+        f"agent_skipped={agent_skipped} not_contactable={not_contactable} "
+        f"other_skipped={skipped_other}"
     )
+    logger.info(f"MESSAGE_STAGE_FINISHED account_id={account.id}")
