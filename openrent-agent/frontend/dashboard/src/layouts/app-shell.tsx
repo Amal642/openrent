@@ -13,7 +13,7 @@ export function AppShell({ queryClient }: { queryClient: QueryClient }) {
         <AppSidebar />
         <SidebarInset>
           <Topbar />
-          <main className="flex-1 min-w-0 bg-background p-4 md:p-6">
+          <main className="w-full min-w-0 flex-1 overflow-x-hidden bg-background p-4 md:p-6">
             <Outlet />
           </main>
         </SidebarInset>
