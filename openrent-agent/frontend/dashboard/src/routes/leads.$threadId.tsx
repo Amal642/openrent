@@ -8,7 +8,6 @@ import {
   getAccounts,
   getConversationMessages,
   getLead,
-  messagesForLead,
   skipLead,
 } from "@/lib/api";
 import { fmtDateTime, fmtMoney, fmtRelative } from "@/lib/format";
@@ -94,13 +93,11 @@ function ConversationPage() {
   }
 
   const account = accounts.find((a) => a.id === lead.accountId);
-  const generatedMessages = messagesForLead(lead);
+  // Only show real persisted messages (inbound from landlord + outbound
+  // confirmed sent).  The messagesForLead() helper synthesised messages from
+  // last_ai_reply which is stored *before* send_reply() is called — failed
+  // sends left phantom "sent" messages in the thread view.
   const messages: Message[] = [...persistedMessages];
-  for (const generated of generatedMessages) {
-    if (!messages.some((message) => message.text === generated.text)) {
-      messages.push(generated);
-    }
-  }
 
   return (
     <>

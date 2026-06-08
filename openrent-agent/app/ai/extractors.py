@@ -17,27 +17,27 @@ client = OpenAI(
 
 
 def regex_extract_phone(messages):
+    """Return the most-recent valid UK phone number found in `messages`.
 
-    combined = "\n".join(messages)
-    cleaned = re.sub(r"[^\d+]", "", combined)
-
+    Processes messages individually in order so a landlord correction (later
+    message) overwrites an earlier, incorrect number.  Concatenating all
+    messages before searching caused the regex to fuse adjacent numbers and
+    always return the first occurrence.
+    """
     patterns = [
-
         r"(\+44\d{10,12})",
-
         r"(07\d{9})",
-
-        r"(447\d{9})"
+        r"(447\d{9})",
     ]
-
-    for pattern in patterns:
-
-        match = re.search(pattern, cleaned)
-
-        if match:
-            return match.group(1)
-
-    return None
+    last_found = None
+    for msg in messages:
+        cleaned = re.sub(r"[^\d+]", "", msg)
+        for pattern in patterns:
+            match = re.search(pattern, cleaned)
+            if match:
+                last_found = match.group(1)
+                break  # one phone per message; move to the next message
+    return last_found
 
 
 def ai_extract_phone(messages, retries=3, base_delay=2):

@@ -1461,6 +1461,7 @@ def save_ai_reply(
 
 
 def get_conversation_messages(thread_id):
+    from app.utils.logger import logger
     with session_scope() as db:
         conversation = db.query(Conversation).filter(
             Conversation.thread_id == thread_id
@@ -1469,21 +1470,35 @@ def get_conversation_messages(thread_id):
         if not conversation:
             return []
 
-        return [
-            {
+        rows = (
+            db.query(Message)
+            .filter(Message.conversation_id == conversation.id)
+            .order_by(Message.created_at.asc(), Message.id.asc())
+            .all()
+        )
+
+        result = []
+        for message in rows:
+            # All messages in this table are real OpenRent messages:
+            # inbound rows come from save_inbound_messages (landlord messages
+            # scraped from the page); outbound rows are written only after
+            # send_reply() confirms the send succeeded.  AI drafts are stored
+            # separately in conversation.last_ai_reply and must never appear here.
+            logger.info(
+                f"THREAD_MESSAGE_SOURCE thread_id={thread_id}"
+                f" message_id={message.id} source=openrent"
+                f" direction={message.direction}"
+            )
+            result.append({
                 "id": message.id,
                 "thread_id": thread_id,
                 "direction": message.direction,
                 "content": message.content,
                 "created_at": message.created_at,
-            }
-            for message in (
-                db.query(Message)
-                .filter(Message.conversation_id == conversation.id)
-                .order_by(Message.created_at.asc(), Message.id.asc())
-                .all()
-            )
-        ]
+                "source": "openrent",
+            })
+
+        return result
 
 
 def mark_listing_skipped(listing_id, reason="SKIPPED"):

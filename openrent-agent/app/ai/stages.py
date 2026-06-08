@@ -22,10 +22,13 @@ BOOKED_PATTERNS = [
     r"\bappointment\b",
     r"\bcome at\b",
     r"\bmeet at\b",
+    r"\bmeet you\b",
     r"\bsee you then\b",
     r"\bsee you tomorrow\b",
     r"\bthat works\b",
     r"\bworks for me\b",
+    r"\blooking forward\b",
+    r"\bsee you there\b",
 ]
 
 DISCUSSION_PATTERNS = [
@@ -49,6 +52,10 @@ NEGATING_PATTERNS = [
 
 TIME_PATTERN = re.compile(
     r"\b([01]?\d|2[0-3])(?::([0-5]\d))?\s*(am|pm)?\b",
+    re.I,
+)
+WEEKDAY_PATTERN = re.compile(
+    r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)\b",
     re.I,
 )
 NUMERIC_DATE_PATTERN = re.compile(
@@ -132,6 +139,13 @@ def _has_time(text):
     )
 
 
+def _has_time_or_day(text):
+    """True when text contains a numeric time OR a named weekday/day word.
+    Used so 'See you Thursday' qualifies as VIEWING_BOOKED even without a
+    specific clock time."""
+    return _has_time(text) or bool(WEEKDAY_PATTERN.search(text))
+
+
 def detect_stage(messages):
     recent = _recent_messages(messages, limit=8)
     if not recent:
@@ -174,8 +188,8 @@ def detect_stage(messages):
 
     if booking_context:
         combined_booking = "\n".join(_message_text(m).lower() for m in booking_context[-4:])
-        if _matches_any(combined_booking, BOOKED_PATTERNS) and _has_time(combined_booking):
-            _stage_log("VIEWING_CONFIRMATION_DETECTED", "booked pattern + time both present in recent context")
+        if _matches_any(combined_booking, BOOKED_PATTERNS) and _has_time_or_day(combined_booking):
+            _stage_log("VIEWING_CONFIRMATION_DETECTED", "booked pattern + time/day both present in recent context")
             return VIEWING_BOOKED
         # Booked-pattern present but no confirmed time — treat as pending, not booked
         if _matches_any(combined_booking, BOOKED_PATTERNS):

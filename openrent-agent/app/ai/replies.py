@@ -12,6 +12,7 @@ from app.ai.prompts import (
     names_generator,
 )
 from app.ai.conversation_memory import (
+    detect_screening_questions,
     latest_landlord_asked_for_phone,
     outbound_count,
     phone_shared_state,
@@ -227,9 +228,22 @@ def generate_reply(
     number_shared = phone_shared_state(messages, persona, conversation=conversation_state)
     sent_count = outbound_count(messages)
 
+    # Detect landlord screening questions in the latest message.
+    # When present the AI must answer them first — skip the phone-reply shortcut
+    # so the full prompt (which instructs "answer questions first") takes over.
+    screening_questions = detect_screening_questions(messages)
+    if screening_questions:
+        tid_tag = f" thread_id={thread_id}" if thread_id else ""
+        logger.info(
+            f"LANDLORD_QUESTION_DETECTED{tid_tag}"
+            f" QUESTION_COUNT={len(screening_questions)}"
+            f" topics={screening_questions}"
+        )
+
     if (
         landlord_asked_number
         and not number_shared
+        and not screening_questions  # defer to full prompt when screening present
         and conversation_design_id
         not in {"corpus_number_capture_v1", "corpus_number_capture_v2"}
     ):
@@ -486,6 +500,23 @@ Return only the message text.
             break
 
     return None, last_error or "handoff_reply_failed"
+
+
+def generate_cancel_viewing_message(messages, retries=3, base_delay=2):
+    """Generate a polite viewing cancellation message and return (reply, error)."""
+    from app.ai.prompts import build_cancel_viewing_prompt
+    conversation = format_conversation(messages or [])
+    result = generate_reply_result(
+        conversation,
+        model=settings.OPENAI_REPLY_MODEL,
+        temperature=0.7,
+        prompt_builder=lambda _: build_cancel_viewing_prompt(conversation),
+        retries=retries,
+        base_delay=base_delay,
+    )
+    if result.is_valid:
+        return result.reply, None
+    return None, result.error or "cancel_reply_failed"
 
 
 def generate_initial_property_message(

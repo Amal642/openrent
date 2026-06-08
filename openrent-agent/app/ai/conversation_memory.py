@@ -83,6 +83,47 @@ def latest_landlord_asked_for_phone(messages):
     return landlord_asked_for_phone(_content(landlords[-1]))
 
 
+# Each entry: (compiled regex, topic label)
+_SCREENING_PATTERNS = [
+    (re.compile(r"\byour (full\s+)?name\b", re.I), "name"),
+    (re.compile(r"\bwhat('s| is) your name\b", re.I), "name"),
+    (re.compile(r"\bname (please|and|,)\b", re.I), "name"),
+    (re.compile(r"\bwhat (do you|does your (partner|wife|husband))? (do|work)\b", re.I), "employment"),
+    (re.compile(r"\boccupation\b", re.I), "employment"),
+    (re.compile(r"\bemployment\b", re.I), "employment"),
+    (re.compile(r"\bjob (title|role|position)\b", re.I), "employment"),
+    (re.compile(r"\b(move.?in|moving.?in|move.?date|start date|how soon|when (would|are|do) you)\b", re.I), "move_date"),
+    (re.compile(r"\b(income|earn|salary|earnings|afford)\b", re.I), "income"),
+    (re.compile(r"\breferences?\b", re.I), "references"),
+    (re.compile(r"\bcredit (check|history|score)\b", re.I), "credit"),
+    (re.compile(r"\bhow long\b", re.I), "tenancy_length"),
+    (re.compile(r"\blength of tenancy\b", re.I), "tenancy_length"),
+    (re.compile(r"\bpets?\b", re.I), "pets"),
+    (re.compile(r"\b(current|previous|past) address\b", re.I), "address"),
+    (re.compile(r"\b(answers? to|answer (the|my|our)|these) questions?\b", re.I), "questions"),
+    (re.compile(r"\bscreening\b", re.I), "questions"),
+]
+
+
+def detect_screening_questions(messages) -> list[str]:
+    """Return detected question topic names from the latest landlord message.
+
+    An empty list means no screening questions were detected.  A non-empty list
+    means the AI must answer these topics before any other objective.
+    """
+    latest = landlord_messages(messages)
+    if not latest:
+        return []
+    text = _content(latest[-1])
+    detected: list[str] = []
+    seen: set[str] = set()
+    for pattern, topic in _SCREENING_PATTERNS:
+        if topic not in seen and pattern.search(text):
+            detected.append(topic)
+            seen.add(topic)
+    return detected
+
+
 def detect_landlord_attitude(messages, previous=None):
     landlords = landlord_messages(messages)
     if not landlords:
