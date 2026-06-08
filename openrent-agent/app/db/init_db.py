@@ -110,6 +110,8 @@ REQUIRED_COLUMNS = {
 
         "processing_owner": "VARCHAR",
         "processing_started_at": "TIMESTAMP",
+
+        "travel_city": "VARCHAR",
     },
 }
 

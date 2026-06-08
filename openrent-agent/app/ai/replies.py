@@ -37,6 +37,38 @@ FALLBACK_DISTANT_LOCATIONS = [
     "Sheffield",
 ]
 
+# Ordered longest-first so alternation can't be shadowed by a shorter prefix.
+_UK_CITY_NAMES = sorted([
+    "Aberdeen", "Ayr", "Barnsley", "Basingstoke", "Bath", "Birmingham",
+    "Blackpool", "Bolton", "Bournemouth", "Bradford", "Brighton", "Bristol",
+    "Burnley", "Cambridge", "Canterbury", "Cardiff", "Carlisle", "Chester",
+    "Cheltenham", "Coventry", "Crawley", "Crewe", "Derby", "Doncaster",
+    "Dundee", "Durham", "Eastbourne", "Edinburgh", "Exeter", "Glasgow",
+    "Gloucester", "Guildford", "Halifax", "Hereford", "Huddersfield", "Hull",
+    "Inverness", "Ipswich", "Kilmarnock", "Lancaster", "Leeds", "Leicester",
+    "Liverpool", "London", "Luton", "Manchester", "Middlesbrough",
+    "Newcastle", "Newport", "Northampton", "Norwich", "Nottingham", "Oxford",
+    "Paisley", "Perth", "Peterborough", "Plymouth", "Portsmouth", "Preston",
+    "Reading", "Rotherham", "Salford", "Salisbury", "Sheffield", "Shrewsbury",
+    "Southampton", "Stafford", "Stirling", "Stockport", "Stoke", "Sunderland",
+    "Swansea", "Swindon", "Taunton", "Torquay", "Truro", "Wakefield",
+    "Warrington", "Winchester", "Wolverhampton", "Wrexham", "York",
+], key=len, reverse=True)
+
+_UK_CITY_RE = re.compile(
+    r'\b(' + '|'.join(re.escape(c) for c in _UK_CITY_NAMES) + r')\b',
+    re.IGNORECASE,
+)
+
+
+def _detect_city_mismatch(reply: str, stored_city: str) -> str | None:
+    """Return the first known UK city in `reply` that differs from `stored_city`, else None."""
+    stored_lower = stored_city.lower()
+    for m in _UK_CITY_RE.finditer(reply):
+        if m.group(0).lower() != stored_lower:
+            return m.group(0)
+    return None
+
 
 @dataclass
 class ReplyGenerationResult:
@@ -184,6 +216,8 @@ def generate_reply(
     conversation_design_id=None,
     landlord_attitude=None,
     conversation_style=None,
+    travel_city=None,
+    thread_id=None,
     retries=3,
     base_delay=2,
 ):
@@ -215,7 +249,9 @@ def generate_reply(
     def build_prompt(conversation_text: str) -> str:
         place = None
         if stage == "VIEWING_BOOKED":
-            place = generate_distant_location(property_location or "")
+            # Use the stored thread city if provided; only generate a fresh one
+            # as a last resort so the city stays consistent across all replies.
+            place = travel_city or generate_distant_location(property_location or "")
         return build_reply_prompt(
             conversation_text,
             stage or "VIEWING_DISCUSSION",
@@ -246,6 +282,32 @@ def generate_reply(
     )
     if not is_valid_reply(reply):
         return None, "invalid_ai_reply"
+
+    # Travel city consistency guard: if the AI slipped in a different city,
+    # regenerate up to twice before accepting whatever we have.
+    if travel_city and stage == "VIEWING_BOOKED":
+        for _attempt in range(2):
+            conflicting = _detect_city_mismatch(reply, travel_city)
+            if not conflicting:
+                break
+            tid_tag = f" thread_id={thread_id}" if thread_id else ""
+            logger.warning(
+                f"TRAVEL_CITY_MISMATCH{tid_tag}"
+                f" stored_city={travel_city} generated_city={conflicting}"
+            )
+            regen = generate_reply_result(
+                conversation,
+                model=settings.OPENAI_REPLY_MODEL,
+                temperature=0.7,
+                prompt_builder=build_prompt,
+            )
+            if regen.is_valid:
+                candidate = remove_unapproved_phone_numbers(
+                    regen.reply, (persona or {}).get("mobile_number")
+                )
+                if is_valid_reply(candidate):
+                    reply = candidate
+
     return reply, None
 
 

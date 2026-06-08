@@ -311,6 +311,7 @@ class Conversation(Base):
 
     conversation_style = Column(String, nullable=True)
 
+    travel_city = Column(String, nullable=True)
 
     # relationships
     listing = relationship("Listing", back_populates="conversations")

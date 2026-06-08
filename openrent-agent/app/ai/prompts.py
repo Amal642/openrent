@@ -591,6 +591,7 @@ Primary goals:
 - Keep the message realistic, concise, casual, and human.
 - Explain that having a phone number helps coordinate arrival in case of delays or missed messages.
 - Tell them that you are from {place}, and would take 4-5 hours to reach {viewing_location}, so would require a contact number.
+- IMPORTANT: The origin city is {place}. This is fixed for this conversation. Never mention any other city.
 
 Hard rules:
 - Never invent personal details that are not already present in the conversation.

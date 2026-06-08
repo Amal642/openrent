@@ -21,6 +21,8 @@ from app.db.repository import (
     save_banner_state,
     count_phones_today,
     get_thread_property_location,
+    get_travel_city,
+    save_travel_city,
 )
 
 
@@ -50,7 +52,8 @@ from app.ai.extractors import (
 
 from app.ai.replies import (
     generate_handoff_message,
-    generate_reply
+    generate_reply,
+    generate_distant_location,
 )
 
 from app.ai.validators import (
@@ -658,14 +661,33 @@ async def process_account_replies(
                 f"at stage {stage or 'NEW_REPLY'}"
             )
 
+            # Resolve the travel city for VIEWING_BOOKED stage so it stays
+            # consistent across all replies within a single thread.
+            property_location = get_thread_property_location(thread_id)
+            travel_city = None
+            if stage == "VIEWING_BOOKED":
+                travel_city = get_travel_city(thread_id)
+                if travel_city:
+                    logger.info(
+                        f"TRAVEL_CITY_REUSED thread_id={thread_id} city={travel_city}"
+                    )
+                else:
+                    travel_city = generate_distant_location(property_location or "")
+                    save_travel_city(thread_id, travel_city)
+                    logger.info(
+                        f"TRAVEL_CITY_ASSIGNED thread_id={thread_id} city={travel_city}"
+                    )
+
             reply, error = generate_reply(
                 messages,
                 stage=stage,
                 persona=persona,
-                property_location=get_thread_property_location(thread_id),
+                property_location=property_location,
                 conversation=conversation,
                 landlord_attitude=landlord_attitude,
                 conversation_style=conversation_style,
+                travel_city=travel_city,
+                thread_id=thread_id,
             )
 
             if not reply or error:

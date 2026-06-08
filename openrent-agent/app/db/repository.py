@@ -1744,6 +1744,20 @@ def get_thread_property_location(thread_id):
         return row[0] if row else None
 
 
+def get_travel_city(thread_id: str) -> str | None:
+    with session_scope() as db:
+        conv = db.query(Conversation).filter(Conversation.thread_id == thread_id).first()
+        return conv.travel_city if conv else None
+
+
+def save_travel_city(thread_id: str, city: str) -> None:
+    with session_scope() as db:
+        conv = db.query(Conversation).filter(Conversation.thread_id == thread_id).first()
+        if conv:
+            conv.travel_city = city
+            db.commit()
+
+
 def get_dashboard_leads(status=None):
     with session_scope() as db:
         query = (
