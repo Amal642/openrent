@@ -10,6 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useQuery } from "@tanstack/react-query";
 import { getFailedAccountsCount } from "@/lib/api";
@@ -28,7 +29,13 @@ const items = [
 
 export function AppSidebar() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const { isMobile, setOpenMobile } = useSidebar();
   const isActive = (url: string) => (url === "/" ? path === "/" : path.startsWith(url));
+  const closeMobileSidebar = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   const { data: failedCount = 0 } = useQuery({
     queryKey: ["failed-accounts-count"],
@@ -57,7 +64,7 @@ export function AppSidebar() {
               {items.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
-                    <Link to={item.url}>
+                    <Link to={item.url} onClick={closeMobileSidebar}>
                       <item.icon className="size-4" />
                       <span>{item.title}</span>
                     </Link>
@@ -70,7 +77,11 @@ export function AppSidebar() {
                   isActive={isActive("/failed-accounts")}
                   tooltip="Failed Accounts"
                 >
-                  <Link to="/failed-accounts" className="flex items-center gap-2">
+                  <Link
+                    to="/failed-accounts"
+                    className="flex items-center gap-2"
+                    onClick={closeMobileSidebar}
+                  >
                     <AlertTriangle className="size-4" />
                     <span className="flex-1">Failed Accounts</span>
                     {failedCount > 0 && (

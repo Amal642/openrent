@@ -1,0 +1,600 @@
+{
+  "experiment": "OPEN-75R",
+  "precommit": "PROJECT-GUIDE.md @ f96cd2c",
+  "replicates": [
+    {
+      "seed_base": 11000,
+      "scenarios": {
+        "s02-screening": {
+          "round0": {
+            "n": 30,
+            "vc": 0.16666666666666666,
+            "pc": 0.23333333333333334,
+            "pc_before_vc": 0.23333333333333334,
+            "avg_turns": 6.7,
+            "pool": {
+              "n": 30,
+              "pc_rate": 0.23333333333333334,
+              "vc_rate": 0.16666666666666666,
+              "n_ce_positive": 7
+            }
+          },
+          "sparse": true,
+          "ce_demos_pc": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "r1_ce": {
+            "n": 20,
+            "vc": 0.95,
+            "pc": 0.95,
+            "pc_before_vc": 0.95,
+            "avg_turns": 4.5
+          },
+          "r1_random": [
+            {
+              "seed": 75,
+              "n_success_demos": 1,
+              "n": 20,
+              "vc": 1.0,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 4.65
+            },
+            {
+              "seed": 76,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.3,
+              "pc": 0.4,
+              "pc_before_vc": 0.4,
+              "avg_turns": 6.75
+            },
+            {
+              "seed": 77,
+              "n_success_demos": 1,
+              "n": 20,
+              "vc": 1.0,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 5.05
+            }
+          ],
+          "r1_no_demo": {
+            "n": 20,
+            "vc": 0.2,
+            "pc": 0.25,
+            "pc_before_vc": 0.25,
+            "avg_turns": 6.6
+          },
+          "round2": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 3.0
+          }
+        },
+        "s04-phone-req": {
+          "round0": {
+            "n": 30,
+            "vc": 0.13333333333333333,
+            "pc": 0.13333333333333333,
+            "pc_before_vc": 0.13333333333333333,
+            "avg_turns": 6.8,
+            "pool": {
+              "n": 30,
+              "pc_rate": 0.13333333333333333,
+              "vc_rate": 0.13333333333333333,
+              "n_ce_positive": 4
+            }
+          },
+          "sparse": true,
+          "ce_demos_pc": [
+            true,
+            true,
+            true,
+            true,
+            false
+          ],
+          "r1_ce": {
+            "n": 20,
+            "vc": 0.85,
+            "pc": 0.95,
+            "pc_before_vc": 0.95,
+            "avg_turns": 5.6
+          },
+          "r1_random": [
+            {
+              "seed": 75,
+              "n_success_demos": 1,
+              "n": 20,
+              "vc": 1.0,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 5.8
+            },
+            {
+              "seed": 76,
+              "n_success_demos": 1,
+              "n": 20,
+              "vc": 1.0,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 5.5
+            },
+            {
+              "seed": 77,
+              "n_success_demos": 2,
+              "n": 20,
+              "vc": 0.9,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 5.55
+            }
+          ],
+          "r1_no_demo": {
+            "n": 20,
+            "vc": 0.2,
+            "pc": 0.2,
+            "pc_before_vc": 0.2,
+            "avg_turns": 6.95
+          },
+          "round2": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 3.0
+          }
+        }
+      }
+    },
+    {
+      "seed_base": 12000,
+      "scenarios": {
+        "s02-screening": {
+          "round0": {
+            "n": 30,
+            "vc": 0.06666666666666667,
+            "pc": 0.1,
+            "pc_before_vc": 0.1,
+            "avg_turns": 6.9,
+            "pool": {
+              "n": 30,
+              "pc_rate": 0.1,
+              "vc_rate": 0.06666666666666667,
+              "n_ce_positive": 3
+            }
+          },
+          "sparse": true,
+          "ce_demos_pc": [
+            true,
+            true,
+            true,
+            false,
+            false
+          ],
+          "r1_ce": {
+            "n": 20,
+            "vc": 0.9,
+            "pc": 0.95,
+            "pc_before_vc": 0.95,
+            "avg_turns": 6.45
+          },
+          "r1_random": [
+            {
+              "seed": 75,
+              "n_success_demos": 1,
+              "n": 20,
+              "vc": 1.0,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 6.15
+            },
+            {
+              "seed": 76,
+              "n_success_demos": 1,
+              "n": 20,
+              "vc": 1.0,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 5.85
+            },
+            {
+              "seed": 77,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.35,
+              "pc": 0.65,
+              "pc_before_vc": 0.65,
+              "avg_turns": 6.95
+            }
+          ],
+          "r1_no_demo": {
+            "n": 20,
+            "vc": 0.1,
+            "pc": 0.15,
+            "pc_before_vc": 0.15,
+            "avg_turns": 6.85
+          },
+          "round2": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 5.6
+          }
+        },
+        "s04-phone-req": {
+          "round0": {
+            "n": 30,
+            "vc": 0.1,
+            "pc": 0.1,
+            "pc_before_vc": 0.1,
+            "avg_turns": 6.9,
+            "pool": {
+              "n": 30,
+              "pc_rate": 0.1,
+              "vc_rate": 0.1,
+              "n_ce_positive": 3
+            }
+          },
+          "sparse": true,
+          "ce_demos_pc": [
+            true,
+            true,
+            true,
+            false,
+            false
+          ],
+          "r1_ce": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 5.45
+          },
+          "r1_random": [
+            {
+              "seed": 75,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.2,
+              "pc": 0.4,
+              "pc_before_vc": 0.4,
+              "avg_turns": 6.85
+            },
+            {
+              "seed": 76,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.1,
+              "pc": 0.25,
+              "pc_before_vc": 0.25,
+              "avg_turns": 6.9
+            },
+            {
+              "seed": 77,
+              "n_success_demos": 1,
+              "n": 20,
+              "vc": 1.0,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 5.4
+            }
+          ],
+          "r1_no_demo": {
+            "n": 20,
+            "vc": 0.2,
+            "pc": 0.3,
+            "pc_before_vc": 0.3,
+            "avg_turns": 6.45
+          },
+          "round2": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 4.85
+          }
+        }
+      }
+    },
+    {
+      "seed_base": 13000,
+      "scenarios": {
+        "s02-screening": {
+          "round0": {
+            "n": 30,
+            "vc": 0.2,
+            "pc": 0.2,
+            "pc_before_vc": 0.2,
+            "avg_turns": 6.566666666666666,
+            "pool": {
+              "n": 30,
+              "pc_rate": 0.2,
+              "vc_rate": 0.2,
+              "n_ce_positive": 6
+            }
+          },
+          "sparse": true,
+          "ce_demos_pc": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "r1_ce": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 4.25
+          },
+          "r1_random": [
+            {
+              "seed": 75,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.4,
+              "pc": 0.65,
+              "pc_before_vc": 0.65,
+              "avg_turns": 6.85
+            },
+            {
+              "seed": 76,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.4,
+              "pc": 0.6,
+              "pc_before_vc": 0.6,
+              "avg_turns": 6.8
+            },
+            {
+              "seed": 77,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.3,
+              "pc": 0.4,
+              "pc_before_vc": 0.4,
+              "avg_turns": 6.8
+            }
+          ],
+          "r1_no_demo": {
+            "n": 20,
+            "vc": 0.1,
+            "pc": 0.1,
+            "pc_before_vc": 0.1,
+            "avg_turns": 6.8
+          },
+          "round2": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 3.95
+          }
+        },
+        "s04-phone-req": {
+          "round0": {
+            "n": 30,
+            "vc": 0.0,
+            "pc": 0.03333333333333333,
+            "pc_before_vc": 0.03333333333333333,
+            "avg_turns": 7.0,
+            "pool": {
+              "n": 30,
+              "pc_rate": 0.03333333333333333,
+              "vc_rate": 0.0,
+              "n_ce_positive": 1
+            }
+          },
+          "sparse": true,
+          "ce_demos_pc": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "r1_ce": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 6.25
+          },
+          "r1_random": [
+            {
+              "seed": 75,
+              "n_success_demos": 1,
+              "n": 20,
+              "vc": 0.95,
+              "pc": 1.0,
+              "pc_before_vc": 1.0,
+              "avg_turns": 6.35
+            },
+            {
+              "seed": 76,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.3,
+              "pc": 0.45,
+              "pc_before_vc": 0.45,
+              "avg_turns": 6.5
+            },
+            {
+              "seed": 77,
+              "n_success_demos": 0,
+              "n": 20,
+              "vc": 0.35,
+              "pc": 0.4,
+              "pc_before_vc": 0.4,
+              "avg_turns": 6.75
+            }
+          ],
+          "r1_no_demo": {
+            "n": 20,
+            "vc": 0.2,
+            "pc": 0.25,
+            "pc_before_vc": 0.25,
+            "avg_turns": 6.85
+          },
+          "round2": {
+            "n": 20,
+            "vc": 1.0,
+            "pc": 1.0,
+            "pc_before_vc": 1.0,
+            "avg_turns": 4.15
+          }
+        }
+      }
+    }
+  ],
+  "diagnostics": {
+    "law_points": [
+      {
+        "p": 0.23333333333333334,
+        "ce_minus_rand_pp": 18.3
+      },
+      {
+        "p": 0.13333333333333333,
+        "ce_minus_rand_pp": -11.7
+      },
+      {
+        "p": 0.1,
+        "ce_minus_rand_pp": 11.7
+      },
+      {
+        "p": 0.1,
+        "ce_minus_rand_pp": 56.7
+      },
+      {
+        "p": 0.2,
+        "ce_minus_rand_pp": 63.3
+      },
+      {
+        "p": 0.03333333333333333,
+        "ce_minus_rand_pp": 46.7
+      }
+    ],
+    "zero_success_draws": "9/18",
+    "v_fail_mean": 0.3,
+    "v_succ_mean": 0.9833333333333333,
+    "n_sparse_cells": 6,
+    "n_rich_cells": 0,
+    "sparse_mean_ce": 0.95,
+    "sparse_mean_rand": 0.642,
+    "sparse_mean_r0": 0.111,
+    "sparse_d_rand_pp": 30.8,
+    "sparse_d_r0_pp": 83.9,
+    "majority": "5/6",
+    "r2_collapse_any": false
+  },
+  "sparse_cells": [
+    {
+      "rep_seed_base": 11000,
+      "scenario": "s02-screening",
+      "p": 0.23333333333333334,
+      "r0_vc": 0.16666666666666666,
+      "ce_vc": 0.95,
+      "rand_vcs": [
+        1.0,
+        0.3,
+        1.0
+      ],
+      "rand_mean": 0.7666666666666666,
+      "r2_vc": 1.0,
+      "r2_collapse": false,
+      "gap_vs_rand_mean": 0.18333333333333335
+    },
+    {
+      "rep_seed_base": 11000,
+      "scenario": "s04-phone-req",
+      "p": 0.13333333333333333,
+      "r0_vc": 0.13333333333333333,
+      "ce_vc": 0.85,
+      "rand_vcs": [
+        1.0,
+        1.0,
+        0.9
+      ],
+      "rand_mean": 0.9666666666666667,
+      "r2_vc": 1.0,
+      "r2_collapse": false,
+      "gap_vs_rand_mean": -0.1166666666666667
+    },
+    {
+      "rep_seed_base": 12000,
+      "scenario": "s02-screening",
+      "p": 0.1,
+      "r0_vc": 0.06666666666666667,
+      "ce_vc": 0.9,
+      "rand_vcs": [
+        1.0,
+        1.0,
+        0.35
+      ],
+      "rand_mean": 0.7833333333333333,
+      "r2_vc": 1.0,
+      "r2_collapse": false,
+      "gap_vs_rand_mean": 0.1166666666666667
+    },
+    {
+      "rep_seed_base": 12000,
+      "scenario": "s04-phone-req",
+      "p": 0.1,
+      "r0_vc": 0.1,
+      "ce_vc": 1.0,
+      "rand_vcs": [
+        0.2,
+        0.1,
+        1.0
+      ],
+      "rand_mean": 0.43333333333333335,
+      "r2_vc": 1.0,
+      "r2_collapse": false,
+      "gap_vs_rand_mean": 0.5666666666666667
+    },
+    {
+      "rep_seed_base": 13000,
+      "scenario": "s02-screening",
+      "p": 0.2,
+      "r0_vc": 0.2,
+      "ce_vc": 1.0,
+      "rand_vcs": [
+        0.4,
+        0.4,
+        0.3
+      ],
+      "rand_mean": 0.3666666666666667,
+      "r2_vc": 1.0,
+      "r2_collapse": false,
+      "gap_vs_rand_mean": 0.6333333333333333
+    },
+    {
+      "rep_seed_base": 13000,
+      "scenario": "s04-phone-req",
+      "p": 0.03333333333333333,
+      "r0_vc": 0.0,
+      "ce_vc": 1.0,
+      "rand_vcs": [
+        0.95,
+        0.3,
+        0.35
+      ],
+      "rand_mean": 0.5333333333333333,
+      "r2_vc": 1.0,
+      "r2_collapse": false,
+      "gap_vs_rand_mean": 0.4666666666666667
+    }
+  ],
+  "rich_cells": [],
+  "verdict": "GREEN",
+  "elapsed_s": 214.1
+}

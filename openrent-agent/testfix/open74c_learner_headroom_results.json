@@ -1,0 +1,168 @@
+{
+  "experiment": "OPEN-74C",
+  "precommit": "PROJECT-GUIDE.md @ f9bdb9e",
+  "phase0": {
+    "s02-screening": {
+      "n": 15,
+      "vc": 0.2,
+      "pc": 0.2,
+      "pc_before_vc": 0.2,
+      "avg_turns": 6.666666666666667,
+      "in_band": true,
+      "scenario_id": "outreach-screening-before-phone"
+    },
+    "s04-phone-req": {
+      "n": 15,
+      "vc": 0.26666666666666666,
+      "pc": 0.26666666666666666,
+      "pc_before_vc": 0.26666666666666666,
+      "avg_turns": 6.133333333333334,
+      "in_band": true,
+      "scenario_id": "outreach-phone-request"
+    },
+    "s05-reply": {
+      "n": 15,
+      "vc": 0.13333333333333333,
+      "pc": 0.2,
+      "pc_before_vc": 0.2,
+      "avg_turns": 6.8,
+      "in_band": false,
+      "scenario_id": "reply-after-landlord-question"
+    }
+  },
+  "qualifying": [
+    "s02-screening",
+    "s04-phone-req"
+  ],
+  "demo_meta": {
+    "pool_size": 69,
+    "top_scores": [
+      0.817,
+      0.817,
+      0.8169,
+      0.7801,
+      0.7801
+    ],
+    "bottom_scores": [
+      0.1395,
+      0.1395,
+      0.1395,
+      0.1395,
+      0.1395
+    ],
+    "top_pc": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "top_vc": [
+      false,
+      false,
+      false,
+      true,
+      true
+    ],
+    "bottom_pc": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "bottom_vc": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "rand_pc": [
+      true,
+      false,
+      false,
+      false,
+      false
+    ],
+    "rand_vc": [
+      true,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "results": {
+    "s02-screening": {
+      "no-demo": {
+        "n": 20,
+        "vc": 0.05,
+        "pc": 0.2,
+        "pc_before_vc": 0.2,
+        "avg_turns": 6.95
+      },
+      "random-demo": {
+        "n": 20,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "avg_turns": 3.0
+      },
+      "ce-top-demo": {
+        "n": 20,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "avg_turns": 3.0
+      },
+      "ce-bottom-demo": {
+        "n": 20,
+        "vc": 0.35,
+        "pc": 0.35,
+        "pc_before_vc": 0.35,
+        "avg_turns": 6.25
+      }
+    },
+    "s04-phone-req": {
+      "no-demo": {
+        "n": 20,
+        "vc": 0.05,
+        "pc": 0.05,
+        "pc_before_vc": 0.05,
+        "avg_turns": 6.85
+      },
+      "random-demo": {
+        "n": 20,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "avg_turns": 3.0
+      },
+      "ce-top-demo": {
+        "n": 20,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "avg_turns": 3.0
+      },
+      "ce-bottom-demo": {
+        "n": 20,
+        "vc": 0.3,
+        "pc": 0.35,
+        "pc_before_vc": 0.35,
+        "avg_turns": 6.4
+      }
+    }
+  },
+  "verdicts": {
+    "s02-screening": "KILL",
+    "s04-phone-req": "KILL"
+  },
+  "overall": "KILL",
+  "n_phase0": 15,
+  "n": 20,
+  "seed_base": 7700,
+  "random_demo_seed": 74,
+  "elapsed_s": 216.6
+}

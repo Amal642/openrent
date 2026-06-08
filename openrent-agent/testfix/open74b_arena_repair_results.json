@@ -1,0 +1,77 @@
+{
+  "experiment": "OPEN-74B",
+  "phase": "arena_gates_only",
+  "gate_results": {
+    "s02-screening": {
+      "prod": {
+        "n": 10,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "vc_without_pc": 0.0,
+        "avg_turns": 3.0,
+        "multi_turn": 1.0
+      },
+      "weak": {
+        "n": 10,
+        "vc": 0.1,
+        "pc": 0.1,
+        "pc_before_vc": 0.1,
+        "vc_without_pc": 0.0,
+        "avg_turns": 6.7,
+        "multi_turn": 1.0
+      },
+      "gap": 0.9,
+      "transfer": true,
+      "pilot_sk": "s02-screening-actor-starts-prod"
+    },
+    "s04-phone-req": {
+      "prod": {
+        "n": 10,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "vc_without_pc": 0.0,
+        "avg_turns": 3.0,
+        "multi_turn": 1.0
+      },
+      "weak": {
+        "n": 10,
+        "vc": 0.0,
+        "pc": 0.0,
+        "pc_before_vc": 0.0,
+        "vc_without_pc": 0.0,
+        "avg_turns": 7.0,
+        "multi_turn": 1.0
+      },
+      "gap": 1.0,
+      "transfer": true,
+      "pilot_sk": "s04-phone-request-actor-starts-prod"
+    },
+    "s05-reply": {
+      "prod": {
+        "n": 10,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "vc_without_pc": 0.0,
+        "avg_turns": 3.0,
+        "multi_turn": 1.0
+      },
+      "weak": {
+        "n": 10,
+        "vc": 0.1,
+        "pc": 0.1,
+        "pc_before_vc": 0.1,
+        "vc_without_pc": 0.0,
+        "avg_turns": 6.7,
+        "multi_turn": 1.0
+      },
+      "gap": 0.9,
+      "transfer": true,
+      "pilot_sk": "s05-reply-actor-starts-prod"
+    }
+  },
+  "gates_passed": false,
+  "verdict": "GATES_FAILED"
+}

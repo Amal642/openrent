@@ -1,0 +1,208 @@
+{
+  "experiment": "OPEN-75",
+  "precommit": "PROJECT-GUIDE.md @ 1e3f76e",
+  "n_pool": 30,
+  "n": 20,
+  "seed_base": 8800,
+  "random_sel_seed": 75,
+  "scenarios": {
+    "s02-screening": {
+      "round0": {
+        "n": 30,
+        "vc": 0.1,
+        "pc": 0.23333333333333334,
+        "pc_before_vc": 0.23333333333333334,
+        "avg_turns": 6.733333333333333,
+        "pool": {
+          "n": 30,
+          "pc_rate": 0.23333333333333334,
+          "vc_rate": 0.1,
+          "n_ce_positive": 7
+        }
+      },
+      "selection": {
+        "ce_pc": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "ce_vc": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "ce_turns": [
+          4,
+          4,
+          5,
+          7,
+          7
+        ],
+        "rand_pc": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "rand_vc": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      },
+      "round1": {
+        "ce-select": {
+          "n": 20,
+          "vc": 0.6,
+          "pc": 0.85,
+          "pc_before_vc": 0.85,
+          "avg_turns": 6.3
+        },
+        "random-select": {
+          "n": 20,
+          "vc": 0.25,
+          "pc": 0.45,
+          "pc_before_vc": 0.45,
+          "avg_turns": 6.75
+        },
+        "no-demo": {
+          "n": 20,
+          "vc": 0.1,
+          "pc": 0.1,
+          "pc_before_vc": 0.1,
+          "avg_turns": 6.9
+        }
+      },
+      "round2_selection_pc": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "round2": {
+        "n": 20,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "avg_turns": 4.0
+      },
+      "verdict": "LOOP_GREEN",
+      "margins": {
+        "ce_minus_rand_pp": 35.0,
+        "ce_minus_round0_pp": 50.0,
+        "round2_vc": 100.0,
+        "stable": true
+      }
+    },
+    "s04-phone-req": {
+      "round0": {
+        "n": 30,
+        "vc": 0.3,
+        "pc": 0.3333333333333333,
+        "pc_before_vc": 0.3333333333333333,
+        "avg_turns": 6.333333333333333,
+        "pool": {
+          "n": 30,
+          "pc_rate": 0.3333333333333333,
+          "vc_rate": 0.3,
+          "n_ce_positive": 10
+        }
+      },
+      "selection": {
+        "ce_pc": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "ce_vc": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "ce_turns": [
+          4,
+          4,
+          4,
+          4,
+          4
+        ],
+        "rand_pc": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "rand_vc": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ]
+      },
+      "round1": {
+        "ce-select": {
+          "n": 20,
+          "vc": 0.95,
+          "pc": 0.95,
+          "pc_before_vc": 0.95,
+          "avg_turns": 4.3
+        },
+        "random-select": {
+          "n": 20,
+          "vc": 0.95,
+          "pc": 1.0,
+          "pc_before_vc": 1.0,
+          "avg_turns": 6.05
+        },
+        "no-demo": {
+          "n": 20,
+          "vc": 0.2,
+          "pc": 0.2,
+          "pc_before_vc": 0.2,
+          "avg_turns": 6.85
+        }
+      },
+      "round2_selection_pc": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "round2": {
+        "n": 20,
+        "vc": 1.0,
+        "pc": 1.0,
+        "pc_before_vc": 1.0,
+        "avg_turns": 4.0
+      },
+      "verdict": "KILL",
+      "margins": {
+        "ce_minus_rand_pp": 0.0,
+        "ce_minus_round0_pp": 65.0,
+        "round2_vc": 100.0,
+        "stable": true
+      }
+    }
+  },
+  "verdicts": {
+    "s02-screening": "LOOP_GREEN",
+    "s04-phone-req": "KILL"
+  },
+  "overall": "LOOP_GREEN",
+  "elapsed_s": 218.5
+}

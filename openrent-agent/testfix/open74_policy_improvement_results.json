@@ -1,0 +1,154 @@
+{
+  "experiment": "OPEN-74",
+  "n_fresh_per_scenario_per_condition": 20,
+  "q_demonstrations": 5,
+  "positive_groups": [
+    "s02-screening-actor-starts-prod",
+    "s04-phone-request-actor-starts-prod",
+    "s05-reply-actor-starts-prod"
+  ],
+  "demonstration_pool": {
+    "ungated": [
+      {
+        "sk": "s02-cooperative",
+        "ce": 0.9018142236851617,
+        "pc": true,
+        "vc": false
+      },
+      {
+        "sk": "s02-cooperative",
+        "ce": 0.9018142236851617,
+        "pc": true,
+        "vc": false
+      },
+      {
+        "sk": "s02-cooperative",
+        "ce": 0.9018142236851617,
+        "pc": true,
+        "vc": false
+      },
+      {
+        "sk": "s02-cooperative",
+        "ce": 0.9018142236851617,
+        "pc": true,
+        "vc": false
+      },
+      {
+        "sk": "s02-cooperative",
+        "ce": 0.9018142236851617,
+        "pc": true,
+        "vc": false
+      }
+    ],
+    "gated": [
+      {
+        "sk": "s02-screening-actor-starts-prod",
+        "ce": 0.8169542320152944,
+        "pc": true,
+        "vc": false
+      },
+      {
+        "sk": "s02-screening-actor-starts-prod",
+        "ce": 0.8169519369307899,
+        "pc": true,
+        "vc": false
+      },
+      {
+        "sk": "s02-screening-actor-starts-prod",
+        "ce": 0.8169468366630602,
+        "pc": true,
+        "vc": false
+      },
+      {
+        "sk": "s02-screening-actor-starts-prod",
+        "ce": 0.7801163535361351,
+        "pc": true,
+        "vc": true
+      },
+      {
+        "sk": "s02-screening-actor-starts-prod",
+        "ce": 0.7801163535361351,
+        "pc": true,
+        "vc": false
+      }
+    ]
+  },
+  "per_condition_per_scenario": {
+    "baseline": {
+      "s02-screening-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      },
+      "s04-phone-request-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      },
+      "s05-reply-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      }
+    },
+    "ungated_ce": {
+      "s02-screening-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      },
+      "s04-phone-request-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      },
+      "s05-reply-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      }
+    },
+    "gated_ce": {
+      "s02-screening-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      },
+      "s04-phone-request-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      },
+      "s05-reply-actor-starts-prod": {
+        "pc": 0.0,
+        "vc": 1.0,
+        "n": 20
+      }
+    }
+  },
+  "aggregate_positive_groups": {
+    "baseline": {
+      "pc": 0.0,
+      "vc": 1.0,
+      "n": 60
+    },
+    "ungated_ce": {
+      "pc": 0.0,
+      "vc": 1.0,
+      "n": 60
+    },
+    "gated_ce": {
+      "pc": 0.0,
+      "vc": 1.0,
+      "n": 60
+    }
+  },
+  "delta_vc_ungated_vs_baseline": 0.0,
+  "delta_vc_gated_vs_baseline": 0.0,
+  "delta_pc_ungated_vs_baseline": 0.0,
+  "delta_pc_gated_vs_baseline": 0.0,
+  "mechanism_visible_gated": false,
+  "mechanism_visible_ungated": false,
+  "verdict": "MECHANISM_INERT",
+  "reason": "CE rate shift |0.0pp| <= 3pp; demonstrations did not change agent actions"
+}
