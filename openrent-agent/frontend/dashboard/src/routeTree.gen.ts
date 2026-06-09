@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchProfilesRouteImport } from './routes/search-profiles'
 import { Route as ProxiesRouteImport } from './routes/proxies'
 import { Route as LogsRouteImport } from './routes/logs'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as WorkersRouteImport } from './routes/workers'
@@ -51,6 +52,11 @@ const LogsRoute = LogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LeadsRoute = LeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
+  '/login': typeof LoginRoute
   '/proxies': typeof ProxiesRoute
   '/search-profiles': typeof SearchProfilesRoute
   '/settings': typeof SettingsRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
+  '/login': typeof LoginRoute
   '/proxies': typeof ProxiesRoute
   '/search-profiles': typeof SearchProfilesRoute
   '/settings': typeof SettingsRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/workers': typeof WorkersRoute
   '/leads': typeof LeadsRouteWithChildren
   '/logs': typeof LogsRoute
+  '/login': typeof LoginRoute
   '/proxies': typeof ProxiesRoute
   '/search-profiles': typeof SearchProfilesRoute
   '/settings': typeof SettingsRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/workers'
     | '/leads'
     | '/logs'
+    | '/login'
     | '/proxies'
     | '/search-profiles'
     | '/settings'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/workers'
     | '/leads'
     | '/logs'
+    | '/login'
     | '/proxies'
     | '/search-profiles'
     | '/settings'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/workers'
     | '/leads'
     | '/logs'
+    | '/login'
     | '/proxies'
     | '/search-profiles'
     | '/settings'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   WorkersRoute: typeof WorkersRoute
   LeadsRoute: typeof LeadsRouteWithChildren
   LogsRoute: typeof LogsRoute
+  LoginRoute: typeof LoginRoute
   ProxiesRoute: typeof ProxiesRoute
   SearchProfilesRoute: typeof SearchProfilesRoute
   SettingsRoute: typeof SettingsRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/logs'
       fullPath: '/logs'
       preLoaderRoute: typeof LogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leads': {
@@ -270,6 +290,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkersRoute: WorkersRoute,
   LeadsRoute: LeadsRouteWithChildren,
   LogsRoute: LogsRoute,
+  LoginRoute: LoginRoute,
   ProxiesRoute: ProxiesRoute,
   SearchProfilesRoute: SearchProfilesRoute,
   SettingsRoute: SettingsRoute,

@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.main import app
+from app.api.auth import reset_rate_limits
 from app.db import repository
 from app.db.models import Base
 
@@ -26,8 +27,14 @@ def client(tmp_path, monkeypatch):
     frontend_dist.mkdir()
     (frontend_dist / "index.html").write_text("<html><body>ok</body></html>", encoding="utf-8")
     monkeypatch.setattr("app.api.main.FRONTEND_DIST", frontend_dist)
+    reset_rate_limits()
 
     with TestClient(app) as test_client:
+        login = test_client.post(
+            "/api/auth/login",
+            json={"username": "test-admin", "password": "test-password"},
+        )
+        test_client.headers["Authorization"] = f"Bearer {login.json()['token']}"
         yield test_client
 
 

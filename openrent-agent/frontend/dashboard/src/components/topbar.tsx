@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Sun, Moon, Search } from "lucide-react";
+import { Sun, Moon, Search, LogOut } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { DotBadge } from "@/components/status-badge";
 import { getHealth } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
+import { logout } from "@/auth";
 
-export function Topbar() {
+export function Topbar({ username }: { username: string }) {
   const [dark, setDark] = useState(false);
   const { data } = useQuery({
     queryKey: ["health"],
@@ -48,9 +49,10 @@ export function Topbar() {
         <Button variant="outline" size="icon" onClick={toggle} aria-label="Toggle theme">
           {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>
-        <div className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-sm">
-          OP
-        </div>
+        <Button variant="outline" onClick={() => logout()} title={`Signed in as ${username}`}>
+          <LogOut className="size-4" />
+          <span className="hidden sm:inline">Logout</span>
+        </Button>
       </div>
     </header>
   );

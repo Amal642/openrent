@@ -334,7 +334,7 @@ def ensure_account_persona(account_or_id):
             account.persona_partner_job = (
                 account.persona_partner_job or selected["persona_partner_job"]
             )
-            account.home_city = account.home_city or selected["home_city"]
+            account.home_city = account.home_city or selected.get("home_city")
             account.conversation_style = (
                 account.conversation_style or selected["conversation_style"]
             )

@@ -1,24 +1,18 @@
-import type { QueryClient } from "@tanstack/react-query";
-import { QueryClientProvider } from "@tanstack/react-query";
 import { Outlet } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Topbar } from "@/components/topbar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { Toaster } from "@/components/ui/sonner";
 
-export function AppShell({ queryClient }: { queryClient: QueryClient }) {
+export function AppShell({ username }: { username: string }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset>
-          <Topbar />
-          <main className="w-full min-w-0 flex-1 overflow-x-hidden bg-background p-4 md:p-6">
-            <Outlet />
-          </main>
-        </SidebarInset>
-        <Toaster />
-      </SidebarProvider>
-    </QueryClientProvider>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <Topbar username={username} />
+        <main className="w-full min-w-0 flex-1 overflow-x-hidden bg-background p-4 md:p-6">
+          <Outlet />
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

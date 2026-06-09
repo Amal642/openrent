@@ -55,10 +55,31 @@ Create `.env` from `.env.example` and set at least:
 
 ```env
 DATABASE_URL=sqlite:///openrent.db
+CRM_USERNAME=admin
+CRM_PASSWORD_HASH=<generated-password-hash>
+CRM_AUTH_SECRET=<long-random-secret>
 OPENAI_API_KEY=sk-...
 HEADLESS=false
 AI_AUTOSEND=false
 ```
+
+Generate the CRM password hash and signing secret without storing the plain-text
+password in `.env`:
+
+```powershell
+python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('replace-with-password'))"
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Set the same `CRM_USERNAME`, `CRM_PASSWORD_HASH`, and `CRM_AUTH_SECRET` values in
+the API deployment environment. The Vercel dashboard only needs
+`VITE_API_BASE_URL`; credentials and the signing secret must never be configured
+as Vercel frontend variables.
+
+CRM sessions last seven days. To change the password, generate a new hash and
+restart the API. To immediately invalidate every active CRM session, rotate
+`CRM_AUTH_SECRET` and restart the API. If access is lost, update all three CRM
+environment variables directly in the API hosting provider and redeploy.
 
 ## Run API
 

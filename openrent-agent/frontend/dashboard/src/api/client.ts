@@ -25,10 +25,12 @@ export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
+  const token = localStorage.getItem("land-royal-crm-token");
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       ...(init.body ? { "content-type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
   });
@@ -39,11 +41,21 @@ export async function apiRequest<T>(
       payload && typeof payload === "object" && "detail" in payload
         ? (payload as { detail: unknown }).detail
         : payload;
-    throw new ApiError(
+    const error = new ApiError(
       typeof detail === "string" ? detail : `API request failed with ${response.status}`,
       response.status,
       detail,
     );
+    if (response.status === 401 && path !== "/auth/login") {
+      localStorage.removeItem("land-royal-crm-token");
+      if (window.location.pathname !== "/login") {
+        const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        const search = new URLSearchParams({ reason: "expired" });
+        if (next.startsWith("/") && !next.startsWith("//")) search.set("next", next);
+        window.location.replace(`/login?${search.toString()}`);
+      }
+    }
+    throw error;
   }
 
   return payload as T;

@@ -6,11 +6,23 @@ from urllib.parse import quote, urlsplit, urlunsplit
 import os
 import socket
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.auth import (
+    AUTH_ERROR,
+    INVALID_CREDENTIALS_ERROR,
+    authenticate,
+    clear_failed_logins,
+    ensure_login_allowed,
+    issue_token,
+    record_failed_login,
+    validate_auth_config,
+    verify_request,
+)
 from app.db.init_db import init_db
 from app.db.repository import (
     clear_account_failed,
@@ -68,6 +80,11 @@ class SearchProfilePayload(BaseModel):
     active: bool = True
 
 
+class LoginPayload(BaseModel):
+    username: str
+    password: str
+
+
 class ProxyPayload(BaseModel):
     name: str | None = None
     host: str
@@ -90,6 +107,7 @@ class AccountCreatePayload(BaseModel):
     email: str
     password: str = ""
     session_file: str = ""
+    initial_message: str = ""
     proxy_id: int | None = None
     # Legacy direct fields — kept for backward compat; proxy_id takes priority
     proxy_server: str | None = None
@@ -110,6 +128,7 @@ class AccountUpdatePayload(BaseModel):
     email: str | None = None
     password: str | None = None
     session_file: str | None = None
+    initial_message: str | None = None
     proxy_id: int | None = None
     proxy_server: str | None = None
     proxy_username: str | None = None
@@ -187,6 +206,7 @@ RUNTIME_SETTINGS = {
 
 @asynccontextmanager
 async def lifespan(app_instance):
+    validate_auth_config()
     init_db()
     app_instance.state.account_scheduler_task = start_account_scheduler()
     app_instance.state.proxy_health_monitor_task = start_proxy_health_monitor()
@@ -210,6 +230,24 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+class CRMAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        is_public = path in {"/api/health", "/api/auth/login"}
+        if request.method != "OPTIONS" and path.startswith("/api/") and not is_public:
+            try:
+                request.state.crm_username = verify_request(request)
+            except HTTPException as exc:
+                return JSONResponse(
+                    {"detail": AUTH_ERROR},
+                    status_code=exc.status_code,
+                    headers=exc.headers,
+                )
+        return await call_next(request)
+
+
+app.add_middleware(CRMAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://openrent-tjv2.vercel.app",
@@ -374,6 +412,27 @@ def health():
     }
 
 
+@app.post("/api/auth/login")
+def api_login(payload: LoginPayload, request: Request):
+    ip_address = request.client.host if request.client else "unknown"
+    ensure_login_allowed(ip_address)
+    if not authenticate(payload.username, payload.password):
+        record_failed_login(ip_address)
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS_ERROR)
+
+    clear_failed_logins(ip_address)
+    return {
+        "token": issue_token(payload.username),
+        "username": payload.username,
+        "expires_in": 7 * 24 * 60 * 60,
+    }
+
+
+@app.get("/api/auth/me")
+def api_auth_me(request: Request):
+    return {"username": request.state.crm_username}
+
+
 @app.get("/api/leads")
 def api_leads(status: str = None):
     return get_dashboard_leads(status=status)
@@ -430,6 +489,7 @@ def api_create_account(payload: AccountCreatePayload):
         email=payload.email,
         password=payload.password,
         session_file=payload.session_file,
+        initial_message=payload.initial_message,
         proxy_server=payload.proxy_server,
         proxy_username=payload.proxy_username,
         proxy_password=payload.proxy_password,
@@ -464,6 +524,7 @@ def api_update_account(account_id: int, payload: AccountUpdatePayload):
         email=payload.email,
         password=payload.password,
         session_file=payload.session_file,
+        initial_message=payload.initial_message,
         proxy_id=payload.proxy_id,
         proxy_server=payload.proxy_server,
         proxy_username=payload.proxy_username,
