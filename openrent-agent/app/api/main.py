@@ -281,11 +281,50 @@ def _account_proxy_url(account: dict):
     )
 
 
+def _proxy_url_for_account_id(account_id: int) -> str | None:
+    """
+    Build a proxy URL for an account, handling both the legacy proxy_server
+    field and the linked Proxy record (proxy_id).
+    """
+    from app.db.models import Account as _Account, Proxy as _Proxy
+    from app.db.connection import SessionLocal
+
+    db = SessionLocal()
+    try:
+        account = db.query(_Account).filter(_Account.id == account_id).first()
+        if not account:
+            return None
+
+        # Prefer linked Proxy record
+        if account.proxy_id:
+            proxy = db.query(_Proxy).filter(_Proxy.id == account.proxy_id).first()
+            if proxy and proxy.is_active and proxy.host:
+                server = f"http://{proxy.host}:{proxy.port}"
+                if not proxy.username:
+                    return server
+                username = quote(proxy.username, safe="")
+                password = quote(proxy.password or "", safe="")
+                return f"http://{username}:{password}@{proxy.host}:{proxy.port}"
+
+        # Fall back to legacy direct fields
+        proxy_server = (account.proxy_server or "").strip()
+        if not proxy_server:
+            return None
+        parsed = urlsplit(proxy_server if "://" in proxy_server else f"http://{proxy_server}")
+        if not account.proxy_username:
+            return urlunsplit(parsed)
+        username = quote(account.proxy_username, safe="")
+        password = quote(account.proxy_password or "", safe="")
+        netloc = parsed.netloc.split("@", 1)[-1]
+        return urlunsplit((parsed.scheme, f"{username}:{password}@{netloc}", parsed.path, parsed.query, parsed.fragment))
+    finally:
+        db.close()
+
+
 def _check_and_persist_proxy(account_id: int):
     from app.proxy.check_proxy import check_proxy
 
-    account = _require_account(account_id)
-    proxy_url = _account_proxy_url(account)
+    proxy_url = _proxy_url_for_account_id(account_id)
     if not proxy_url:
         result = {
             "account_id": account_id,
@@ -362,7 +401,7 @@ def api_proxy_health():
             "proxy_server": account.get("proxy_server"),
             "proxy_status": (
                 account.get("proxy_status")
-                or ("not_configured" if not account.get("proxy_server") else "unknown")
+                or ("not_configured" if not account.get("proxy_server") and not account.get("proxy_id") else "unknown")
             ),
             "proxy_ip": account.get("proxy_ip"),
             "proxy_latency": account.get("proxy_latency"),
