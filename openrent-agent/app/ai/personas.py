@@ -78,7 +78,6 @@ PERSONA_TEMPLATES = {
         "display_name": "Young professional couple",
         "household_description": "young professional couple",
         "message_tone": "friendly, direct, brief",
-        "home_city": "Manchester",
         "phone_fetching_type": "delayed",
         "message_strategy": "friendly, viewing-led, trust-building",
         "escalation_behavior": "ask for phone details after a viewing time is mostly agreed",
@@ -105,8 +104,7 @@ PERSONA_TEMPLATES = {
         "display_name": "Quiet IT worker",
         "household_description": "single IT professional",
         "message_tone": "minimal, matter-of-fact, calm",
-        "home_city": "Derby",
-        "phone_fetching_type": "landlord_requests_only",
+        "phone_fetching_type": "viewing_first",
         "message_strategy": "quiet, practical, viewing-first",
         "escalation_behavior": "share phone only when the landlord asks or a viewing is fixed",
         "conversation_goal": "arrange a practical viewing without unnecessary chatter",
@@ -132,7 +130,6 @@ PERSONA_TEMPLATES = {
         "display_name": "NHS or medical worker",
         "household_description": "working professional with a healthcare role",
         "message_tone": "warm, polite, practical, may mention shifts naturally",
-        "home_city": "Birmingham",
         "phone_fetching_type": "adaptive",
         "message_strategy": "warm, practical, schedule-aware",
         "escalation_behavior": "use shift patterns as a natural reason for direct coordination",
@@ -159,7 +156,6 @@ PERSONA_TEMPLATES = {
         "display_name": "Academic or researcher",
         "household_description": "single academic professional",
         "message_tone": "measured, polite, slightly formal",
-        "home_city": "Nottingham",
         "phone_fetching_type": "viewing_first",
         "message_strategy": "measured, viewing-led, polite",
         "escalation_behavior": "only move to phone once the landlord is engaged",
@@ -186,7 +182,6 @@ PERSONA_TEMPLATES = {
         "display_name": "Engineer or consultant couple",
         "household_description": "professional couple",
         "message_tone": "efficient, practical, concise",
-        "home_city": "Leicester",
         "phone_fetching_type": "immediate",
         "message_strategy": "concise, professional, direct coordination",
         "escalation_behavior": "ask for phone coordination early if the landlord is responsive",
@@ -213,8 +208,7 @@ PERSONA_TEMPLATES = {
         "display_name": "Single-income couple",
         "household_description": "couple with one working applicant and one partner at home",
         "message_tone": "calm, practical, slightly cautious",
-        "home_city": "Manchester",
-        "phone_fetching_type": "landlord_requests_only",
+        "phone_fetching_type": "viewing_first",
         "message_strategy": "screening-first, careful with contact details, viewing-led",
         "escalation_behavior": "answer affordability and household questions clearly before asking for viewing logistics",
         "conversation_goal": "arrange a viewing while keeping contact sharing cautious",
@@ -281,7 +275,6 @@ def materialize_persona(template, seed=None):
         "persona_partner_job": partner_job,
         "household_description": template["household_description"],
         "message_tone": template["message_tone"],
-        "home_city": template["home_city"],
         "display_name": template["display_name"],
         "mobile_number": template.get("mobile_number"),
         "phone_fetching_type": template.get("phone_fetching_type") or style_config["phone_fetching_type"],
@@ -314,12 +307,7 @@ def persona_summary(persona):
     if partner:
         parts.append(f"partner {partner}" + (f" ({partner_job})" if partner_job else ""))
     household = persona.get("household_description")
-    home_city = persona.get("home_city")
-    suffix = []
-    if household:
-        suffix.append(household)
-    if home_city:
-        suffix.append(f"based in {home_city}")
+    suffix = [household] if household else []
     return "; ".join([", ".join(filter(None, parts)), ", ".join(suffix)])
 
 

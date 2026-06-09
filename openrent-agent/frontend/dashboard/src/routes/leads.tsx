@@ -62,6 +62,8 @@ function LeadsList() {
   const [aiFailed, setAiFailed] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
   const [viewingsOnly, setViewingsOnly] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [q, setQ] = useState("");
   const queryClient = useQueryClient();
   const completeMutation = useMutation({
@@ -104,6 +106,8 @@ function LeadsList() {
         if (activeOnly && !["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"].includes(l.status))
           return false;
         if (viewingsOnly && !l.viewingConfirmed) return false;
+        if (dateFrom && new Date(l.lastUpdatedAt) < new Date(dateFrom)) return false;
+        if (dateTo && new Date(l.lastUpdatedAt) > new Date(dateTo + "T23:59:59")) return false;
         if (q) {
           const t = q.toLowerCase();
           if (
@@ -115,7 +119,7 @@ function LeadsList() {
         }
         return true;
       }),
-    [leads, status, account, profile, hasPhone, aiFailed, activeOnly, viewingsOnly, q],
+    [leads, status, account, profile, hasPhone, aiFailed, activeOnly, viewingsOnly, dateFrom, dateTo, q],
   );
 
   const accountEmail = (id: string) => accounts.find((a) => a.id === id)?.email ?? id;
@@ -201,6 +205,20 @@ function LeadsList() {
           <ToggleChip label="AI failed" checked={aiFailed} onChange={setAiFailed} />
           <ToggleChip label="Active only" checked={activeOnly} onChange={setActiveOnly} />
           <ToggleChip label="Viewings" checked={viewingsOnly} onChange={setViewingsOnly} />
+          <Input
+            type="date"
+            title="Last updated from"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-9 w-36"
+          />
+          <Input
+            type="date"
+            title="Last updated to"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-9 w-36"
+          />
         </div>
       </div>
 

@@ -147,8 +147,6 @@ function AccountsPage() {
   });
 
   const [query, setQuery] = useState("");
-  const [lastRunFrom, setLastRunFrom] = useState("");
-  const [lastRunTo, setLastRunTo] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
@@ -217,13 +215,9 @@ function AccountsPage() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Session action failed"),
   });
 
-  const filtered = list.filter((a) => {
-    if (!a.email.toLowerCase().includes(query.toLowerCase())) return false;
-    const lastRun = a.lastRunAt || a.workerLastCompletedAt;
-    if (lastRunFrom && lastRun && new Date(lastRun) < new Date(lastRunFrom)) return false;
-    if (lastRunTo && lastRun && new Date(lastRun) > new Date(lastRunTo + "T23:59:59")) return false;
-    return true;
-  });
+  const filtered = list.filter((a) =>
+    a.email.toLowerCase().includes(query.toLowerCase())
+  );
   const save = (data: Partial<Account> & { password?: string }) => {
     saveMutation.mutate({ ...editing, ...data });
   };
@@ -253,20 +247,6 @@ function AccountsPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="h-9 w-full sm:w-56"
-            />
-            <Input
-              type="date"
-              title="Last run from"
-              value={lastRunFrom}
-              onChange={(e) => setLastRunFrom(e.target.value)}
-              className="h-9 w-36"
-            />
-            <Input
-              type="date"
-              title="Last run to"
-              value={lastRunTo}
-              onChange={(e) => setLastRunTo(e.target.value)}
-              className="h-9 w-36"
             />
             <Button
               onClick={() => {
@@ -381,7 +361,7 @@ function AccountsPage() {
                       {a.personaPartnerName ? `& ${a.personaPartnerName}` : ""}
                     </div>
                     <div className="text-muted-foreground">
-                      {[a.personaJob, a.personaPartnerJob, a.homeCity]
+                      {[a.personaJob, a.personaPartnerJob]
                         .filter(Boolean)
                         .join(" / ") || "-"}
                     </div>

@@ -431,7 +431,6 @@ def serialize_account(account):
         "persona_partner_name": persona["persona_partner_name"] if persona else None,
         "persona_job": persona["persona_job"] if persona else None,
         "persona_partner_job": persona["persona_partner_job"] if persona else None,
-        "home_city": persona["home_city"] if persona else None,
         "persona_type": persona["persona_type"] if persona else None,
         "household_description": persona["household_description"] if persona else None,
         "message_tone": persona["message_tone"] if persona else None,
@@ -495,7 +494,12 @@ def get_active_accounts():
 
 def get_dashboard_accounts():
     with session_scope() as db:
-        accounts = db.query(Account).order_by(Account.created_at.desc()).all()
+        accounts = (
+            db.query(Account)
+            .options(joinedload(Account.proxy))
+            .order_by(Account.created_at.desc())
+            .all()
+        )
         return [serialize_account(account) for account in accounts]
 
 

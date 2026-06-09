@@ -238,7 +238,7 @@ function asProxyStatus(value?: string, hasProxy?: boolean): ProxyStatus {
 function mapAccount(account: BackendAccount): Account {
   const active = account.active ?? true;
   const workerStatus = asWorkerStatus(account.worker_status, active);
-  const hasProxy = Boolean(account.proxy_server);
+  const hasProxy = Boolean(account.proxy_server) || Boolean(account.proxy_id);
 
   return {
     id: String(account.id),

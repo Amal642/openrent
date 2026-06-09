@@ -109,7 +109,7 @@ def build_reply_prompt(
     if stage == "VIEWING_BOOKED" and not landlord_asked_for_number:
         return build_phone_request_prompt(
             conversation,
-            place=place or (persona or {}).get("home_city") or "Manchester",
+            place=place,
             viewing_location="the viewing",
         )
 

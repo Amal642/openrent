@@ -77,6 +77,15 @@ class ProxyPayload(BaseModel):
     is_active: bool = True
 
 
+class ProxyUpdatePayload(BaseModel):
+    name: str | None = None
+    host: str | None = None
+    port: int | None = None
+    username: str | None = None
+    password: str | None = None
+    is_active: bool | None = None
+
+
 class AccountCreatePayload(BaseModel):
     email: str
     password: str = ""
@@ -595,7 +604,7 @@ def api_create_proxy(payload: ProxyPayload):
 
 
 @app.patch("/api/proxies/{proxy_id}")
-def api_update_proxy(proxy_id: int, payload: ProxyPayload):
+def api_update_proxy(proxy_id: int, payload: ProxyUpdatePayload):
     updated = update_proxy(
         proxy_id,
         name=payload.name,
