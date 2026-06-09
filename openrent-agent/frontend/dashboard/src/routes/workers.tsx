@@ -20,7 +20,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/workers")({
   head: () => ({
-    meta: [{ title: "Workers - RentPilot" }],
+    meta: [{ title: "Workers - Land Royal" }],
   }),
   component: WorkersPage,
 });

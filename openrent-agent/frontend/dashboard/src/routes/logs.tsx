@@ -21,7 +21,7 @@ import type { LogEntry } from "@/lib/types";
 export const Route = createFileRoute("/logs")({
   head: () => ({
     meta: [
-      { title: "Logs — RentPilot" },
+      { title: "Logs — Land Royal" },
       { name: "description", content: "Operational logs across workers and AI." },
     ],
   }),

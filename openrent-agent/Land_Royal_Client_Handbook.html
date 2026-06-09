@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Land Royal Command Center - Client Handbook</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    :root {
+      --navy: #102a43;
+      --blue: #087ea4;
+      --sky: #e8f5fa;
+      --gold: #d69e2e;
+      --cream: #fffaf0;
+      --green: #16845b;
+      --green-bg: #e8f7ef;
+      --orange: #b65c16;
+      --orange-bg: #fff3e6;
+      --red: #b83232;
+      --red-bg: #fff0f0;
+      --ink: #243b53;
+      --muted: #627d98;
+      --line: #d9e2ec;
+      --paper: #ffffff;
+    }
+    body {
+      margin: 0;
+      background: #d9e2ec;
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 10.2pt;
+      line-height: 1.45;
+    }
+    .page {
+      position: relative;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 19mm 18mm 17mm;
+      overflow: hidden;
+      background: var(--paper);
+      break-after: page;
+    }
+    .page:last-child { break-after: auto; }
+    .page-number {
+      position: absolute;
+      right: 18mm;
+      bottom: 9mm;
+      color: var(--muted);
+      font-size: 8.5pt;
+    }
+    .footer-brand {
+      position: absolute;
+      left: 18mm;
+      bottom: 9mm;
+      color: var(--blue);
+      font-size: 8.5pt;
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h2 {
+      margin-bottom: 3mm;
+      color: var(--navy);
+      font-size: 22pt;
+      line-height: 1.12;
+      letter-spacing: -.35px;
+    }
+    h3 {
+      margin-bottom: 2mm;
+      color: var(--navy);
+      font-size: 12pt;
+      line-height: 1.2;
+    }
+    p { margin-bottom: 3mm; }
+    ul, ol { margin: 2mm 0 0; padding-left: 5mm; }
+    li { margin-bottom: 1.5mm; }
+    .eyebrow {
+      margin-bottom: 2mm;
+      color: var(--blue);
+      font-size: 8.5pt;
+      font-weight: 800;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+    }
+    .lead {
+      max-width: 155mm;
+      margin-bottom: 7mm;
+      color: var(--muted);
+      font-size: 11.5pt;
+      line-height: 1.5;
+    }
+    .section-rule {
+      width: 20mm;
+      height: 1.2mm;
+      margin: 0 0 6mm;
+      border-radius: 20px;
+      background: var(--gold);
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3.5mm; }
+    .card {
+      padding: 4mm;
+      border: .3mm solid var(--line);
+      border-radius: 4mm;
+      background: #fff;
+      break-inside: avoid;
+    }
+    .card.soft { border: 0; background: #f5f9fc; }
+    .card.blue { border: 0; background: var(--sky); }
+    .card.green { border: 0; background: var(--green-bg); }
+    .card.orange { border: 0; background: var(--orange-bg); }
+    .card.red { border: 0; background: var(--red-bg); }
+    .card p:last-child, .callout p:last-child { margin-bottom: 0; }
+    .icon {
+      display: inline-flex;
+      width: 9mm;
+      height: 9mm;
+      margin-bottom: 3mm;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3mm;
+      background: var(--sky);
+      color: var(--blue);
+      font-size: 13pt;
+      font-weight: 800;
+    }
+    .icon.green { background: var(--green-bg); color: var(--green); }
+    .icon.orange { background: var(--orange-bg); color: var(--orange); }
+    .icon.red { background: var(--red-bg); color: var(--red); }
+    .small { color: var(--muted); font-size: 8.8pt; line-height: 1.4; }
+    .label {
+      display: inline-block;
+      margin-bottom: 2mm;
+      padding: 1mm 2.5mm;
+      border-radius: 10mm;
+      background: var(--sky);
+      color: var(--blue);
+      font-size: 7.5pt;
+      font-weight: 800;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+    }
+    .callout {
+      margin: 5mm 0;
+      padding: 4mm 5mm;
+      border-left: 1.4mm solid var(--blue);
+      border-radius: 0 3mm 3mm 0;
+      background: var(--sky);
+      break-inside: avoid;
+    }
+    .callout.warning { border-left-color: var(--gold); background: var(--cream); }
+    .callout.danger { border-left-color: var(--red); background: var(--red-bg); }
+    .callout strong { color: var(--navy); }
+    .step {
+      display: grid;
+      grid-template-columns: 10mm 1fr;
+      gap: 3mm;
+      margin-bottom: 3.5mm;
+      break-inside: avoid;
+    }
+    .step-number {
+      display: flex;
+      width: 9mm;
+      height: 9mm;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--navy);
+      color: white;
+      font-weight: 800;
+    }
+    .step h3 { margin: 0 0 1mm; font-size: 10.5pt; }
+    .step p { margin: 0; color: var(--muted); font-size: 9pt; }
+    .status {
+      display: flex;
+      gap: 3mm;
+      margin-bottom: 3mm;
+      align-items: flex-start;
+      break-inside: avoid;
+    }
+    .dot {
+      width: 3mm;
+      height: 3mm;
+      margin-top: 1.5mm;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--green);
+    }
+    .dot.orange { background: var(--gold); }
+    .dot.red { background: var(--red); }
+    .dot.gray { background: #9fb3c8; }
+    .status strong { display: block; color: var(--navy); }
+    .status span { color: var(--muted); font-size: 8.8pt; }
+    .dashboard-screenshot {
+      display: block;
+      width: 100%;
+      height: auto;
+      margin: 4mm 0 2.5mm;
+      overflow: hidden;
+      border: .3mm solid var(--line);
+      border-radius: 3mm;
+      box-shadow: 0 2mm 7mm rgba(16, 42, 67, .08);
+    }
+    .conversation {
+      margin: 5mm 0;
+      padding: 4mm;
+      border: .3mm solid var(--line);
+      border-radius: 4mm;
+      background: #f8fbfd;
+    }
+    .bubble {
+      max-width: 72%;
+      margin-bottom: 3mm;
+      padding: 3mm 4mm;
+      border-radius: 4mm 4mm 4mm 1mm;
+      background: #e6edf2;
+      font-size: 9pt;
+    }
+    .bubble.you {
+      margin-left: auto;
+      border-radius: 4mm 4mm 1mm 4mm;
+      background: #d9f0f7;
+    }
+    .bubble b { display: block; margin-bottom: 1mm; color: var(--muted); font-size: 7pt; text-transform: uppercase; }
+    .checklist { list-style: none; padding: 0; }
+    .checklist li { position: relative; padding-left: 7mm; margin-bottom: 2.5mm; }
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      top: -.3mm;
+      display: inline-flex;
+      width: 4.5mm;
+      height: 4.5mm;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--green-bg);
+      color: var(--green);
+      font-size: 8pt;
+      font-weight: 900;
+    }
+    .cover {
+      color: white;
+      background:
+        radial-gradient(circle at 92% 10%, rgba(255,255,255,.16) 0 28mm, transparent 28.5mm),
+        radial-gradient(circle at 6% 92%, rgba(214,158,46,.22) 0 34mm, transparent 34.5mm),
+        linear-gradient(145deg, #102a43 0%, #075985 62%, #087ea4 100%);
+    }
+    .cover::after {
+      content: "";
+      position: absolute;
+      right: -30mm;
+      bottom: -36mm;
+      width: 125mm;
+      height: 125mm;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 50%;
+      box-shadow: 0 0 0 14mm rgba(255,255,255,.04), 0 0 0 30mm rgba(255,255,255,.03);
+    }
+    .brand {
+      display: flex;
+      gap: 3mm;
+      align-items: center;
+      font-size: 11pt;
+      font-weight: 800;
+      letter-spacing: .4px;
+    }
+    .brand-logo-panel {
+      display: flex;
+      width: 76mm;
+      min-height: 35mm;
+      padding: 4mm 6mm;
+      align-items: center;
+      justify-content: center;
+      border: .4mm solid rgba(255,255,255,.45);
+      border-radius: 5mm;
+      background: rgba(255,255,255,.94);
+      box-shadow: 0 5mm 14mm rgba(4, 28, 48, .18);
+    }
+    .brand-logo {
+      display: block;
+      width: 64mm;
+      height: auto;
+    }
+    .cover-copy { position: absolute; left: 20mm; right: 20mm; top: 77mm; z-index: 2; }
+    .cover h1 {
+      max-width: 150mm;
+      margin: 0 0 6mm;
+      font-size: 38pt;
+      line-height: 1.03;
+      letter-spacing: -1.2px;
+    }
+    .cover .subtitle {
+      max-width: 125mm;
+      color: #d9edf5;
+      font-size: 15pt;
+      line-height: 1.4;
+    }
+    .cover-note {
+      position: absolute;
+      left: 20mm;
+      bottom: 24mm;
+      z-index: 2;
+      padding-top: 4mm;
+      border-top: .4mm solid rgba(255,255,255,.35);
+      color: #d9edf5;
+      font-size: 9pt;
+    }
+    .contents-row {
+      display: grid;
+      grid-template-columns: 12mm 1fr auto;
+      gap: 3mm;
+      padding: 3.5mm 0;
+      border-bottom: .3mm solid var(--line);
+      align-items: center;
+    }
+    .contents-number { color: var(--gold); font-size: 15pt; font-weight: 800; }
+    .contents-title { color: var(--navy); font-weight: 700; }
+    .contents-page { color: var(--muted); font-size: 9pt; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 3mm;
+      margin: 5mm 0;
+    }
+    .flow .card { position: relative; min-height: 37mm; }
+    .flow .card:not(:last-child)::after {
+      content: "›";
+      position: absolute;
+      right: -3.2mm;
+      top: 13mm;
+      z-index: 2;
+      color: var(--gold);
+      font-size: 20pt;
+      font-weight: 800;
+    }
+    .mini-table { width: 100%; border-collapse: collapse; font-size: 8.7pt; }
+    .mini-table th, .mini-table td { padding: 2.5mm; border-bottom: .3mm solid var(--line); text-align: left; vertical-align: top; }
+    .mini-table th { color: var(--navy); background: #f2f7fa; font-size: 8pt; text-transform: uppercase; letter-spacing: .35px; }
+    .avoid-break { break-inside: avoid; }
+    .leads-page .lead { margin-bottom: 4mm; }
+    .leads-page .grid-2 .card { padding: 3.2mm; }
+    .leads-page .conversation { margin: 3mm 0; padding: 3mm; }
+    .leads-page .bubble { margin-bottom: 2mm; padding: 2.4mm 3mm; }
+    .leads-page h3 { margin-bottom: 1.5mm; }
+    .leads-page .mini-table th, .leads-page .mini-table td { padding: 1.8mm 2.2mm; }
+    .leads-page .callout { margin: 3mm 0; padding: 2.8mm 4mm; }
+  </style>
+</head>
+<body>
+  <section class="page cover">
+    <div class="brand-logo-panel">
+      <img class="brand-logo" src="assets/logolandroyal.webp" alt="Land Royal United Kingdom">
+    </div>
+    <div class="cover-copy">
+      <div class="eyebrow" style="color:#f6d98b">Client Handbook</div>
+      <h1>Command Center<br>User Guide</h1>
+      <p class="subtitle">A simple guide to monitoring activity, reviewing conversations, and keeping your property outreach running smoothly.</p>
+    </div>
+    <div class="cover-note">Prepared for everyday users &nbsp;•&nbsp; No technical knowledge required</div>
+  </section>
+
+  <section class="page">
+    <div class="eyebrow">Welcome</div>
+    <h2>Start here</h2>
+    <div class="section-rule"></div>
+    <p class="lead">The Command Center gives you one place to see what the system is doing, review landlord conversations, and spot anything that needs attention.</p>
+
+    <div class="grid-3">
+      <div class="card blue"><span class="icon">1</span><h3>Check progress</h3><p class="small">See replies, phone numbers, active conversations, and today's activity.</p></div>
+      <div class="card green"><span class="icon green">2</span><h3>Review conversations</h3><p class="small">Open any lead to read the conversation and see key property details.</p></div>
+      <div class="card orange"><span class="icon orange">3</span><h3>Handle warnings</h3><p class="small">Use clear status labels to find accounts or workers that need attention.</p></div>
+    </div>
+
+    <div class="callout"><strong>Your normal daily routine is simple:</strong> check the Dashboard, review new Leads, then look at Failed Accounts or Workers only if you see a warning.</div>
+
+    <h3 style="margin-top:7mm">What is inside this handbook?</h3>
+    <div class="contents-row"><span class="contents-number">01</span><span class="contents-title">Your daily routine</span><span class="contents-page">Page 3</span></div>
+    <div class="contents-row"><span class="contents-number">02</span><span class="contents-title">Understanding the Dashboard</span><span class="contents-page">Page 4</span></div>
+    <div class="contents-row"><span class="contents-number">03</span><span class="contents-title">Reviewing leads and conversations</span><span class="contents-page">Page 5</span></div>
+    <div class="contents-row"><span class="contents-number">04</span><span class="contents-title">Accounts and search setup</span><span class="contents-page">Pages 6–7</span></div>
+    <div class="contents-row"><span class="contents-number">05</span><span class="contents-title">Warnings, workers, and troubleshooting</span><span class="contents-page">Pages 8–9</span></div>
+
+    <div class="callout warning"><strong>Before making changes:</strong> if you are unsure about a setting, account, proxy, or worker action, contact your administrator first.</div>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">2</span>
+  </section>
+
+  <section class="page">
+    <div class="eyebrow">Everyday use</div>
+    <h2>Your daily routine</h2>
+    <div class="section-rule"></div>
+    <p class="lead">Most days, you only need three sections: Dashboard, Leads, and Failed Accounts.</p>
+
+    <div class="flow">
+      <div class="card soft"><span class="icon">1</span><h3>Open Dashboard</h3><p class="small">Look for warnings and check today's progress.</p></div>
+      <div class="card soft"><span class="icon">2</span><h3>Review Leads</h3><p class="small">Check replies, phones, and viewings.</p></div>
+      <div class="card soft"><span class="icon">3</span><h3>Open key chats</h3><p class="small">Read conversations that need a decision.</p></div>
+      <div class="card soft"><span class="icon">4</span><h3>Handle warnings</h3><p class="small">Only if something needs attention.</p></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <span class="label">Morning check</span>
+        <h3>What should I look at first?</h3>
+        <ul class="checklist">
+          <li>Is the top status showing <strong>running</strong>?</li>
+          <li>Are there any failed conversations or accounts?</li>
+          <li>Are workers active or queued normally?</li>
+          <li>Have new phone numbers been collected?</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="label">Before finishing</span>
+        <h3>What should I review?</h3>
+        <ul class="checklist">
+          <li>Important landlord replies.</li>
+          <li>Conversations with viewings.</li>
+          <li>Leads that have phone numbers.</li>
+          <li>Any repeated login or proxy errors.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin-top:7mm">Using the menu</h3>
+    <img
+      class="dashboard-screenshot"
+      src="assets/Screenshot%20(2609).png"
+      alt="Land Royal Command Center dashboard"
+    >
+    <p class="small"><strong>Desktop:</strong> choose a section from the menu on the left. &nbsp; <strong>Mobile:</strong> tap the menu button in the top-left, then choose a page.</p>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">3</span>
+  </section>
+
+  <section class="page">
+    <div class="eyebrow">At a glance</div>
+    <h2>Understanding the Dashboard</h2>
+    <div class="section-rule"></div>
+    <p class="lead">The Dashboard is your overview. It answers: “Is everything working, and what needs my attention?”</p>
+
+    <div class="grid-3">
+      <div class="card blue"><span class="icon">↗</span><h3>Reply rate</h3><p class="small">How many contacted landlords have replied.</p></div>
+      <div class="card green"><span class="icon green">☎</span><h3>Phone progress</h3><p class="small">Phone numbers collected against today's target.</p></div>
+      <div class="card soft"><span class="icon">◎</span><h3>Active accounts</h3><p class="small">Accounts ready to run or currently working.</p></div>
+      <div class="card soft"><span class="icon">◫</span><h3>Active chats</h3><p class="small">Conversations still moving forward.</p></div>
+      <div class="card orange"><span class="icon orange">!</span><h3>Needs attention</h3><p class="small">Conversations that may need review.</p></div>
+      <div class="card red"><span class="icon red">×</span><h3>Failed accounts</h3><p class="small">Accounts that should be checked before continuing.</p></div>
+    </div>
+
+    <h3 style="margin-top:7mm">Status colors</h3>
+    <div class="grid-2">
+      <div>
+        <div class="status"><span class="dot"></span><div><strong>Green means healthy</strong><span>Running normally or completed successfully.</span></div></div>
+        <div class="status"><span class="dot orange"></span><div><strong>Amber means check soon</strong><span>Queued, paused, retrying, or waiting.</span></div></div>
+      </div>
+      <div>
+        <div class="status"><span class="dot red"></span><div><strong>Red means action needed</strong><span>Login, proxy, worker, or AI error.</span></div></div>
+        <div class="status"><span class="dot gray"></span><div><strong>Grey means inactive</strong><span>Idle, stopped, or not currently running.</span></div></div>
+      </div>
+    </div>
+
+    <div class="callout warning"><strong>See a red warning?</strong> Open the related item first. If the cause is not clear, check Workers and Logs before changing any settings.</div>
+
+    <h3>Recent activity</h3>
+    <p>Use the filters above Recent Activity to quickly show:</p>
+    <div class="grid-3">
+      <div class="card soft"><strong>Needs attention</strong><p class="small">Chats with a failure or problem.</p></div>
+      <div class="card soft"><strong>Active</strong><p class="small">Conversations still in progress.</p></div>
+      <div class="card soft"><strong>With phones</strong><p class="small">Leads where a number was collected.</p></div>
+    </div>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">4</span>
+  </section>
+
+  <section class="page leads-page">
+    <div class="eyebrow">Main workspace</div>
+    <h2>Reviewing leads and conversations</h2>
+    <div class="section-rule"></div>
+    <p class="lead">The Leads page is where you review landlord conversations, phone numbers, properties, and viewings.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <span class="label">Find the right lead</span>
+        <h3>Useful filters</h3>
+        <ul>
+          <li><strong>Has phone</strong> shows leads with a collected number.</li>
+          <li><strong>AI failed</strong> shows conversations that need review.</li>
+          <li><strong>Active only</strong> shows conversations still moving.</li>
+          <li><strong>Viewings</strong> shows viewing-related conversations.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="label">Open a conversation</span>
+        <h3>Two easy options</h3>
+        <p>Choose the thread number, or open the three-dot menu and select <strong>Open thread</strong>.</p>
+        <p class="small">The page refreshes automatically as new saved messages become available.</p>
+      </div>
+    </div>
+
+    <div class="conversation">
+      <div class="bubble"><b>Landlord</b>Yes, the property is still available. Would Tuesday evening work?</div>
+      <div class="bubble you"><b>Your account</b>Tuesday evening works well, thank you. Could you please confirm the time?</div>
+      <div class="bubble"><b>Landlord</b>6:30pm is fine. You can reach me on 07400 000000.</div>
+    </div>
+    <p class="small">Landlord messages appear on the left. Successfully sent account messages appear on the right.</p>
+
+    <h3 style="margin-top:6mm">Conversation actions</h3>
+    <table class="mini-table">
+      <thead><tr><th>Action</th><th>What it does</th><th>When to use it</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Open property</strong></td><td>Opens the original listing.</td><td>When you need to check property details.</td></tr>
+        <tr><td><strong>Copy phone</strong></td><td>Copies the landlord's extracted number.</td><td>When the number needs to be shared or contacted.</td></tr>
+        <tr><td><strong>Complete</strong></td><td>Marks the conversation complete.</td><td>When no more automated action is required.</td></tr>
+        <tr><td><strong>Invalid</strong></td><td>Marks the lead as unsuitable.</td><td>Only after confirming the lead should not continue.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning"><strong>Important:</strong> only mark a conversation Complete or Invalid when you are sure the system should stop working on it.</div>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">5</span>
+  </section>
+
+  <section class="page">
+    <div class="eyebrow">Account management</div>
+    <h2>Accounts made simple</h2>
+    <div class="section-rule"></div>
+    <p class="lead">Each account represents one OpenRent login. The account page shows whether it is healthy, how much it has sent today, and whether it is ready to work.</p>
+
+    <div class="grid-3">
+      <div class="card soft"><span class="icon">●</span><h3>Session status</h3><p class="small">Shows whether the OpenRent login is working.</p></div>
+      <div class="card soft"><span class="icon">↻</span><h3>Worker status</h3><p class="small">Shows whether automation is running, waiting, or stopped.</p></div>
+      <div class="card soft"><span class="icon">5</span><h3>Daily usage</h3><p class="small">Shows messages sent against the account's daily limit.</p></div>
+    </div>
+
+    <h3 style="margin-top:7mm">Adding an account</h3>
+    <div class="grid-2">
+      <div>
+        <div class="step"><span class="step-number">1</span><div><h3>Select Add Account</h3><p>Enter the OpenRent email and password.</p></div></div>
+        <div class="step"><span class="step-number">2</span><div><h3>Assign an active proxy</h3><p>Choose the proxy prepared for this account.</p></div></div>
+        <div class="step"><span class="step-number">3</span><div><h3>Choose limits and style</h3><p>Set the daily limit, phone strategy, and conversation style.</p></div></div>
+      </div>
+      <div>
+        <div class="step"><span class="step-number">4</span><div><h3>Add the initial message</h3><p>This is the first message landlords receive.</p></div></div>
+        <div class="step"><span class="step-number">5</span><div><h3>Create and test</h3><p>Save the account, test its proxy, then refresh its session.</p></div></div>
+        <div class="step"><span class="step-number">6</span><div><h3>Start or resume</h3><p>Enable the account only after setup is complete.</p></div></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:6mm">Common account controls</h3>
+    <table class="mini-table">
+      <thead><tr><th>Control</th><th>Plain-language meaning</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Start worker</strong></td><td>Start an automation run now.</td></tr>
+        <tr><td><strong>Pause account</strong></td><td>Prevent the account from running until resumed.</td></tr>
+        <tr><td><strong>Test proxy</strong></td><td>Check that the account can connect through its assigned proxy.</td></tr>
+        <tr><td><strong>Refresh session</strong></td><td>Ask the system to refresh the saved login session.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger"><strong>Use with care:</strong> Invalidate Session forces the account to authenticate again. Delete Account permanently removes the account and related data. Ask an administrator before using either action.</div>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">6</span>
+  </section>
+
+  <section class="page">
+    <div class="eyebrow">Search setup</div>
+    <h2>How property searches are configured</h2>
+    <div class="section-rule"></div>
+    <p class="lead">Three items work together: a proxy keeps the account connection separate, a location defines where to search, and a search profile defines what to look for.</p>
+
+    <div class="flow">
+      <div class="card blue"><span class="icon">①</span><h3>Proxy</h3><p class="small">Connection used by the account.</p></div>
+      <div class="card blue"><span class="icon">②</span><h3>Account</h3><p class="small">The OpenRent login doing the work.</p></div>
+      <div class="card blue"><span class="icon">③</span><h3>Location</h3><p class="small">The area to search.</p></div>
+      <div class="card green"><span class="icon green">④</span><h3>Search profile</h3><p class="small">Budget, bedrooms, radius, and preferences.</p></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <span class="label">Locations</span>
+        <h3>Add the areas you want</h3>
+        <ol>
+          <li>Select <strong>Add Location</strong>.</li>
+          <li>Enter a clear display name.</li>
+          <li>Enter the exact OpenRent search term.</li>
+          <li>Keep the location active and save.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <span class="label">Search profiles</span>
+        <h3>Define what each account searches</h3>
+        <ol>
+          <li>Choose an account and location.</li>
+          <li>Enter the search radius.</li>
+          <li>Set price and bedroom ranges.</li>
+          <li>Enable pets only when required.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card soft" style="margin-top:4mm">
+      <span class="label">Proxies</span>
+      <h3>What you need to know</h3>
+      <div class="grid-2">
+        <ul class="checklist">
+          <li>Every active account should have a healthy assigned proxy.</li>
+          <li>Use <strong>Test proxy</strong> from the Accounts page.</li>
+        </ul>
+        <ul class="checklist">
+          <li>Do not disable a proxy used by an active account.</li>
+          <li>Reassign accounts before deleting a proxy.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout"><strong>Good setup check:</strong> the account is active, its proxy test passes, and it has at least one active search profile.</div>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">7</span>
+  </section>
+
+  <section class="page">
+    <div class="eyebrow">When something needs attention</div>
+    <h2>Workers, warnings, and failed accounts</h2>
+    <div class="section-rule"></div>
+    <p class="lead">Workers are the background processes that operate each account. You normally only need this page when a warning appears.</p>
+
+    <h3>Worker status guide</h3>
+    <div class="grid-2">
+      <div class="card green">
+        <div class="status"><span class="dot"></span><div><strong>Running</strong><span>The account is being processed now.</span></div></div>
+        <div class="status"><span class="dot"></span><div><strong>Completed</strong><span>The latest run finished successfully.</span></div></div>
+      </div>
+      <div class="card orange">
+        <div class="status"><span class="dot orange"></span><div><strong>Queued</strong><span>Waiting for an available worker slot.</span></div></div>
+        <div class="status"><span class="dot orange"></span><div><strong>Retrying</strong><span>The system will try again automatically.</span></div></div>
+      </div>
+      <div class="card soft">
+        <div class="status"><span class="dot gray"></span><div><strong>Idle / Stopped</strong><span>Not currently running.</span></div></div>
+        <div class="status"><span class="dot gray"></span><div><strong>Paused</strong><span>Will not run until resumed.</span></div></div>
+      </div>
+      <div class="card red">
+        <div class="status"><span class="dot red"></span><div><strong>Login / Proxy error</strong><span>Check account access or proxy health.</span></div></div>
+        <div class="status"><span class="dot red"></span><div><strong>Error</strong><span>Review the last error and Logs.</span></div></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:7mm">Failed Accounts</h3>
+    <p>An account appears here after two consecutive days of outreach without landlord replies.</p>
+    <table class="mini-table">
+      <thead><tr><th>Action</th><th>Use it when</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Retry</strong></td><td>You have checked the account, session, and proxy and want another attempt.</td></tr>
+        <tr><td><strong>Clear</strong></td><td>You have reviewed the warning and want to remove the failed label.</td></tr>
+        <tr><td><strong>Disable</strong></td><td>The account should stop all future activity.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning"><strong>Before retrying:</strong> check session status, proxy health, the worker's last error, and recent login/error logs.</div>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">8</span>
+  </section>
+
+  <section class="page">
+    <div class="eyebrow">Help and support</div>
+    <h2>Simple troubleshooting</h2>
+    <div class="section-rule"></div>
+    <p class="lead">Use this page as a quick checklist. If the same problem returns, contact your administrator.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <span class="icon red">!</span>
+        <h3>Backend unavailable</h3>
+        <ol>
+          <li>Open <strong>Settings</strong>.</li>
+          <li>Select <strong>Test API</strong>.</li>
+          <li>If it remains unavailable, contact support.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <span class="icon orange">↻</span>
+        <h3>Login error</h3>
+        <ol>
+          <li>Confirm the account credentials.</li>
+          <li>Choose <strong>Refresh session</strong>.</li>
+          <li>Review Login logs if it fails again.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <span class="icon orange">◎</span>
+        <h3>Proxy error</h3>
+        <ol>
+          <li>Choose <strong>Test proxy</strong>.</li>
+          <li>Confirm the proxy is active.</li>
+          <li>Reassign a healthy proxy if needed.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <span class="icon red">×</span>
+        <h3>Worker not running</h3>
+        <ol>
+          <li>Confirm the account is not paused.</li>
+          <li>Check the proxy and worker capacity.</li>
+          <li>Start the worker and review Logs.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="callout"><strong>Missing a recent conversation message?</strong> Wait for the account worker to process the OpenRent inbox. Once saved, the conversation page refreshes automatically in around 10 seconds.</div>
+
+    <h3 style="margin-top:7mm">Settings are administrator controls</h3>
+    <p>The Settings page changes global behavior for all accounts, including auto-send, AI model, delays, retries, worker capacity, and daily limits.</p>
+    <div class="callout danger"><strong>Do not change global settings without approval.</strong> A small change can affect every account and conversation.</div>
+
+    <h3 style="margin-top:7mm">When contacting support, include:</h3>
+    <ul class="checklist">
+      <li>The account email or conversation thread number.</li>
+      <li>The page where the issue appeared.</li>
+      <li>The status or error message shown.</li>
+      <li>What action you tried immediately before the issue.</li>
+    </ul>
+
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">9</span>
+  </section>
+</body>
+</html>

@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/leads/$threadId")({
   head: () => ({
-    meta: [{ title: "Conversation — RentPilot" }],
+    meta: [{ title: "Conversation — Land Royal" }],
   }),
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,
   component: ConversationPage,

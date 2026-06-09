@@ -17,7 +17,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings - RentPilot" },
+      { title: "Settings - Land Royal" },
       { name: "description", content: "Global automation settings." },
     ],
   }),

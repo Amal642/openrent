@@ -78,7 +78,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/accounts")({
   head: () => ({
     meta: [
-      { title: "Accounts - RentPilot" },
+      { title: "Accounts - Land Royal" },
       { name: "description", content: "Manage OpenRent worker accounts." },
     ],
   }),

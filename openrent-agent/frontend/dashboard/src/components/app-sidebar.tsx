@@ -51,7 +51,7 @@ export function AppSidebar() {
             <Zap className="size-4" />
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-semibold">RentPilot</span>
+            <span className="text-sm font-semibold">Land Royal</span>
             <span className="text-[11px] text-muted-foreground">Operations workspace</span>
           </div>
         </div>

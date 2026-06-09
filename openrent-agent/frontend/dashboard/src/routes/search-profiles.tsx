@@ -51,7 +51,7 @@ import { fmtMoney } from "../lib/format";
 export const Route = createFileRoute("/search-profiles")({
   head: () => ({
     meta: [
-      { title: "Search Profiles — RentPilot" },
+      { title: "Search Profiles — Land Royal" },
       { name: "description", content: "Per-account property discovery profiles." },
     ],
   }),

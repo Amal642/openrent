@@ -37,7 +37,7 @@ import { useQuery } from "@tanstack/react-query";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard - RentPilot" },
+      { title: "Dashboard - Land Royal" },
       { name: "description", content: "Operational overview of OpenRent automation." },
     ],
   }),

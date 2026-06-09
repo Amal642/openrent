@@ -47,7 +47,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/proxies")({
   head: () => ({
     meta: [
-      { title: "Proxies - RentPilot" },
+      { title: "Proxies - Land Royal" },
       { name: "description", content: "Manage shared proxy pool." },
     ],
   }),

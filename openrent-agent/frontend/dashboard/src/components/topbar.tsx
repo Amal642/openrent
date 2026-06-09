@@ -32,7 +32,7 @@ export function Topbar() {
       <Separator orientation="vertical" className="h-5" />
       <div className="flex flex-1 items-center gap-3 text-sm">
         <div className="hidden min-w-0 flex-col sm:flex">
-          <span className="font-semibold leading-tight">landRoyal Command Center</span>
+          <span className="font-semibold leading-tight">Land Royal Command Center</span>
           <span className="text-xs text-muted-foreground">Live outreach, replies, and workers</span>
         </div>
         <DotBadge tone={data?.status === "running" ? "success" : "warning"} label={data?.status ?? "checking"} />
