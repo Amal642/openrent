@@ -90,7 +90,6 @@ class AccountCreatePayload(BaseModel):
     email: str
     password: str = ""
     session_file: str = ""
-    initial_message: str = ""
     proxy_id: int | None = None
     # Legacy direct fields — kept for backward compat; proxy_id takes priority
     proxy_server: str | None = None
@@ -111,7 +110,6 @@ class AccountUpdatePayload(BaseModel):
     email: str | None = None
     password: str | None = None
     session_file: str | None = None
-    initial_message: str | None = None
     proxy_id: int | None = None
     proxy_server: str | None = None
     proxy_username: str | None = None
@@ -432,7 +430,6 @@ def api_create_account(payload: AccountCreatePayload):
         email=payload.email,
         password=payload.password,
         session_file=payload.session_file,
-        initial_message=payload.initial_message,
         proxy_server=payload.proxy_server,
         proxy_username=payload.proxy_username,
         proxy_password=payload.proxy_password,
@@ -467,7 +464,6 @@ def api_update_account(account_id: int, payload: AccountUpdatePayload):
         email=payload.email,
         password=payload.password,
         session_file=payload.session_file,
-        initial_message=payload.initial_message,
         proxy_id=payload.proxy_id,
         proxy_server=payload.proxy_server,
         proxy_username=payload.proxy_username,

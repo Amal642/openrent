@@ -518,7 +518,6 @@ function AccountDialog({
         escalationBehavior: editing?.escalationBehavior ?? "",
         conversationGoal: editing?.conversationGoal ?? "",
         sessionFile: editing?.sessionFile ?? "",
-        initialMessage: editing?.initialMessage ?? "",
         proxyId: editing?.proxyId ?? "",
         active: editing?.active ?? true,
         password: "",
@@ -646,14 +645,6 @@ function AccountDialog({
               onChange={(e) => setData({ ...data, escalationBehavior: e.target.value })}
             />
           </Field>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Initial message</Label>
-            <Input
-              value={data.initialMessage ?? ""}
-              onChange={(e) => setData({ ...data, initialMessage: e.target.value })}
-            />
-          </div>
-
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
