@@ -62,8 +62,7 @@ function LeadsList() {
   const [aiFailed, setAiFailed] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
   const [viewingsOnly, setViewingsOnly] = useState(false);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [lastUpdated, setLastUpdated] = useState("all");
   const [q, setQ] = useState("");
   const queryClient = useQueryClient();
   const completeMutation = useMutation({
@@ -106,8 +105,10 @@ function LeadsList() {
         if (activeOnly && !["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"].includes(l.status))
           return false;
         if (viewingsOnly && !l.viewingConfirmed) return false;
-        if (dateFrom && new Date(l.lastUpdatedAt) < new Date(dateFrom)) return false;
-        if (dateTo && new Date(l.lastUpdatedAt) > new Date(dateTo + "T23:59:59")) return false;
+        if (lastUpdated !== "all") {
+          const ms = { "1h": 3600000, "24h": 86400000, "7d": 604800000, "30d": 2592000000 }[lastUpdated];
+          if (ms && Date.now() - new Date(l.lastUpdatedAt).getTime() > ms) return false;
+        }
         if (q) {
           const t = q.toLowerCase();
           if (
@@ -119,7 +120,7 @@ function LeadsList() {
         }
         return true;
       }),
-    [leads, status, account, profile, hasPhone, aiFailed, activeOnly, viewingsOnly, dateFrom, dateTo, q],
+    [leads, status, account, profile, hasPhone, aiFailed, activeOnly, viewingsOnly, lastUpdated, q],
   );
 
   const accountEmail = (id: string) => accounts.find((a) => a.id === id)?.email ?? id;
@@ -205,20 +206,18 @@ function LeadsList() {
           <ToggleChip label="AI failed" checked={aiFailed} onChange={setAiFailed} />
           <ToggleChip label="Active only" checked={activeOnly} onChange={setActiveOnly} />
           <ToggleChip label="Viewings" checked={viewingsOnly} onChange={setViewingsOnly} />
-          <Input
-            type="date"
-            title="Last updated from"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="h-9 w-36"
-          />
-          <Input
-            type="date"
-            title="Last updated to"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="h-9 w-36"
-          />
+          <Select value={lastUpdated} onValueChange={setLastUpdated}>
+            <SelectTrigger className="h-9 w-40">
+              <SelectValue placeholder="Last updated" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any time</SelectItem>
+              <SelectItem value="1h">Last 1 hour</SelectItem>
+              <SelectItem value="24h">Last 24 hours</SelectItem>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
