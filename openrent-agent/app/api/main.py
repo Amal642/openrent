@@ -80,7 +80,7 @@ class ProxyPayload(BaseModel):
 class AccountCreatePayload(BaseModel):
     email: str
     password: str = ""
-    session_file: str = "session.json"
+    session_file: str = ""
     initial_message: str = ""
     proxy_id: int | None = None
     # Legacy direct fields — kept for backward compat; proxy_id takes priority

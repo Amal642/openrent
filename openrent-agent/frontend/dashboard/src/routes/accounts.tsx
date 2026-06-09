@@ -121,7 +121,6 @@ const CONVERSATION_STYLES = [
   { value: "warm_casual", label: "Warm casual couple" },
   { value: "professional_polite", label: "Professional polite" },
   { value: "busy_professional", label: "Busy professional" },
-  { value: "whatsapp_coordination", label: "WhatsApp coordination" },
   { value: "landlord_number_boundary", label: "Landlord number with boundaries" },
 ];
 
@@ -129,8 +128,6 @@ const PHONE_STRATEGIES = [
   { value: "delayed", label: "Delayed" },
   { value: "immediate", label: "Immediate" },
   { value: "viewing_first", label: "Viewing first" },
-  { value: "whatsapp_first", label: "WhatsApp first" },
-  { value: "landlord_requests_only", label: "Landlord requests only" },
   { value: "adaptive", label: "Adaptive" },
 ];
 
@@ -150,6 +147,8 @@ function AccountsPage() {
   });
 
   const [query, setQuery] = useState("");
+  const [lastRunFrom, setLastRunFrom] = useState("");
+  const [lastRunTo, setLastRunTo] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
@@ -218,7 +217,13 @@ function AccountsPage() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Session action failed"),
   });
 
-  const filtered = list.filter((a) => a.email.toLowerCase().includes(query.toLowerCase()));
+  const filtered = list.filter((a) => {
+    if (!a.email.toLowerCase().includes(query.toLowerCase())) return false;
+    const lastRun = a.lastRunAt || a.workerLastCompletedAt;
+    if (lastRunFrom && lastRun && new Date(lastRun) < new Date(lastRunFrom)) return false;
+    if (lastRunTo && lastRun && new Date(lastRun) > new Date(lastRunTo + "T23:59:59")) return false;
+    return true;
+  });
   const save = (data: Partial<Account> & { password?: string }) => {
     saveMutation.mutate({ ...editing, ...data });
   };
@@ -248,6 +253,20 @@ function AccountsPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="h-9 w-full sm:w-56"
+            />
+            <Input
+              type="date"
+              title="Last run from"
+              value={lastRunFrom}
+              onChange={(e) => setLastRunFrom(e.target.value)}
+              className="h-9 w-36"
+            />
+            <Input
+              type="date"
+              title="Last run to"
+              value={lastRunTo}
+              onChange={(e) => setLastRunTo(e.target.value)}
+              className="h-9 w-36"
             />
             <Button
               onClick={() => {
@@ -294,7 +313,7 @@ function AccountsPage() {
                   <TableCell className="font-medium">
                     <div>{a.email}</div>
                     <div className="text-xs text-muted-foreground">
-                      {a.sessionFile || "session.json"}
+                      {a.sessionFile && a.sessionFile !== "session.json" ? a.sessionFile : `sessions/account_${a.id}.json`}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -518,7 +537,7 @@ function AccountDialog({
         messageStrategy: editing?.messageStrategy ?? "",
         escalationBehavior: editing?.escalationBehavior ?? "",
         conversationGoal: editing?.conversationGoal ?? "",
-        sessionFile: editing?.sessionFile ?? "session.json",
+        sessionFile: editing?.sessionFile ?? "",
         initialMessage: editing?.initialMessage ?? "",
         proxyId: editing?.proxyId ?? "",
         active: editing?.active ?? true,
@@ -565,6 +584,7 @@ function AccountDialog({
             <Input
               value={data.sessionFile ?? ""}
               onChange={(e) => setData({ ...data, sessionFile: e.target.value })}
+              placeholder="Auto-generated (sessions/account_<id>.json)"
             />
           </Field>
           <Field label="Proxy">

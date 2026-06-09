@@ -6,8 +6,6 @@ PHONE_FETCHING_TYPES = {
     "delayed",
     "immediate",
     "viewing_first",
-    "whatsapp_first",
-    "landlord_requests_only",
     "adaptive",
 }
 
@@ -31,14 +29,14 @@ CONVERSATION_STYLES = {
     },
     "direct_number_request": {
         "label": "Direct professional number request",
-        "strategy": "Stay concise and efficient, and ask for WhatsApp or phone coordination early when it helps.",
+        "strategy": "Stay concise and efficient, and ask for phone coordination early when it helps.",
         "phone_fetching_type": "immediate",
         "escalation_behavior": "move quickly to phone coordination if the landlord is responsive",
         "conversation_goal": "secure a direct contact route quickly",
     },
     "video_call_request": {
         "label": "Relocation video call request",
-        "strategy": "Mention distance or relocation context and ask for a WhatsApp video call when useful.",
+        "strategy": "Mention distance or relocation context and ask for a video call when useful.",
         "phone_fetching_type": "immediate",
         "escalation_behavior": "use distance as a natural reason for a video call before travelling",
         "conversation_goal": "arrange a video call or viewing without sounding pushy",
@@ -63,13 +61,6 @@ CONVERSATION_STYLES = {
         "phone_fetching_type": "adaptive",
         "escalation_behavior": "ask for a direct contact route when schedules become specific",
         "conversation_goal": "coordinate efficiently around work availability",
-    },
-    "whatsapp_coordination": {
-        "label": "WhatsApp coordination",
-        "strategy": "Use WhatsApp as the preferred coordination channel in a casual but not forceful way.",
-        "phone_fetching_type": "whatsapp_first",
-        "escalation_behavior": "share or request WhatsApp details early when it feels natural",
-        "conversation_goal": "move the conversation to WhatsApp for viewing coordination",
     },
     "landlord_number_boundary": {
         "label": "Landlord number with boundaries",
@@ -98,7 +89,6 @@ PERSONA_TEMPLATES = {
             "friendly_viewing",
             "warm_casual",
             "professional_polite",
-            "whatsapp_coordination",
             "landlord_number_boundary",
         ],
         "names": {
@@ -199,7 +189,7 @@ PERSONA_TEMPLATES = {
         "home_city": "Leicester",
         "phone_fetching_type": "immediate",
         "message_strategy": "concise, professional, direct coordination",
-        "escalation_behavior": "ask for WhatsApp or phone coordination early if the landlord is responsive",
+        "escalation_behavior": "ask for phone coordination early if the landlord is responsive",
         "conversation_goal": "move quickly from interest to confirmed viewing logistics",
         "screening_posture": "professional couple; answer screening directly and briefly",
         "phone_boundary": "avoid sharing the tenant mobile in landlord-number-capture mode; use travel or timing as the reason to ask",
@@ -207,7 +197,6 @@ PERSONA_TEMPLATES = {
             "direct_number_request",
             "professional_polite",
             "video_call_request",
-            "whatsapp_coordination",
             "landlord_number_boundary",
         ],
         "names": {
@@ -254,7 +243,6 @@ STYLE_ALIASES = {
     "direct_professional": "direct_number_request",
     "relocation_approach": "video_call_request",
     "busy_professional": "busy_professional",
-    "whatsapp_first": "whatsapp_coordination",
 }
 
 
@@ -386,10 +374,9 @@ def should_share_phone_now(
     phone_type = (persona or {}).get("phone_fetching_type") or "delayed"
     style = normalize_conversation_style((persona or {}).get("conversation_style"))
 
-    if phone_type in {"immediate", "whatsapp_first"} or style in {
+    if phone_type == "immediate" or style in {
         "direct_number_request",
         "video_call_request",
-        "whatsapp_coordination",
     }:
         return outbound_count <= 1
 
@@ -426,19 +413,19 @@ def generate_phone_share_reply(persona, landlord_attitude="responsive"):
             f"Sure, it's {mobile}. I'm happy to use that for viewing coordination.",
         ],
         "friendly": [
-            f"Sure, my number is {mobile}. WhatsApp is fine too.",
-            f"Of course, it's {mobile}. Feel free to message me on WhatsApp.",
+            f"Sure, my number is {mobile}.",
+            f"Of course, it's {mobile}. Feel free to give me a call.",
         ],
         "helpful": [
-            f"Thanks, my number is {mobile}. WhatsApp works well for me.",
+            f"Thanks, my number is {mobile}. Happy to coordinate there.",
             f"Sure, it's {mobile}. Happy to coordinate there.",
         ],
         "slow_reply": [
             f"Sure, my number is {mobile}.",
-            f"Yes, it's {mobile}. WhatsApp is fine.",
+            f"Yes, it's {mobile}.",
         ],
         "responsive": [
-            f"Sure, my number is {mobile}. WhatsApp is fine too.",
+            f"Sure, my number is {mobile}.",
             f"Of course, it's {mobile}.",
         ],
     }
