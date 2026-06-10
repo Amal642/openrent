@@ -12,9 +12,10 @@ DEFAULT_TIMEOUT_SECONDS = 15
 SLOW_LATENCY_SECONDS = 8
 
 
-def _fetch_through_proxy(opener, url: str, timeout: int) -> tuple[str, int]:
+def _fetch_through_proxy(opener, url: str, timeout: int, method: str = "GET") -> tuple[str, int]:
     request = Request(
         url,
+        method=method,
         headers={
             "User-Agent": (
                 "Mozilla/5.0 OpenRentAutomation/1.0 "
@@ -56,6 +57,7 @@ def check_proxy(proxy_url: str) -> dict:
             opener,
             OPENRENT_URL,
             DEFAULT_TIMEOUT_SECONDS,
+            method="HEAD",
         )
         latency = round(time.perf_counter() - started, 3)
 

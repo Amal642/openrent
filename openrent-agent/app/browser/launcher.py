@@ -55,7 +55,7 @@ def _should_block_bandwidth_heavy_request(resource_type: str, url: str) -> bool:
     Keep blocking conservative: media plus obvious raster image files only.
     SVG/ICO/CSS/JS/fonts are allowed to avoid breaking page controls or styling.
     """
-    if resource_type == "media":
+    if resource_type in {"media", "font"}:
         return True
 
     path = urlsplit(url).path.lower()

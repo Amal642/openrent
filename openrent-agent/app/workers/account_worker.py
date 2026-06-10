@@ -54,6 +54,7 @@ ACTIVE_WORKERS = {}
 ACTIVE_BROWSER_RESOURCES = {}
 IN_FLIGHT_STATUSES = {"running", "queued", "stopping", "retrying"}
 HEALTHY_PROXY_STATUSES = {"ok", "healthy"}
+PROXY_CHECK_CACHE_MINUTES = 20
 
 
 def _proxy_is_healthy(account):
@@ -114,6 +115,18 @@ def _proxy_url_for_account(account):
     )
 
 
+def _proxy_check_is_fresh(account) -> bool:
+    cutoff = datetime.utcnow() - timedelta(minutes=PROXY_CHECK_CACHE_MINUTES)
+    proxy_obj = getattr(account, "proxy", None)
+    if proxy_obj and proxy_obj.health_status == "ok" and proxy_obj.last_check_at:
+        if proxy_obj.last_check_at > cutoff:
+            return True
+    if account.proxy_status == "ok" and account.proxy_last_checked:
+        if account.proxy_last_checked > cutoff:
+            return True
+    return False
+
+
 async def _heartbeat_loop(account_id, phase_getter):
     while True:
         update_account_worker_state(
@@ -162,30 +175,33 @@ async def run_account_worker(account):
 
         proxy_url = _proxy_url_for_account(account)
         if proxy_url:
-            phase = "proxy_check"
-            update_account_worker_state(
-                account.id,
-                "running",
-                phase=phase,
-            )
-            proxy_result = await asyncio.to_thread(check_proxy, proxy_url)
-            update_proxy_health(account.id, proxy_result)
-
-            if not proxy_result.get("healthy"):
-                error = proxy_result.get("error") or "Proxy health check failed"
-                logger.error(
-                    f"Proxy health check failed for {account.email}: {error}"
-                )
+            if _proxy_check_is_fresh(account):
+                logger.info(f"Proxy check skipped (cached ok) for {account.email}")
+            else:
+                phase = "proxy_check"
                 update_account_worker_state(
                     account.id,
-                    "proxy_error",
-                    phase="proxy_error",
-                    error=error,
-                    retry_reason=error,
-                    retry_next_at=datetime.utcnow() + timedelta(minutes=1),
+                    "running",
+                    phase=phase,
                 )
-                phase = "proxy_error"
-                return
+                proxy_result = await asyncio.to_thread(check_proxy, proxy_url)
+                update_proxy_health(account.id, proxy_result)
+
+                if not proxy_result.get("healthy"):
+                    error = proxy_result.get("error") or "Proxy health check failed"
+                    logger.error(
+                        f"Proxy health check failed for {account.email}: {error}"
+                    )
+                    update_account_worker_state(
+                        account.id,
+                        "proxy_error",
+                        phase="proxy_error",
+                        error=error,
+                        retry_reason=error,
+                        retry_next_at=datetime.utcnow() + timedelta(minutes=1),
+                    )
+                    phase = "proxy_error"
+                    return
 
         phase = "launching_browser"
         update_account_worker_state(
