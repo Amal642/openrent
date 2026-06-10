@@ -615,6 +615,7 @@ def update_session_health(
     error=None,
     captcha_triggered=False,
     login_success=False,
+    cooldown_minutes=None,
 ):
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
@@ -627,12 +628,15 @@ def update_session_health(
         if login_success:
             account.last_login_at = datetime.utcnow()
             account.session_auth_failures = 0
+            account.cooldown_until = None
         elif status in ("error", "expired", "login_failed"):
             account.session_auth_failures = (account.session_auth_failures or 0) + 1
         if captcha_triggered:
             account.session_captcha_triggers = (
                 account.session_captcha_triggers or 0
             ) + 1
+        if cooldown_minutes is not None:
+            account.cooldown_until = datetime.utcnow() + timedelta(minutes=cooldown_minutes)
         db.commit()
         db.refresh(account)
         return serialize_account(account)

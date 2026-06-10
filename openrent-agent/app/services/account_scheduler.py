@@ -94,9 +94,14 @@ def _select_accounts(accounts):
         else:
             cooldown_display = "none"
 
+        session_status_val = str(getattr(account, "session_status", "") or "").lower()
+        login_failures = getattr(account, "session_auth_failures", 0) or 0
+
         skip_reason = None
         if permanently_failed_val:
             skip_reason = "PERMANENT_FAILURE"
+        elif session_status_val == "login_failed" and login_failures >= 5:
+            skip_reason = "LOGIN_FAILED"
         elif worker_status_val in IN_FLIGHT_STATUSES:
             skip_reason = f"WORKER_{worker_status_val.upper()}"
         elif on_cooldown:

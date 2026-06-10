@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
-import { ExternalLink, Copy, MoreHorizontal, MessageSquare, CheckCircle2 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { ExternalLink, Copy, MoreHorizontal, MessageSquare, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,8 @@ function LeadsList() {
   const [viewingsOnly, setViewingsOnly] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("all");
   const [q, setQ] = useState("");
+  const [currentPage, setCurrentPage] = useState(0);
+  const PAGE_SIZE = 10;
   const queryClient = useQueryClient();
   const completeMutation = useMutation({
     mutationFn: completeLead,
@@ -94,6 +96,10 @@ function LeadsList() {
     queryFn: getSearchProfiles,
   });
 
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [status, account, profile, hasPhone, aiFailed, activeOnly, viewingsOnly, lastUpdated, q]);
+
   const filtered = useMemo(
     () =>
       leads.filter((l) => {
@@ -122,6 +128,9 @@ function LeadsList() {
       }),
     [leads, status, account, profile, hasPhone, aiFailed, activeOnly, viewingsOnly, lastUpdated, q],
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   const accountEmail = (id: string) => accounts.find((a) => a.id === id)?.email ?? id;
   const profileLocation = (id: string) => searchProfiles.find((s) => s.id === id)?.location ?? id;
@@ -221,8 +230,8 @@ function LeadsList() {
         </div>
       </div>
 
-      <div className="max-w-full min-w-0 rounded-lg border bg-card overflow-x-auto">
-        <Table>
+      <div className="w-full overflow-x-auto rounded-lg border bg-card">
+        <Table className="min-w-max">
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>Status</TableHead>
@@ -241,7 +250,7 @@ function LeadsList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((l) => (
+            {paginated.map((l) => (
               <TableRow key={l.id} className="cursor-pointer">
                 <TableCell>
                   <StatusBadge status={l.status} />
@@ -335,6 +344,35 @@ function LeadsList() {
           </TableBody>
         </Table>
       </div>
+
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between px-1 py-3">
+          <span className="text-sm text-muted-foreground">
+            {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => p - 1)}
+              disabled={currentPage === 0}
+            >
+              <ChevronLeft className="size-4 mr-1" /> Previous
+            </Button>
+            <span className="text-sm text-muted-foreground px-2">
+              {currentPage + 1} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => p + 1)}
+              disabled={currentPage + 1 >= totalPages}
+            >
+              Next <ChevronRight className="size-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
