@@ -1261,21 +1261,19 @@ def save_banner_state(
                     "stage=VIEWING_DISCUSSION"
                 )
 
-        if viewing_confirmed and viewing_datetime:
+        if viewing_confirmed:
             conversation.viewing_confirmed = True
-            conversation.viewing_datetime = viewing_datetime
-
-            if not conversation.cancel_target_hours:
-                cancel_target = round(random.uniform(3.2, 4.8), 1)
-                conversation.cancel_target_hours = cancel_target
-
+            if viewing_datetime:
+                conversation.viewing_datetime = viewing_datetime
+                if not conversation.cancel_target_hours:
+                    cancel_target = round(random.uniform(3.2, 4.8), 1)
+                    conversation.cancel_target_hours = cancel_target
             if conversation.conversation_stage not in (
                 "HANDOFF_COMPLETE",
                 "VIEWING_CANCELLED",
             ):
                 conversation.conversation_stage = VIEWING_BOOKED
                 conversation.last_stage_change = now
-
             logger.info(
                 f"VIEWING_CONFIRMED_BANNER_DETECTED thread_id={thread_id} "
                 f"datetime={viewing_datetime} stage=VIEWING_BOOKED"

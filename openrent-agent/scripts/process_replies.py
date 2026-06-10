@@ -414,22 +414,29 @@ async def process_account_replies(
                 update_last_processed_message(thread_id, latest_landlord_message)
                 continue
 
-            # Phone already stored + viewing active → cancel viewing and complete handoff.
+            # Viewing confirmed via banner → cancel immediately regardless of phone status.
+            # The banner is the primary source of truth. Once OpenRent confirms a viewing
+            # we must cancel it — waiting for a phone number first causes the thread to
+            # fall through into normal AI reply generation indefinitely.
             if (
                 conversation
-                and conversation.phone_found
                 and not conversation.handoff_completed_at
-                and _has_active_viewing(conversation)
+                and getattr(conversation, "viewing_confirmed", False)
             ):
                 logger.info(
-                    f"VIEWING_CANCEL_TRIGGERED trigger=phone_found+active_viewing "
+                    f"VIEWING_CANCEL_TRIGGERED trigger=viewing_confirmed "
+                    f"phone_found={bool(getattr(conversation, 'phone_found', False))} "
                     f"thread_id={thread_id}"
                 )
                 cancelled = await _cancel_viewing_and_handoff(
                     thread_id, messages, latest_landlord_message, page
                 )
-                if cancelled:
-                    continue
+                if not cancelled:
+                    logger.warning(
+                        f"VIEWING_CANCEL_FAILED thread_id={thread_id} "
+                        "send_reply failed — will retry next worker run"
+                    )
+                continue
 
             if (
                 conversation
@@ -563,10 +570,36 @@ async def process_account_replies(
                             thread_id, messages, latest_landlord_message, page
                         )
                         if not cancelled:
-                            logger.info(
-                                f"PHONE_OBTAINED thread_id={thread_id} viewing=False — handoff deferred"
-                            )
-                            update_last_processed_message(thread_id, latest_landlord_message)
+                            # _try_extract_viewing_and_cancel failed — run detect_stage
+                            # inline so viewing state is written to DB for the next
+                            # worker run's early check to pick up.
+                            inline_stage = detect_stage(messages)
+                            if inline_stage == "VIEWING_BOOKED":
+                                viewing_dt = extract_viewing_datetime(messages)
+                                if viewing_dt:
+                                    save_viewing_datetime(thread_id, viewing_dt)
+                                    logger.info(
+                                        f"VIEWING_SAVED_INLINE thread_id={thread_id} "
+                                        f"viewing_dt={viewing_dt}"
+                                    )
+                                    fresh2 = get_conversation_by_thread_id(thread_id)
+                                    if (
+                                        fresh2
+                                        and _has_active_viewing(fresh2)
+                                        and not fresh2.handoff_completed_at
+                                    ):
+                                        cancelled = await _cancel_viewing_and_handoff(
+                                            thread_id, messages, latest_landlord_message, page
+                                        )
+                                else:
+                                    update_conversation_stage(thread_id, VIEWING_PENDING)
+                            elif inline_stage:
+                                update_conversation_stage(thread_id, inline_stage)
+                            if not cancelled:
+                                logger.info(
+                                    f"PHONE_OBTAINED thread_id={thread_id} viewing=False — handoff deferred"
+                                )
+                                update_last_processed_message(thread_id, latest_landlord_message)
                     phones_today = count_phones_today(account.id)
                     if phones_today >= 3:
                         logger.info(
@@ -631,10 +664,36 @@ async def process_account_replies(
                         thread_id, messages, latest_landlord_message, page
                     )
                     if not cancelled:
-                        logger.info(
-                            f"PHONE_OBTAINED thread_id={thread_id} viewing=False — handoff deferred"
-                        )
-                        update_last_processed_message(thread_id, latest_landlord_message)
+                        # _try_extract_viewing_and_cancel failed — run detect_stage
+                        # inline so viewing state is written to DB for the next
+                        # worker run's early check to pick up.
+                        inline_stage = detect_stage(messages)
+                        if inline_stage == "VIEWING_BOOKED":
+                            viewing_dt = extract_viewing_datetime(messages)
+                            if viewing_dt:
+                                save_viewing_datetime(thread_id, viewing_dt)
+                                logger.info(
+                                    f"VIEWING_SAVED_INLINE thread_id={thread_id} "
+                                    f"viewing_dt={viewing_dt}"
+                                )
+                                fresh2 = get_conversation_by_thread_id(thread_id)
+                                if (
+                                    fresh2
+                                    and _has_active_viewing(fresh2)
+                                    and not fresh2.handoff_completed_at
+                                ):
+                                    cancelled = await _cancel_viewing_and_handoff(
+                                        thread_id, messages, latest_landlord_message, page
+                                    )
+                            else:
+                                update_conversation_stage(thread_id, VIEWING_PENDING)
+                        elif inline_stage:
+                            update_conversation_stage(thread_id, inline_stage)
+                        if not cancelled:
+                            logger.info(
+                                f"PHONE_OBTAINED thread_id={thread_id} viewing=False — handoff deferred"
+                            )
+                            update_last_processed_message(thread_id, latest_landlord_message)
                 phones_today = count_phones_today(account.id)
                 if phones_today >= 3:
                     logger.info(
