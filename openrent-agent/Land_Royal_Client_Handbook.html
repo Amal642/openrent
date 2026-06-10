@@ -37,10 +37,11 @@
       min-height: 297mm;
       margin: 0 auto;
       padding: 19mm 18mm 17mm;
-      overflow: hidden;
+      overflow: visible;
       background: var(--paper);
       break-after: page;
     }
+    .cover { overflow: hidden; }
     .page:last-child { break-after: auto; }
     .page-number {
       position: absolute;
@@ -151,6 +152,7 @@
     }
     .callout.warning { border-left-color: var(--gold); background: var(--cream); }
     .callout.danger { border-left-color: var(--red); background: var(--red-bg); }
+    .callout.success { border-left-color: var(--green); background: var(--green-bg); }
     .callout strong { color: var(--navy); }
     .step {
       display: grid;
@@ -201,6 +203,31 @@
       border: .3mm solid var(--line);
       border-radius: 3mm;
       box-shadow: 0 2mm 7mm rgba(16, 42, 67, .08);
+    }
+    .screenshot-wide {
+      display: block;
+      width: 85%;
+      height: auto;
+      margin: 3mm auto 2mm;
+      border: .3mm solid var(--line);
+      border-radius: 3mm;
+      box-shadow: 0 2mm 7mm rgba(16, 42, 67, .08);
+    }
+    .screenshot-dialog {
+      display: block;
+      max-width: 52%;
+      height: auto;
+      margin: 3mm auto 2mm;
+      border: .3mm solid var(--line);
+      border-radius: 3mm;
+      box-shadow: 0 2mm 7mm rgba(16, 42, 67, .08);
+    }
+    .img-caption {
+      text-align: center;
+      color: var(--muted);
+      font-size: 8.5pt;
+      margin-top: 1mm;
+      margin-bottom: 4mm;
     }
     .conversation {
       margin: 5mm 0;
@@ -350,6 +377,8 @@
   </style>
 </head>
 <body>
+
+  <!-- PAGE 1: Cover -->
   <section class="page cover">
     <div class="brand-logo-panel">
       <img class="brand-logo" src="assets/logolandroyal.webp" alt="Land Royal United Kingdom">
@@ -362,6 +391,7 @@
     <div class="cover-note">Prepared for everyday users &nbsp;•&nbsp; No technical knowledge required</div>
   </section>
 
+  <!-- PAGE 2: Start Here / Table of Contents -->
   <section class="page">
     <div class="eyebrow">Welcome</div>
     <h2>Start here</h2>
@@ -377,16 +407,53 @@
     <div class="callout"><strong>Your normal daily routine is simple:</strong> check the Dashboard, review new Leads, then look at Failed Accounts or Workers only if you see a warning.</div>
 
     <h3 style="margin-top:7mm">What is inside this handbook?</h3>
-    <div class="contents-row"><span class="contents-number">01</span><span class="contents-title">Your daily routine</span><span class="contents-page">Page 3</span></div>
-    <div class="contents-row"><span class="contents-number">02</span><span class="contents-title">Understanding the Dashboard</span><span class="contents-page">Page 4</span></div>
-    <div class="contents-row"><span class="contents-number">03</span><span class="contents-title">Reviewing leads and conversations</span><span class="contents-page">Page 5</span></div>
-    <div class="contents-row"><span class="contents-number">04</span><span class="contents-title">Accounts and search setup</span><span class="contents-page">Pages 6–7</span></div>
-    <div class="contents-row"><span class="contents-number">05</span><span class="contents-title">Warnings, workers, and troubleshooting</span><span class="contents-page">Pages 8–9</span></div>
+    <div class="contents-row"><span class="contents-number">01</span><span class="contents-title">Logging in</span><span class="contents-page">Page 3</span></div>
+    <div class="contents-row"><span class="contents-number">02</span><span class="contents-title">Your daily routine</span><span class="contents-page">Page 4</span></div>
+    <div class="contents-row"><span class="contents-number">03</span><span class="contents-title">Understanding the Dashboard</span><span class="contents-page">Page 5</span></div>
+    <div class="contents-row"><span class="contents-number">04</span><span class="contents-title">Reviewing leads and conversations</span><span class="contents-page">Page 6</span></div>
+    <div class="contents-row"><span class="contents-number">05</span><span class="contents-title">Accounts: adding and managing</span><span class="contents-page">Pages 7–8</span></div>
+    <div class="contents-row"><span class="contents-number">06</span><span class="contents-title">Search profiles and locations</span><span class="contents-page">Pages 9–10</span></div>
+    <div class="contents-row"><span class="contents-number">07</span><span class="contents-title">Workers, warnings, and troubleshooting</span><span class="contents-page">Pages 11–12</span></div>
 
     <div class="callout warning"><strong>Before making changes:</strong> if you are unsure about a setting, account, proxy, or worker action, contact your administrator first.</div>
     <span class="footer-brand">Land Royal Command Center</span><span class="page-number">2</span>
   </section>
 
+  <!-- PAGE 3: Logging In (NEW) -->
+  <section class="page">
+    <div class="eyebrow">Getting started</div>
+    <h2>Logging in</h2>
+    <div class="section-rule"></div>
+    <p class="lead">The Command Center is a secure, access-controlled tool. Use the credentials provided by your administrator to sign in.</p>
+
+    <img
+      class="dashboard-screenshot"
+      src="../dashboard_pictures/brave_screenshot_openrent-tjv2.vercel.app.png"
+      alt="Land Royal Command Center login page"
+    >
+    <p class="small img-caption">The login page. Enter your <strong>Username</strong> and <strong>Password</strong> in the fields shown, then click <strong>Sign in</strong>.</p>
+
+    <div class="callout">
+      <strong>Use the login credentials your administrator has provided.</strong> Your username and password will be shared with you separately. Keep them confidential and do not share them with anyone else.
+    </div>
+
+    <div class="grid-2" style="margin-top:5mm">
+      <div class="card green">
+        <span class="icon green">✓</span>
+        <h3>Protected access</h3>
+        <p class="small">Only authorised users can access the system. Sessions are private and secure.</p>
+      </div>
+      <div class="card soft">
+        <span class="icon">?</span>
+        <h3>Can't log in?</h3>
+        <p class="small">Contact your administrator to receive or reset your credentials. Do not attempt to guess a password repeatedly.</p>
+      </div>
+    </div>
+
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">3</span>
+  </section>
+
+  <!-- PAGE 4: Daily Routine -->
   <section class="page">
     <div class="eyebrow">Everyday use</div>
     <h2>Your daily routine</h2>
@@ -424,31 +491,34 @@
     </div>
 
     <h3 style="margin-top:7mm">Using the menu</h3>
-    <img
-      class="dashboard-screenshot"
-      src="assets/Screenshot%20(2609).png"
-      alt="Land Royal Command Center dashboard"
-    >
     <p class="small"><strong>Desktop:</strong> choose a section from the menu on the left. &nbsp; <strong>Mobile:</strong> tap the menu button in the top-left, then choose a page.</p>
-    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">3</span>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">4</span>
   </section>
 
+  <!-- PAGE 5: Understanding the Dashboard (with images) -->
   <section class="page">
     <div class="eyebrow">At a glance</div>
     <h2>Understanding the Dashboard</h2>
     <div class="section-rule"></div>
-    <p class="lead">The Dashboard is your overview. It answers: “Is everything working, and what needs my attention?”</p>
+    <p class="lead">The Dashboard is your overview. It answers: "Is everything working, and what needs my attention?"</p>
 
-    <div class="grid-3">
-      <div class="card blue"><span class="icon">↗</span><h3>Reply rate</h3><p class="small">How many contacted landlords have replied.</p></div>
-      <div class="card green"><span class="icon green">☎</span><h3>Phone progress</h3><p class="small">Phone numbers collected against today's target.</p></div>
-      <div class="card soft"><span class="icon">◎</span><h3>Active accounts</h3><p class="small">Accounts ready to run or currently working.</p></div>
-      <div class="card soft"><span class="icon">◫</span><h3>Active chats</h3><p class="small">Conversations still moving forward.</p></div>
-      <div class="card orange"><span class="icon orange">!</span><h3>Needs attention</h3><p class="small">Conversations that may need review.</p></div>
-      <div class="card red"><span class="icon red">×</span><h3>Failed accounts</h3><p class="small">Accounts that should be checked before continuing.</p></div>
+    <img
+      style="display:block; width:80%; height:auto; margin:3mm auto 2mm; border:.3mm solid var(--line); border-radius:3mm; box-shadow:0 2mm 7mm rgba(16,42,67,.08);"
+      src="../dashboard_pictures/dashboard.png"
+      alt="Land Royal Command Center – Dashboard overview"
+    >
+    <p class="small img-caption">The Dashboard overview — shows reply rate, phone progress, active accounts, active chats, needs-attention count, and failed accounts at a glance.</p>
+
+    <div class="grid-2" style="margin-bottom:3mm">
+      <div class="card blue" style="padding:3mm 4mm">
+        <p class="small" style="margin:0"><strong style="display:block;color:var(--navy);margin-bottom:1mm">↗ Reply rate &nbsp;·&nbsp; ☎ Phone progress</strong>Track how many landlords replied and how many phone numbers have been collected today.</p>
+      </div>
+      <div class="card soft" style="padding:3mm 4mm">
+        <p class="small" style="margin:0"><strong style="display:block;color:var(--navy);margin-bottom:1mm">◎ Active accounts &nbsp;·&nbsp; ◫ Active chats</strong>Accounts currently running and conversations still moving forward.</p>
+      </div>
     </div>
 
-    <h3 style="margin-top:7mm">Status colors</h3>
+    <h3 style="margin-top:5mm">Status colors</h3>
     <div class="grid-2">
       <div>
         <div class="status"><span class="dot"></span><div><strong>Green means healthy</strong><span>Running normally or completed successfully.</span></div></div>
@@ -463,20 +533,23 @@
     <div class="callout warning"><strong>See a red warning?</strong> Open the related item first. If the cause is not clear, check Workers and Logs before changing any settings.</div>
 
     <h3>Recent activity</h3>
-    <p>Use the filters above Recent Activity to quickly show:</p>
-    <div class="grid-3">
-      <div class="card soft"><strong>Needs attention</strong><p class="small">Chats with a failure or problem.</p></div>
-      <div class="card soft"><strong>Active</strong><p class="small">Conversations still in progress.</p></div>
-      <div class="card soft"><strong>With phones</strong><p class="small">Leads where a number was collected.</p></div>
-    </div>
-    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">4</span>
+    <p>Use the filters above Recent Activity to quickly find — <strong>Needs attention</strong> (conversations with failures), <strong>Active</strong> (still in progress), or <strong>With phones</strong> (leads where a number was collected).</p>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">5</span>
   </section>
 
+  <!-- PAGE 6: Reviewing Leads (with image) -->
   <section class="page leads-page">
     <div class="eyebrow">Main workspace</div>
     <h2>Reviewing leads and conversations</h2>
     <div class="section-rule"></div>
     <p class="lead">The Leads page is where you review landlord conversations, phone numbers, properties, and viewings.</p>
+
+    <img
+      style="display:block; width:65%; height:auto; margin:3mm auto 2mm; border:.3mm solid var(--line); border-radius:3mm; box-shadow:0 2mm 7mm rgba(16,42,67,.08);"
+      src="../dashboard_pictures/leads_page.png"
+      alt="Leads page overview"
+    >
+    <p class="small img-caption">The Leads page — lists all active conversations with status, phone number, and quick-action menu.</p>
 
     <div class="grid-2">
       <div class="card">
@@ -497,14 +570,7 @@
       </div>
     </div>
 
-    <div class="conversation">
-      <div class="bubble"><b>Landlord</b>Yes, the property is still available. Would Tuesday evening work?</div>
-      <div class="bubble you"><b>Your account</b>Tuesday evening works well, thank you. Could you please confirm the time?</div>
-      <div class="bubble"><b>Landlord</b>6:30pm is fine. You can reach me on 07400 000000.</div>
-    </div>
-    <p class="small">Landlord messages appear on the left. Successfully sent account messages appear on the right.</p>
-
-    <h3 style="margin-top:6mm">Conversation actions</h3>
+    <h3 style="margin-top:4mm">Conversation actions</h3>
     <table class="mini-table">
       <thead><tr><th>Action</th><th>What it does</th><th>When to use it</th></tr></thead>
       <tbody>
@@ -516,88 +582,156 @@
     </table>
 
     <div class="callout warning"><strong>Important:</strong> only mark a conversation Complete or Invalid when you are sure the system should stop working on it.</div>
-    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">5</span>
-  </section>
-
-  <section class="page">
-    <div class="eyebrow">Account management</div>
-    <h2>Accounts made simple</h2>
-    <div class="section-rule"></div>
-    <p class="lead">Each account represents one OpenRent login. The account page shows whether it is healthy, how much it has sent today, and whether it is ready to work.</p>
-
-    <div class="grid-3">
-      <div class="card soft"><span class="icon">●</span><h3>Session status</h3><p class="small">Shows whether the OpenRent login is working.</p></div>
-      <div class="card soft"><span class="icon">↻</span><h3>Worker status</h3><p class="small">Shows whether automation is running, waiting, or stopped.</p></div>
-      <div class="card soft"><span class="icon">5</span><h3>Daily usage</h3><p class="small">Shows messages sent against the account's daily limit.</p></div>
-    </div>
-
-    <h3 style="margin-top:7mm">Adding an account</h3>
-    <div class="grid-2">
-      <div>
-        <div class="step"><span class="step-number">1</span><div><h3>Select Add Account</h3><p>Enter the OpenRent email and password.</p></div></div>
-        <div class="step"><span class="step-number">2</span><div><h3>Assign an active proxy</h3><p>Choose the proxy prepared for this account.</p></div></div>
-        <div class="step"><span class="step-number">3</span><div><h3>Choose limits and style</h3><p>Set the daily limit, phone strategy, and conversation style.</p></div></div>
-      </div>
-      <div>
-        <div class="step"><span class="step-number">4</span><div><h3>Add the initial message</h3><p>This is the first message landlords receive.</p></div></div>
-        <div class="step"><span class="step-number">5</span><div><h3>Create and test</h3><p>Save the account, test its proxy, then refresh its session.</p></div></div>
-        <div class="step"><span class="step-number">6</span><div><h3>Start or resume</h3><p>Enable the account only after setup is complete.</p></div></div>
-      </div>
-    </div>
-
-    <h3 style="margin-top:6mm">Common account controls</h3>
-    <table class="mini-table">
-      <thead><tr><th>Control</th><th>Plain-language meaning</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Start worker</strong></td><td>Start an automation run now.</td></tr>
-        <tr><td><strong>Pause account</strong></td><td>Prevent the account from running until resumed.</td></tr>
-        <tr><td><strong>Test proxy</strong></td><td>Check that the account can connect through its assigned proxy.</td></tr>
-        <tr><td><strong>Refresh session</strong></td><td>Ask the system to refresh the saved login session.</td></tr>
-      </tbody>
-    </table>
-
-    <div class="callout danger"><strong>Use with care:</strong> Invalidate Session forces the account to authenticate again. Delete Account permanently removes the account and related data. Ask an administrator before using either action.</div>
     <span class="footer-brand">Land Royal Command Center</span><span class="page-number">6</span>
   </section>
 
+  <!-- PAGE 7: Accounts – Adding an Account -->
   <section class="page">
-    <div class="eyebrow">Search setup</div>
-    <h2>How property searches are configured</h2>
+    <div class="eyebrow">Account management</div>
+    <h2>Adding an account</h2>
     <div class="section-rule"></div>
-    <p class="lead">Three items work together: a proxy keeps the account connection separate, a location defines where to search, and a search profile defines what to look for.</p>
+    <p class="lead">Each account represents one OpenRent login. Click <strong>Add Account</strong> at the top of the Accounts page to open the setup form.</p>
 
-    <div class="flow">
-      <div class="card blue"><span class="icon">①</span><h3>Proxy</h3><p class="small">Connection used by the account.</p></div>
-      <div class="card blue"><span class="icon">②</span><h3>Account</h3><p class="small">The OpenRent login doing the work.</p></div>
-      <div class="card blue"><span class="icon">③</span><h3>Location</h3><p class="small">The area to search.</p></div>
-      <div class="card green"><span class="icon green">④</span><h3>Search profile</h3><p class="small">Budget, bedrooms, radius, and preferences.</p></div>
-    </div>
+    <img
+      class="screenshot-dialog"
+      src="../dashboard_pictures/add_accounts.png"
+      alt="Add Account form"
+    >
+    <p class="small img-caption">The Add Account form — fill in each field, then click <strong>Create</strong>.</p>
 
     <div class="grid-2">
+      <div>
+        <div class="step"><span class="step-number">1</span><div><h3>Email &amp; Password</h3><p>Enter the OpenRent account email address and its password.</p></div></div>
+        <div class="step"><span class="step-number">2</span><div><h3>Session file</h3><p>Leave blank to auto-generate, or enter a name such as <strong>session1</strong>, <strong>session2</strong>, <strong>session3</strong>, and so on.</p></div></div>
+        <div class="step"><span class="step-number">3</span><div><h3>Select a proxy</h3><p>Open the Proxy dropdown and choose one that is not already in use. If all proxies are assigned, reusing one is acceptable.</p></div></div>
+      </div>
+      <div>
+        <div class="step"><span class="step-number">4</span><div><h3>Message strategy</h3><p>Choose the messaging approach this account will use when contacting landlords.</p></div></div>
+        <div class="step"><span class="step-number">5</span><div><h3>Phone strategy</h3><p>Select how the account will request phone numbers from landlords.</p></div></div>
+        <div class="step"><span class="step-number">6</span><div><h3>Conversation style</h3><p>Choose the tone and style for automated replies, then click <strong>Create</strong>.</p></div></div>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>Need a new Outlook account?</strong> Click the <strong>Create Outlook Account</strong> button at the top-right of the Accounts page to register a brand-new email account directly from the system — no external setup required.
+    </div>
+
+    <div class="callout" style="margin-top:4mm">
+      <strong>Starting the worker for the first time:</strong> After saving a new account, go to the Accounts page and use the <strong>Start worker</strong> action from the three-dot (<strong>…</strong>) menu on that account row. Once started manually the first time, the worker will run automatically and re-queue itself — no further manual action is needed.
+    </div>
+
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">7</span>
+  </section>
+
+  <!-- PAGE 8: Accounts – Managing Accounts -->
+  <section class="page">
+    <div class="eyebrow">Account management</div>
+    <h2>Managing accounts</h2>
+    <div class="section-rule"></div>
+    <p class="lead">The Accounts page gives you a full view of every account — its status, daily usage, assigned proxy, and worker controls.</p>
+
+    <img
+      style="display:block; width:88%; height:auto; margin:3mm auto 2mm; border:.3mm solid var(--line); border-radius:3mm; box-shadow:0 2mm 7mm rgba(16,42,67,.08);"
+      src="../dashboard_pictures/accounts.png"
+      alt="Accounts page – list view with controls"
+    >
+    <p class="small img-caption">The Accounts page. Use the <strong>…</strong> three-dot menu on any row to edit the account, test its proxy, start a worker, or manage the session.</p>
+
+    <h3>Common account controls</h3>
+    <table class="mini-table">
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Edit account</strong></td><td>Update credentials, proxy assignment, strategy, or conversation style.</td></tr>
+        <tr><td><strong>Start worker</strong></td><td>Immediately start an automation run for this account.</td></tr>
+        <tr><td><strong>Pause account</strong></td><td>Stop the account from running until it is manually resumed.</td></tr>
+        <tr><td><strong>Test proxy</strong></td><td>Check that the account can connect through its assigned proxy.</td></tr>
+        <tr><td><strong>Refresh session</strong></td><td>Ask the system to renew the saved login session.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger"><strong>Use with care:</strong> Invalidate Session forces the account to re-authenticate. Delete Account permanently removes the account and all its data. Ask your administrator before using either action.</div>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">8</span>
+  </section>
+
+  <!-- PAGE 9: Search Profiles -->
+  <section class="page">
+    <div class="eyebrow">Search setup</div>
+    <h2>Search profiles</h2>
+    <div class="section-rule"></div>
+    <p class="lead">Search profiles define exactly what each account looks for on OpenRent — the account, location, radius, price range, and bedroom count.</p>
+
+    <img
+      class="dashboard-screenshot"
+      src="../dashboard_pictures/search_profiles.png"
+      alt="Search Profiles page"
+    >
+    <p class="small img-caption">The Search Profiles page — shows every account's assigned location, search radius, price range, and bedroom criteria.</p>
+
+    <div class="grid-2" style="margin-top:3mm">
       <div class="card">
-        <span class="label">Locations</span>
-        <h3>Add the areas you want</h3>
+        <span class="label">Adding a profile</span>
+        <h3>Click Add Profile to get started</h3>
         <ol>
-          <li>Select <strong>Add Location</strong>.</li>
-          <li>Enter a clear display name.</li>
-          <li>Enter the exact OpenRent search term.</li>
-          <li>Keep the location active and save.</li>
+          <li>Select the <strong>account</strong> from the dropdown.</li>
+          <li>Select the <strong>location</strong> to search.</li>
+          <li>Enter the search <strong>radius</strong> in miles.</li>
+          <li>Set <strong>price min</strong> and <strong>price max</strong>.</li>
+          <li>Set <strong>bedrooms min</strong> and <strong>bedrooms max</strong>.</li>
+          <li>Toggle <strong>Pets allowed</strong> only when required, then click <strong>Create</strong>.</li>
         </ol>
       </div>
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <img
+          src="../dashboard_pictures/add_profile.png"
+          alt="Add Profile form"
+          style="display:block; width:88%; height:auto; border:.3mm solid var(--line); border-radius:3mm; box-shadow:0 2mm 7mm rgba(16,42,67,.08);"
+        >
+        <p class="small img-caption" style="width:88%;">The Add Profile form.</p>
+      </div>
+    </div>
+
+    <div class="callout"><strong>Good setup check:</strong> the account is active, its proxy test passes, and it has at least one active search profile with a valid location.</div>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">9</span>
+  </section>
+
+  <!-- PAGE 10: Locations -->
+  <section class="page">
+    <div class="eyebrow">Search setup</div>
+    <h2>Locations</h2>
+    <div class="section-rule"></div>
+    <p class="lead">Locations are the areas you want the system to search. Each search profile needs at least one active location assigned to it.</p>
+
+    <img
+      class="dashboard-screenshot"
+      src="../dashboard_pictures/location_page.png"
+      alt="Locations page"
+    >
+    <p class="small img-caption">The Locations page — lists every location with its display name and the exact OpenRent search term used.</p>
+
+    <div class="grid-2" style="margin-top:4mm">
       <div class="card">
-        <span class="label">Search profiles</span>
-        <h3>Define what each account searches</h3>
+        <span class="label">Adding a location</span>
+        <h3>Click Add Location to get started</h3>
         <ol>
-          <li>Choose an account and location.</li>
-          <li>Enter the search radius.</li>
-          <li>Set price and bedroom ranges.</li>
-          <li>Enable pets only when required.</li>
+          <li>Enter a clear <strong>display name</strong> (e.g. Birmingham).</li>
+          <li>Enter the exact <strong>OpenRent term</strong> (e.g. Birmingham, West Midlands).</li>
+          <li>Keep the <strong>Active</strong> toggle on.</li>
+          <li>Click <strong>Create</strong>.</li>
         </ol>
+        <p class="small" style="margin-top:3mm">The OpenRent term is the value that gets submitted directly to OpenRent's location search field — make sure it matches exactly.</p>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <img
+          src="../dashboard_pictures/add_location.png"
+          alt="Add Location form"
+          style="display:block; width:90%; height:auto; border:.3mm solid var(--line); border-radius:3mm; box-shadow:0 2mm 7mm rgba(16,42,67,.08);"
+        >
+        <p class="small img-caption" style="width:90%;">The Add Location form.</p>
       </div>
     </div>
 
     <div class="card soft" style="margin-top:4mm">
-      <span class="label">Proxies</span>
+      <span class="label">Proxies reminder</span>
       <h3>What you need to know</h3>
       <div class="grid-2">
         <ul class="checklist">
@@ -611,15 +745,19 @@
       </div>
     </div>
 
-    <div class="callout"><strong>Good setup check:</strong> the account is active, its proxy test passes, and it has at least one active search profile.</div>
-    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">7</span>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">10</span>
   </section>
 
+  <!-- PAGE 11: Workers, Warnings, and Failed Accounts -->
   <section class="page">
     <div class="eyebrow">When something needs attention</div>
     <h2>Workers, warnings, and failed accounts</h2>
     <div class="section-rule"></div>
     <p class="lead">Workers are the background processes that operate each account. You normally only need this page when a warning appears.</p>
+
+    <div class="callout" style="margin-top:0; margin-bottom:5mm">
+      <strong>Worker controls</strong> — Go to the <strong>Workers</strong> section in the left menu to <strong>Start / Resume</strong>, <strong>Pause</strong>, <strong>Stop</strong>, or <strong>Refresh</strong> any worker. All actions are available there.
+    </div>
 
     <h3>Worker status guide</h3>
     <div class="grid-2">
@@ -653,9 +791,10 @@
     </table>
 
     <div class="callout warning"><strong>Before retrying:</strong> check session status, proxy health, the worker's last error, and recent login/error logs.</div>
-    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">8</span>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">11</span>
   </section>
 
+  <!-- PAGE 12: Simple Troubleshooting -->
   <section class="page">
     <div class="eyebrow">Help and support</div>
     <h2>Simple troubleshooting</h2>
@@ -715,7 +854,8 @@
       <li>What action you tried immediately before the issue.</li>
     </ul>
 
-    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">9</span>
+    <span class="footer-brand">Land Royal Command Center</span><span class="page-number">12</span>
   </section>
+
 </body>
 </html>

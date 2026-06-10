@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><style>
+body { margin:0; font-family: monospace; }
+#out { white-space:pre; padding:10px; font-size:12px; }
+</style></head>
+<body>
+<div id="out">loading...</div>
+<script>
+// Load the actual handbook in an iframe to measure
+var iframe = document.createElement('iframe');
+iframe.style.cssText = 'width:210mm;height:2000px;border:0;position:absolute;top:-5000px';
+iframe.src = 'Land_Royal_Client_Handbook.html';
+document.body.appendChild(iframe);
+iframe.onload = function() {
+  try {
+    var pages = iframe.contentDocument.querySelectorAll('.page');
+    var out = '';
+    pages.forEach(function(p, i) {
+      var h = Math.round(p.getBoundingClientRect().height * 25.4 / 96 * 10) / 10;
+      var status = h > 297 ? ' *** OVERFLOW by ' + Math.round((h-297)*10)/10 + 'mm' : ' OK';
+      out += 'Page ' + (i+1) + ': ' + h + 'mm' + status + '\n';
+    });
+    document.getElementById('out').textContent = out;
+  } catch(e) {
+    document.getElementById('out').textContent = 'ERROR: ' + e.message;
+  }
+};
+</script>
+</body></html>
