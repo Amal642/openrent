@@ -1,6 +1,15 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
-import { ExternalLink, Copy, MoreHorizontal, MessageSquare, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ExternalLink,
+  Copy,
+  MoreHorizontal,
+  MessageSquare,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -24,8 +33,11 @@ import {
 } from "@/components/ui/table";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -55,9 +67,9 @@ function LeadsPage() {
 }
 
 function LeadsList() {
-  const [status, setStatus] = useState<LeadStatus | "all">("all");
-  const [account, setAccount] = useState("all");
-  const [profile, setProfile] = useState("all");
+  const [statuses, setStatuses] = useState<LeadStatus[]>([]);
+  const [accountIds, setAccountIds] = useState<string[]>([]);
+  const [profileIds, setProfileIds] = useState<string[]>([]);
   const [hasPhone, setHasPhone] = useState(false);
   const [aiFailed, setAiFailed] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
@@ -81,8 +93,8 @@ function LeadsList() {
     isLoading: leadsLoading,
     error: leadsError,
   } = useQuery({
-    queryKey: ["leads", status],
-    queryFn: () => getLeads(status),
+    queryKey: ["leads"],
+    queryFn: () => getLeads(),
     refetchInterval: 10000,
   });
 
@@ -98,14 +110,24 @@ function LeadsList() {
 
   useEffect(() => {
     setCurrentPage(0);
-  }, [status, account, profile, hasPhone, aiFailed, activeOnly, viewingsOnly, lastUpdated, q]);
+  }, [
+    statuses,
+    accountIds,
+    profileIds,
+    hasPhone,
+    aiFailed,
+    activeOnly,
+    viewingsOnly,
+    lastUpdated,
+    q,
+  ]);
 
   const filtered = useMemo(
     () =>
       leads.filter((l) => {
-        if (status !== "all" && l.status !== status) return false;
-        if (account !== "all" && l.accountId !== account) return false;
-        if (profile !== "all" && l.searchProfileId !== profile) return false;
+        if (statuses.length > 0 && !statuses.includes(l.status)) return false;
+        if (accountIds.length > 0 && !accountIds.includes(l.accountId)) return false;
+        if (profileIds.length > 0 && !profileIds.includes(l.searchProfileId)) return false;
         if (hasPhone && !l.phoneNumber) return false;
         if (aiFailed && l.status !== "AI_FAILED") return false;
         if (activeOnly && !["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"].includes(l.status))
@@ -126,7 +148,18 @@ function LeadsList() {
         }
         return true;
       }),
-    [leads, status, account, profile, hasPhone, aiFailed, activeOnly, viewingsOnly, lastUpdated, q],
+    [
+      leads,
+      statuses,
+      accountIds,
+      profileIds,
+      hasPhone,
+      aiFailed,
+      activeOnly,
+      viewingsOnly,
+      lastUpdated,
+      q,
+    ],
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -172,59 +205,47 @@ function LeadsList() {
             onChange={(e) => setQ(e.target.value)}
             className="h-9 w-64"
           />
-          <Select value={status} onValueChange={(v) => setStatus(v as LeadStatus | "all")}>
-            <SelectTrigger className="h-9 w-44">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {Object.entries(STATUS_META).map(([k, v]) => (
-                <SelectItem key={k} value={k}>
-                  {v.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={account} onValueChange={setAccount}>
-            <SelectTrigger className="h-9 w-52">
-              <SelectValue placeholder="Account" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All accounts</SelectItem>
-              {accounts.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {a.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={profile} onValueChange={setProfile}>
-            <SelectTrigger className="h-9 w-52">
-              <SelectValue placeholder="Profile" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All profiles</SelectItem>
-              {searchProfiles.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.location}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            allLabel="All statuses"
+            countLabel="statuses"
+            options={Object.entries(STATUS_META).map(([value, meta]) => ({
+              value,
+              label: meta.label,
+            }))}
+            selected={statuses}
+            onChange={(values) => setStatuses(values as LeadStatus[])}
+            className="w-44"
+          />
+          <MultiSelectFilter
+            allLabel="All accounts"
+            countLabel="accounts"
+            options={accounts.map((a) => ({ value: a.id, label: a.email }))}
+            selected={accountIds}
+            onChange={setAccountIds}
+            className="w-52"
+          />
+          <MultiSelectFilter
+            allLabel="All profiles"
+            countLabel="profiles"
+            options={searchProfiles.map((s) => ({ value: s.id, label: s.location }))}
+            selected={profileIds}
+            onChange={setProfileIds}
+            className="w-52"
+          />
           <ToggleChip label="Has phone" checked={hasPhone} onChange={setHasPhone} />
           <ToggleChip label="AI failed" checked={aiFailed} onChange={setAiFailed} />
           <ToggleChip label="Active only" checked={activeOnly} onChange={setActiveOnly} />
           <ToggleChip label="Viewings" checked={viewingsOnly} onChange={setViewingsOnly} />
           <Select value={lastUpdated} onValueChange={setLastUpdated}>
-            <SelectTrigger className="h-9 w-40">
+            <SelectTrigger className="h-9 w-48">
               <SelectValue placeholder="Last updated" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Any time</SelectItem>
-              <SelectItem value="1h">Last 1 hour</SelectItem>
-              <SelectItem value="24h">Last 24 hours</SelectItem>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="all">Updated: Any time</SelectItem>
+              <SelectItem value="1h">Updated: Last 1 hour</SelectItem>
+              <SelectItem value="24h">Updated: Last 24 hours</SelectItem>
+              <SelectItem value="7d">Updated: Last 7 days</SelectItem>
+              <SelectItem value="30d">Updated: Last 30 days</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -374,6 +395,72 @@ function LeadsList() {
         </div>
       )}
     </>
+  );
+}
+
+function MultiSelectFilter({
+  allLabel,
+  countLabel,
+  options,
+  selected,
+  onChange,
+  className,
+}: {
+  allLabel: string;
+  countLabel: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  className?: string;
+}) {
+  const selectedLabel =
+    selected.length === 0
+      ? allLabel
+      : selected.length === 1
+        ? options.find((option) => option.value === selected[0])?.label ?? `1 ${countLabel}`
+        : `${selected.length} ${countLabel}`;
+
+  const toggle = (value: string) => {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((selectedValue) => selectedValue !== value)
+        : [...selected, value],
+    );
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className={`h-9 justify-between px-3 font-normal ${className ?? ""}`}
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronDown className="ml-2 size-4 shrink-0 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
+        <DropdownMenuLabel>{allLabel}</DropdownMenuLabel>
+        <DropdownMenuCheckboxItem
+          checked={selected.length === 0}
+          onCheckedChange={() => onChange([])}
+          onSelect={(event) => event.preventDefault()}
+        >
+          {allLabel}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        {options.map((option) => (
+          <DropdownMenuCheckboxItem
+            key={option.value}
+            checked={selected.includes(option.value)}
+            onCheckedChange={() => toggle(option.value)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            {option.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
