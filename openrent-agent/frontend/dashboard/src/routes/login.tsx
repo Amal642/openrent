@@ -26,8 +26,8 @@ export const Route = createFileRoute("/login")({
   validateSearch: loginSearchSchema,
   head: () => ({
     meta: [
-      { title: "Sign in - Land Royal" },
-      { name: "description", content: "Sign in to the Land Royal Command Center." },
+      { title: "Sign in - Command Center" },
+      { name: "description", content: "Sign in to the Command Center." },
     ],
   }),
   component: LoginPage,
@@ -72,10 +72,6 @@ function LoginPage() {
           <Brand />
 
           <div className="max-w-xl pb-10">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-card/75 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
-              <span className="size-1.5 rounded-full bg-success" />
-              Private operations workspace
-            </div>
             <h1 className="text-5xl font-semibold leading-[1.08] tracking-[-0.045em] xl:text-6xl">
               Everything your team needs to keep outreach moving.
             </h1>
@@ -92,9 +88,6 @@ function LoginPage() {
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Land Royal United Kingdom &middot; Internal access only
-          </p>
         </section>
 
         <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-8 lg:border-l lg:bg-card/35 lg:px-12">
@@ -201,11 +194,11 @@ function Brand() {
   return (
     <div className="flex items-center gap-3">
       <div className="flex size-10 items-center justify-center rounded-xl bg-foreground text-sm font-semibold tracking-[-0.04em] text-background shadow-sm">
-        LR
+        CC
       </div>
       <div className="leading-tight">
-        <p className="text-sm font-semibold tracking-tight">Land Royal</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Command Center</p>
+        <p className="text-sm font-semibold tracking-tight">Command Center</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Operations</p>
       </div>
     </div>
   );
