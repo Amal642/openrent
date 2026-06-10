@@ -70,7 +70,7 @@ function LeadsList() {
   const [statuses, setStatuses] = useState<LeadStatus[]>([]);
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [profileIds, setProfileIds] = useState<string[]>([]);
-  const [hasPhone, setHasPhone] = useState(false);
+  const [hasPhone, setHasPhone] = useState(true);
   const [aiFailed, setAiFailed] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
   const [viewingsOnly, setViewingsOnly] = useState(false);
