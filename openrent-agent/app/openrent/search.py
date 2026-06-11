@@ -25,10 +25,6 @@ def build_search_url(profile):
         "excludeEnquired": "true",
     }
 
-    # Optional filters
-    if profile.pets_allowed:
-        params["acceptPets"] = "true"
-
     query_string = urlencode(params)
 
     return f"{BASE_URL}/{location_slug}?{query_string}"

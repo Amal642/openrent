@@ -201,7 +201,6 @@ function SearchProfilesPage() {
               <TableHead>Radius</TableHead>
               <TableHead>Price range</TableHead>
               <TableHead>Bedrooms</TableHead>
-              <TableHead>Pets</TableHead>
               <TableHead>Active</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -220,7 +219,6 @@ function SearchProfilesPage() {
                 <TableCell className="tabular-nums">
                   {s.bedroomsMin}–{s.bedroomsMax}
                 </TableCell>
-                <TableCell>{s.petsAllowed ? "Yes" : "No"}</TableCell>
                 <TableCell>
                   <Switch
                     checked={s.active}
@@ -288,7 +286,17 @@ function ProfileDialog({
   const [data, setData] = useState<Partial<SearchProfile>>(editing ?? {});
 
   useEffect(() => {
-    if (open) setData(editing ?? {});
+    if (open) {
+      setData(
+        editing ?? {
+          area: 5,
+          priceMin: 1000,
+          priceMax: 4500,
+          bedroomsMin: 0,
+          bedroomsMax: 4,
+        },
+      );
+    }
   }, [open, editing]);
 
   return (
@@ -384,18 +392,6 @@ function ProfileDialog({
               type="number"
               value={data.bedroomsMax ?? ""}
               onChange={(e) => setData({ ...data, bedroomsMax: Number(e.target.value) })}
-            />
-          </div>
-          <div className="col-span-2 flex items-center justify-between rounded-md border p-3">
-            <div>
-              <div className="text-sm font-medium">Pets allowed</div>
-              <div className="text-xs text-muted-foreground">
-                Only show listings that allow pets
-              </div>
-            </div>
-            <Switch
-              checked={!!data.petsAllowed}
-              onCheckedChange={(v) => setData({ ...data, petsAllowed: v })}
             />
           </div>
         </div>

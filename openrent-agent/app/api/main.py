@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -797,7 +797,7 @@ def api_metrics():
 @app.get("/api/workers")
 def api_workers():
     accounts = get_dashboard_accounts()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return [
         {
             "id": f"account-{account['id']}",

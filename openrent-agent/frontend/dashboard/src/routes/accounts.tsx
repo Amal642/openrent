@@ -131,6 +131,13 @@ const PHONE_STRATEGIES = [
   { value: "adaptive", label: "Adaptive" },
 ];
 
+const STRATEGY_STYLE_MAP: Record<string, string> = {
+  viewing_first: "friendly_viewing",
+  immediate: "direct_number_request",
+  delayed: "professional_polite",
+  adaptive: "warm_casual",
+};
+
 function fmtSchedule(value?: string, fallback = "-") {
   return value ? fmtDateTime(value) : fallback;
 }
@@ -508,22 +515,46 @@ function AccountDialog({
 
   useEffect(() => {
     if (open) {
-      setData({
-        email: editing?.email ?? "",
-        dailyMessageLimit: editing?.dailyMessageLimit ?? 5,
-        mobileNumber: editing?.mobileNumber ?? "",
-        phoneFetchingType: editing?.phoneFetchingType ?? "",
-        conversationStyle: editing?.conversationStyle ?? "",
-        messageStrategy: editing?.messageStrategy ?? "",
-        escalationBehavior: editing?.escalationBehavior ?? "",
-        conversationGoal: editing?.conversationGoal ?? "",
-        sessionFile: editing?.sessionFile ?? "",
-        proxyId: editing?.proxyId ?? "",
-        active: editing?.active ?? true,
-        password: "",
-      });
+      if (editing) {
+        setData({
+          email: editing.email ?? "",
+          dailyMessageLimit: editing.dailyMessageLimit ?? 5,
+          mobileNumber: editing.mobileNumber ?? "",
+          phoneFetchingType: editing.phoneFetchingType ?? "",
+          conversationStyle: editing.conversationStyle ?? "",
+          messageStrategy: editing.messageStrategy ?? "",
+          escalationBehavior: editing.escalationBehavior ?? "",
+          conversationGoal: editing.conversationGoal ?? "",
+          sessionFile: editing.sessionFile ?? "",
+          proxyId: editing.proxyId ?? "",
+          active: editing.active ?? true,
+          password: "",
+        });
+      } else {
+        const activeProxies = proxies.filter((p) => p.isActive);
+        const autoProxy =
+          activeProxies.find((p) => p.accountCount === 0) ??
+          activeProxies.sort((a, b) => a.accountCount - b.accountCount)[0];
+        const randomStrategy =
+          PHONE_STRATEGIES[Math.floor(Math.random() * PHONE_STRATEGIES.length)];
+        const autoStyle = STRATEGY_STYLE_MAP[randomStrategy.value] ?? "";
+        setData({
+          email: "",
+          dailyMessageLimit: 5,
+          mobileNumber: "",
+          phoneFetchingType: randomStrategy.value,
+          conversationStyle: autoStyle,
+          messageStrategy: autoStyle,
+          escalationBehavior: "",
+          conversationGoal: "",
+          sessionFile: "",
+          proxyId: autoProxy?.id ?? "",
+          active: true,
+          password: "",
+        });
+      }
     }
-  }, [open, editing]);
+  }, [open, editing, proxies]);
 
   return (
     <Dialog
@@ -594,7 +625,15 @@ function AccountDialog({
           <Field label="Phone strategy">
             <Select
               value={data.phoneFetchingType ?? ""}
-              onValueChange={(v) => setData({ ...data, phoneFetchingType: v })}
+              onValueChange={(v) => {
+                const autoStyle = STRATEGY_STYLE_MAP[v] ?? "";
+                setData({
+                  ...data,
+                  phoneFetchingType: v,
+                  conversationStyle: autoStyle || data.conversationStyle || "",
+                  messageStrategy: autoStyle || data.messageStrategy || "",
+                });
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select strategy" />
