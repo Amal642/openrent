@@ -123,7 +123,14 @@ async def login(page, context, account):
         await email_field.fill(account.email)
 
         await page.get_by_role("button", name="Continue with email").click()
-        await page.screenshot(path="login-debug.png", full_page=True)
+        slug = account.email.split("@")[0].replace(".", "_")
+        screenshots_dir = Path("screenshots")
+        screenshots_dir.mkdir(parents=True, exist_ok=True)
+        await page.screenshot(path=str(screenshots_dir / f"post_email_{slug}.png"), full_page=True)
+        logger.info(
+            f"LOGIN_AFTER_EMAIL_STEP email={account.email} "
+            f"url={page.url} title={await page.title()!r}"
+        )
 
         await page.locator('input[name="password"]').fill(account.password)
 
@@ -135,6 +142,39 @@ async def login(page, context, account):
         await _capture_page_diagnostics(page, account.email, reason)
         _apply_login_failure(account.id, account.session_auth_failures, reason)
         raise
+
+    # Capture the page state immediately after login attempt — before
+    # _is_authenticated() navigates to the homepage and destroys this state.
+    # This screenshot shows any error message, verification step, or captcha.
+    try:
+        post_login_url = page.url
+        post_login_title = await page.title()
+        post_login_content = await page.content()
+        post_login_snippet = post_login_content[:3000]
+        slug = account.email.split("@")[0].replace(".", "_")
+        await page.screenshot(
+            path=str(Path("screenshots") / f"post_login_{slug}.png"), full_page=True
+        )
+        logger.info(
+            f"POST_LOGIN_STATE email={account.email} "
+            f"url={post_login_url} title={post_login_title!r}"
+        )
+        # Detect visible error text on the login page
+        error_keywords = [
+            "incorrect password", "invalid password", "wrong password",
+            "invalid email", "account not found", "too many", "locked",
+            "suspended", "verify", "verification", "captcha", "security",
+        ]
+        page_text_lower = post_login_content.lower()
+        detected_errors = [kw for kw in error_keywords if kw in page_text_lower]
+        if detected_errors:
+            logger.warning(
+                f"LOGIN_ERROR_KEYWORDS_DETECTED email={account.email} "
+                f"keywords={detected_errors}"
+            )
+        logger.info(f"POST_LOGIN_HTML_SNIPPET email={account.email}:\n{post_login_snippet}")
+    except Exception as diag_exc:
+        logger.warning(f"Could not capture post-login diagnostics for {account.email}: {diag_exc}")
 
     if await _captcha_suspected(page):
         update_session_health(

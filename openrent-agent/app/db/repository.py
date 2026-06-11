@@ -1684,8 +1684,10 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
             Conversation.cancellation_sent_at == None,
             Conversation.viewing_confirmed == True,
             Conversation.conversation_stage == VIEWING_BOOKED,
-            Conversation.phone_found == True,
-            Conversation.handoff_completed_at != None,
+            # phone_found and handoff_completed_at are NOT required:
+            # cancellation is time-based and fires regardless of phone status.
+            # The old handoff_completed_at filter was contradictory — mark_handoff_complete
+            # sets stage=HANDOFF_COMPLETE, which conflicts with stage==VIEWING_BOOKED above.
         )
 
         if account_id is not None:
