@@ -291,7 +291,7 @@ function ProfileDialog({
         editing ?? {
           area: 5,
           priceMin: 1000,
-          priceMax: 4500,
+          priceMax: 4000,
           bedroomsMin: 0,
           bedroomsMax: 4,
         },
