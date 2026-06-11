@@ -213,7 +213,7 @@ function SearchProfilesPage() {
                   {accountEmail(s.accountId)}
                 </TableCell>
                 <TableCell className="font-medium">{s.location}</TableCell>
-                <TableCell className="tabular-nums">{s.area || "-"} mi</TableCell>
+                <TableCell className="tabular-nums">{s.area || "-"} km</TableCell>
                 <TableCell className="tabular-nums">
                   {fmtMoney(s.priceMin)} – {fmtMoney(s.priceMax)}
                 </TableCell>
@@ -351,7 +351,7 @@ function ProfileDialog({
               type="number"
               value={data.area ?? ""}
               onChange={(e) => setData({ ...data, area: Number(e.target.value) })}
-              placeholder="Miles"
+              placeholder="Km"
             />
           </div>
           <div className="space-y-1.5">
