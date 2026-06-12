@@ -268,7 +268,11 @@ async def send_reply(
         "#message-compose-textarea"
     )
 
-    await textarea.wait_for()
+    try:
+        await textarea.wait_for(timeout=15_000)
+    except PlaywrightTimeoutError:
+        logger.warning("send_reply: reply textarea not found (session expired or page failed to load)")
+        return False
 
     # Check disabled state
     disabled = await textarea.get_attribute(
@@ -331,7 +335,11 @@ async def can_reply(page):
         "#message-compose-textarea"
     )
 
-    await textarea.wait_for()
+    try:
+        await textarea.wait_for(timeout=15_000)
+    except PlaywrightTimeoutError:
+        logger.warning("can_reply: reply textarea not found (session expired or page failed to load)")
+        return False
 
     disabled = await textarea.get_attribute(
         "disabled"
