@@ -436,14 +436,26 @@ async def process_account_replies(
                             f"VIEWING_CANCEL_FAILED thread_id={thread_id} "
                             "send_reply failed — will retry next worker run"
                         )
+                    continue
                 else:
                     hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
+                    if hours_until < 24:
+                        # Viewing is within 24 hours — stay silent, reminder will
+                        # cancel 3–5h before. Clear any stale AI_FAILED status.
+                        logger.info(
+                            f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
+                            f"hours_until={hours_until:.1f} — reminder will cancel 3–5h before"
+                        )
+                        update_conversation_status(thread_id, SKIPPED)
+                        update_last_processed_message(thread_id, latest_landlord_message)
+                        continue
+                    # Viewing is 24+ hours away — fall through so the AI can still
+                    # reply to landlord messages (e.g. screening questions) while
+                    # the reminder handles cancellation at 3–5h before.
                     logger.info(
                         f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
-                        f"hours_until={hours_until:.1f} — reminder will cancel 3–5h before"
+                        f"hours_until={hours_until:.1f} — replying to landlord while awaiting cancel window"
                     )
-                    update_last_processed_message(thread_id, latest_landlord_message)
-                continue
 
             if (
                 conversation
