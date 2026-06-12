@@ -9,7 +9,7 @@ These are the primary source of truth for viewing state — they require no
 AI interpretation and are unambiguous.
 """
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.utils.logger import logger
 
@@ -61,13 +61,6 @@ def parse_banner_datetime(text: str, now: datetime | None = None) -> datetime | 
         year = int(year_str)
     else:
         year = now.year
-        # If the resolved date is already more than an hour in the past, assume next year.
-        try:
-            probe = datetime(year, month, day, hour, minute)
-            if probe < now - timedelta(hours=1):
-                year += 1
-        except ValueError:
-            pass
 
     if suffix == "pm" and hour < 12:
         hour += 12
