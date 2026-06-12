@@ -259,6 +259,7 @@ async def _cancel_viewing_and_handoff(
     update_last_processed_message(thread_id, latest_landlord_message)
     mark_viewing_cancelled(thread_id)
     mark_handoff_complete(thread_id)
+    update_conversation_status(thread_id, VIEWING_CANCELLED)
     logger.info(f"HANDOFF_AFTER_CANCELLATION thread_id={thread_id}")
     return True
 
@@ -308,6 +309,7 @@ async def _send_handoff_message(thread_id, messages, latest_landlord_message, pa
     save_message(thread_id, "outbound", handoff_message)
     update_last_processed_message(thread_id, latest_landlord_message)
     mark_handoff_complete(thread_id)
+    update_conversation_status(thread_id, HANDOFF_COMPLETE)
     logger.info(f"HANDOFF_COMPLETE thread_id={thread_id}")
     logger.info("CONVERSATION HANDOFF COMPLETE")
     return True
@@ -538,6 +540,16 @@ async def process_account_replies(
                     update_conversation_status(thread_id, PHONE_ACQUIRED)
                     phone = normalize_uk_phone(phone)
 
+                    if not phone:
+                        # normalise stripped all digits (e.g. "(Number Removed)") —
+                        # not a real UK number; never overwrite a stored phone with empty
+                        logger.warning(
+                            f"PHONE_NORMALISE_EMPTY thread_id={thread_id} "
+                            "AI extraction returned non-numeric text — ignoring"
+                        )
+                        update_last_processed_message(thread_id, latest_landlord_message)
+                        continue
+
                     stored_phone = conversation.extracted_phone if conversation else None
 
                     if stored_phone and stored_phone == phone:
@@ -606,6 +618,14 @@ async def process_account_replies(
                 logger.info(f"Phone found: {phone}")
                 update_conversation_status(thread_id, PHONE_ACQUIRED)
                 phone = normalize_uk_phone(phone)
+
+                if not phone:
+                    logger.warning(
+                        f"PHONE_NORMALISE_EMPTY thread_id={thread_id} "
+                        "regex extraction returned non-numeric text — ignoring"
+                    )
+                    update_last_processed_message(thread_id, latest_landlord_message)
+                    continue
 
                 stored_phone = conversation.extracted_phone if conversation else None
 
