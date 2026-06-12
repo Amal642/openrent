@@ -6,6 +6,10 @@ after cancellation/handoff.
 Run from the project root:
     python scripts/fix_ai_failed_status.py
 """
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.db.connection import SessionLocal
 from app.db.models import Conversation
 
