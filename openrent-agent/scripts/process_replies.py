@@ -418,11 +418,15 @@ async def process_account_replies(
             #   • No datetime extracted → cancel immediately (can't schedule without it)
             #   • Viewing ≤ 3 hours away → cancel immediately (window already passed)
             #   • Viewing > 3 hours away → defer; reminder fires 3–5 h before viewing
+            # Use current banner as primary source of truth — the DB flag can
+            # be stale if the landlord cancelled the OpenRent viewing after it
+            # was last stored (banner disappears, DB stays True).
             if (
-                conversation
-                and not getattr(conversation, "viewing_cancelled", False)
-                and not conversation.handoff_completed_at
-                and getattr(conversation, "viewing_confirmed", False)
+                banners["viewing_confirmed"]
+                and (not conversation or (
+                    not getattr(conversation, "viewing_cancelled", False)
+                    and not conversation.handoff_completed_at
+                ))
             ):
                 viewing_dt = getattr(conversation, "viewing_datetime", None)
                 if _cancel_window_passed(viewing_dt):
@@ -917,11 +921,19 @@ async def process_account_replies(
                 reply
             )
             if not sent:
-                logger.warning(f"Reply send failed for thread {thread_id}")
-                update_conversation_status(
-                    thread_id,
-                    AI_FAILED
-                )
+                # If the textarea/button became disabled between our can_reply()
+                # check and the actual send, classify as REPLY_DISABLED rather
+                # than AI_FAILED so the thread isn't retried unnecessarily.
+                still_open = await can_reply(page)
+                if not still_open:
+                    logger.warning(
+                        f"Reply disabled for thread {thread_id} "
+                        "(detected at send time — textarea or button became disabled)"
+                    )
+                    update_conversation_status(thread_id, REPLY_DISABLED)
+                else:
+                    logger.warning(f"Reply send failed for thread {thread_id}")
+                    update_conversation_status(thread_id, AI_FAILED)
                 continue
 
             logger.info("Reply sent")

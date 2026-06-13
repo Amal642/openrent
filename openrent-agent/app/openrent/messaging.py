@@ -524,15 +524,14 @@ async def send_initial_message(
         await fallback.click()
 
     # ── Post-submit: verify success ───────────────────────────
-    # Wait up to 10 s for the page to navigate away from the message form.
+    # Wait up to 20 s for the page to navigate away from the message form.
     # Success = URL no longer contains "messagelandlord".
-    # Failure = URL still on messagelandlord → collect validation errors,
-    #           save screenshot, raise so the caller marks the listing failed.
+    # Some OpenRent forms use AJAX and stay on the same URL — handle those too.
     submit_origin = page.url
     try:
         await page.wait_for_url(
             lambda url: "messagelandlord" not in url,
-            timeout=10_000,
+            timeout=20_000,
         )
     except Exception:
         pass  # Handle below after inspecting current URL
@@ -547,16 +546,31 @@ async def send_initial_message(
             logger.warning(f"Validation error: {err}")
         await _save_form_debug(page, "form2_after_submit")
 
-        # Check if "already enquired" banner appeared (counts as success)
-        already = await page.query_selector(
-            "text=You have already enquired about this property"
-        )
-        if already:
-            logger.info("Already-enquired banner detected — treating as success")
-            existing = await get_existing_thread_id(page)
-            if existing:
-                return f"/messages/{existing}"
-            return final_url
+        # Check several "already sent / success" signals before failing.
+        # OpenRent may show these inline (AJAX) without navigating away.
+        _already_patterns = [
+            "text=You have already enquired about this property",
+            "text=already enquired",
+            "text=already sent",
+            "text=message has been sent",
+            "text=enquiry has been sent",
+            "text=Your message has been sent",
+        ]
+        for pattern in _already_patterns:
+            already = await page.query_selector(pattern)
+            if already:
+                logger.info(f"Success indicator detected ({pattern!r}) — treating as success")
+                existing = await get_existing_thread_id(page)
+                if existing:
+                    return f"/messages/{existing}"
+                return final_url
+
+        # Last resort: check if a /messages/ link appeared on the page
+        # (some AJAX forms append a thread link after sending).
+        existing = await get_existing_thread_id(page)
+        if existing:
+            logger.info(f"Thread link found on page after submit — treating as success: {existing}")
+            return f"/messages/{existing}"
 
         err_summary = "; ".join(errors) if errors else "no validation details captured"
         raise Exception(
