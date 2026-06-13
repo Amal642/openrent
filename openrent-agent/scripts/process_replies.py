@@ -91,12 +91,12 @@ from pathlib import Path
 
 
 async def _screenshot_thread(page, thread_id: str) -> None:
-    """Save a full-page screenshot to screenshots/threads/<thread_id>/ for debugging."""
+    """Save a full-page screenshot as screenshots/threads/<thread_id>/latest.png.
+    Always overwrites — only the most recent landlord-reply state is kept."""
     try:
         folder = Path("screenshots") / "threads" / str(thread_id)
         folder.mkdir(parents=True, exist_ok=True)
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        path = str(folder / f"{ts}.png")
+        path = str(folder / "latest.png")
         await page.screenshot(path=path, full_page=True)
         logger.info(f"THREAD_SCREENSHOT_SAVED thread_id={thread_id} path={path}")
     except Exception as exc:

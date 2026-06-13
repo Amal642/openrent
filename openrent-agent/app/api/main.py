@@ -9,7 +9,6 @@ import socket
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -267,16 +266,8 @@ FRONTEND_DIST = (
     / "dist"
 )
 
-# Screenshots saved by the reply worker for debugging.
-# Mounted at /screenshots so images are directly accessible in a browser
-# without needing JS token auth — these are internal debug files only.
 _SCREENSHOTS_ROOT = Path("screenshots") / "threads"
 _SCREENSHOTS_ROOT.mkdir(parents=True, exist_ok=True)
-app.mount(
-    "/screenshots",
-    StaticFiles(directory=str(Path("screenshots")), check_dir=False),
-    name="screenshots",
-)
 
 
 def _require_account(account_id: int):
@@ -455,25 +446,6 @@ def api_conversation_messages(thread_id: str):
     return get_conversation_messages(thread_id)
 
 
-@app.get("/api/screenshots/{thread_id}")
-def api_screenshots(thread_id: str):
-    """List all debug screenshots saved for a thread, newest first."""
-    folder = Path("screenshots") / "threads" / thread_id
-    if not folder.exists():
-        return {"thread_id": thread_id, "count": 0, "screenshots": []}
-    files = sorted(folder.glob("*.png"), reverse=True)
-    return {
-        "thread_id": thread_id,
-        "count": len(files),
-        "screenshots": [
-            {
-                "filename": f.name,
-                "url": f"/screenshots/threads/{thread_id}/{f.name}",
-                "taken_at": f.stem,
-            }
-            for f in files
-        ],
-    }
 
 
 @app.get("/api/accounts")
@@ -1168,6 +1140,15 @@ def simulation_interactive_message(
     from simulation.interactive import submit_interactive_message
 
     return submit_interactive_message(session_id, payload.message)
+
+
+@app.get("/screenshots/{thread_id}")
+def thread_screenshot(thread_id: str):
+    """Serve the latest debug screenshot for a thread — no auth required."""
+    path = Path("screenshots") / "threads" / thread_id / "latest.png"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="No screenshot found for this thread")
+    return FileResponse(str(path), media_type="image/png")
 
 
 @app.get("/")
