@@ -5,11 +5,10 @@ PHONE_LIKE_PATTERN = re.compile(
     r"(?<!\w)(?:\+44[\d\s().-]{7,}\d|44[\d\s().-]{8,}\d|0[1-9]\d[\d\s().-]{6,}\d)(?!\w)"
 )
 
-# Detect AI-generated template placeholders that were never substituted
-_PLACEHOLDER_RE = re.compile(
-    r"\[insert\b|\[number\]|\[phone\b|\[mobile\b|\[contact number\]|\[your number\]|\[tenant number\]",
-    re.I,
-)
+# Detect AI-generated template placeholders that were never substituted.
+# ANY bracket-delimited sequence is a placeholder — there is no legitimate use of
+# [text], {text}, or <text> notation in conversational OpenRent tenant replies.
+_PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]|\{[^}]+\}")
 
 
 def is_valid_reply(reply):
