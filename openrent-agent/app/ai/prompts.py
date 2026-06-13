@@ -300,7 +300,7 @@ def _phone_policy_lines(
         )
     elif phone_type == "viewing_first":
         lines.append(
-            "- Prioritize agreeing a viewing first; share or request phone details once viewing logistics are concrete."
+            "- Prioritize getting a phone number early — ask for the landlord's number by the second or third reply at the latest, framing it as needing it for viewing day coordination."
         )
     elif phone_type == "landlord_requests_only":
         lines.append(
@@ -308,11 +308,11 @@ def _phone_policy_lines(
         )
     elif phone_type == "adaptive":
         lines.append(
-            "- Adapt phone sharing to the landlord's tone, viewing progress, and travel distance."
+            "- Adapt to the landlord's tone and viewing progress, but always aim to ask for their phone number by the third or fourth reply."
         )
     else:
         lines.append(
-            "- Delayed strategy: wait around 2-4 tenant messages before requesting or sharing phone details unless the landlord asks."
+            "- Delayed strategy: build a small amount of rapport first, but ask for the landlord's phone number by the fourth or fifth reply at the latest — do not wait longer."
         )
 
     if stage == "VIEWING_BOOKED":
@@ -323,6 +323,21 @@ def _phone_policy_lines(
         lines.append(
             "- Viewing details are still being discussed; keep replying naturally to availability, scheduling, and follow-up questions."
         )
+
+    # Hard count-based enforcement: once the threshold is hit the AI must ask
+    # for the landlord's number in this reply regardless of viewing progress.
+    if not phone_number_shared and not landlord_asked_for_number:
+        if phone_type in {"viewing_first"} and outbound_count >= 1:
+            lines.append(
+                f"- MANDATORY: {outbound_count} message(s) sent so far with no phone number obtained. "
+                "This reply MUST include a brief, natural ask for the landlord's phone number — "
+                "e.g. 'Could I grab your number for the viewing?' Do not skip this."
+            )
+        elif phone_type in {"delayed", "adaptive"} and outbound_count >= 3:
+            lines.append(
+                f"- MANDATORY: {outbound_count} messages sent with no phone number obtained. "
+                "This reply MUST include a natural ask for the landlord's phone number."
+            )
 
     return lines
 

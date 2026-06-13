@@ -261,11 +261,9 @@ def generate_reply(
             )
 
     def build_prompt(conversation_text: str) -> str:
-        place = None
-        if stage == "VIEWING_BOOKED":
-            # Use the stored thread city if provided; only generate a fresh one
-            # as a last resort so the city stays consistent across all replies.
-            place = travel_city or generate_distant_location(property_location or "")
+        # travel_city is pre-resolved for all stages by the caller; use it
+        # directly so the origin city stays consistent across every reply.
+        place = travel_city
         return build_reply_prompt(
             conversation_text,
             stage or "VIEWING_DISCUSSION",

@@ -442,14 +442,30 @@ async def process_account_replies(
                 else:
                     hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
                     if hours_until < 24:
-                        # Viewing is within 24 hours — stay silent, reminder will
-                        # cancel 3–5h before. Clear any stale AI_FAILED status.
-                        logger.info(
-                            f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
-                            f"hours_until={hours_until:.1f} — reminder will cancel 3–5h before"
-                        )
-                        update_conversation_status(thread_id, SKIPPED)
-                        update_last_processed_message(thread_id, latest_landlord_message)
+                        if has_unanswered_landlord_message:
+                            # Landlord sent a message — cancel now so they get a reply
+                            # rather than being left on read until the reminder fires.
+                            logger.info(
+                                f"VIEWING_CANCEL_NOW thread_id={thread_id} "
+                                f"reason=unanswered_message hours_until={hours_until:.1f}"
+                            )
+                            cancelled = await _cancel_viewing_and_handoff(
+                                thread_id, messages, latest_landlord_message, page
+                            )
+                            if not cancelled:
+                                logger.warning(
+                                    f"VIEWING_CANCEL_FAILED thread_id={thread_id} "
+                                    "send_reply failed — will retry next worker run"
+                                )
+                        else:
+                            # No new landlord message — stay silent, reminder will
+                            # cancel 3–5h before.
+                            logger.info(
+                                f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
+                                f"hours_until={hours_until:.1f} — no new message, reminder will cancel 3–5h before"
+                            )
+                            update_conversation_status(thread_id, SKIPPED)
+                            update_last_processed_message(thread_id, latest_landlord_message)
                         continue
                     # Viewing is 24+ hours away — fall through so the AI can still
                     # reply to landlord messages (e.g. screening questions) while
