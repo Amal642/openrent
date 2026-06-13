@@ -425,6 +425,10 @@ async def process_account_replies(
                     f"THREAD_SKIPPED_REASON thread_id={thread_id} "
                     f"reason={conversation.conversation_stage.lower()}"
                 )
+                # Sync status so a stale AI_FAILED doesn't show on the dashboard
+                # for threads that already completed (just the status column lagged).
+                if conversation.status == "AI_FAILED":
+                    update_conversation_status(thread_id, conversation.conversation_stage)
                 update_last_processed_message(thread_id, latest_landlord_message)
                 continue
 
