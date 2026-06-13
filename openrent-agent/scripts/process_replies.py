@@ -779,22 +779,20 @@ async def process_account_replies(
                 f"at stage {stage or 'NEW_REPLY'}"
             )
 
-            # Resolve the travel city for VIEWING_BOOKED stage so it stays
-            # consistent across all replies within a single thread.
+            # Resolve the travel city for all stages so the tenant's origin
+            # location is consistent throughout the entire conversation.
             property_location = get_thread_property_location(thread_id)
-            travel_city = None
-            if stage == "VIEWING_BOOKED":
-                travel_city = get_travel_city(thread_id)
-                if travel_city:
-                    logger.info(
-                        f"TRAVEL_CITY_REUSED thread_id={thread_id} city={travel_city}"
-                    )
-                else:
-                    travel_city = generate_distant_location(property_location or "")
-                    save_travel_city(thread_id, travel_city)
-                    logger.info(
-                        f"TRAVEL_CITY_ASSIGNED thread_id={thread_id} city={travel_city}"
-                    )
+            travel_city = get_travel_city(thread_id)
+            if travel_city:
+                logger.info(
+                    f"TRAVEL_CITY_REUSED thread_id={thread_id} city={travel_city}"
+                )
+            elif property_location:
+                travel_city = generate_distant_location(property_location)
+                save_travel_city(thread_id, travel_city)
+                logger.info(
+                    f"TRAVEL_CITY_ASSIGNED thread_id={thread_id} city={travel_city}"
+                )
 
             reply, error = generate_reply(
                 messages,

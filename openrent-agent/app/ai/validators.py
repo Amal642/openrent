@@ -5,6 +5,12 @@ PHONE_LIKE_PATTERN = re.compile(
     r"(?<!\w)(?:\+44[\d\s().-]{7,}\d|44[\d\s().-]{8,}\d|0[1-9]\d[\d\s().-]{6,}\d)(?!\w)"
 )
 
+# Detect AI-generated template placeholders that were never substituted
+_PLACEHOLDER_RE = re.compile(
+    r"\[insert\b|\[number\]|\[phone\b|\[mobile\b|\[contact number\]|\[your number\]|\[tenant number\]",
+    re.I,
+)
+
 
 def is_valid_reply(reply):
 
@@ -40,6 +46,10 @@ def is_valid_reply(reply):
 
         if phrase in lower:
             return False
+
+    # Reject replies that contain unsubstituted template placeholders
+    if _PLACEHOLDER_RE.search(reply):
+        return False
 
     return True
 

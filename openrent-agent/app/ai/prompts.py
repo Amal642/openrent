@@ -127,6 +127,7 @@ def build_reply_prompt(
             f"High: tenant is around 4-5 hours away, from {place}."
             if place else "Unknown"
         ),
+        origin_place=place,
         urgency="normal",
         friendliness_level="medium",
         trust_level="medium",
@@ -338,6 +339,7 @@ def generate_message_persona_prompt(
     phone_number_shared: bool = False,
     landlord_asked_for_number: bool = False,
     drive_distance: str | None = None,
+    origin_place: str | None = None,
     urgency: str | None = None,
     friendliness_level: str | None = None,
     trust_level: str | None = None,
@@ -444,6 +446,7 @@ Hard rules:
 - If the landlord asks for contact details, follow the phone sharing policy for this conversation design.
 - If the landlord offers an email or asks for one, politely redirect to phone contact later after the viewing is arranged.
 - Output only the final reply text and nothing else.
+{f"- Your home is in {origin_place} — you are travelling FROM there TO view this property. If the landlord asks where you live or where you are from, say {origin_place}. NEVER say you live in or near the property area." if origin_place else ""}
 
 Conversation:
 {conversation}
