@@ -251,7 +251,15 @@ async def _cancel_viewing_and_handoff(
 
     sent = await send_reply(page, cancel_msg)
     if not sent:
-        logger.warning(f"VIEWING_CANCEL_SEND_FAILED thread_id={thread_id}")
+        still_open = await can_reply(page)
+        if not still_open:
+            logger.warning(
+                f"VIEWING_CANCEL_REPLY_DISABLED thread_id={thread_id} "
+                "textarea disabled — marking reply_disabled"
+            )
+            update_conversation_status(thread_id, REPLY_DISABLED)
+        else:
+            logger.warning(f"VIEWING_CANCEL_SEND_FAILED thread_id={thread_id}")
         return False
 
     logger.info(f"VIEWING_CANCEL_SENT thread_id={thread_id}")
@@ -302,7 +310,15 @@ async def _send_handoff_message(thread_id, messages, latest_landlord_message, pa
 
     sent = await send_reply(page, handoff_message)
     if not sent:
-        logger.warning(f"Handoff message send failed for thread {thread_id}")
+        still_open = await can_reply(page)
+        if not still_open:
+            logger.warning(
+                f"HANDOFF_REPLY_DISABLED thread_id={thread_id} "
+                "textarea disabled — marking reply_disabled"
+            )
+            update_conversation_status(thread_id, REPLY_DISABLED)
+        else:
+            logger.warning(f"Handoff message send failed for thread {thread_id}")
         return False
 
     logger.info("HANDOFF MESSAGE SENT")
@@ -440,7 +456,7 @@ async def process_account_replies(
                     if not cancelled:
                         logger.warning(
                             f"VIEWING_CANCEL_FAILED thread_id={thread_id} "
-                            "send_reply failed — will retry next worker run"
+                            "send_reply failed — status updated in helper"
                         )
                     continue
                 else:
