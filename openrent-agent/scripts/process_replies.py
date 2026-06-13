@@ -87,6 +87,20 @@ from app.db.status import (
 
 from datetime import datetime, timezone
 import re
+from pathlib import Path
+
+
+async def _screenshot_thread(page, thread_id: str) -> None:
+    """Save a full-page screenshot to screenshots/threads/<thread_id>/ for debugging."""
+    try:
+        folder = Path("screenshots") / "threads" / str(thread_id)
+        folder.mkdir(parents=True, exist_ok=True)
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        path = str(folder / f"{ts}.png")
+        await page.screenshot(path=path, full_page=True)
+        logger.info(f"THREAD_SCREENSHOT_SAVED thread_id={thread_id} path={path}")
+    except Exception as exc:
+        logger.warning(f"THREAD_SCREENSHOT_FAILED thread_id={thread_id} error={exc}")
 
 
 def _parse_message_timestamp(value):
@@ -417,6 +431,9 @@ async def process_account_replies(
                 f"THREAD_HAS_UNANSWERED_LANDLORD_MESSAGE thread_id={thread_id} "
                 f"value={has_unanswered_landlord_message}"
             )
+
+            if has_unanswered_landlord_message:
+                await _screenshot_thread(page, thread_id)
 
             if conversation and conversation.conversation_stage in (
                 HANDOFF_COMPLETE, VIEWING_CANCELLED
