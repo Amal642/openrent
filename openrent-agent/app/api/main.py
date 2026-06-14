@@ -1142,13 +1142,31 @@ def simulation_interactive_message(
     return submit_interactive_message(session_id, payload.message)
 
 
-@app.get("/screenshots/{thread_id}")
-def thread_screenshot(thread_id: str):
-    """Serve the latest debug screenshot for a thread — no auth required."""
-    path = Path("screenshots") / "threads" / thread_id / "latest.png"
+@app.get("/screenshots/{thread_id}/{filename}")
+def thread_screenshot(thread_id: str, filename: str):
+    """Serve a numbered screenshot for a thread — no auth required.
+    e.g. /screenshots/44338031/1.png"""
+    if not filename.endswith(".png"):
+        raise HTTPException(status_code=400, detail="Only .png files are served")
+    path = Path("screenshots") / "threads" / thread_id / filename
     if not path.exists():
-        raise HTTPException(status_code=404, detail="No screenshot found for this thread")
+        raise HTTPException(status_code=404, detail=f"Screenshot {filename} not found for thread {thread_id}")
     return FileResponse(str(path), media_type="image/png")
+
+
+@app.get("/screenshots/{thread_id}")
+def thread_screenshot_latest(thread_id: str):
+    """Serve the most recently saved screenshot for a thread."""
+    folder = Path("screenshots") / "threads" / thread_id
+    if not folder.exists():
+        raise HTTPException(status_code=404, detail="No screenshots found for this thread")
+    pngs = sorted(
+        [f for f in folder.iterdir() if f.suffix == ".png" and f.stem.isdigit()],
+        key=lambda f: int(f.stem),
+    )
+    if not pngs:
+        raise HTTPException(status_code=404, detail="No screenshots found for this thread")
+    return FileResponse(str(pngs[-1]), media_type="image/png")
 
 
 @app.get("/")
