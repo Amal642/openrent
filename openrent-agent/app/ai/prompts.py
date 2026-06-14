@@ -86,6 +86,7 @@ Rules:
 - Return ONLY the phone number.
 - If no landlord phone number exists, return EXACTLY: NONE.
 - Do not add any extra words, symbols, or explanation.
+- IMPORTANT: If the landlord is ASKING FOR a phone number (e.g. "send me your number", "what is your number", "could you share your number", "please send your contact") without providing their own number, return EXACTLY: NONE. Asking for a number is not the same as sharing one.
 """.strip()
 
 
@@ -464,6 +465,7 @@ Hard rules:
 - NEVER use square brackets [ ], curly brackets {{ }}, or any bracket notation as placeholders anywhere in your reply. A real person does not write [Company Name], [approximate amount], [insert anything], or any similar pattern. If a specific detail is unknown, omit it or rephrase naturally — never write a placeholder.
 - NEVER mention or invent a company name or employer name. If asked where you work, state only your job title (e.g. "I work as a software engineer" or "I'm in marketing"). Do not add "at [Company Name]" or any company reference of any kind.
 - NEVER write a placeholder for an income figure. The actual income amounts are provided above in the persona context — use them directly (e.g. "around £5,400 a month combined"). If for any reason the figure is unclear, say "comfortably covers the rent" — never write [approximate amount] or similar.
+- NEVER say "thanks for sharing your number", "thanks for your number", "got your number", or any phrase that implies you received the landlord's number UNLESS a sequence of actual digits (a phone number) is visibly present in the landlord's messages above. The landlord ASKING for the tenant's number is completely different from the landlord SHARING their own number — do not confuse them.
 {f"- Your home is in {origin_place} — you are travelling FROM there TO view this property. If the landlord asks where you live or where you are from, say {origin_place}. NEVER say you live in or near the property area." if origin_place else ""}
 
 Conversation:
@@ -663,6 +665,7 @@ Hard rules:
 - Never invent personal details.
 - Never use em dashes (—) or en dashes (–). Use a comma or a short separate sentence instead.
 - NEVER use square brackets, curly brackets, or any bracket notation as placeholders. Do not write [anything] — a real person does not write placeholders.
+- NEVER mention phone numbers, say "thanks for your number", "thanks for sharing your number", or acknowledge any contact details whatsoever. The ONLY purpose of this reply is to cancel the viewing. Even if the landlord mentioned or asked about a phone number in the conversation, do not reference it.
 - Output ONLY the final reply text.
 
 Preferred style examples:

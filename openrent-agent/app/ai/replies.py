@@ -412,6 +412,14 @@ def generate_reply_result(
     )
 
 
+_CANCEL_PHONE_ACK_RE = re.compile(
+    r"thanks for (sharing|sending|your)\s+(your\s+)?(number|phone|mobile|contact|details)"
+    r"|got your number|received your number|saved your number"
+    r"|thanks for (the|that) number",
+    re.I,
+)
+
+
 def generate_cancellation_message(messages=None, retries=3, base_delay=2):
     conversation = format_conversation(messages or [])
     prompt = build_cancel_viewing_prompt(conversation)
@@ -428,6 +436,12 @@ def generate_cancellation_message(messages=None, retries=3, base_delay=2):
             reply = _sanitize_dashes(response.choices[0].message.content.strip())
             if not is_valid_reply(reply):
                 return None, "invalid_cancellation_reply"
+            if _CANCEL_PHONE_ACK_RE.search(reply):
+                logger.warning(
+                    f"CANCEL_PHONE_ACK_BLOCKED attempt={attempt} reply_preview={reply[:80]!r}"
+                )
+                last_error = "cancel_reply_phone_ack"
+                continue
             return reply, None
         except (RateLimitError, APITimeoutError, APIError) as exc:
             last_error = str(exc)
