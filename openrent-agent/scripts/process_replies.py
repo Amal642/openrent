@@ -90,15 +90,19 @@ import re
 from pathlib import Path
 
 
-async def _screenshot_thread(page, thread_id: str) -> None:
-    """Save a full-page screenshot as screenshots/threads/<thread_id>/latest.png.
-    Always overwrites — only the most recent landlord-reply state is kept."""
+async def _screenshot_thread(page, thread_id: str, label: str | None = None) -> None:
+    """Save a full-page screenshot as screenshots/threads/<thread_id>/<n>.png.
+    Each call increments the counter so the full history is preserved."""
     try:
         folder = Path("screenshots") / "threads" / str(thread_id)
         folder.mkdir(parents=True, exist_ok=True)
-        path = str(folder / "latest.png")
+        existing = [f for f in folder.iterdir() if f.suffix == ".png" and f.stem.isdigit()]
+        next_n = len(existing) + 1
+        filename = f"{next_n}.png"
+        path = str(folder / filename)
         await page.screenshot(path=path, full_page=True)
-        logger.info(f"THREAD_SCREENSHOT_SAVED thread_id={thread_id} path={path}")
+        tag = f" label={label}" if label else ""
+        logger.info(f"THREAD_SCREENSHOT_SAVED thread_id={thread_id} path={path}{tag}")
     except Exception as exc:
         logger.warning(f"THREAD_SCREENSHOT_FAILED thread_id={thread_id} error={exc}")
 
@@ -458,8 +462,26 @@ async def process_account_replies(
             # Use current banner as primary source of truth — the DB flag can
             # be stale if the landlord cancelled the OpenRent viewing after it
             # was last stored (banner disappears, DB stays True).
+            #
+            # Fallback: banner gone (viewing date passed) but DB still has an
+            # uncancelled viewing_datetime → cancel now so we don't keep replying
+            # to a landlord whose viewing was yesterday.
+            _db_viewing_dt = getattr(conversation, "viewing_datetime", None) if conversation else None
+            _fallback_cancel = (
+                not banners["viewing_confirmed"]
+                and conversation
+                and not getattr(conversation, "viewing_cancelled", False)
+                and not conversation.handoff_completed_at
+                and _db_viewing_dt is not None
+                and _cancel_window_passed(_db_viewing_dt)
+            )
+            if _fallback_cancel:
+                logger.info(
+                    f"VIEWING_CANCEL_NOW thread_id={thread_id} reason=past_datetime_no_banner "
+                    f"viewing_dt={_db_viewing_dt}"
+                )
             if (
-                banners["viewing_confirmed"]
+                (banners["viewing_confirmed"] or _fallback_cancel)
                 and (not conversation or (
                     not getattr(conversation, "viewing_cancelled", False)
                     and not conversation.handoff_completed_at
@@ -604,6 +626,7 @@ async def process_account_replies(
                             f"PHONE_NORMALISE_EMPTY thread_id={thread_id} "
                             "AI extraction returned non-numeric text — ignoring"
                         )
+                        await _screenshot_thread(page, thread_id, label="number_removed_ai")
                         update_last_processed_message(thread_id, latest_landlord_message)
                         continue
 
@@ -681,6 +704,7 @@ async def process_account_replies(
                         f"PHONE_NORMALISE_EMPTY thread_id={thread_id} "
                         "regex extraction returned non-numeric text — ignoring"
                     )
+                    await _screenshot_thread(page, thread_id, label="number_removed_regex")
                     update_last_processed_message(thread_id, latest_landlord_message)
                     continue
 
