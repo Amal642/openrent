@@ -67,6 +67,7 @@ REQUIRED_COLUMNS = {
         "listings_last_scraped_at": "TIMESTAMP",
         "proxy_id": "INTEGER",
         "cooldown_until": "TIMESTAMP",
+        "next_outreach_at": "TIMESTAMP",
 
         "failed": "BOOLEAN DEFAULT FALSE",
         "failed_at": "TIMESTAMP",
@@ -112,6 +113,9 @@ REQUIRED_COLUMNS = {
         "processing_started_at": "TIMESTAMP",
 
         "travel_city": "VARCHAR",
+
+        "last_outbound_at": "TIMESTAMP",
+        "follow_up_count": "INTEGER DEFAULT 0",
     },
 }
 
@@ -185,10 +189,50 @@ def _migrate_account_proxies():
         db.close()
 
 
+def validate_schema_or_die():
+    """
+    Defense in depth against REQUIRED_COLUMNS drift: introspect every column
+    declared on every SQLAlchemy model (the single source of truth) and
+    compare against what actually exists in the live database. If a model
+    column was added but never registered in REQUIRED_COLUMNS above (exactly
+    what happened when next_outreach_at/last_outbound_at/follow_up_count were
+    added to models.py but not to this file), fail fast at startup with a
+    clear error instead of letting the app come up and crash later deep
+    inside a worker run with a cryptic psycopg2.UndefinedColumn traceback.
+    """
+    inspector = inspect(engine)
+    missing = []
+
+    for table in Base.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            missing.append(f"{table.name} (entire table missing)")
+            continue
+
+        existing_columns = {
+            column["name"].lower()
+            for column in inspector.get_columns(table.name)
+        }
+
+        for column in table.columns:
+            if column.name.lower() not in existing_columns:
+                missing.append(f"{table.name}.{column.name}")
+
+    if missing:
+        raise RuntimeError(
+            "Database schema is missing columns required by the current "
+            "SQLAlchemy models — the app cannot start safely:\n  "
+            + "\n  ".join(missing)
+            + "\n\nAdd the missing column(s) to REQUIRED_COLUMNS in "
+            "app/db/init_db.py (or run the matching file in "
+            "app/db/migrations/), then restart."
+        )
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 
     apply_schema_updates()
     _migrate_account_proxies()
+    validate_schema_or_die()
 
     print("Database initialized successfully")
