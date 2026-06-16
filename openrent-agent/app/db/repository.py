@@ -130,6 +130,12 @@ def update_proxy(proxy_id: int, **kwargs):
     from app.db.models import Proxy as _Proxy
     if "proxy_type" in kwargs and kwargs["proxy_type"] is not None:
         kwargs["proxy_type"] = _normalize_proxy_type(kwargs["proxy_type"])
+    # The real password is never sent back to the frontend (security), so the
+    # edit dialog always submits password="" unless the user retypes it. An
+    # empty string here means "leave unchanged", not "clear the password" —
+    # only a non-empty value should overwrite what's stored.
+    if kwargs.get("password") == "":
+        kwargs.pop("password", None)
     with session_scope() as db:
         p = db.query(_Proxy).filter(_Proxy.id == proxy_id).first()
         if not p:
