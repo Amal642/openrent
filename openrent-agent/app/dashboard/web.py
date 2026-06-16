@@ -20,6 +20,7 @@ STATUSES = [
     "AI_FAILED",
     "DUPLICATE_LEAD",
     "DEAD_THREAD",
+    "INACTIVE_NO_REPLY",
 ]
 
 

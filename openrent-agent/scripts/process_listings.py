@@ -15,6 +15,8 @@ from app.db.repository import (
     ensure_account_persona,
     release_listing_claim,
     save_message_once,
+    is_outreach_due,
+    set_next_outreach_at,
 )
 
 from app.openrent.popups import (close_popups, handle_confirmation_popups)
@@ -57,6 +59,18 @@ async def process_account_listings(
     if not can_send_message(account.id):
         logger.info(
             f"DAILY LIMIT REACHED for {account.email} — skipping outreach"
+        )
+        return
+
+    # Outreach is paced separately from the worker cooldown so new initial
+    # messages spread across the whole operating day (1-3h random gap)
+    # instead of bursting out the daily quota in the first run or two.
+    # Reply-checking (process_account_replies, run before this) is unaffected
+    # and keeps running on its own fast cooldown.
+    if not is_outreach_due(account.id):
+        logger.info(
+            f"OUTREACH_NOT_DUE account_id={account.id} email={account.email} "
+            "waiting for next_outreach_at — skipping new outreach this run"
         )
         return
 
@@ -216,6 +230,11 @@ async def process_account_listings(
             await handle_confirmation_popups(page)
             await page.wait_for_timeout(random.randint(3000, 7000))
             await close_popups(page)
+
+            # Only send one new initial message per run — schedule the next
+            # one 1-3h from now so outreach spreads across the operating day.
+            set_next_outreach_at(account.id)
+            break
 
         except Exception as e:
             logger.exception(

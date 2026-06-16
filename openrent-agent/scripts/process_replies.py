@@ -24,6 +24,9 @@ from app.db.repository import (
     get_thread_property_location,
     get_travel_city,
     save_travel_city,
+    increment_follow_up_count,
+    reset_follow_up_count,
+    mark_conversation_inactive,
 )
 
 
@@ -56,6 +59,7 @@ from app.ai.replies import (
     generate_cancel_viewing_message,
     generate_reply,
     generate_distant_location,
+    generate_follow_up_message,
 )
 
 from app.ai.validators import (
@@ -83,6 +87,7 @@ from app.db.status import (
     HANDOFF_COMPLETE,
     VIEWING_PENDING,
     VIEWING_CANCELLED,
+    INACTIVE_NO_REPLY,
 )
 
 from datetime import datetime, timezone
@@ -242,6 +247,12 @@ def _has_active_viewing(conversation) -> bool:
 
 
 _CANCEL_WINDOW_HOURS = 3.0  # cancel immediately if viewing is within this many hours
+
+# Cold-lead follow-up cadence: day1 initial, day2 follow-up1, day3 follow-up2,
+# day4 still silent -> mark inactive. Only applies to threads where the
+# landlord has never sent a single message.
+FOLLOW_UP_MAX = 2
+FOLLOW_UP_INTERVAL_DAYS = 1.0
 
 
 def _cancel_window_passed(viewing_dt) -> bool:
@@ -436,6 +447,23 @@ async def process_account_replies(
                 f"value={has_unanswered_landlord_message}"
             )
 
+            # Reactivate a cold lead the moment the landlord finally replies —
+            # a late reply is still a real lead, don't leave it stuck inactive.
+            if (
+                has_unanswered_landlord_message
+                and conversation
+                and (
+                    conversation.status == INACTIVE_NO_REPLY
+                    or (conversation.follow_up_count or 0) > 0
+                )
+            ):
+                logger.info(
+                    f"CONVERSATION_REACTIVATED thread_id={thread_id} "
+                    f"previous_status={conversation.status} "
+                    f"follow_up_count={conversation.follow_up_count}"
+                )
+                reset_follow_up_count(thread_id)
+
             if has_unanswered_landlord_message:
                 await _screenshot_thread(page, thread_id)
 
@@ -546,6 +574,50 @@ async def process_account_replies(
                 latest_landlord_message
                 and not has_unanswered_landlord_message
             ):
+                # Cold lead: landlord has never sent a single message. Apply the
+                # daily follow-up cadence instead of skipping forever.
+                if not latest_landlord_message and conversation.status != INACTIVE_NO_REPLY:
+                    last_outbound = conversation.last_outbound_at or conversation.created_at
+                    days_silent = (
+                        (datetime.utcnow() - last_outbound).total_seconds() / 86400
+                        if last_outbound else 0
+                    )
+                    follow_up_count = conversation.follow_up_count or 0
+
+                    if days_silent < FOLLOW_UP_INTERVAL_DAYS:
+                        update_conversation_status(thread_id, SKIPPED)
+                    elif follow_up_count < FOLLOW_UP_MAX:
+                        follow_up_msg, err = generate_follow_up_message(
+                            messages, follow_up_number=follow_up_count + 1
+                        )
+                        if follow_up_msg:
+                            sent = await send_reply(page, follow_up_msg)
+                            if sent:
+                                save_message(thread_id, "outbound", follow_up_msg)
+                                new_count = increment_follow_up_count(thread_id)
+                                logger.info(
+                                    f"FOLLOW_UP_SENT thread_id={thread_id} "
+                                    f"number={new_count} days_silent={days_silent:.1f}"
+                                )
+                            else:
+                                still_open = await can_reply(page)
+                                if not still_open:
+                                    update_conversation_status(thread_id, REPLY_DISABLED)
+                                logger.warning(
+                                    f"FOLLOW_UP_SEND_FAILED thread_id={thread_id}"
+                                )
+                        else:
+                            logger.warning(
+                                f"FOLLOW_UP_GENERATION_FAILED thread_id={thread_id} error={err}"
+                            )
+                    else:
+                        mark_conversation_inactive(thread_id)
+                        logger.info(
+                            f"CONVERSATION_MARKED_INACTIVE thread_id={thread_id} "
+                            f"reason=no_reply_after_{follow_up_count}_followups "
+                            f"days_silent={days_silent:.1f}"
+                        )
+                    continue
 
                 logger.info(
                     f"THREAD_SKIPPED_REASON thread_id={thread_id} "

@@ -120,6 +120,7 @@ class Account(Base):
 
     listings_last_scraped_at = Column(DateTime, nullable=True)
     cooldown_until = Column(DateTime, nullable=True)
+    next_outreach_at = Column(DateTime, nullable=True)
 
     failed = Column(Boolean, default=False)
     failed_at = Column(DateTime, nullable=True)
@@ -269,6 +270,9 @@ class Conversation(Base):
         DateTime,
         nullable=True
     )
+
+    last_outbound_at = Column(DateTime, nullable=True)
+    follow_up_count = Column(Integer, default=0)
 
     viewing_requested = Column(
         Boolean,

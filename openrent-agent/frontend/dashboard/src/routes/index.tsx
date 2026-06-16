@@ -55,6 +55,7 @@ const statusFilters = [
   { label: "Needs attention", value: "attention" },
   { label: "Active", value: "active" },
   { label: "With phones", value: "phones" },
+  { label: "Inactive", value: "inactive" },
 ];
 
 function Dashboard() {
@@ -121,6 +122,7 @@ function Dashboard() {
           return ["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"].includes(lead.status);
         }
         if (statusFilter === "phones") return Boolean(lead.phoneNumber);
+        if (statusFilter === "inactive") return lead.status === "INACTIVE_NO_REPLY";
         return true;
       })
       .sort((a, b) => b.lastUpdatedAt.localeCompare(a.lastUpdatedAt))

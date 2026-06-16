@@ -7,6 +7,7 @@ from openai import APIError, APITimeoutError, OpenAI, RateLimitError
 from app.ai.prompts import (
     build_cancel_viewing_prompt,
     build_drive_distance,
+    build_follow_up_prompt,
     build_initial_enquiry_prompt,
     build_reply_prompt,
     names_generator,
@@ -456,6 +457,40 @@ def generate_cancellation_message(messages=None, retries=3, base_delay=2):
             break
 
     return None, last_error or "cancellation_reply_failed"
+
+
+def generate_follow_up_message(messages=None, follow_up_number=1, retries=3, base_delay=2):
+    """Generate a check-in nudge for a cold lead (landlord never replied)."""
+    conversation = format_conversation(messages or [])
+    prompt = build_follow_up_prompt(conversation, follow_up_number)
+
+    last_error = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+            reply = _sanitize_dashes(response.choices[0].message.content.strip())
+            if not is_valid_reply(reply):
+                last_error = "invalid_follow_up_reply"
+                continue
+            return reply, None
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            last_error = str(exc)
+            logger.warning(
+                f"Follow-up message attempt {attempt}/{retries} failed: {exc}"
+            )
+            if attempt < retries:
+                time.sleep(base_delay * attempt)
+        except Exception as exc:
+            last_error = str(exc)
+            logger.exception(f"Unexpected follow-up message error: {exc}")
+            break
+
+    return None, last_error or "follow_up_reply_failed"
 
 
 def generate_handoff_message(messages=None, retries=3, base_delay=2):

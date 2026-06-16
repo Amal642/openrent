@@ -818,6 +818,37 @@ def set_account_cooldown(account_id: int) -> None:
             )
 
 
+# ---------------- OUTREACH PACING ----------------
+# Separate from the account worker cooldown above: this gates only NEW
+# initial-message sending so outreach spreads across the whole operating
+# day, while reply-checking keeps running on the fast 20-40 min cooldown.
+
+OUTREACH_GAP_MIN_HOURS = 1
+OUTREACH_GAP_MAX_HOURS = 3
+
+
+def set_next_outreach_at(account_id: int) -> None:
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if account:
+            hours = random.uniform(OUTREACH_GAP_MIN_HOURS, OUTREACH_GAP_MAX_HOURS)
+            account.next_outreach_at = datetime.utcnow() + timedelta(hours=hours)
+            db.commit()
+            from app.utils.logger import logger
+            logger.info(
+                f"NEXT_OUTREACH_SCHEDULED account_id={account_id} "
+                f"next_outreach_at={account.next_outreach_at.strftime('%Y-%m-%d %H:%M')}"
+            )
+
+
+def is_outreach_due(account_id: int) -> bool:
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account or not account.next_outreach_at:
+            return True
+        return datetime.utcnow() >= account.next_outreach_at
+
+
 def is_account_on_cooldown(account_id: int) -> bool:
     from app.utils.scheduling import UK_TZ
     from app.utils.logger import logger as _logger
@@ -1135,6 +1166,8 @@ def save_message(thread_id, direction, content, created_at=None):
             created_at=created_at or datetime.utcnow(),
         )
         conversation.last_message_at = message.created_at
+        if direction == "outbound":
+            conversation.last_outbound_at = message.created_at
         db.add(message)
         db.commit()
 
@@ -1173,6 +1206,8 @@ def save_message_once(thread_id, direction, content, created_at=None):
             created_at=created_at or datetime.utcnow(),
         )
         conversation.last_message_at = message.created_at
+        if direction == "outbound":
+            conversation.last_outbound_at = message.created_at
         db.add(message)
         db.commit()
 
@@ -1403,6 +1438,50 @@ def mark_handoff_complete(thread_id):
             conversation.handoff_completed_at = now
             conversation.last_stage_change = now
             db.commit()
+
+
+# ---------------- FOLLOW-UP / INACTIVITY (cold leads with zero landlord reply) ----------------
+
+def increment_follow_up_count(thread_id) -> int:
+    """Increment follow_up_count and return the new value."""
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+        if not conversation:
+            return 0
+        conversation.follow_up_count = (conversation.follow_up_count or 0) + 1
+        db.commit()
+        return conversation.follow_up_count
+
+
+def reset_follow_up_count(thread_id) -> None:
+    """Reset follow_up_count to 0 — called when the landlord finally replies,
+    so a conversation reactivated from INACTIVE_NO_REPLY gets a fresh cadence
+    if it ever goes silent again."""
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+        if conversation and conversation.follow_up_count:
+            conversation.follow_up_count = 0
+            db.commit()
+
+
+def mark_conversation_inactive(thread_id) -> None:
+    """Mark a cold lead inactive after the follow-up cadence is exhausted.
+    Does not touch conversation_stage — if the landlord replies later,
+    the normal reply flow picks the thread back up automatically."""
+    from app.db.status import INACTIVE_NO_REPLY
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+        if conversation:
+            conversation.status = INACTIVE_NO_REPLY
+            db.commit()
+
+
 def update_conversation_status(
     thread_id,
     status

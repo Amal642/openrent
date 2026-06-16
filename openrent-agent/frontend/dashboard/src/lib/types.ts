@@ -9,6 +9,7 @@ export type LeadStatus =
   | "SKIPPED"
   | "DUPLICATE_LEAD"
   | "VIEWING_CANCELLED"
+  | "INACTIVE_NO_REPLY"
   | "CLOSED";
 
 export type ConversationStage =
