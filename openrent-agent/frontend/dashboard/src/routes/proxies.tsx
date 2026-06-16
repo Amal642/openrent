@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -41,8 +48,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createProxy, deleteProxy, getProxies, updateProxy } from "@/lib/api";
-import type { Proxy } from "@/lib/types";
+import type { Proxy, ProxyType } from "@/lib/types";
 import { toast } from "sonner";
+
+const PROXY_TYPE_LABEL: Record<ProxyType, string> = {
+  static: "Static",
+  rotating: "Rotating",
+};
 
 export const Route = createFileRoute("/proxies")({
   head: () => ({
@@ -133,6 +145,7 @@ function ProxiesPage() {
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Host</TableHead>
               <TableHead>Port</TableHead>
               <TableHead>Username</TableHead>
@@ -144,7 +157,7 @@ function ProxiesPage() {
           <TableBody>
             {proxies.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                   No proxies yet. Add one to get started.
                 </TableCell>
               </TableRow>
@@ -152,6 +165,9 @@ function ProxiesPage() {
             {proxies.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">{p.name}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {PROXY_TYPE_LABEL[p.proxyType] ?? p.proxyType}
+                </TableCell>
                 <TableCell className="font-mono text-sm">{p.host}</TableCell>
                 <TableCell className="tabular-nums">{p.port || "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">
@@ -253,6 +269,7 @@ interface ProxyFormData {
   username?: string;
   password?: string;
   isActive: boolean;
+  proxyType: ProxyType;
 }
 
 function ProxyDialog({
@@ -268,7 +285,7 @@ function ProxyDialog({
   onSave: (data: ProxyFormData) => void;
   saving: boolean;
 }) {
-  const blank: ProxyFormData = { host: "", port: 0, isActive: true };
+  const blank: ProxyFormData = { host: "", port: 0, isActive: true, proxyType: "static" };
   const [data, setData] = useState<ProxyFormData>(blank);
 
   useEffect(() => {
@@ -283,6 +300,7 @@ function ProxyDialog({
               username: editing.username ?? "",
               password: "",
               isActive: editing.isActive,
+              proxyType: editing.proxyType,
             }
           : blank,
       );
@@ -302,11 +320,25 @@ function ProxyDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 py-2">
+          <Field label="Proxy type">
+            <Select
+              value={data.proxyType}
+              onValueChange={(v) => setData({ ...data, proxyType: v as ProxyType })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="static">Static</SelectItem>
+                <SelectItem value="rotating">Rotating</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
           <Field label="Name">
             <Input
               value={data.name ?? ""}
               onChange={(e) => setData({ ...data, name: e.target.value })}
-              placeholder="Auto-generated if left blank"
+              placeholder={`Auto-generated if left blank (e.g. ${data.proxyType === "rotating" ? "Rotating" : "Static"} Proxy 1)`}
             />
           </Field>
           <Field label="Host">

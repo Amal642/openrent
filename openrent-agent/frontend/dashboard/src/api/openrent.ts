@@ -15,6 +15,7 @@ import type {
   Proxy,
   ProxyHealthRow,
   ProxyTestResult,
+  ProxyType,
   SearchProfile,
   SessionStatus,
   ProxyStatus,
@@ -597,6 +598,7 @@ type BackendProxy = {
   port: number;
   username?: string;
   is_active?: boolean;
+  proxy_type?: ProxyType;
   created_at?: string;
   account_count?: number;
 };
@@ -609,6 +611,7 @@ function mapProxy(p: BackendProxy): Proxy {
     port: p.port,
     username: p.username,
     isActive: p.is_active ?? true,
+    proxyType: p.proxy_type ?? "static",
     createdAt: p.created_at || new Date().toISOString(),
     accountCount: p.account_count ?? 0,
   };
@@ -626,6 +629,7 @@ export async function createProxy(data: {
   username?: string;
   password?: string;
   isActive?: boolean;
+  proxyType?: ProxyType;
 }): Promise<Proxy> {
   const created = await post<BackendProxy>("/proxies", {
     name: data.name || undefined,
@@ -634,13 +638,22 @@ export async function createProxy(data: {
     username: data.username || undefined,
     password: data.password || undefined,
     is_active: data.isActive ?? true,
+    proxy_type: data.proxyType ?? "static",
   });
   return mapProxy(created);
 }
 
 export async function updateProxy(
   proxyId: string,
-  data: { name?: string; host?: string; port?: number; username?: string; password?: string; isActive?: boolean },
+  data: {
+    name?: string;
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
+    isActive?: boolean;
+    proxyType?: ProxyType;
+  },
 ): Promise<Proxy> {
   const updated = await patch<BackendProxy>(`/proxies/${proxyId}`, {
     name: data.name,
@@ -649,6 +662,7 @@ export async function updateProxy(
     username: data.username,
     password: data.password,
     is_active: data.isActive,
+    proxy_type: data.proxyType,
   });
   return mapProxy(updated);
 }

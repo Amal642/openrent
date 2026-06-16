@@ -42,6 +42,7 @@ export type WorkerStatus =
   | "login_error"
   | "error";
 export type ProxyStatus = "ok" | "degraded" | "down" | "not_configured" | "unknown";
+export type ProxyType = "static" | "rotating";
 
 export interface Proxy {
   id: string;
@@ -50,6 +51,7 @@ export interface Proxy {
   port: number;
   username?: string;
   isActive: boolean;
+  proxyType: ProxyType;
   createdAt: string;
   accountCount: number;
 }

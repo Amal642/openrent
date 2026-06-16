@@ -42,6 +42,8 @@ class Proxy(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
+    proxy_type = Column(String, default="static")  # "static" or "rotating"
+
     # Future-ready fields (nullable, not enforced yet)
     health_status = Column(String, nullable=True)
     last_check_at = Column(DateTime, nullable=True)

@@ -48,22 +48,34 @@ def session_scope():
 
 # ---------------- PROXIES ----------------
 
-def _next_proxy_name(db) -> str:
-    from app.db.models import Proxy as _Proxy
-    count = db.query(_Proxy).count()
-    return f"Proxy {count + 1}"
+PROXY_TYPES = {"static", "rotating"}
 
 
-def create_proxy(name=None, host="", port=0, username=None, password=None, is_active=True):
+def _normalize_proxy_type(proxy_type) -> str:
+    proxy_type = (proxy_type or "static").strip().lower()
+    return proxy_type if proxy_type in PROXY_TYPES else "static"
+
+
+def _next_proxy_name(db, proxy_type="static") -> str:
     from app.db.models import Proxy as _Proxy
+    proxy_type = _normalize_proxy_type(proxy_type)
+    count = db.query(_Proxy).filter(_Proxy.proxy_type == proxy_type).count()
+    label = "Static Proxy" if proxy_type == "static" else "Rotating Proxy"
+    return f"{label} {count + 1}"
+
+
+def create_proxy(name=None, host="", port=0, username=None, password=None, is_active=True, proxy_type="static"):
+    from app.db.models import Proxy as _Proxy
+    proxy_type = _normalize_proxy_type(proxy_type)
     with session_scope() as db:
         proxy = _Proxy(
-            name=name or _next_proxy_name(db),
+            name=name or _next_proxy_name(db, proxy_type),
             host=host,
             port=port,
             username=username or None,
             password=password or None,
             is_active=is_active,
+            proxy_type=proxy_type,
         )
         db.add(proxy)
         db.commit()
@@ -75,6 +87,7 @@ def create_proxy(name=None, host="", port=0, username=None, password=None, is_ac
             "port": proxy.port,
             "username": proxy.username,
             "is_active": proxy.is_active,
+            "proxy_type": proxy.proxy_type,
             "created_at": proxy.created_at,
             "account_count": 0,
         }
@@ -106,6 +119,7 @@ def _serialize_proxy(proxy, db) -> dict:
         "port": proxy.port,
         "username": proxy.username,
         "is_active": proxy.is_active,
+        "proxy_type": proxy.proxy_type or "static",
         "created_at": proxy.created_at,
         "updated_at": proxy.updated_at,
         "account_count": count,
@@ -114,11 +128,13 @@ def _serialize_proxy(proxy, db) -> dict:
 
 def update_proxy(proxy_id: int, **kwargs):
     from app.db.models import Proxy as _Proxy
+    if "proxy_type" in kwargs and kwargs["proxy_type"] is not None:
+        kwargs["proxy_type"] = _normalize_proxy_type(kwargs["proxy_type"])
     with session_scope() as db:
         p = db.query(_Proxy).filter(_Proxy.id == proxy_id).first()
         if not p:
             return None
-        allowed = {"name", "host", "port", "username", "password", "is_active"}
+        allowed = {"name", "host", "port", "username", "password", "is_active", "proxy_type"}
         for key, value in kwargs.items():
             if key in allowed and value is not None:
                 setattr(p, key, value)
@@ -139,6 +155,96 @@ def delete_proxy(proxy_id: int):
         db.delete(p)
         db.commit()
         return {"deleted": True, "id": proxy_id}, None
+
+
+def find_replacement_proxy(exclude_proxy_id: int, prefer_type: str = "static"):
+    """
+    Pick a healthy, active, spare proxy to take over for a failing one.
+    Prefers prefer_type (e.g. keep static accounts on static proxies),
+    falling back to any healthy active proxy of another type. Among
+    candidates of the preferred type, picks the least-loaded one (fewest
+    accounts already assigned) to spread load. Returns the proxy id, or
+    None if nothing suitable is available.
+    """
+    from sqlalchemy import or_
+    from app.db.models import Proxy as _Proxy, Account as _Account
+
+    prefer_type = _normalize_proxy_type(prefer_type)
+
+    with session_scope() as db:
+        candidates = (
+            db.query(_Proxy)
+            .filter(
+                _Proxy.id != exclude_proxy_id,
+                _Proxy.is_active == True,
+                or_(_Proxy.health_status == "ok", _Proxy.health_status == None),
+            )
+            .all()
+        )
+        if not candidates:
+            return None
+
+        def _load(proxy_id: int) -> int:
+            return db.query(_Account).filter(_Account.proxy_id == proxy_id).count()
+
+        preferred = [c for c in candidates if _normalize_proxy_type(c.proxy_type) == prefer_type]
+        pool = preferred if preferred else candidates
+        pool.sort(key=lambda c: _load(c.id))
+        return pool[0].id
+
+
+def reassign_account_proxy(account_id: int, reason: str = "proxy_failure"):
+    """
+    Move an account off its current (repeatedly failing) proxy onto a
+    healthy replacement, preferring the same proxy type. Deactivates the
+    old proxy so it isn't handed out to other accounts while still broken.
+    If no replacement is available, marks the account failed so the
+    problem is visible on the dashboard instead of retrying forever.
+    """
+    from app.db.models import Account as _Account, Proxy as _Proxy
+    from app.utils.logger import logger
+
+    with session_scope() as db:
+        account = db.query(_Account).filter(_Account.id == account_id).first()
+        if not account or not account.proxy_id:
+            return {"reassigned": False, "reason": "no_proxy_assigned"}
+        old_proxy_id = account.proxy_id
+        old_proxy = db.query(_Proxy).filter(_Proxy.id == old_proxy_id).first()
+        prefer_type = _normalize_proxy_type(old_proxy.proxy_type if old_proxy else "static")
+
+    new_proxy_id = find_replacement_proxy(old_proxy_id, prefer_type=prefer_type)
+
+    if not new_proxy_id:
+        mark_account_failed(
+            account_id,
+            f"NO_SPARE_PROXY_AVAILABLE old_proxy_id={old_proxy_id} reason={reason}",
+        )
+        logger.error(
+            f"PROXY_REASSIGN_FAILED account_id={account_id} "
+            f"old_proxy_id={old_proxy_id} reason=no_spare_available"
+        )
+        return {"reassigned": False, "reason": "no_spare_available", "old_proxy_id": old_proxy_id}
+
+    with session_scope() as db:
+        account = db.query(_Account).filter(_Account.id == account_id).first()
+        if not account:
+            return {"reassigned": False, "reason": "account_missing"}
+        account.proxy_id = new_proxy_id
+        account.proxy_status = "unknown"
+        account.proxy_failures = 0
+
+        old_proxy = db.query(_Proxy).filter(_Proxy.id == old_proxy_id).first()
+        if old_proxy:
+            old_proxy.is_active = False
+            old_proxy.updated_at = datetime.utcnow()
+
+        db.commit()
+
+    logger.warning(
+        f"PROXY_REASSIGNED account_id={account_id} "
+        f"old_proxy_id={old_proxy_id} new_proxy_id={new_proxy_id} reason={reason}"
+    )
+    return {"reassigned": True, "old_proxy_id": old_proxy_id, "new_proxy_id": new_proxy_id}
 
 
 def proxy_account_count(proxy_id: int) -> int:

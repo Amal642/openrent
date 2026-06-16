@@ -11,6 +11,7 @@ REQUIRED_COLUMNS = {
         "country":        "VARCHAR",
         "provider":       "VARCHAR",
         "failure_count":  "INTEGER DEFAULT 0",
+        "proxy_type":     "VARCHAR DEFAULT 'static'",
     },
 
     "accounts": {

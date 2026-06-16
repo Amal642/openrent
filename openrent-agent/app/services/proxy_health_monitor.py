@@ -10,6 +10,10 @@ UNHEALTHY_PROXY_STATUSES = {"down", "failed"}
 UNHEALTHY_WORKER_STATUSES = {"proxy_error"}
 MONITOR_POLL_INTERVAL_SECONDS = 60
 
+# After this many consecutive failed health checks on the same proxy, stop
+# retrying it and reassign every account on it to a healthy spare instead.
+REASSIGN_AFTER_FAILURES = 3
+
 # in-memory: proxy_key → {failures: int, next_check_at: datetime}
 _proxy_retry_state: dict[str, dict] = {}
 
@@ -137,6 +141,35 @@ async def _run_monitor_cycle():
                     await start_account_worker(candidate.id)
         else:
             failures = state["failures"] + 1
+
+            if failures >= REASSIGN_AFTER_FAILURES:
+                from app.db.repository import reassign_account_proxy
+
+                logger.warning(
+                    f"PROXY_REASSIGN_TRIGGERED proxy_key={key} "
+                    f"failures={failures} error={result.get('error', '')}"
+                )
+                _proxy_retry_state.pop(key, None)
+
+                for candidate in accounts:
+                    if _proxy_key(candidate) != key:
+                        continue
+                    outcome = reassign_account_proxy(
+                        candidate.id, reason="proxy_unhealthy_3_retries"
+                    )
+                    if outcome.get("reassigned"):
+                        update_account_worker_state(
+                            candidate.id, "idle", phase="proxy_reassigned"
+                        )
+                        from app.workers.account_worker import start_account_worker
+                        await start_account_worker(candidate.id)
+                    else:
+                        logger.error(
+                            f"PROXY_REASSIGN_FAILED account_id={candidate.id} "
+                            f"reason={outcome.get('reason')}"
+                        )
+                continue
+
             interval_idx = min(failures, len(RETRY_INTERVALS_MINUTES) - 1)
             next_check = now + timedelta(minutes=RETRY_INTERVALS_MINUTES[interval_idx])
             _proxy_retry_state[key] = {"failures": failures, "next_check_at": next_check}

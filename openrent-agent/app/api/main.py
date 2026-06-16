@@ -92,6 +92,7 @@ class ProxyPayload(BaseModel):
     username: str | None = None
     password: str | None = None
     is_active: bool = True
+    proxy_type: str = "static"
 
 
 class ProxyUpdatePayload(BaseModel):
@@ -101,6 +102,7 @@ class ProxyUpdatePayload(BaseModel):
     username: str | None = None
     password: str | None = None
     is_active: bool | None = None
+    proxy_type: str | None = None
 
 
 class AccountCreatePayload(BaseModel):
@@ -701,6 +703,7 @@ def api_create_proxy(payload: ProxyPayload):
         username=payload.username or None,
         password=payload.password or None,
         is_active=payload.is_active,
+        proxy_type=payload.proxy_type,
     )
 
 
@@ -714,6 +717,7 @@ def api_update_proxy(proxy_id: int, payload: ProxyUpdatePayload):
         username=payload.username,
         password=payload.password,
         is_active=payload.is_active,
+        proxy_type=payload.proxy_type,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Proxy not found")
