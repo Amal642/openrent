@@ -266,6 +266,23 @@ def _cancel_window_passed(viewing_dt) -> bool:
     return hours_until <= _CANCEL_WINDOW_HOURS
 
 
+def _assign_playbook_ab_if_enabled(thread_id, persona):
+    """Idempotently assign/log before any automated message when the A/B flag is on."""
+    if os.getenv("PLAYBOOK_AB_ENABLED") != "1":
+        return None
+
+    assignment = playbook_ab.assign(
+        thread_id,
+        persona,
+        os.getenv("PLAYBOOK_AB_LOG", "logs/playbook_ab_assignments.jsonl"),
+    )
+    logger.info(
+        f"PLAYBOOK_AB thread_id={thread_id} arm={assignment['assigned_arm']} "
+        f"design={assignment['assigned_design_id']} expose_mobile={assignment['expose_mobile']}"
+    )
+    return assignment
+
+
 async def _cancel_viewing_and_handoff(
     thread_id, messages, latest_landlord_message, page,
     persona=None, landlord_attitude=None,
@@ -273,6 +290,7 @@ async def _cancel_viewing_and_handoff(
     """Send a viewing cancellation, mark the viewing cancelled, and complete handoff."""
     logger.info(f"VIEWING_CANCEL_TRIGGERED thread_id={thread_id}")
 
+    _assign_playbook_ab_if_enabled(thread_id, persona)
     cancel_msg, error = generate_cancel_viewing_message(messages)
     if not cancel_msg or error:
         logger.warning(
@@ -322,9 +340,12 @@ async def _try_save_viewing_datetime(thread_id, messages) -> bool:
     return True
 
 
-async def _send_handoff_message(thread_id, messages, latest_landlord_message, page, message=None):
+async def _send_handoff_message(
+    thread_id, messages, latest_landlord_message, page, message=None, persona=None
+):
     logger.info("PHONE NUMBER EXTRACTED")
 
+    _assign_playbook_ab_if_enabled(thread_id, persona)
     if message:
         handoff_message = message
         handoff_error = None
@@ -544,7 +565,8 @@ async def process_account_replies(
                                 f"reason=unanswered_message hours_until={hours_until:.1f}"
                             )
                             cancelled = await _cancel_viewing_and_handoff(
-                                thread_id, messages, latest_landlord_message, page
+                                thread_id, messages, latest_landlord_message, page,
+                                persona=persona,
                             )
                             if not cancelled:
                                 logger.warning(
@@ -590,6 +612,7 @@ async def process_account_replies(
                     if days_silent < FOLLOW_UP_INTERVAL_DAYS:
                         update_conversation_status(thread_id, SKIPPED)
                     elif follow_up_count < FOLLOW_UP_MAX:
+                        _assign_playbook_ab_if_enabled(thread_id, None)
                         follow_up_msg, err = generate_follow_up_message(
                             messages, follow_up_number=follow_up_count + 1
                         )
@@ -815,7 +838,8 @@ async def process_account_replies(
                         reason = "no_datetime" if viewing_dt is None else "window_passed"
                         logger.info(f"VIEWING_CANCEL_NOW thread_id={thread_id} trigger=phone_found reason={reason}")
                         cancelled = await _cancel_viewing_and_handoff(
-                            thread_id, messages, latest_landlord_message, page
+                            thread_id, messages, latest_landlord_message, page,
+                            persona=persona,
                         )
                         if not cancelled:
                             logger.warning(f"VIEWING_CANCEL_FAILED thread_id={thread_id}")
@@ -905,6 +929,10 @@ async def process_account_replies(
 
                 continue
 
+            # OPEN-21D playbook A/B: assign + log BEFORE any automated reply path.
+            # No-op unless PLAYBOOK_AB_ENABLED=1.
+            ab_assignment = _assign_playbook_ab_if_enabled(thread_id, persona)
+
             name_reply = (
                 _build_name_reply(persona)
                 if _is_name_question(latest_landlord_message)
@@ -950,20 +978,11 @@ async def process_account_replies(
                     f"TRAVEL_CITY_ASSIGNED thread_id={thread_id} city={travel_city}"
                 )
 
-            # --- OPEN-21D playbook A/B: assign + log BEFORE the first AI message.
-            # No-op unless PLAYBOOK_AB_ENABLED=1 (ab_design stays None == exact current behaviour).
-            ab_design = None
-            if os.getenv("PLAYBOOK_AB_ENABLED") == "1":
-                _ab = playbook_ab.assign(
-                    thread_id,
-                    persona,
-                    os.getenv("PLAYBOOK_AB_LOG", "logs/playbook_ab_assignments.jsonl"),
-                )
-                ab_design = _ab["assigned_design_id"]
-                logger.info(
-                    f"PLAYBOOK_AB thread_id={thread_id} arm={_ab['assigned_arm']} "
-                    f"design={ab_design} expose_mobile={_ab['expose_mobile']}"
-                )
+            ab_design = (
+                ab_assignment["assigned_design_id"]
+                if ab_assignment
+                else None
+            )
 
             # Arm B (landlord-number-capture designs) must NOT have the tenant mobile injected by
             # the safeguard below - that would re-add the number the playbook withholds. For arm A
