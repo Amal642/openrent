@@ -62,6 +62,9 @@ from app.ai.replies import (
     generate_follow_up_message,
 )
 
+import os  # OPEN-21D playbook A/B
+from app.experiments import playbook_ab  # OPEN-21D playbook A/B
+
 from app.ai.validators import (
     remove_unapproved_phone_numbers
 )
@@ -947,12 +950,33 @@ async def process_account_replies(
                     f"TRAVEL_CITY_ASSIGNED thread_id={thread_id} city={travel_city}"
                 )
 
+            # --- OPEN-21D playbook A/B: assign + log BEFORE the first AI message.
+            # No-op unless PLAYBOOK_AB_ENABLED=1 (ab_design stays None == exact current behaviour).
+            ab_design = None
+            if os.getenv("PLAYBOOK_AB_ENABLED") == "1":
+                _ab = playbook_ab.assign(
+                    thread_id,
+                    persona,
+                    os.getenv("PLAYBOOK_AB_LOG", "logs/playbook_ab_assignments.jsonl"),
+                )
+                ab_design = _ab["assigned_design_id"]
+                logger.info(
+                    f"PLAYBOOK_AB thread_id={thread_id} arm={_ab['assigned_arm']} "
+                    f"design={ab_design} expose_mobile={_ab['expose_mobile']}"
+                )
+
+            # Arm B (landlord-number-capture designs) must NOT have the tenant mobile injected by
+            # the safeguard below — that would re-add the number the playbook withholds. For arm A
+            # / flag-off, ab_design is None -> True -> exact current behaviour.
+            ab_expose_mobile = ab_design not in playbook_ab.LANDLORD_NUMBER_CAPTURE_DESIGNS
+
             reply, error = generate_reply(
                 messages,
                 stage=stage,
                 persona=persona,
                 property_location=property_location,
                 conversation=conversation,
+                conversation_design_id=ab_design,
                 landlord_attitude=landlord_attitude,
                 conversation_style=conversation_style,
                 travel_city=travel_city,
@@ -996,7 +1020,7 @@ async def process_account_replies(
                 before_safeguard = reply
                 reply = remove_unapproved_phone_numbers(reply, mobile)
 
-                if mobile and mobile not in reply and not screening_questions:
+                if mobile and mobile not in reply and not screening_questions and ab_expose_mobile:
                     reply = (
                         f"{reply.rstrip()} My number is {mobile}."
                         if reply
@@ -1072,6 +1096,27 @@ async def process_account_replies(
             logger.info("Reply sent")
             save_message(thread_id, "outbound", reply)
             logger.info(f"Outbound reply persisted for thread {thread_id}")
+
+            # OPEN-21D playbook A/B — append-only HEURISTIC outcome diagnostics. No-op unless
+            # enabled; wrapped so it can NEVER affect reply behaviour. NOT the primary outcome:
+            # qualified_landlord_phone_capture is graded ARM-BLIND by the frozen v2 grader.
+            if os.getenv("PLAYBOOK_AB_ENABLED") == "1":
+                try:
+                    playbook_ab.log_outcome(
+                        thread_id,
+                        os.getenv("PLAYBOOK_AB_OUTCOME_LOG", "logs/playbook_ab_outcomes.jsonl"),
+                        reply_received=bool(landlord_texts),
+                        landlord_phone_captured=bool(phone),
+                        landlord_number_requested=playbook_ab.asks_for_landlord_number(reply),
+                        tenant_number_given_first=bool(mobile and mobile in reply and not phone),
+                        conversation_progressed=(stage == "VIEWING_BOOKED"),
+                        parked_or_dropped=None,
+                        unsafe_or_pushy_detected=None,
+                    )
+                except Exception as _ab_e:
+                    logger.warning(
+                        f"PLAYBOOK_AB outcome log failed thread_id={thread_id}: {_ab_e}"
+                    )
 
             # Conversation status updates: move metadata forward after a valid
             # reply is generated and sent.

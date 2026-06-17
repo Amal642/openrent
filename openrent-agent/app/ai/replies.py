@@ -11,6 +11,7 @@ from app.ai.prompts import (
     build_initial_enquiry_prompt,
     build_reply_prompt,
     names_generator,
+    LANDLORD_NUMBER_CAPTURE_DESIGNS,
 )
 from app.ai.conversation_memory import (
     detect_screening_questions,
@@ -245,8 +246,7 @@ def generate_reply(
         landlord_asked_number
         and not number_shared
         and not screening_questions  # defer to full prompt when screening present
-        and conversation_design_id
-        not in {"corpus_number_capture_v1", "corpus_number_capture_v2"}
+        and conversation_design_id not in LANDLORD_NUMBER_CAPTURE_DESIGNS
     ):
         phone_reply = generate_phone_share_reply(
             persona,

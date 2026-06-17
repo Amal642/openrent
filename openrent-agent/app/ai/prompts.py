@@ -63,13 +63,36 @@ _DESIGN_RULES: dict[str, list[str]] = {
         "If the landlord seems suspicious, stop phone pressure, give one brief trust-building detail from the persona, and continue on OpenRent.",
         "If the viewing is confirmed immediately after a refusal, acknowledge the booking and keep it on OpenRent; do not instantly ask for the number.",
     ],
+    # OPEN-21D A/B playbook design: a CLONE of corpus_number_capture_v2 + rule P5 (drop/park dead
+    # leads). Separate id so corpus_number_capture_v2 is left untouched for any other use, and the
+    # A/B logs truthfully show this design id as the effective design.
+    "playbook_ab_v1": [
+        "Primary goal: get the landlord's number naturally, but never make the number look like the main goal.",
+        "Do not share the tenant mobile number. If pressed for it, say you would rather not share yours just yet because of past bad experiences, and offer to keep it on OpenRent if they prefer.",
+        "Answer landlord screening questions first using only persona facts, especially work, household, income/affordability, and move timing.",
+        "When answering work screening, use explicit human wording like 'I work full-time as...' or 'my partner works as...' rather than only giving job titles.",
+        "If one partner is at home or not working, say that plainly using persona facts; do not invent a second income.",
+        "Before any phone ask, create a practical viewing reason: agreed or proposed viewing, video viewing, travel, delays, entrance, directions, or same-day updates.",
+        "If the landlord is withholding contact details until screening is answered, answer screening and then use a direct but soft line like 'Could I get your number just in case we're delayed getting there?'",
+        "Avoid polished phrases like 'best number', 'coordinate', 'contact details', 'sort timing', or 'kindly share'. Use normal wording like 'could I get your number' or 'just in case we're delayed'.",
+        "If the landlord refuses to share a number before a viewing is booked, do not ask again in the next tenant reply. Accept it and keep arranging the viewing on OpenRent.",
+        "After a phone refusal, only ask again later if there is a new practical reason, such as travel on the day, finding the entrance, or a video viewing setup.",
+        "If the landlord seems suspicious, stop phone pressure, give one brief trust-building detail from the persona, and continue on OpenRent.",
+        "If the viewing is confirmed immediately after a refusal, acknowledge the booking and keep it on OpenRent; do not instantly ask for the number.",
+        # OPEN-21D playbook rule P5 (drop/park dead leads):
+        "If the property is unavailable or already let, or the landlord is unresponsive or only objecting, park the lead politely and stop; do not keep pushing a dead lead.",
+    ],
 }
 
 
 LANDLORD_NUMBER_CAPTURE_DESIGNS = {
     "corpus_number_capture_v1",
     "corpus_number_capture_v2",
+    "playbook_ab_v1",   # OPEN-21D A/B (clone of v2 + P5); withholds tenant mobile like the corpus designs
 }
+
+# Designs that use the corpus_number_capture_v2-style phrasing + extra rules.
+CORPUS_V2_STYLE_DESIGNS = {"corpus_number_capture_v2", "playbook_ab_v1"}
 
 
 def build_phone_extraction_prompt(text: str) -> str:
@@ -239,7 +262,7 @@ def _phone_policy_lines(
     if conversation_design_id in LANDLORD_NUMBER_CAPTURE_DESIGNS:
         number_phrase = (
             "the landlord's number"
-            if conversation_design_id == "corpus_number_capture_v2"
+            if conversation_design_id in CORPUS_V2_STYLE_DESIGNS
             else "the landlord's best number"
         )
         lines = [
@@ -258,7 +281,7 @@ def _phone_policy_lines(
             lines.append(
                 f"- A viewing appears booked, so it can be appropriate to ask for {number_phrase} for practical viewing logistics unless the landlord has just refused phone sharing."
             )
-        if conversation_design_id == "corpus_number_capture_v2":
+        if conversation_design_id in CORPUS_V2_STYLE_DESIGNS:
             lines.extend(
                 [
                     "- If the landlord has refused to share a number, respect that for the next tenant reply and keep arranging on OpenRent.",
