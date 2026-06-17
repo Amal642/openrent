@@ -60,6 +60,10 @@ env/
 
 *.log
 logs/
+*.jsonl
+transcripts/
+transcript*/
+full-conversations*.md
 *.out
 *.err
 

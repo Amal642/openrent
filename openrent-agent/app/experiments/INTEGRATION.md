@@ -1,6 +1,6 @@
-# OPEN-21D playbook A/B — production wiring (drop-in)
+# OPEN-21D playbook A/B - production wiring (drop-in)
 
-The A/B is implemented as `app/experiments/playbook_ab.py` (assignment + arm→design_id +
+The A/B is implemented as `app/experiments/playbook_ab.py` (assignment + arm-to-design_id +
 logging + outcome diagnostics). The only behavioural switch is which `conversation_design_id`
 is passed to `generate_reply`.
 
@@ -20,7 +20,7 @@ Production code changes:
 - **Arm B (playbook)** = `conversation_design_id="playbook_ab_v1"` (clone of
   `corpus_number_capture_v2` + P5; mobile WITHHELD because it is in
   `LANDLORD_NUMBER_CAPTURE_DESIGNS`, and the injection safeguard is arm-gated).
-- Human-operated message history is REFERENCE/BASELINE only — NOT arm A. Both arms are AI.
+- Human-operated message history is REFERENCE/BASELINE only - NOT arm A. Both arms are AI.
 
 ## Status: APPLIED at the real call site
 
@@ -73,8 +73,8 @@ from app.experiments import playbook_ab
 playbook_ab.log_outcome(
     thread_id, os.getenv("PLAYBOOK_AB_OUTCOME_LOG", "logs/playbook_ab_outcomes.jsonl"),
     landlord_number_requested=<bool>,   # did the AI ask for the landlord's number
-    landlord_number_captured=<bool>,    # did we obtain the landlord's number (use phone_extractor)
-    parked_dropped=<bool>,              # was the lead parked/stopped (P5)
+    landlord_phone_captured=<bool>,     # did we obtain the landlord's number (use phone_extractor)
+    parked_or_dropped=<bool>,           # was the lead parked/stopped (P5)
 )
 ```
 `qualified_landlord_phone_capture` is filled later by the ARM-BLIND v2 grader

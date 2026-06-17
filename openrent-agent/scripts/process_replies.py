@@ -966,7 +966,7 @@ async def process_account_replies(
                 )
 
             # Arm B (landlord-number-capture designs) must NOT have the tenant mobile injected by
-            # the safeguard below — that would re-add the number the playbook withholds. For arm A
+            # the safeguard below - that would re-add the number the playbook withholds. For arm A
             # / flag-off, ab_design is None -> True -> exact current behaviour.
             ab_expose_mobile = ab_design not in playbook_ab.LANDLORD_NUMBER_CAPTURE_DESIGNS
 
@@ -1097,7 +1097,7 @@ async def process_account_replies(
             save_message(thread_id, "outbound", reply)
             logger.info(f"Outbound reply persisted for thread {thread_id}")
 
-            # OPEN-21D playbook A/B — append-only HEURISTIC outcome diagnostics. No-op unless
+            # OPEN-21D playbook A/B - append-only HEURISTIC outcome diagnostics. No-op unless
             # enabled; wrapped so it can NEVER affect reply behaviour. NOT the primary outcome:
             # qualified_landlord_phone_capture is graded ARM-BLIND by the frozen v2 grader.
             if os.getenv("PLAYBOOK_AB_ENABLED") == "1":
