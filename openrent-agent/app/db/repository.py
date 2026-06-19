@@ -10,6 +10,7 @@ from app.db.models import (
     Account,
     Conversation,
     Landlord,
+    LeadSheetExport,
     Listing,
     Message,
     SearchProfile,
@@ -1144,6 +1145,49 @@ def save_message_url(
             db.commit()
 
 
+def save_listing_metadata(listing_id, metadata):
+    from app.utils.logger import logger
+
+    with session_scope() as db:
+        listing = db.query(Listing).filter(Listing.id == listing_id).first()
+        if not listing:
+            logger.warning(
+                f"LISTING_METADATA_SAVE_SKIPPED listing_pk={listing_id} reason=not_found"
+            )
+            return False
+
+        listing.property_address = metadata.get("address") or listing.property_address
+        listing.bedrooms = (
+            metadata.get("bedrooms")
+            if metadata.get("bedrooms") is not None
+            else listing.bedrooms
+        )
+        listing.bathrooms = (
+            metadata.get("bathrooms")
+            if metadata.get("bathrooms") is not None
+            else listing.bathrooms
+        )
+        listing.rent_pcm = (
+            metadata.get("rent_pcm")
+            if metadata.get("rent_pcm") is not None
+            else listing.rent_pcm
+        )
+        listing.landlord_name = (
+            metadata.get("landlord_name") or listing.landlord_name
+        )
+        listing.metadata_captured_at = datetime.utcnow()
+        db.commit()
+        logger.info(
+            "LISTING_METADATA_SAVED "
+            f"listing_pk={listing.id} listing_id={listing.listing_id} "
+            f"address_present={bool(listing.property_address)} "
+            f"landlord_name_present={bool(listing.landlord_name)} "
+            f"bedrooms={listing.bedrooms} bathrooms={listing.bathrooms} "
+            f"rent_pcm={listing.rent_pcm}"
+        )
+        return True
+
+
 def can_send_message(account_id):
     with session_scope() as db:
         account = db.query(Account).filter(
@@ -1635,6 +1679,8 @@ def save_phone_number(
     thread_id,
     phone
 ):
+    from app.utils.logger import logger
+
     with session_scope() as db:
         conversation = db.query(
             Conversation
@@ -1643,11 +1689,270 @@ def save_phone_number(
         ).first()
 
         if conversation:
+            now = datetime.utcnow()
             conversation.extracted_phone = phone
             conversation.phone_found = True
-            conversation.phone_found_at = datetime.utcnow()
+            conversation.phone_found_at = now
             conversation.status = "PHONE_ACQUIRED"
+
+            export = db.query(LeadSheetExport).filter(
+                LeadSheetExport.conversation_id == conversation.id
+            ).first()
+            if not export:
+                export = LeadSheetExport(
+                    conversation_id=conversation.id,
+                    status="PENDING",
+                    next_attempt_at=now,
+                )
+                db.add(export)
+                export_action = "created"
+            else:
+                export.status = "PENDING"
+                export.next_attempt_at = now
+                export.processing_started_at = None
+                export.last_error = None
+                export.exported_at = None
+                export.updated_at = now
+                export_action = "reset"
             db.commit()
+            logger.info(
+                "GOOGLE_SHEETS_OUTBOX_UPSERTED "
+                f"conversation_id={conversation.id} thread_id={thread_id} "
+                f"export_id={export.id} action={export_action} status={export.status}"
+            )
+
+
+def claim_due_sheet_exports(limit=20, stale_minutes=15, max_attempts=8):
+    now = datetime.utcnow()
+    stale_before = now - timedelta(minutes=stale_minutes)
+
+    with session_scope() as db:
+        exports = (
+            db.query(LeadSheetExport)
+            .filter(
+                LeadSheetExport.attempt_count < max_attempts,
+                (
+                    (
+                        LeadSheetExport.status.in_(("PENDING", "FAILED"))
+                        & (
+                            (LeadSheetExport.next_attempt_at == None)
+                            | (LeadSheetExport.next_attempt_at <= now)
+                        )
+                    )
+                    | (
+                        (LeadSheetExport.status == "PROCESSING")
+                        & (LeadSheetExport.processing_started_at < stale_before)
+                    )
+                ),
+            )
+            .order_by(LeadSheetExport.created_at.asc())
+            .limit(limit)
+            .all()
+        )
+
+        claimed_ids = []
+        for export in exports:
+            export.status = "PROCESSING"
+            export.processing_started_at = now
+            export.updated_at = now
+            claimed_ids.append(export.id)
+        db.commit()
+        return claimed_ids
+
+
+def get_sheet_export_payload(export_id):
+    with session_scope() as db:
+        row = (
+            db.query(
+                LeadSheetExport,
+                Conversation,
+                Listing,
+                SearchProfile,
+                Account,
+            )
+            .join(
+                Conversation,
+                LeadSheetExport.conversation_id == Conversation.id,
+            )
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .join(Account, SearchProfile.account_id == Account.id)
+            .filter(LeadSheetExport.id == export_id)
+            .first()
+        )
+        if not row:
+            return None
+
+        export, conversation, listing, search_profile, account = row
+        return {
+            "export_id": export.id,
+            "conversation_id": conversation.id,
+            "thread_id": conversation.thread_id,
+            "listing_id": listing.listing_id,
+            "property_url": listing.property_url,
+            "phone_number": conversation.extracted_phone,
+            "phone_found_at": conversation.phone_found_at,
+            "landlord_name": listing.landlord_name,
+            "address": listing.property_address,
+            "bedrooms": listing.bedrooms,
+            "bathrooms": listing.bathrooms,
+            "rent_pcm": listing.rent_pcm,
+            "search_location": search_profile.location,
+            "account_id": account.id,
+            "account_email": account.email,
+            "attempt_count": export.attempt_count,
+            "current_status": export.status,
+        }
+
+
+def mark_sheet_export_succeeded(
+    export_id,
+    *,
+    destination_tab,
+    destination_row,
+    payload_hash,
+):
+    now = datetime.utcnow()
+    with session_scope() as db:
+        export = db.query(LeadSheetExport).filter(
+            LeadSheetExport.id == export_id
+        ).first()
+        if not export:
+            return False
+
+        export.status = "EXPORTED"
+        export.attempt_count = (export.attempt_count or 0) + 1
+        export.next_attempt_at = None
+        export.processing_started_at = None
+        export.last_error = None
+        export.destination_tab = destination_tab
+        export.destination_row = destination_row
+        export.payload_hash = payload_hash
+        export.exported_at = now
+        export.updated_at = now
+        db.commit()
+        return True
+
+
+def mark_sheet_export_failed(
+    export_id,
+    *,
+    error,
+    next_attempt_at=None,
+    permanent=False,
+):
+    now = datetime.utcnow()
+    with session_scope() as db:
+        export = db.query(LeadSheetExport).filter(
+            LeadSheetExport.id == export_id
+        ).first()
+        if not export:
+            return False
+
+        export.status = "PERMANENT_FAILURE" if permanent else "FAILED"
+        export.attempt_count = (export.attempt_count or 0) + 1
+        export.next_attempt_at = None if permanent else next_attempt_at
+        export.processing_started_at = None
+        export.last_error = str(error)[:4000]
+        export.updated_at = now
+        db.commit()
+        return True
+
+
+def reset_sheet_export_to_pending(export_id):
+    now = datetime.utcnow()
+    with session_scope() as db:
+        export = db.query(LeadSheetExport).filter(
+            LeadSheetExport.id == export_id
+        ).first()
+        if not export:
+            return False
+        export.status = "PENDING"
+        export.next_attempt_at = now
+        export.processing_started_at = None
+        export.last_error = None
+        export.updated_at = now
+        db.commit()
+        return True
+
+
+def get_sheet_export_statuses(status=None, limit=100):
+    with session_scope() as db:
+        query = (
+            db.query(LeadSheetExport, Conversation, Listing)
+            .join(
+                Conversation,
+                LeadSheetExport.conversation_id == Conversation.id,
+            )
+            .join(Listing, Conversation.listing_id == Listing.id)
+        )
+        if status and status != "ALL":
+            query = query.filter(LeadSheetExport.status == status)
+
+        rows = (
+            query.order_by(LeadSheetExport.updated_at.desc())
+            .limit(max(1, min(int(limit), 500)))
+            .all()
+        )
+        return [
+            {
+                "export_id": export.id,
+                "status": export.status,
+                "attempt_count": export.attempt_count,
+                "next_attempt_at": _utc(export.next_attempt_at),
+                "last_error": export.last_error,
+                "destination_tab": export.destination_tab,
+                "destination_row": export.destination_row,
+                "payload_hash": export.payload_hash,
+                "created_at": _utc(export.created_at),
+                "updated_at": _utc(export.updated_at),
+                "exported_at": _utc(export.exported_at),
+                "conversation_id": conversation.id,
+                "thread_id": conversation.thread_id,
+                "listing_id": listing.listing_id,
+                "property_url": listing.property_url,
+            }
+            for export, conversation, listing in rows
+        ]
+
+
+def backfill_sheet_export_outbox(dry_run=True):
+    with session_scope() as db:
+        conversations = (
+            db.query(Conversation)
+            .outerjoin(
+                LeadSheetExport,
+                LeadSheetExport.conversation_id == Conversation.id,
+            )
+            .filter(
+                Conversation.extracted_phone != None,
+                Conversation.phone_found_at != None,
+                LeadSheetExport.id == None,
+            )
+            .order_by(Conversation.phone_found_at.asc())
+            .all()
+        )
+
+        result = {
+            "eligible": len(conversations),
+            "created": 0,
+            "conversation_ids": [conversation.id for conversation in conversations],
+        }
+        if dry_run:
+            return result
+
+        now = datetime.utcnow()
+        for conversation in conversations:
+            db.add(
+                LeadSheetExport(
+                    conversation_id=conversation.id,
+                    status="PENDING",
+                    next_attempt_at=now,
+                )
+            )
+        db.commit()
+        result["created"] = len(conversations)
+        return result
 
 
 def save_ai_reply(

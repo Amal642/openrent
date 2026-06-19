@@ -63,6 +63,65 @@ HEADLESS=false
 AI_AUTOSEND=false
 ```
 
+### Google Sheets lead export
+
+The export is disabled by default. Configure it only with a replacement
+service-account key that has not been shared in chat or committed to Git:
+
+```env
+GOOGLE_SHEETS_ENABLED=false
+GOOGLE_SHEET_ID=<spreadsheet-id-between-/d/-and-/edit>
+GOOGLE_SHEET_PERSON=Becky
+GOOGLE_APPLICATION_CREDENTIALS=C:/Users/anees/.secrets/landroyal-sheets.json
+```
+
+Keep the JSON file outside this repository. Production platforms may store the
+complete JSON in the `GOOGLE_SERVICE_ACCOUNT_JSON` secret instead of mounting a
+file.
+
+Run the read-only audit before enabling writes:
+
+```powershell
+python scripts\audit_google_sheet.py
+```
+
+The audit reports monthly tabs, header compatibility, lead-row cadence, and
+whether the Person dropdown accepts `Becky`. Once the audit is clean:
+
+```env
+GOOGLE_SHEETS_ENABLED=true
+```
+
+Restart the API and RQ workers. RQ workers consume the `integrations` queue
+before the browser `workers` queue:
+
+```powershell
+python rq_worker_entry.py
+```
+
+Operational endpoints:
+
+```text
+GET  /api/google-sheet/exports
+GET  /api/google-sheet/exports?status=FAILED
+POST /api/google-sheet/exports/{export_id}/retry
+```
+
+Existing phone leads are never backfilled implicitly. Preview them first:
+
+```powershell
+python scripts\backfill_google_sheet_exports.py
+```
+
+Create pending export records only after reviewing the preview:
+
+```powershell
+python scripts\backfill_google_sheet_exports.py --apply
+```
+
+Structured log events use the prefixes `LISTING_METADATA_`,
+`GOOGLE_SHEETS_OUTBOX_`, and `GOOGLE_SHEETS_`.
+
 Generate the CRM password hash and signing secret without storing the plain-text
 password in `.env`:
 

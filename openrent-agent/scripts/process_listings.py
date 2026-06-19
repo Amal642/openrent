@@ -8,6 +8,7 @@ from app.db.repository import (
     mark_listing_failed,
     mark_listing_skipped,
     save_message_url,
+    save_listing_metadata,
     can_send_message,
     increment_message_count,
     get_conversation_by_thread_id,
@@ -27,8 +28,8 @@ from app.openrent.messaging import (
     get_message_link,
     send_initial_message,
     get_existing_thread_id,
-    extract_listing_metadata
 )
+from app.openrent.listing_metadata import extract_listing_metadata
 
 from app.ai.replies import (
     generate_initial_property_message
@@ -168,6 +169,7 @@ async def process_account_listings(
             await random_sleep(2, 4)
 
             metadata = await extract_listing_metadata(page)
+            save_listing_metadata(listing_pk, metadata)
 
             message_link = await get_message_link(page)
             contactable = message_link is not None

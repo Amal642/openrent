@@ -5,3 +5,7 @@ transcript*/
 full-conversations*.md
 .env_forhosting
 .venv/
+
+# Google service-account credentials must stay outside the repository.
+*service-account*.json
+gen-lang-client-*.json

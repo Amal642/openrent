@@ -80,6 +80,12 @@ REQUIRED_COLUMNS = {
         "processing_started_at": "TIMESTAMP",
         "listing_last_seen": "TIMESTAMP",
         "listing_archived": "BOOLEAN DEFAULT FALSE",
+        "property_address": "VARCHAR",
+        "bedrooms": "INTEGER",
+        "bathrooms": "INTEGER",
+        "rent_pcm": "INTEGER",
+        "landlord_name": "VARCHAR",
+        "metadata_captured_at": "TIMESTAMP",
     },
 
     "conversations": {

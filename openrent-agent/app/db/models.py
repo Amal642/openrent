@@ -7,7 +7,8 @@ from sqlalchemy import (
     ForeignKey,
     DateTime,
     Float,
-    Text
+    Text,
+    UniqueConstraint,
 )
 
 from datetime import datetime
@@ -202,6 +203,14 @@ class Listing(Base):
     processing_started_at = Column(DateTime, nullable=True)
     listing_last_seen = Column(DateTime, nullable=True)
     listing_archived = Column(Boolean, default=False)
+
+    property_address = Column(String, nullable=True)
+    bedrooms = Column(Integer, nullable=True)
+    bathrooms = Column(Integer, nullable=True)
+    rent_pcm = Column(Integer, nullable=True)
+    landlord_name = Column(String, nullable=True)
+    metadata_captured_at = Column(DateTime, nullable=True)
+
     # relationships
     search_profile = relationship("SearchProfile", back_populates="listings")
 
@@ -324,6 +333,13 @@ class Conversation(Base):
 
     messages = relationship("Message", back_populates="conversation")
 
+    sheet_export = relationship(
+        "LeadSheetExport",
+        back_populates="conversation",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
 
 # ---------------- MESSAGES ----------------
 
@@ -353,3 +369,38 @@ class Landlord(Base):
     last_checked_at = Column(DateTime, default=datetime.utcnow)
 
     listings = relationship("Listing", back_populates="landlord")
+
+
+class LeadSheetExport(Base):
+    __tablename__ = "lead_sheet_exports"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", name="uq_lead_sheet_export_conversation"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(
+        Integer,
+        ForeignKey("conversations.id"),
+        nullable=False,
+    )
+
+    status = Column(String, nullable=False, default="PENDING")
+    attempt_count = Column(Integer, nullable=False, default=0)
+    next_attempt_at = Column(DateTime, nullable=True)
+    processing_started_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+
+    destination_tab = Column(String, nullable=True)
+    destination_row = Column(Integer, nullable=True)
+    payload_hash = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+    exported_at = Column(DateTime, nullable=True)
+
+    conversation = relationship("Conversation", back_populates="sheet_export")

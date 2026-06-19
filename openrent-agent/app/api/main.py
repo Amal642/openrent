@@ -66,6 +66,10 @@ from app.services.proxy_health_monitor import (
     start_proxy_health_monitor,
     stop_proxy_health_monitor,
 )
+from app.services.google_sheets_export_dispatcher import (
+    start_google_sheets_export_dispatcher,
+    stop_google_sheets_export_dispatcher,
+)
 
 
 class SearchProfilePayload(BaseModel):
@@ -213,6 +217,9 @@ async def lifespan(app_instance):
     app_instance.state.account_scheduler_task = start_account_scheduler()
     app_instance.state.proxy_health_monitor_task = start_proxy_health_monitor()
     app_instance.state.failed_account_detector_task = start_failed_account_detector()
+    app_instance.state.google_sheets_export_dispatcher_task = (
+        start_google_sheets_export_dispatcher()
+    )
     try:
         yield
     finally:
@@ -224,6 +231,13 @@ async def lifespan(app_instance):
         )
         await stop_failed_account_detector(
             getattr(app_instance.state, "failed_account_detector_task", None)
+        )
+        await stop_google_sheets_export_dispatcher(
+            getattr(
+                app_instance.state,
+                "google_sheets_export_dispatcher_task",
+                None,
+            )
         )
 
 
@@ -441,6 +455,22 @@ def api_auth_me(request: Request):
 @app.get("/api/leads")
 def api_leads(status: str = None):
     return get_dashboard_leads(status=status)
+
+
+@app.get("/api/google-sheet/exports")
+def api_google_sheet_exports(status: str = None, limit: int = 100):
+    from app.db.repository import get_sheet_export_statuses
+
+    return get_sheet_export_statuses(status=status, limit=limit)
+
+
+@app.post("/api/google-sheet/exports/{export_id}/retry")
+def api_retry_google_sheet_export(export_id: int):
+    from app.db.repository import reset_sheet_export_to_pending
+
+    if not reset_sheet_export_to_pending(export_id):
+        raise HTTPException(status_code=404, detail="Sheet export not found")
+    return {"export_id": export_id, "status": "PENDING"}
 
 
 @app.get("/api/conversations/{thread_id}/messages")

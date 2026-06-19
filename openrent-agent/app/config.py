@@ -40,4 +40,19 @@ class Settings:
         os.getenv("SIMULATION_MAX_FOLLOWUPS", "1")
     )
 
+    GOOGLE_SHEETS_ENABLED = (
+        os.getenv("GOOGLE_SHEETS_ENABLED", "false").lower()
+        in {"1", "true", "yes", "on"}
+    )
+    GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+    GOOGLE_SHEET_PERSON = os.getenv("GOOGLE_SHEET_PERSON", "Becky")
+    GOOGLE_SHEET_TEMPLATE_TAB = os.getenv("GOOGLE_SHEET_TEMPLATE_TAB")
+    GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+    GOOGLE_SHEETS_DISPATCH_SECONDS = int(
+        os.getenv("GOOGLE_SHEETS_DISPATCH_SECONDS", "60")
+    )
+    GOOGLE_SHEETS_MAX_ATTEMPTS = int(
+        os.getenv("GOOGLE_SHEETS_MAX_ATTEMPTS", "8")
+    )
+
 settings = Settings()

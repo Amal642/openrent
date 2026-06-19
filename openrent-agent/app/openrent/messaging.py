@@ -44,6 +44,10 @@ async def open_listing(page, property_url: str):
     await page.goto(property_url, wait_until="domcontentloaded", timeout=30_000)
 
 async def extract_listing_metadata(page):
+    # Compatibility wrapper. The durable extractor now lives in the dedicated
+    # listing_metadata module and is shared by the export pipeline.
+    from app.openrent.listing_metadata import extract_listing_metadata as extract
+    return await extract(page)
 
     content = await page.content()
 

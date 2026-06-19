@@ -22,7 +22,7 @@ def _run_single_worker(worker_index: int) -> None:
         f"ACTIVE_WORKERS={MAX_PARALLEL_WORKERS}"
     )
     try:
-        worker = Worker(["workers"], connection=redis_conn)
+        worker = Worker(["integrations", "workers"], connection=redis_conn)
         worker.work()
     finally:
         logger.info(
