@@ -429,12 +429,22 @@ def ensure_account_persona(account_or_id):
             )
 
         if missing:
+            used_names = set()
+            for row in db.query(Account.persona_name, Account.persona_partner_name).filter(
+                Account.id != account_id
+            ).all():
+                if row[0]:
+                    used_names.add(row[0])
+                if row[1]:
+                    used_names.add(row[1])
+
             selected = (
-                materialize_persona(template, seed=f"{account.id}:{account.email}")
+                materialize_persona(template, seed=f"{account.id}:{account.email}", exclude_names=used_names)
                 if template
                 else materialize_persona(
                     get_persona_template(select_persona()["persona_type"]),
                     seed=f"{account.id}:{account.email}",
+                    exclude_names=used_names,
                 )
             )
             account.persona_type = account.persona_type or selected["persona_type"]

@@ -255,10 +255,23 @@ def get_persona_template(persona_type):
     return PERSONA_TEMPLATES.get(persona_type)
 
 
-def materialize_persona(template, seed=None):
-    primary_name = random.choice(template["names"]["primary"])
+def materialize_persona(template, seed=None, exclude_names=None):
+    exclude = set(exclude_names or [])
+
+    primary_pool = [n for n in template["names"]["primary"] if n not in exclude]
+    if not primary_pool:
+        primary_pool = template["names"]["primary"]
+    primary_name = random.choice(primary_pool)
+
     partner_names = template["names"]["partner"]
-    partner_name = random.choice(partner_names) if partner_names else None
+    if partner_names:
+        partner_pool = [n for n in partner_names if n not in exclude and n != primary_name]
+        if not partner_pool:
+            partner_pool = [n for n in partner_names if n != primary_name] or partner_names
+        partner_name = random.choice(partner_pool)
+    else:
+        partner_name = None
+
     primary_job = random.choice(template["jobs"]["primary"])
     partner_jobs = template["jobs"]["partner"]
     partner_job = random.choice(partner_jobs) if partner_jobs else None
