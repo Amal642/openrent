@@ -80,7 +80,7 @@ _DESIGN_RULES: dict[str, list[str]] = {
         "If the landlord seems suspicious, stop phone pressure, give one brief trust-building detail from the persona, and continue on OpenRent.",
         "If the viewing is confirmed immediately after a refusal, acknowledge the booking and keep it on OpenRent; do not instantly ask for the number.",
         # OPEN-21D playbook rule P5 (drop/park dead leads):
-        "If the property is unavailable or already let, or the landlord is unresponsive or only objecting, park the lead politely and stop; do not keep pushing a dead lead.",
+        "If the property is unavailable or already let, park the lead politely and stop; do not keep pushing a dead lead.",
     ],
 }
 
