@@ -57,6 +57,7 @@ from app.ai.extractors import (
 from app.ai.replies import (
     generate_handoff_message,
     generate_cancel_viewing_message,
+    generate_pre_cancel_number_ask,
     generate_reply,
     generate_distant_location,
     generate_follow_up_message,
@@ -94,6 +95,7 @@ from app.db.status import (
 )
 
 from datetime import datetime, timezone
+import random
 import re
 from pathlib import Path
 
@@ -249,8 +251,6 @@ def _has_active_viewing(conversation) -> bool:
     )
 
 
-_CANCEL_WINDOW_HOURS = 3.0  # cancel immediately if viewing is within this many hours
-
 # Cold-lead follow-up cadence: day1 initial, day2 follow-up1, day3 follow-up2,
 # day4 still silent -> mark inactive. Only applies to threads where the
 # landlord has never sent a single message.
@@ -259,11 +259,13 @@ FOLLOW_UP_INTERVAL_DAYS = 1.0
 
 
 def _cancel_window_passed(viewing_dt) -> bool:
-    """True if the viewing is close enough that we should cancel right now."""
+    """True if the viewing is within the 3–5h cancel window.
+    Returns False when viewing_dt is unknown — we never cancel blind."""
     if viewing_dt is None:
-        return True  # no datetime → can't schedule → cancel immediately
+        return False
     hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
-    return hours_until <= _CANCEL_WINDOW_HOURS
+    cancel_threshold = random.uniform(3.0, 5.0)
+    return hours_until <= cancel_threshold
 
 
 def _assign_playbook_ab_if_enabled(thread_id, persona):
@@ -319,6 +321,29 @@ async def _cancel_viewing_and_handoff(
     mark_handoff_complete(thread_id)
     update_conversation_status(thread_id, VIEWING_CANCELLED)
     logger.info(f"HANDOFF_AFTER_CANCELLATION thread_id={thread_id}")
+    return True
+
+
+async def _send_pre_cancel_number_ask(
+    thread_id, messages, latest_landlord_message, page,
+    travel_city=None,
+) -> bool:
+    """Send a natural phone-ask message one run before cancelling a viewing."""
+    msg, err = generate_pre_cancel_number_ask(messages, place=travel_city)
+    if not msg or err:
+        logger.warning(f"PRE_CANCEL_NUMBER_ASK_GEN_FAILED thread_id={thread_id} error={err}")
+        return False
+    sent = await send_reply(page, msg)
+    if not sent:
+        still_open = await can_reply(page)
+        if not still_open:
+            update_conversation_status(thread_id, REPLY_DISABLED)
+        logger.warning(f"PRE_CANCEL_NUMBER_ASK_SEND_FAILED thread_id={thread_id}")
+        return False
+    save_message(thread_id, "outbound", msg)
+    update_last_processed_message(thread_id, latest_landlord_message)
+    mark_phone_requested(thread_id)
+    logger.info(f"PRE_CANCEL_NUMBER_ASK_SENT thread_id={thread_id}")
     return True
 
 
@@ -505,19 +530,18 @@ async def process_account_replies(
                 update_last_processed_message(thread_id, latest_landlord_message)
                 continue
 
-            # Viewing confirmed — decide whether to cancel now or defer to the
-            # time-based reminder (process_viewing_reminders.py).
-            # Strategy:
-            #   • No datetime extracted → cancel immediately (can't schedule without it)
-            #   • Viewing ≤ 3 hours away → cancel immediately (window already passed)
-            #   • Viewing > 3 hours away → defer; reminder fires 3–5 h before viewing
-            # Use current banner as primary source of truth — the DB flag can
-            # be stale if the landlord cancelled the OpenRent viewing after it
-            # was last stored (banner disappears, DB stays True).
+            # Viewing confirmed — 2-step cancel flow:
+            #   Step 1: ask for landlord's number (pre-cancel ask)
+            #   Step 2: cancel on next run (phone_requested_at will be set)
             #
-            # Fallback: banner gone (viewing date passed) but DB still has an
-            # uncancelled viewing_datetime → cancel now so we don't keep replying
-            # to a landlord whose viewing was yesterday.
+            # Timing rules:
+            #   • No datetime extracted → ask for number now; cancel next run
+            #   • Viewing ≤ random(3–5h) away → ask for number; cancel next run
+            #   • Viewing > cancel threshold → AI replies normally (asks for number
+            #     naturally via VIEWING_BOOKED prompt); reminder handles timed cancel
+            #
+            # Banner is primary source of truth. Fallback: banner gone but DB has
+            # a past uncancelled viewing_datetime → treat as in cancel window.
             _db_viewing_dt = getattr(conversation, "viewing_datetime", None) if conversation else None
             _fallback_cancel = (
                 not banners["viewing_confirmed"]
@@ -529,7 +553,7 @@ async def process_account_replies(
             )
             if _fallback_cancel:
                 logger.info(
-                    f"VIEWING_CANCEL_NOW thread_id={thread_id} reason=past_datetime_no_banner "
+                    f"VIEWING_CANCEL_FALLBACK thread_id={thread_id} reason=past_datetime_no_banner "
                     f"viewing_dt={_db_viewing_dt}"
                 )
             if (
@@ -540,56 +564,65 @@ async def process_account_replies(
                 ))
             ):
                 viewing_dt = getattr(conversation, "viewing_datetime", None)
-                if _cancel_window_passed(viewing_dt):
-                    reason = "no_datetime" if viewing_dt is None else f"window_passed_{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
-                    logger.info(
-                        f"VIEWING_CANCEL_NOW thread_id={thread_id} reason={reason}"
-                    )
-                    cancelled = await _cancel_viewing_and_handoff(
-                        thread_id, messages, latest_landlord_message, page
-                    )
-                    if not cancelled:
-                        logger.warning(
-                            f"VIEWING_CANCEL_FAILED thread_id={thread_id} "
-                            "send_reply failed — status updated in helper"
+                phone_already_requested = bool(conversation and conversation.phone_requested_at)
+                phone_already_captured = bool(conversation and conversation.extracted_phone)
+
+                in_cancel_window = _cancel_window_passed(viewing_dt) or (
+                    viewing_dt is None and (phone_already_requested or phone_already_captured)
+                )
+
+                if in_cancel_window:
+                    if phone_already_requested or phone_already_captured:
+                        # Number ask already sent last run → cancel now
+                        hours_label = (
+                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
+                            if viewing_dt else "no_datetime"
                         )
-                    continue
-                else:
-                    hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
-                    if hours_until < 24:
-                        if has_unanswered_landlord_message:
-                            # Landlord sent a message — cancel now so they get a reply
-                            # rather than being left on read until the reminder fires.
-                            logger.info(
-                                f"VIEWING_CANCEL_NOW thread_id={thread_id} "
-                                f"reason=unanswered_message hours_until={hours_until:.1f}"
-                            )
-                            cancelled = await _cancel_viewing_and_handoff(
-                                thread_id, messages, latest_landlord_message, page,
-                                persona=persona,
-                            )
-                            if not cancelled:
-                                logger.warning(
-                                    f"VIEWING_CANCEL_FAILED thread_id={thread_id} "
-                                    "send_reply failed — will retry next worker run"
-                                )
-                        else:
-                            # No new landlord message — stay silent, reminder will
-                            # cancel 3–5h before.
-                            logger.info(
-                                f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
-                                f"hours_until={hours_until:.1f} — no new message, reminder will cancel 3–5h before"
-                            )
-                            update_conversation_status(thread_id, SKIPPED)
-                            update_last_processed_message(thread_id, latest_landlord_message)
+                        logger.info(
+                            f"VIEWING_CANCEL_NOW thread_id={thread_id} reason={hours_label}"
+                        )
+                        cancelled = await _cancel_viewing_and_handoff(
+                            thread_id, messages, latest_landlord_message, page
+                        )
+                        if not cancelled:
+                            logger.warning(f"VIEWING_CANCEL_FAILED thread_id={thread_id}")
                         continue
-                    # Viewing is 24+ hours away — fall through so the AI can still
-                    # reply to landlord messages (e.g. screening questions) while
-                    # the reminder handles cancellation at 3–5h before.
-                    logger.info(
-                        f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
-                        f"hours_until={hours_until:.1f} — replying to landlord while awaiting cancel window"
-                    )
+                    else:
+                        # First time in cancel window — ask for number before cancelling
+                        hours_label = (
+                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h"
+                            if viewing_dt else "no_datetime"
+                        )
+                        logger.info(
+                            f"PRE_CANCEL_NUMBER_ASK thread_id={thread_id} hours_until={hours_label}"
+                        )
+                        travel_city_for_ask = get_travel_city(thread_id)
+                        await _send_pre_cancel_number_ask(
+                            thread_id, messages, latest_landlord_message, page,
+                            travel_city=travel_city_for_ask,
+                        )
+                        continue
+                else:
+                    # Outside cancel window — AI replies normally.
+                    # For VIEWING_BOOKED stage, build_reply_prompt routes to
+                    # build_phone_request_prompt so the AI asks for the number naturally.
+                    if viewing_dt is not None:
+                        hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
+                        logger.info(
+                            f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
+                            f"hours_until={hours_until:.1f} — replying naturally while awaiting cancel window"
+                        )
+                    else:
+                        logger.info(
+                            f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} reason=no_datetime — asking for number"
+                        )
+                        # No datetime yet and phone not asked → send pre-cancel ask now
+                        travel_city_for_ask = get_travel_city(thread_id)
+                        await _send_pre_cancel_number_ask(
+                            thread_id, messages, latest_landlord_message, page,
+                            travel_city=travel_city_for_ask,
+                        )
+                        continue
 
             if (
                 conversation

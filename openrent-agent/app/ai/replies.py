@@ -9,6 +9,7 @@ from app.ai.prompts import (
     build_drive_distance,
     build_follow_up_prompt,
     build_initial_enquiry_prompt,
+    build_pre_cancel_number_ask_prompt,
     build_reply_prompt,
     names_generator,
     LANDLORD_NUMBER_CAPTURE_DESIGNS,
@@ -564,6 +565,22 @@ def generate_cancel_viewing_message(messages, retries=3, base_delay=2):
     if result.is_valid:
         return result.reply, None
     return None, result.error or "cancel_reply_failed"
+
+
+def generate_pre_cancel_number_ask(messages, place=None, retries=3, base_delay=2):
+    """Generate a natural phone-ask message to send one run before cancelling a viewing."""
+    conversation = format_conversation(messages or [])
+    result = generate_reply_result(
+        conversation,
+        model=settings.OPENAI_REPLY_MODEL,
+        temperature=0.7,
+        prompt_builder=lambda _: build_pre_cancel_number_ask_prompt(conversation, place=place),
+        retries=retries,
+        base_delay=base_delay,
+    )
+    if result.is_valid:
+        return result.reply, None
+    return None, result.error or "pre_cancel_number_ask_failed"
 
 
 def generate_initial_property_message(
