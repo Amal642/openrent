@@ -2,6 +2,7 @@ import html
 import json
 import re
 from datetime import datetime
+from urllib.request import Request, urlopen
 
 from app.utils.logger import logger
 
@@ -76,7 +77,63 @@ def _address_from_json_ld(content):
     return None
 
 
+def _text_from_html(content):
+    text = re.sub(
+        r"</?(?:br|p|div|li|tr|td|th|h[1-6]|dl|dt|dd)[^>]*>",
+        "\n",
+        content or "",
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return html.unescape(text)
+
+
+def _address_from_heading(content, page_title=""):
+    heading_match = re.search(
+        r"<h1[^>]*>(.*?)</h1>",
+        content or "",
+        re.IGNORECASE | re.DOTALL,
+    )
+    heading = _clean_text(
+        re.sub(r"<[^>]+>", " ", heading_match.group(1))
+        if heading_match
+        else None
+    )
+    if not heading:
+        title = _clean_text(page_title)
+        heading = title.split(" - To Rent", 1)[0] if title else None
+        if heading and " - " in heading:
+            heading = heading.split(" - ", 1)[1]
+    if not heading:
+        return None
+
+    # The sheet's Address column uses the location, not the property type.
+    heading = re.sub(
+        r"^\s*\d+\s*Bed\s+(?:Flat|House|Maisonette|Bungalow|Studio|Room)\s*,?\s*",
+        "",
+        heading,
+        flags=re.IGNORECASE,
+    )
+    return _clean_text(heading)
+
+
+def _landlord_from_html(content):
+    match = re.search(
+        r"Meet\s+the\s+Landlord.*?<p[^>]*>(.*?)</p>",
+        content or "",
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+    return _clean_text(re.sub(r"<[^>]+>", " ", match.group(1)))
+
+
 def parse_listing_metadata(content, body_text="", page_title=""):
+    if not body_text:
+        body_text = _text_from_html(content)
+
     searchable = "\n".join(
         part
         for part in (html.unescape(content or ""), body_text or "", page_title or "")
@@ -137,6 +194,8 @@ def parse_listing_metadata(content, body_text="", page_title=""):
 
     address = _address_from_json_ld(content)
     if not address:
+        address = _address_from_heading(content, page_title)
+    if not address:
         address_match = re.search(
             r"(?:Address|Property\s+Address)\s*[:\-]?\s*([^\n<]{4,120})",
             body_text or "",
@@ -144,13 +203,15 @@ def parse_listing_metadata(content, body_text="", page_title=""):
         )
         address = _clean_text(address_match.group(1)) if address_match else None
 
-    landlord_match = re.search(
-        r"(?:Landlord|Advertised\s+by|Listed\s+by)\s*[:\-]?\s*"
-        r"([A-Z][A-Za-z .'\-]{1,60})",
-        body_text or "",
-        re.IGNORECASE,
-    )
-    landlord_name = _clean_text(landlord_match.group(1)) if landlord_match else None
+    landlord_name = _landlord_from_html(content)
+    if not landlord_name:
+        landlord_match = re.search(
+            r"(?:^|\n)\s*(?:Landlord|Advertised\s+by|Listed\s+by)"
+            r"\s*[:\-]?\s*([A-Z][A-Za-z .'\-]{1,60}?)(?=\n|$)",
+            body_text or "",
+            re.IGNORECASE | re.MULTILINE,
+        )
+        landlord_name = _clean_text(landlord_match.group(1)) if landlord_match else None
 
     return {
         "rent_pcm": rent_pcm,
@@ -161,6 +222,40 @@ def parse_listing_metadata(content, body_text="", page_title=""):
         "address": address,
         "landlord_name": landlord_name,
     }
+
+
+def fetch_listing_metadata(property_url, timeout=20):
+    request = Request(
+        property_url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 Chrome/137 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml",
+        },
+    )
+    with urlopen(request, timeout=timeout) as response:
+        content = response.read().decode("utf-8", errors="replace")
+        final_url = response.geturl()
+
+    title_match = re.search(
+        r"<title[^>]*>(.*?)</title>",
+        content,
+        re.IGNORECASE | re.DOTALL,
+    )
+    page_title = _clean_text(title_match.group(1)) if title_match else ""
+    metadata = parse_listing_metadata(content, page_title=page_title)
+    logger.info(
+        "LISTING_METADATA_HTTP_FETCHED "
+        f"requested_url={property_url} final_url={final_url} "
+        f"address_present={bool(metadata.get('address'))} "
+        f"landlord_name_present={bool(metadata.get('landlord_name'))} "
+        f"bedrooms={metadata.get('bedrooms')} "
+        f"bathrooms={metadata.get('bathrooms')} "
+        f"rent_pcm={metadata.get('rent_pcm')}"
+    )
+    return metadata
 
 
 async def extract_listing_metadata(page):

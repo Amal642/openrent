@@ -153,6 +153,43 @@ def test_claim_due_sheet_exports_marks_rows_processing(db_session):
         assert export.processing_started_at is not None
 
 
+def test_reset_sheet_export_by_listing_id(db_session):
+    with db_session() as session:
+        account = Account(email="d@example.com", password="", session_file="s.json")
+        session.add(account)
+        session.flush()
+        profile = SearchProfile(account_id=account.id, location="Orpington")
+        session.add(profile)
+        session.flush()
+        listing = Listing(
+            listing_id="2872199",
+            property_url="https://www.openrent.co.uk/2872199",
+            search_profile_id=profile.id,
+        )
+        session.add(listing)
+        session.flush()
+        conversation = Conversation(thread_id="T5", listing_id=listing.id)
+        session.add(conversation)
+        session.flush()
+        export = LeadSheetExport(
+            conversation_id=conversation.id,
+            status="EXPORTED",
+            destination_tab="June",
+            destination_row=355,
+        )
+        session.add(export)
+        session.commit()
+        export_id = export.id
+
+    result = repository.reset_sheet_export_by_listing_id("2872199")
+
+    assert result == export_id
+    with db_session() as session:
+        export = session.query(LeadSheetExport).one()
+        assert export.status == "PENDING"
+        assert export.next_attempt_at is not None
+
+
 def test_mark_listing_skipped_is_not_processing_failure(db_session):
     with db_session() as session:
         listing = Listing(

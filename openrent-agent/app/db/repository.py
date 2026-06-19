@@ -1788,6 +1788,7 @@ def get_sheet_export_payload(export_id):
             "export_id": export.id,
             "conversation_id": conversation.id,
             "thread_id": conversation.thread_id,
+            "listing_pk": listing.id,
             "listing_id": listing.listing_id,
             "property_url": listing.property_url,
             "phone_number": conversation.extracted_phone,
@@ -1876,7 +1877,31 @@ def reset_sheet_export_to_pending(export_id):
         return True
 
 
-def get_sheet_export_statuses(status=None, limit=100):
+def reset_sheet_export_by_listing_id(listing_id):
+    now = datetime.utcnow()
+    with session_scope() as db:
+        export = (
+            db.query(LeadSheetExport)
+            .join(
+                Conversation,
+                LeadSheetExport.conversation_id == Conversation.id,
+            )
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .filter(Listing.listing_id == str(listing_id))
+            .first()
+        )
+        if not export:
+            return None
+        export.status = "PENDING"
+        export.next_attempt_at = now
+        export.processing_started_at = None
+        export.last_error = None
+        export.updated_at = now
+        db.commit()
+        return export.id
+
+
+def get_sheet_export_statuses(status=None, limit=100, listing_id=None):
     with session_scope() as db:
         query = (
             db.query(LeadSheetExport, Conversation, Listing)
@@ -1888,6 +1913,8 @@ def get_sheet_export_statuses(status=None, limit=100):
         )
         if status and status != "ALL":
             query = query.filter(LeadSheetExport.status == status)
+        if listing_id:
+            query = query.filter(Listing.listing_id == str(listing_id))
 
         rows = (
             query.order_by(LeadSheetExport.updated_at.desc())

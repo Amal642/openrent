@@ -49,3 +49,40 @@ def test_parse_listing_metadata_keeps_unknown_values_unknown():
     assert result["bathrooms"] is None
     assert result["address"] is None
     assert result["landlord_name"] is None
+
+
+def test_parse_current_openrent_listing_layout():
+    content = """
+    <html>
+      <head>
+        <title>
+          Orpington - 2 Bed Flat, Wood Martyn Court, BR6 -
+          To Rent Now for &#xA3;1,700.00 p/m
+        </title>
+      </head>
+      <body>
+        <h1>2 Bed Flat, Wood Martyn Court, BR6</h1>
+        <span>2 <span>bedrooms</span></span>
+        <span>1 <span>bathrooms</span></span>
+        <table>
+          <tr><td>Rent PCM</td><td>&#xA3;1,700.00</td></tr>
+        </table>
+        <h2>Meet the Landlord</h2>
+        <div><p class="mb-0 text-center fs-body-large-1 fw-medium">Ojes P.</p></div>
+      </body>
+    </html>
+    """
+
+    result = parse_listing_metadata(
+        content,
+        page_title=(
+            "Orpington - 2 Bed Flat, Wood Martyn Court, BR6 "
+            "- To Rent Now for £1,700.00 p/m"
+        ),
+    )
+
+    assert result["address"] == "Wood Martyn Court, BR6"
+    assert result["landlord_name"] == "Ojes P."
+    assert result["bedrooms"] == 2
+    assert result["bathrooms"] == 1
+    assert result["rent_pcm"] == 1700

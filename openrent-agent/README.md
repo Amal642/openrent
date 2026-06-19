@@ -104,7 +104,9 @@ Operational endpoints:
 ```text
 GET  /api/google-sheet/exports
 GET  /api/google-sheet/exports?status=FAILED
+GET  /api/google-sheet/exports?listing_id=2872199
 POST /api/google-sheet/exports/{export_id}/retry
+POST /api/google-sheet/listings/{listing_id}/retry
 ```
 
 Existing phone leads are never backfilled implicitly. Preview them first:

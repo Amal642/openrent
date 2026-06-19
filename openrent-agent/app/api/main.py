@@ -458,10 +458,18 @@ def api_leads(status: str = None):
 
 
 @app.get("/api/google-sheet/exports")
-def api_google_sheet_exports(status: str = None, limit: int = 100):
+def api_google_sheet_exports(
+    status: str = None,
+    limit: int = 100,
+    listing_id: str = None,
+):
     from app.db.repository import get_sheet_export_statuses
 
-    return get_sheet_export_statuses(status=status, limit=limit)
+    return get_sheet_export_statuses(
+        status=status,
+        limit=limit,
+        listing_id=listing_id,
+    )
 
 
 @app.post("/api/google-sheet/exports/{export_id}/retry")
@@ -471,6 +479,20 @@ def api_retry_google_sheet_export(export_id: int):
     if not reset_sheet_export_to_pending(export_id):
         raise HTTPException(status_code=404, detail="Sheet export not found")
     return {"export_id": export_id, "status": "PENDING"}
+
+
+@app.post("/api/google-sheet/listings/{listing_id}/retry")
+def api_retry_google_sheet_export_by_listing(listing_id: str):
+    from app.db.repository import reset_sheet_export_by_listing_id
+
+    export_id = reset_sheet_export_by_listing_id(listing_id)
+    if not export_id:
+        raise HTTPException(status_code=404, detail="Sheet export not found")
+    return {
+        "export_id": export_id,
+        "listing_id": listing_id,
+        "status": "PENDING",
+    }
 
 
 @app.get("/api/conversations/{thread_id}/messages")
