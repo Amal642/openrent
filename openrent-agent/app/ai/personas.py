@@ -289,9 +289,11 @@ def materialize_persona(template, seed=None):
 
 
 def select_persona():
-    return materialize_persona(
-        random.choice(list(PERSONA_TEMPLATES.values()))
-    )
+    couple_templates = [
+        t for t in PERSONA_TEMPLATES.values()
+        if t["names"]["partner"]
+    ]
+    return materialize_persona(random.choice(couple_templates))
 
 
 def persona_summary(persona):
