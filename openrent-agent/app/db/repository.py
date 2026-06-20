@@ -1784,10 +1784,13 @@ def get_sheet_export_payload(export_id):
             return None
 
         export, conversation, listing, search_profile, account = row
+        from app.proxy.url import build_account_proxy_url
+
         return {
             "export_id": export.id,
             "conversation_id": conversation.id,
             "thread_id": conversation.thread_id,
+            "listing_pk": listing.id,
             "listing_id": listing.listing_id,
             "property_url": listing.property_url,
             "phone_number": conversation.extracted_phone,
@@ -1800,6 +1803,7 @@ def get_sheet_export_payload(export_id):
             "search_location": search_profile.location,
             "account_id": account.id,
             "account_email": account.email,
+            "proxy_url": build_account_proxy_url(account),
             "attempt_count": export.attempt_count,
             "current_status": export.status,
         }
@@ -1876,7 +1880,31 @@ def reset_sheet_export_to_pending(export_id):
         return True
 
 
-def get_sheet_export_statuses(status=None, limit=100):
+def reset_sheet_export_by_listing_id(listing_id):
+    now = datetime.utcnow()
+    with session_scope() as db:
+        export = (
+            db.query(LeadSheetExport)
+            .join(
+                Conversation,
+                LeadSheetExport.conversation_id == Conversation.id,
+            )
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .filter(Listing.listing_id == str(listing_id))
+            .first()
+        )
+        if not export:
+            return None
+        export.status = "PENDING"
+        export.next_attempt_at = now
+        export.processing_started_at = None
+        export.last_error = None
+        export.updated_at = now
+        db.commit()
+        return export.id
+
+
+def get_sheet_export_statuses(status=None, limit=100, listing_id=None):
     with session_scope() as db:
         query = (
             db.query(LeadSheetExport, Conversation, Listing)
@@ -1888,6 +1916,8 @@ def get_sheet_export_statuses(status=None, limit=100):
         )
         if status and status != "ALL":
             query = query.filter(LeadSheetExport.status == status)
+        if listing_id:
+            query = query.filter(Listing.listing_id == str(listing_id))
 
         rows = (
             query.order_by(LeadSheetExport.updated_at.desc())
@@ -1916,10 +1946,16 @@ def get_sheet_export_statuses(status=None, limit=100):
         ]
 
 
-def backfill_sheet_export_outbox(dry_run=True):
+def backfill_sheet_export_outbox(
+    dry_run=True,
+    location=None,
+    requeue_existing=False,
+):
     with session_scope() as db:
-        conversations = (
-            db.query(Conversation)
+        query = (
+            db.query(Conversation, Listing, SearchProfile, LeadSheetExport)
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
             .outerjoin(
                 LeadSheetExport,
                 LeadSheetExport.conversation_id == Conversation.id,
@@ -1927,32 +1963,132 @@ def backfill_sheet_export_outbox(dry_run=True):
             .filter(
                 Conversation.extracted_phone != None,
                 Conversation.phone_found_at != None,
-                LeadSheetExport.id == None,
             )
             .order_by(Conversation.phone_found_at.asc())
-            .all()
         )
+        if location:
+            query = query.filter(
+                SearchProfile.location.ilike(f"%{str(location).strip()}%")
+            )
+
+        matched_rows = query.all()
+        eligible_rows = [
+            (conversation, listing, profile, export)
+            for conversation, listing, profile, export in matched_rows
+            if export is None
+        ]
+        action_rows = matched_rows if requeue_existing else eligible_rows
 
         result = {
-            "eligible": len(conversations),
+            "location_filter": location,
+            "requeue_existing": requeue_existing,
+            "matched_phone_leads": len(matched_rows),
+            "already_tracked": len(matched_rows) - len(eligible_rows),
+            "eligible": len(eligible_rows),
+            "actionable": len(action_rows),
             "created": 0,
-            "conversation_ids": [conversation.id for conversation in conversations],
+            "requeued": 0,
+            "leads": [
+                {
+                    "conversation_id": conversation.id,
+                    "thread_id": conversation.thread_id,
+                    "listing_id": listing.listing_id,
+                    "property_url": listing.property_url,
+                    "location": profile.location,
+                    "phone_found_at": _utc(conversation.phone_found_at),
+                    "action": "requeue" if export is not None else "create",
+                }
+                for conversation, listing, profile, export in action_rows
+            ],
         }
         if dry_run:
             return result
 
         now = datetime.utcnow()
-        for conversation in conversations:
-            db.add(
-                LeadSheetExport(
-                    conversation_id=conversation.id,
-                    status="PENDING",
-                    next_attempt_at=now,
+        created = 0
+        requeued = 0
+        for conversation, _, _, export in action_rows:
+            if export is None:
+                db.add(
+                    LeadSheetExport(
+                        conversation_id=conversation.id,
+                        status="PENDING",
+                        next_attempt_at=now,
+                    )
                 )
-            )
+                created += 1
+            else:
+                export.status = "PENDING"
+                export.next_attempt_at = now
+                export.processing_started_at = None
+                export.last_error = None
+                export.exported_at = None
+                export.updated_at = now
+                requeued += 1
         db.commit()
-        result["created"] = len(conversations)
+        result["created"] = created
+        result["requeued"] = requeued
         return result
+
+
+def get_sheet_metadata_backfill_candidates(listing_ids, location=None):
+    normalized_ids = list(dict.fromkeys(
+        str(listing_id).strip()
+        for listing_id in listing_ids
+        if str(listing_id).strip()
+    ))
+    if not normalized_ids:
+        return {
+            "requested_listing_ids": [],
+            "matched_listing_ids": [],
+            "missing_listing_ids": [],
+            "candidates": [],
+        }
+
+    with session_scope() as db:
+        query = (
+            db.query(LeadSheetExport.id, Listing.listing_id)
+            .join(
+                Conversation,
+                LeadSheetExport.conversation_id == Conversation.id,
+            )
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .filter(
+                Listing.listing_id.in_(normalized_ids),
+                Conversation.extracted_phone != None,
+                Conversation.phone_found_at != None,
+            )
+        )
+        if location:
+            query = query.filter(
+                SearchProfile.location.ilike(f"%{str(location).strip()}%")
+            )
+        rows = query.all()
+
+    export_id_by_listing = {
+        str(listing_id): export_id
+        for export_id, listing_id in rows
+    }
+    matched_listing_ids = [
+        listing_id
+        for listing_id in normalized_ids
+        if listing_id in export_id_by_listing
+    ]
+    candidates = [
+        get_sheet_export_payload(export_id_by_listing[listing_id])
+        for listing_id in matched_listing_ids
+    ]
+    return {
+        "requested_listing_ids": normalized_ids,
+        "matched_listing_ids": matched_listing_ids,
+        "missing_listing_ids": [
+            listing_id
+            for listing_id in normalized_ids
+            if listing_id not in export_id_by_listing
+        ],
+        "candidates": [candidate for candidate in candidates if candidate],
+    }
 
 
 def save_ai_reply(
@@ -2304,9 +2440,19 @@ def get_dashboard_leads(status=None):
         for conversation, listing, search_profile, account in query.order_by(Conversation.created_at.desc()).all():
             persona = ensure_account_persona(account.id)
             rows.append({
+                "conversation_id": conversation.id,
                 "thread_id": conversation.thread_id,
+                "listing_pk": listing.id,
                 "listing_id": listing.listing_id,
                 "property_url": listing.property_url,
+                "message_url": listing.message_url,
+                "landlord_id": listing.landlord_id,
+                "landlord_name": listing.landlord_name,
+                "property_address": listing.property_address,
+                "bedrooms": listing.bedrooms,
+                "bathrooms": listing.bathrooms,
+                "rent_pcm": listing.rent_pcm,
+                "metadata_captured_at": listing.metadata_captured_at,
                 "account_id": account.id,
                 "account_email": account.email,
                 "search_profile_id": search_profile.id,

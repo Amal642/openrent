@@ -5,6 +5,7 @@ from app.db.repository import (
     get_sheet_export_payload,
     mark_sheet_export_failed,
     mark_sheet_export_succeeded,
+    save_listing_metadata,
 )
 from app.integrations.google_sheets import (
     GoogleSheetsConfigurationError,
@@ -15,6 +16,11 @@ from app.utils.logger import logger
 
 
 RETRY_DELAYS_MINUTES = (1, 5, 15, 60, 180, 360, 720, 1440)
+METADATA_FIELDS = ("landlord_name", "address", "bedrooms", "bathrooms", "rent_pcm")
+
+
+class MetadataHydrationError(OSError):
+    pass
 
 
 def _http_error_details(exc):
@@ -45,6 +51,52 @@ def _is_retryable(exc):
     return isinstance(exc, (ConnectionError, TimeoutError, OSError))
 
 
+def _hydrate_missing_metadata(payload):
+    missing = [field for field in METADATA_FIELDS if payload.get(field) is None]
+    if not missing:
+        return payload
+
+    from app.openrent.listing_metadata import fetch_listing_metadata
+
+    logger.info(
+        "GOOGLE_SHEETS_METADATA_HYDRATION_START "
+        f"export_id={payload.get('export_id')} listing_id={payload.get('listing_id')} "
+        f"missing_fields={','.join(missing)}"
+    )
+    try:
+        metadata = fetch_listing_metadata(
+            payload["property_url"],
+            proxy_url=payload.get("proxy_url"),
+        )
+        save_listing_metadata(payload["listing_pk"], metadata)
+        refreshed = get_sheet_export_payload(payload["export_id"])
+        remaining = [
+            field for field in METADATA_FIELDS if refreshed.get(field) is None
+        ]
+        logger.info(
+            "GOOGLE_SHEETS_METADATA_HYDRATION_SUCCESS "
+            f"export_id={payload.get('export_id')} listing_id={payload.get('listing_id')} "
+            f"remaining_fields={','.join(remaining) if remaining else 'none'}"
+        )
+        if remaining:
+            raise MetadataHydrationError(
+                "OpenRent metadata remains incomplete after hydration: "
+                + ", ".join(remaining)
+            )
+        return refreshed
+    except Exception as exc:
+        logger.exception(
+            "GOOGLE_SHEETS_METADATA_HYDRATION_FAILED "
+            f"export_id={payload.get('export_id')} listing_id={payload.get('listing_id')} "
+            f"missing_fields={','.join(missing)} error_type={type(exc).__name__}"
+        )
+        if isinstance(exc, MetadataHydrationError):
+            raise
+        raise MetadataHydrationError(
+            f"OpenRent metadata hydration failed: {type(exc).__name__}: {exc}"
+        ) from exc
+
+
 def run_lead_sheet_export_sync(export_id):
     payload = get_sheet_export_payload(export_id)
     if not payload:
@@ -60,6 +112,7 @@ def run_lead_sheet_export_sync(export_id):
         return {"exported": True, "reason": "already_exported"}
 
     try:
+        payload = _hydrate_missing_metadata(payload)
         from app.queue.redis_conn import redis_conn
 
         lock = redis_conn.lock(

@@ -72,6 +72,7 @@ service-account key that has not been shared in chat or committed to Git:
 GOOGLE_SHEETS_ENABLED=false
 GOOGLE_SHEET_ID=<spreadsheet-id-between-/d/-and-/edit>
 GOOGLE_SHEET_PERSON=Becky
+GOOGLE_SHEET_DIRECTION=South
 GOOGLE_APPLICATION_CREDENTIALS=C:/Users/anees/.secrets/landroyal-sheets.json
 ```
 
@@ -104,7 +105,9 @@ Operational endpoints:
 ```text
 GET  /api/google-sheet/exports
 GET  /api/google-sheet/exports?status=FAILED
+GET  /api/google-sheet/exports?listing_id=2872199
 POST /api/google-sheet/exports/{export_id}/retry
+POST /api/google-sheet/listings/{listing_id}/retry
 ```
 
 Existing phone leads are never backfilled implicitly. Preview them first:
@@ -113,14 +116,79 @@ Existing phone leads are never backfilled implicitly. Preview them first:
 python scripts\backfill_google_sheet_exports.py
 ```
 
+Preview only London leads:
+
+```powershell
+python scripts\backfill_google_sheet_exports.py --location London
+```
+
 Create pending export records only after reviewing the preview:
 
 ```powershell
 python scripts\backfill_google_sheet_exports.py --apply
 ```
 
+For a location-specific batch, pin the reviewed eligible count so a changing
+database cannot silently expand the batch:
+
+```powershell
+python scripts\backfill_google_sheet_exports.py `
+  --location London `
+  --expected-count 24 `
+  --apply
+```
+
+Linux:
+
+```bash
+python scripts/backfill_google_sheet_exports.py \
+  --location London \
+  --expected-count 24 \
+  --apply
+```
+
+To update all existing London rows after changing a mapped field such as
+Direction, preview and requeue already-tracked exports:
+
+```bash
+python scripts/backfill_google_sheet_exports.py \
+  --location London \
+  --requeue-existing
+
+python scripts/backfill_google_sheet_exports.py \
+  --location London \
+  --requeue-existing \
+  --expected-count 25 \
+  --apply
+```
+
 Structured log events use the prefixes `LISTING_METADATA_`,
 `GOOGLE_SHEETS_OUTBOX_`, and `GOOGLE_SHEETS_`.
+
+To populate CRM property metadata for the fixed 23-lead London production
+cohort, first run the guarded dry-run:
+
+```bash
+venv/bin/python scripts/hydrate_listing_metadata.py \
+  --listing-id-file scripts/data/london_phone_leads_2026-06-20.txt \
+  --location London \
+  --expected-count 23
+```
+
+After confirming `allowlisted=23`, `matched=23`, and that every listed location
+is London, apply it:
+
+```bash
+venv/bin/python scripts/hydrate_listing_metadata.py \
+  --listing-id-file scripts/data/london_phone_leads_2026-06-20.txt \
+  --location London \
+  --expected-count 23 \
+  --apply
+```
+
+This command only considers the explicit allowlist, requires an existing phone
+lead and Google Sheets export record, and rejects Manchester or untracked leads.
+It updates persisted CRM listing metadata without re-exporting sheet rows.
 
 Generate the CRM password hash and signing secret without storing the plain-text
 password in `.env`:

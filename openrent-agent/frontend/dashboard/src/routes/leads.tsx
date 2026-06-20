@@ -142,7 +142,10 @@ function LeadsList() {
           if (
             !l.threadId.toLowerCase().includes(t) &&
             !l.area.toLowerCase().includes(t) &&
-            !l.propertyTitle.toLowerCase().includes(t)
+            !l.propertyTitle.toLowerCase().includes(t) &&
+            !l.landlordName.toLowerCase().includes(t) &&
+            !l.listingId?.toLowerCase().includes(t) &&
+            !l.phoneNumber?.toLowerCase().includes(t)
           )
             return false;
         }
@@ -166,7 +169,6 @@ function LeadsList() {
   const paginated = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   const accountEmail = (id: string) => accounts.find((a) => a.id === id)?.email ?? id;
-  const profileLocation = (id: string) => searchProfiles.find((s) => s.id === id)?.location ?? id;
 
   const copyPhone = (p?: string) => {
     if (p) {
@@ -200,7 +202,7 @@ function LeadsList() {
       <div className="sticky top-14 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 mb-4 bg-background/90 backdrop-blur border-b">
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            placeholder="Search thread, location, property…"
+            placeholder="Search thread, listing, landlord, address, phone..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="h-9 w-64"
@@ -256,16 +258,17 @@ function LeadsList() {
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>Status</TableHead>
-              <TableHead>Stage</TableHead>
-              <TableHead>Thread</TableHead>
-              <TableHead>Property</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Budget</TableHead>
-              <TableHead>Beds</TableHead>
-              <TableHead>Account</TableHead>
-              <TableHead>Profile</TableHead>
+              <TableHead>Landlord</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Viewing</TableHead>
+              <TableHead>Address</TableHead>
+              <TableHead>Beds</TableHead>
+              <TableHead>Baths</TableHead>
+              <TableHead>Rent</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Listing ID</TableHead>
+              <TableHead>Thread ID</TableHead>
+              <TableHead>Stage</TableHead>
+              <TableHead>Account</TableHead>
               <TableHead>Last update</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -276,38 +279,7 @@ function LeadsList() {
                 <TableCell>
                   <StatusBadge status={l.status} />
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {l.conversationStage.replaceAll("_", " ").toLowerCase()}
-                </TableCell>
-                <TableCell className="font-medium">
-                  <Link
-                    to="/leads/$threadId"
-                    params={{ threadId: l.id }}
-                    className="hover:underline"
-                  >
-                    {l.threadId}
-                  </Link>
-                </TableCell>
-                <TableCell className="max-w-[220px] truncate">{l.propertyTitle}</TableCell>
-                <TableCell className="text-muted-foreground">{l.area}</TableCell>
-                <TableCell className="tabular-nums">
-                  {l.priceMin && l.priceMax
-                    ? `${fmtMoney(l.priceMin)} – ${fmtMoney(l.priceMax)}`
-                    : l.rent
-                      ? fmtMoney(l.rent)
-                      : "—"}
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {l.bedroomsMin && l.bedroomsMax
-                    ? `${l.bedroomsMin}–${l.bedroomsMax}`
-                    : l.bedrooms || "—"}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {accountEmail(l.accountId)}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {profileLocation(l.searchProfileId)}
-                </TableCell>
+                <TableCell className="max-w-[180px] truncate">{l.landlordName}</TableCell>
                 <TableCell className="tabular-nums text-sm">
                   {l.phoneNumber ? (
                     <button
@@ -320,13 +292,30 @@ function LeadsList() {
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                  {l.viewingDatetime ? fmtRelative(l.viewingDatetime) : "—"}
-                  {l.viewingCancelled ? (
-                    <div className="text-destructive">cancelled</div>
-                  ) : l.cancelRequired && l.viewingConfirmed ? (
-                    <div>cancel queued</div>
-                  ) : null}
+                <TableCell className="max-w-[260px] truncate">
+                  {l.propertyAddress || l.propertyTitle}
+                </TableCell>
+                <TableCell className="tabular-nums">{l.bedrooms || "—"}</TableCell>
+                <TableCell className="tabular-nums">{l.bathrooms || "—"}</TableCell>
+                <TableCell className="tabular-nums">
+                  {l.rent ? fmtMoney(l.rent) : "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">{l.area}</TableCell>
+                <TableCell className="font-medium">{l.listingId || "—"}</TableCell>
+                <TableCell className="font-medium">
+                  <Link
+                    to="/leads/$threadId"
+                    params={{ threadId: l.id }}
+                    className="hover:underline"
+                  >
+                    {l.threadId}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {l.conversationStage.replaceAll("_", " ").toLowerCase()}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {accountEmail(l.accountId)}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                   {fmtRelative(l.lastUpdatedAt)}

@@ -116,6 +116,13 @@ function ConversationPage() {
                 <ExternalLink className="size-4" /> Open property
               </a>
             </Button>
+            {lead.messageLink && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={lead.messageLink} target="_blank" rel="noreferrer">
+                  <ExternalLink className="size-4" /> Open messages
+                </a>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -164,30 +171,25 @@ function ConversationPage() {
               <StatusBadge status={lead.status} />
             </div>
             <dl className="grid grid-cols-2 gap-2 text-xs">
-              <Field
-                label="Budget"
-                value={
-                  lead.priceMin && lead.priceMax
-                    ? `${fmtMoney(lead.priceMin)} – ${fmtMoney(lead.priceMax)}`
-                    : lead.rent
-                      ? fmtMoney(lead.rent)
-                      : "—"
-                }
-              />
-              <Field
-                label="Bedrooms"
-                value={
-                  lead.bedroomsMin && lead.bedroomsMax
-                    ? `${lead.bedroomsMin}–${lead.bedroomsMax}`
-                    : lead.bedrooms
-                      ? String(lead.bedrooms)
-                      : "—"
-                }
-              />
+              <Field label="Landlord" value={lead.landlordName || "—"} />
+              <Field label="Address" value={lead.propertyAddress || "—"} />
+              <Field label="Rent PCM" value={lead.rent ? fmtMoney(lead.rent) : "—"} />
+              <Field label="Bedrooms" value={lead.bedrooms ? String(lead.bedrooms) : "—"} />
+              <Field label="Bathrooms" value={lead.bathrooms ? String(lead.bathrooms) : "—"} />
               <Field label="Area" value={lead.area} />
               <Field label="Account" value={account?.email ?? "—"} />
+              <Field label="Conversation DB ID" value={lead.conversationId || "—"} />
               <Field label="Thread ID" value={lead.threadId} />
+              <Field label="Listing DB ID" value={lead.listingPk || "—"} />
+              <Field label="OpenRent listing ID" value={lead.listingId || "—"} />
+              <Field label="Landlord DB ID" value={lead.landlordId || "—"} />
+              <Field label="Account DB ID" value={lead.accountId} />
+              <Field label="Search profile ID" value={lead.searchProfileId} />
               <Field label="Stage" value={lead.conversationStage.replaceAll("_", " ")} />
+              <Field
+                label="Metadata captured"
+                value={lead.metadataCapturedAt ? fmtDateTime(lead.metadataCapturedAt) : "—"}
+              />
               <Field label="Initial sent" value={fmtRelative(lead.initialMessageSentAt)} />
               <Field
                 label="Viewing"
