@@ -105,9 +105,20 @@ type BackendAccount = {
 };
 
 type BackendLead = {
+  conversation_id?: number | string;
   thread_id?: string;
+  listing_pk?: number | string;
   listing_id?: string;
   property_url?: string;
+  message_url?: string;
+  landlord_id?: number | string;
+  landlord_name?: string;
+  property_address?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  rent_pcm?: number;
+  metadata_captured_at?: string;
+  direction?: string;
   account_id?: number | string;
   account_email?: string;
   search_profile_id?: number | string;
@@ -300,7 +311,9 @@ function mapAccount(account: BackendAccount): Account {
 function mapLead(lead: BackendLead): Lead {
   const id = lead.thread_id || lead.listing_id || crypto.randomUUID();
   const propertyUrl = lead.property_url || "";
-  const listingName = lead.listing_id ? `Listing ${lead.listing_id}` : "OpenRent property";
+  const listingName =
+    lead.property_address ||
+    (lead.listing_id ? `Listing ${lead.listing_id}` : "OpenRent property");
   const threadName = lead.thread_id ? `Thread ${lead.thread_id}` : "OpenRent thread";
   const bedroomsMin = lead.bedrooms_min ?? 0;
   const bedroomsMax = lead.bedrooms_max ?? bedroomsMin;
@@ -309,19 +322,29 @@ function mapLead(lead: BackendLead): Lead {
 
   return {
     id,
+    conversationId:
+      lead.conversation_id !== undefined ? String(lead.conversation_id) : undefined,
+    listingPk: lead.listing_pk !== undefined ? String(lead.listing_pk) : undefined,
+    listingId: lead.listing_id,
+    landlordId: lead.landlord_id !== undefined ? String(lead.landlord_id) : undefined,
     accountId: lead.account_id ? String(lead.account_id) : "unknown",
     searchProfileId: lead.search_profile_id ? String(lead.search_profile_id) : "unknown",
     propertyLink: propertyUrl,
+    messageLink: lead.message_url,
     propertyTitle: listingName,
-    rent: 0,
+    propertyAddress: lead.property_address,
+    rent: lead.rent_pcm ?? 0,
     priceMin: lead.price_min,
     priceMax: lead.price_max,
-    bedrooms: bedroomsMax,
+    bedrooms: lead.bedrooms ?? bedroomsMax,
+    bathrooms: lead.bathrooms,
     bedroomsMin,
     bedroomsMax,
     area: lead.location || "OpenRent",
     threadId: lead.thread_id || id,
-    landlordName: threadName,
+    landlordName: lead.landlord_name || threadName,
+    metadataCapturedAt: lead.metadata_captured_at,
+    direction: lead.direction,
     status: leadStatus,
     conversationStage: asStage(lead.conversation_stage),
     phoneNumber,

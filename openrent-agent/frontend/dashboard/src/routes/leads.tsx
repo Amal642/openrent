@@ -142,7 +142,10 @@ function LeadsList() {
           if (
             !l.threadId.toLowerCase().includes(t) &&
             !l.area.toLowerCase().includes(t) &&
-            !l.propertyTitle.toLowerCase().includes(t)
+            !l.propertyTitle.toLowerCase().includes(t) &&
+            !l.landlordName.toLowerCase().includes(t) &&
+            !l.listingId?.toLowerCase().includes(t) &&
+            !l.phoneNumber?.toLowerCase().includes(t)
           )
             return false;
         }
@@ -200,7 +203,7 @@ function LeadsList() {
       <div className="sticky top-14 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 mb-4 bg-background/90 backdrop-blur border-b">
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            placeholder="Search thread, location, property…"
+            placeholder="Search thread, listing, landlord, address, phone..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="h-9 w-64"
@@ -258,10 +261,14 @@ function LeadsList() {
               <TableHead>Status</TableHead>
               <TableHead>Stage</TableHead>
               <TableHead>Thread</TableHead>
-              <TableHead>Property</TableHead>
+              <TableHead>Listing</TableHead>
+              <TableHead>Direction</TableHead>
+              <TableHead>Landlord</TableHead>
+              <TableHead>Address</TableHead>
               <TableHead>Location</TableHead>
-              <TableHead>Budget</TableHead>
+              <TableHead>Rent</TableHead>
               <TableHead>Beds</TableHead>
+              <TableHead>Baths</TableHead>
               <TableHead>Account</TableHead>
               <TableHead>Profile</TableHead>
               <TableHead>Phone</TableHead>
@@ -288,20 +295,18 @@ function LeadsList() {
                     {l.threadId}
                   </Link>
                 </TableCell>
-                <TableCell className="max-w-[220px] truncate">{l.propertyTitle}</TableCell>
+                <TableCell className="font-medium">{l.listingId || "—"}</TableCell>
+                <TableCell>{l.direction || "—"}</TableCell>
+                <TableCell className="max-w-[180px] truncate">{l.landlordName}</TableCell>
+                <TableCell className="max-w-[260px] truncate">
+                  {l.propertyAddress || l.propertyTitle}
+                </TableCell>
                 <TableCell className="text-muted-foreground">{l.area}</TableCell>
                 <TableCell className="tabular-nums">
-                  {l.priceMin && l.priceMax
-                    ? `${fmtMoney(l.priceMin)} – ${fmtMoney(l.priceMax)}`
-                    : l.rent
-                      ? fmtMoney(l.rent)
-                      : "—"}
+                  {l.rent ? fmtMoney(l.rent) : "—"}
                 </TableCell>
-                <TableCell className="tabular-nums">
-                  {l.bedroomsMin && l.bedroomsMax
-                    ? `${l.bedroomsMin}–${l.bedroomsMax}`
-                    : l.bedrooms || "—"}
-                </TableCell>
+                <TableCell className="tabular-nums">{l.bedrooms || "—"}</TableCell>
+                <TableCell className="tabular-nums">{l.bathrooms || "—"}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {accountEmail(l.accountId)}
                 </TableCell>

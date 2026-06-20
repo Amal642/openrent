@@ -135,19 +135,28 @@ export interface Message {
 
 export interface Lead {
   id: string;
+  conversationId?: string;
+  listingPk?: string;
+  listingId?: string;
+  landlordId?: string;
   accountId: string;
   searchProfileId: string;
   propertyLink: string;
+  messageLink?: string;
   propertyTitle: string;
+  propertyAddress?: string;
   rent: number;
   priceMin?: number;
   priceMax?: number;
   bedrooms: number;
+  bathrooms?: number;
   bedroomsMin?: number;
   bedroomsMax?: number;
   area: string;
   threadId: string;
   landlordName: string;
+  metadataCapturedAt?: string;
+  direction?: string;
   status: LeadStatus;
   conversationStage: ConversationStage;
   phoneNumber?: string;

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import joinedload
 
+from app.config import settings
 from app.db.connection import SessionLocal
 from app.db.models import (
     Account,
@@ -2380,9 +2381,20 @@ def get_dashboard_leads(status=None):
         for conversation, listing, search_profile, account in query.order_by(Conversation.created_at.desc()).all():
             persona = ensure_account_persona(account.id)
             rows.append({
+                "conversation_id": conversation.id,
                 "thread_id": conversation.thread_id,
+                "listing_pk": listing.id,
                 "listing_id": listing.listing_id,
                 "property_url": listing.property_url,
+                "message_url": listing.message_url,
+                "landlord_id": listing.landlord_id,
+                "landlord_name": listing.landlord_name,
+                "property_address": listing.property_address,
+                "bedrooms": listing.bedrooms,
+                "bathrooms": listing.bathrooms,
+                "rent_pcm": listing.rent_pcm,
+                "metadata_captured_at": listing.metadata_captured_at,
+                "direction": settings.GOOGLE_SHEET_DIRECTION or "",
                 "account_id": account.id,
                 "account_email": account.email,
                 "search_profile_id": search_profile.id,

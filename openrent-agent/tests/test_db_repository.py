@@ -339,3 +339,75 @@ def test_ensure_account_persona_does_not_generate_mobile_number(db_session):
 
     assert persona["persona_type"]
     assert persona["mobile_number"] is None
+
+
+def test_dashboard_leads_include_persisted_listing_metadata_and_ids(
+    db_session,
+    monkeypatch,
+):
+    captured_at = datetime.utcnow()
+    monkeypatch.setattr(repository.settings, "GOOGLE_SHEET_DIRECTION", "South")
+
+    with db_session() as session:
+        account = Account(
+            email="crm@example.com",
+            password="",
+            session_file="crm.json",
+        )
+        session.add(account)
+        session.flush()
+        profile = SearchProfile(
+            account_id=account.id,
+            location="South London",
+            price_min=1500,
+            price_max=2500,
+            bedrooms_min=1,
+            bedrooms_max=3,
+        )
+        session.add(profile)
+        session.flush()
+        listing = Listing(
+            listing_id="2936562",
+            property_url="https://www.openrent.co.uk/2936562",
+            message_url="https://www.openrent.co.uk/messages/44552923",
+            search_profile_id=profile.id,
+            landlord_id=42,
+            landlord_name="Jane Smith",
+            property_address="Engleheart Drive, TW14",
+            bedrooms=2,
+            bathrooms=1,
+            rent_pcm=1700,
+            metadata_captured_at=captured_at,
+        )
+        session.add(listing)
+        session.flush()
+        conversation = Conversation(
+            thread_id="44552923",
+            listing_id=listing.id,
+            extracted_phone="07123456789",
+        )
+        session.add(conversation)
+        session.commit()
+
+        expected = {
+            "account_id": account.id,
+            "search_profile_id": profile.id,
+            "listing_pk": listing.id,
+            "conversation_id": conversation.id,
+        }
+
+    lead = repository.get_dashboard_leads()[0]
+
+    assert lead["conversation_id"] == expected["conversation_id"]
+    assert lead["listing_pk"] == expected["listing_pk"]
+    assert lead["listing_id"] == "2936562"
+    assert lead["landlord_id"] == 42
+    assert lead["account_id"] == expected["account_id"]
+    assert lead["search_profile_id"] == expected["search_profile_id"]
+    assert lead["landlord_name"] == "Jane Smith"
+    assert lead["property_address"] == "Engleheart Drive, TW14"
+    assert lead["bedrooms"] == 2
+    assert lead["bathrooms"] == 1
+    assert lead["rent_pcm"] == 1700
+    assert lead["metadata_captured_at"] == captured_at
+    assert lead["direction"] == "South"
