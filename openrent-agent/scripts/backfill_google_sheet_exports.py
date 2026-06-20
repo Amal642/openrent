@@ -21,10 +21,40 @@ def main():
         action="store_true",
         help="Create records. Without this flag the command is read-only.",
     )
+    parser.add_argument(
+        "--location",
+        help=(
+            "Case-insensitive search-profile location filter, for example "
+            "'London'. Omit to inspect all locations."
+        ),
+    )
+    parser.add_argument(
+        "--expected-count",
+        type=int,
+        help=(
+            "Safety check for apply mode. Abort unless the number of newly "
+            "eligible leads exactly matches this value."
+        ),
+    )
     args = parser.parse_args()
 
     init_db()
-    result = backfill_sheet_export_outbox(dry_run=not args.apply)
+    if args.apply and args.expected_count is not None:
+        preview = backfill_sheet_export_outbox(
+            dry_run=True,
+            location=args.location,
+        )
+        if preview["eligible"] != args.expected_count:
+            parser.error(
+                "Eligible lead count changed: "
+                f"expected {args.expected_count}, found {preview['eligible']}. "
+                "Run the dry-run preview again."
+            )
+
+    result = backfill_sheet_export_outbox(
+        dry_run=not args.apply,
+        location=args.location,
+    )
     result["mode"] = "apply" if args.apply else "dry-run"
     print(json.dumps(result, indent=2))
 

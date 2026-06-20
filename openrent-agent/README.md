@@ -115,10 +115,35 @@ Existing phone leads are never backfilled implicitly. Preview them first:
 python scripts\backfill_google_sheet_exports.py
 ```
 
+Preview only London leads:
+
+```powershell
+python scripts\backfill_google_sheet_exports.py --location London
+```
+
 Create pending export records only after reviewing the preview:
 
 ```powershell
 python scripts\backfill_google_sheet_exports.py --apply
+```
+
+For a location-specific batch, pin the reviewed eligible count so a changing
+database cannot silently expand the batch:
+
+```powershell
+python scripts\backfill_google_sheet_exports.py `
+  --location London `
+  --expected-count 24 `
+  --apply
+```
+
+Linux:
+
+```bash
+python scripts/backfill_google_sheet_exports.py \
+  --location London \
+  --expected-count 24 \
+  --apply
 ```
 
 Structured log events use the prefixes `LISTING_METADATA_`,

@@ -190,6 +190,67 @@ def test_reset_sheet_export_by_listing_id(db_session):
         assert export.next_attempt_at is not None
 
 
+def test_backfill_sheet_export_outbox_filters_location(db_session):
+    with db_session() as session:
+        account = Account(email="backfill@example.com", password="", session_file="s.json")
+        session.add(account)
+        session.flush()
+
+        london = SearchProfile(account_id=account.id, location="London")
+        manchester = SearchProfile(account_id=account.id, location="Manchester")
+        session.add_all([london, manchester])
+        session.flush()
+
+        london_listing = Listing(
+            listing_id="LONDON1",
+            property_url="https://www.openrent.co.uk/111111",
+            search_profile_id=london.id,
+        )
+        manchester_listing = Listing(
+            listing_id="MANCHESTER1",
+            property_url="https://www.openrent.co.uk/222222",
+            search_profile_id=manchester.id,
+        )
+        session.add_all([london_listing, manchester_listing])
+        session.flush()
+
+        london_conversation = Conversation(
+            thread_id="LONDON-T",
+            listing_id=london_listing.id,
+            extracted_phone="07123456781",
+            phone_found_at=datetime.utcnow(),
+        )
+        manchester_conversation = Conversation(
+            thread_id="MANCHESTER-T",
+            listing_id=manchester_listing.id,
+            extracted_phone="07123456782",
+            phone_found_at=datetime.utcnow(),
+        )
+        session.add_all([london_conversation, manchester_conversation])
+        session.commit()
+        london_conversation_id = london_conversation.id
+
+    preview = repository.backfill_sheet_export_outbox(
+        dry_run=True,
+        location="london",
+    )
+
+    assert preview["matched_phone_leads"] == 1
+    assert preview["eligible"] == 1
+    assert preview["leads"][0]["listing_id"] == "LONDON1"
+
+    applied = repository.backfill_sheet_export_outbox(
+        dry_run=False,
+        location="London",
+    )
+
+    assert applied["created"] == 1
+    with db_session() as session:
+        exports = session.query(LeadSheetExport).all()
+        assert len(exports) == 1
+        assert exports[0].conversation_id == london_conversation_id
+
+
 def test_mark_listing_skipped_is_not_processing_failure(db_session):
     with db_session() as session:
         listing = Listing(

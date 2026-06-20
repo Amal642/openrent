@@ -1946,10 +1946,12 @@ def get_sheet_export_statuses(status=None, limit=100, listing_id=None):
         ]
 
 
-def backfill_sheet_export_outbox(dry_run=True):
+def backfill_sheet_export_outbox(dry_run=True, location=None):
     with session_scope() as db:
-        conversations = (
-            db.query(Conversation)
+        query = (
+            db.query(Conversation, Listing, SearchProfile, LeadSheetExport)
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
             .outerjoin(
                 LeadSheetExport,
                 LeadSheetExport.conversation_id == Conversation.id,
@@ -1957,22 +1959,44 @@ def backfill_sheet_export_outbox(dry_run=True):
             .filter(
                 Conversation.extracted_phone != None,
                 Conversation.phone_found_at != None,
-                LeadSheetExport.id == None,
             )
             .order_by(Conversation.phone_found_at.asc())
-            .all()
         )
+        if location:
+            query = query.filter(
+                SearchProfile.location.ilike(f"%{str(location).strip()}%")
+            )
+
+        matched_rows = query.all()
+        eligible_rows = [
+            (conversation, listing, profile)
+            for conversation, listing, profile, export in matched_rows
+            if export is None
+        ]
 
         result = {
-            "eligible": len(conversations),
+            "location_filter": location,
+            "matched_phone_leads": len(matched_rows),
+            "already_tracked": len(matched_rows) - len(eligible_rows),
+            "eligible": len(eligible_rows),
             "created": 0,
-            "conversation_ids": [conversation.id for conversation in conversations],
+            "leads": [
+                {
+                    "conversation_id": conversation.id,
+                    "thread_id": conversation.thread_id,
+                    "listing_id": listing.listing_id,
+                    "property_url": listing.property_url,
+                    "location": profile.location,
+                    "phone_found_at": _utc(conversation.phone_found_at),
+                }
+                for conversation, listing, profile in eligible_rows
+            ],
         }
         if dry_run:
             return result
 
         now = datetime.utcnow()
-        for conversation in conversations:
+        for conversation, _, _ in eligible_rows:
             db.add(
                 LeadSheetExport(
                     conversation_id=conversation.id,
@@ -1981,7 +2005,7 @@ def backfill_sheet_export_outbox(dry_run=True):
                 )
             )
         db.commit()
-        result["created"] = len(conversations)
+        result["created"] = len(eligible_rows)
         return result
 
 
