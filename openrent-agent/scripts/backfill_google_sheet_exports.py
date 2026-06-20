@@ -56,7 +56,7 @@ def main():
         location=args.location,
     )
     result["mode"] = "apply" if args.apply else "dry-run"
-    print(json.dumps(result, indent=2))
+    print(json.dumps(result, indent=2, default=str))
 
 
 if __name__ == "__main__":
