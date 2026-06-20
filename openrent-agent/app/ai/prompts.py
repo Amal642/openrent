@@ -708,6 +708,37 @@ Generate the next reply ONLY.
 """.strip()
 
 
+def build_viewing_detection_prompt(conversation: str) -> str:
+    return f"""
+Analyze this OpenRent conversation between a tenant (operator/us) and a landlord.
+
+Determine whether a specific viewing appointment has been mutually agreed.
+
+A viewing IS arranged when:
+- Both parties agreed on a specific date and/or time to meet at the property
+- The landlord confirmed a time with words like "see you then", "confirmed", "that works", "come at [time]", "booked for", "all arranged"
+- There is clear two-way agreement — not just one side proposing
+
+A viewing is NOT arranged when:
+- Only one side asked about availability with no confirmed reply from the other
+- The conversation is still negotiating times back and forth
+- The landlord only asked screening questions without confirming any viewing time
+- Only vague intent like "let's arrange something" with no specific date or time
+
+Reply with ONLY this exact JSON and nothing else:
+{{
+  "viewing_arranged": true or false,
+  "viewing_datetime": "YYYY-MM-DD HH:MM" or null,
+  "reason": "one sentence"
+}}
+
+If viewing_arranged is true but no specific datetime can be extracted, set viewing_datetime to null.
+
+Conversation:
+{conversation}
+""".strip()
+
+
 def build_pre_cancel_number_ask_prompt(conversation: str, place: str | None = None) -> str:
     travel_line = (
         f"You are travelling from {place} to the viewing, which is a 4-5 hour journey."

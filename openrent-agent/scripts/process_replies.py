@@ -55,6 +55,7 @@ from app.ai.extractors import (
 )
 
 from app.ai.replies import (
+    ai_detect_viewing_arranged,
     generate_handoff_message,
     generate_cancel_viewing_message,
     generate_pre_cancel_number_ask,
@@ -268,6 +269,18 @@ def _cancel_window_passed(viewing_dt) -> bool:
     return hours_until <= cancel_threshold
 
 
+def _parse_ai_viewing_datetime(dt_str):
+    """Convert 'YYYY-MM-DD HH:MM' string from AI detection to a datetime object."""
+    if not dt_str:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"):
+        try:
+            return datetime.strptime(str(dt_str).strip(), fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def _assign_playbook_ab_if_enabled(thread_id, persona):
     """Idempotently assign/log before any automated message when the A/B flag is on."""
     if os.getenv("PLAYBOOK_AB_ENABLED") != "1":
@@ -458,6 +471,32 @@ async def process_account_replies(
                 )
             elif banners["viewing_requested"]:
                 save_banner_state(thread_id, viewing_requested=True)
+
+            # AI viewing detection — fallback when the banner found nothing.
+            # Reads the full conversation to determine if a viewing is genuinely
+            # arranged. Result is merged into `banners` so the cancel block and
+            # all downstream logic use one consistent dict.
+            if not banners["viewing_confirmed"]:
+                ai_viewing = ai_detect_viewing_arranged(messages)
+                if ai_viewing.get("viewing_arranged"):
+                    ai_dt = _parse_ai_viewing_datetime(ai_viewing.get("viewing_datetime"))
+                    banners["viewing_confirmed"] = True
+                    if ai_dt:
+                        banners["viewing_datetime"] = ai_dt
+                    save_banner_state(
+                        thread_id,
+                        viewing_confirmed=True,
+                        viewing_datetime=banners.get("viewing_datetime"),
+                    )
+                    logger.info(
+                        f"AI_VIEWING_DETECTED thread_id={thread_id} "
+                        f"datetime={ai_dt} reason={ai_viewing.get('reason')!r}"
+                    )
+                else:
+                    logger.info(
+                        f"AI_VIEWING_NOT_DETECTED thread_id={thread_id} "
+                        f"reason={ai_viewing.get('reason')!r}"
+                    )
 
             save_inbound_messages(thread_id, messages)
 

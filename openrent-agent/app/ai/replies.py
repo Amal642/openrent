@@ -1,3 +1,4 @@
+import json
 import re
 import time
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from app.ai.prompts import (
     build_initial_enquiry_prompt,
     build_pre_cancel_number_ask_prompt,
     build_reply_prompt,
+    build_viewing_detection_prompt,
     names_generator,
     LANDLORD_NUMBER_CAPTURE_DESIGNS,
 )
@@ -565,6 +567,44 @@ def generate_cancel_viewing_message(messages, retries=3, base_delay=2):
     if result.is_valid:
         return result.reply, None
     return None, result.error or "cancel_reply_failed"
+
+
+def ai_detect_viewing_arranged(messages, retries=2, base_delay=1):
+    """
+    Use AI to determine if a viewing is genuinely arranged in this conversation.
+    Returns dict with keys: viewing_arranged (bool), viewing_datetime (str|None), reason (str).
+    Called only when the banner scan found nothing, as a fallback.
+    """
+    conversation = format_conversation(messages or [])
+    prompt = build_viewing_detection_prompt(conversation)
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            # Strip markdown code fences if the model wraps the JSON
+            if raw.startswith("```"):
+                raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.S).strip()
+            result = json.loads(raw)
+            return {
+                "viewing_arranged": bool(result.get("viewing_arranged", False)),
+                "viewing_datetime": result.get("viewing_datetime") or None,
+                "reason": result.get("reason", ""),
+            }
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            logger.warning(f"AI viewing detection attempt {attempt}/{retries} failed: {exc}")
+            if attempt < retries:
+                time.sleep(base_delay)
+        except Exception as exc:
+            logger.warning(f"AI viewing detection attempt {attempt}/{retries} error: {exc}")
+            if attempt < retries:
+                time.sleep(base_delay)
+
+    return {"viewing_arranged": False, "viewing_datetime": None, "reason": "detection_failed"}
 
 
 def generate_pre_cancel_number_ask(messages, place=None, retries=3, base_delay=2):
