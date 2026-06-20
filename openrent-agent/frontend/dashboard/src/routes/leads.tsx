@@ -399,21 +399,14 @@ function CancelStatusBadge({ lead }: { lead: import("@/lib/types").Lead }) {
       </span>
     );
   }
-  if (lead.cancelRequired && !lead.cancellationSentAt) {
+  if (lead.viewingConfirmed && lead.cancelRequired) {
     return (
       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300">
-        Queued
+        Viewing booked — cancel queued
       </span>
     );
   }
-  if (lead.viewingConfirmed) {
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300">
-        Booked
-      </span>
-    );
-  }
-  return <span className="text-muted-foreground">—</span>;
+  return null;
 }
 
 function MultiSelectFilter({
