@@ -251,6 +251,64 @@ def test_backfill_sheet_export_outbox_filters_location(db_session):
         assert exports[0].conversation_id == london_conversation_id
 
 
+def test_backfill_can_requeue_existing_location_exports(db_session):
+    with db_session() as session:
+        account = Account(email="requeue@example.com", password="", session_file="s.json")
+        session.add(account)
+        session.flush()
+        profile = SearchProfile(account_id=account.id, location="South London")
+        session.add(profile)
+        session.flush()
+        listing = Listing(
+            listing_id="SOUTH1",
+            property_url="https://www.openrent.co.uk/333333",
+            search_profile_id=profile.id,
+        )
+        session.add(listing)
+        session.flush()
+        conversation = Conversation(
+            thread_id="SOUTH-T",
+            listing_id=listing.id,
+            extracted_phone="07123456783",
+            phone_found_at=datetime.utcnow(),
+        )
+        session.add(conversation)
+        session.flush()
+        export = LeadSheetExport(
+            conversation_id=conversation.id,
+            status="EXPORTED",
+            exported_at=datetime.utcnow(),
+            destination_tab="June",
+            destination_row=3,
+        )
+        session.add(export)
+        session.commit()
+
+    preview = repository.backfill_sheet_export_outbox(
+        dry_run=True,
+        location="London",
+        requeue_existing=True,
+    )
+
+    assert preview["eligible"] == 0
+    assert preview["already_tracked"] == 1
+    assert preview["actionable"] == 1
+    assert preview["leads"][0]["action"] == "requeue"
+
+    applied = repository.backfill_sheet_export_outbox(
+        dry_run=False,
+        location="London",
+        requeue_existing=True,
+    )
+
+    assert applied["created"] == 0
+    assert applied["requeued"] == 1
+    with db_session() as session:
+        export = session.query(LeadSheetExport).one()
+        assert export.status == "PENDING"
+        assert export.exported_at is None
+
+
 def test_mark_listing_skipped_is_not_processing_failure(db_session):
     with db_session() as session:
         listing = Listing(

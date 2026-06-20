@@ -32,8 +32,16 @@ def main():
         "--expected-count",
         type=int,
         help=(
-            "Safety check for apply mode. Abort unless the number of newly "
-            "eligible leads exactly matches this value."
+            "Safety check for apply mode. Abort unless the number of leads "
+            "that would be created or requeued exactly matches this value."
+        ),
+    )
+    parser.add_argument(
+        "--requeue-existing",
+        action="store_true",
+        help=(
+            "Also reset already-tracked matching exports to PENDING. Use this "
+            "to update existing sheet rows after changing mapped values."
         ),
     )
     args = parser.parse_args()
@@ -43,17 +51,19 @@ def main():
         preview = backfill_sheet_export_outbox(
             dry_run=True,
             location=args.location,
+            requeue_existing=args.requeue_existing,
         )
-        if preview["eligible"] != args.expected_count:
+        if preview["actionable"] != args.expected_count:
             parser.error(
-                "Eligible lead count changed: "
-                f"expected {args.expected_count}, found {preview['eligible']}. "
+                "Actionable lead count changed: "
+                f"expected {args.expected_count}, found {preview['actionable']}. "
                 "Run the dry-run preview again."
             )
 
     result = backfill_sheet_export_outbox(
         dry_run=not args.apply,
         location=args.location,
+        requeue_existing=args.requeue_existing,
     )
     result["mode"] = "apply" if args.apply else "dry-run"
     print(json.dumps(result, indent=2, default=str))

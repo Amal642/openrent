@@ -147,6 +147,32 @@ def test_export_uses_next_formatted_lead_row():
     assert cells[4]["userEnteredValue"]["stringValue"] == "07123456789"
 
 
+def test_export_writes_configured_direction():
+    state = {
+        "sheets": [
+            {
+                "sheetId": 10,
+                "title": "June",
+                "index": 0,
+                "gridProperties": {"rowCount": 1000, "columnCount": 12},
+            }
+        ],
+        "values": {"June": [HEADERS]},
+        "requests": [],
+    }
+    exporter = GoogleSheetsLeadExporter(
+        FakeService(state),
+        "sheet-1",
+        person="Becky",
+        direction="South",
+    )
+
+    exporter.export(make_payload())
+
+    cells = state["requests"][-1]["requests"][-1]["updateCells"]["rows"][0]["values"]
+    assert cells[2]["userEnteredValue"]["stringValue"] == "South"
+
+
 def test_export_updates_existing_listing_row():
     payload = make_payload()
     state = {

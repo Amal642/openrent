@@ -1946,7 +1946,11 @@ def get_sheet_export_statuses(status=None, limit=100, listing_id=None):
         ]
 
 
-def backfill_sheet_export_outbox(dry_run=True, location=None):
+def backfill_sheet_export_outbox(
+    dry_run=True,
+    location=None,
+    requeue_existing=False,
+):
     with session_scope() as db:
         query = (
             db.query(Conversation, Listing, SearchProfile, LeadSheetExport)
@@ -1969,17 +1973,21 @@ def backfill_sheet_export_outbox(dry_run=True, location=None):
 
         matched_rows = query.all()
         eligible_rows = [
-            (conversation, listing, profile)
+            (conversation, listing, profile, export)
             for conversation, listing, profile, export in matched_rows
             if export is None
         ]
+        action_rows = matched_rows if requeue_existing else eligible_rows
 
         result = {
             "location_filter": location,
+            "requeue_existing": requeue_existing,
             "matched_phone_leads": len(matched_rows),
             "already_tracked": len(matched_rows) - len(eligible_rows),
             "eligible": len(eligible_rows),
+            "actionable": len(action_rows),
             "created": 0,
+            "requeued": 0,
             "leads": [
                 {
                     "conversation_id": conversation.id,
@@ -1988,24 +1996,38 @@ def backfill_sheet_export_outbox(dry_run=True, location=None):
                     "property_url": listing.property_url,
                     "location": profile.location,
                     "phone_found_at": _utc(conversation.phone_found_at),
+                    "action": "requeue" if export is not None else "create",
                 }
-                for conversation, listing, profile in eligible_rows
+                for conversation, listing, profile, export in action_rows
             ],
         }
         if dry_run:
             return result
 
         now = datetime.utcnow()
-        for conversation, _, _ in eligible_rows:
-            db.add(
-                LeadSheetExport(
-                    conversation_id=conversation.id,
-                    status="PENDING",
-                    next_attempt_at=now,
+        created = 0
+        requeued = 0
+        for conversation, _, _, export in action_rows:
+            if export is None:
+                db.add(
+                    LeadSheetExport(
+                        conversation_id=conversation.id,
+                        status="PENDING",
+                        next_attempt_at=now,
+                    )
                 )
-            )
+                created += 1
+            else:
+                export.status = "PENDING"
+                export.next_attempt_at = now
+                export.processing_started_at = None
+                export.last_error = None
+                export.exported_at = None
+                export.updated_at = now
+                requeued += 1
         db.commit()
-        result["created"] = len(eligible_rows)
+        result["created"] = created
+        result["requeued"] = requeued
         return result
 
 

@@ -112,11 +112,13 @@ class GoogleSheetsLeadExporter:
         spreadsheet_id,
         *,
         person="Becky",
+        direction="",
         template_tab=None,
     ):
         self.service = service
         self.spreadsheet_id = spreadsheet_id
         self.person = person
+        self.direction = direction
         self.template_tab = template_tab
 
     def _spreadsheet_metadata(self):
@@ -361,7 +363,7 @@ class GoogleSheetsLeadExporter:
         values = [
             self.person,
             event_date.strftime("%d/%m/%Y"),
-            "",
+            self.direction,
             payload.get("landlord_name") or "",
             payload.get("phone_number") or "",
             payload.get("address") or "",
@@ -651,5 +653,6 @@ def configured_exporter(service=None):
         service or build_sheets_service(),
         settings.GOOGLE_SHEET_ID,
         person=settings.GOOGLE_SHEET_PERSON or "Becky",
+        direction=settings.GOOGLE_SHEET_DIRECTION or "",
         template_tab=settings.GOOGLE_SHEET_TEMPLATE_TAB,
     )

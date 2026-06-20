@@ -72,6 +72,7 @@ service-account key that has not been shared in chat or committed to Git:
 GOOGLE_SHEETS_ENABLED=false
 GOOGLE_SHEET_ID=<spreadsheet-id-between-/d/-and-/edit>
 GOOGLE_SHEET_PERSON=Becky
+GOOGLE_SHEET_DIRECTION=South
 GOOGLE_APPLICATION_CREDENTIALS=C:/Users/anees/.secrets/landroyal-sheets.json
 ```
 
@@ -143,6 +144,21 @@ Linux:
 python scripts/backfill_google_sheet_exports.py \
   --location London \
   --expected-count 24 \
+  --apply
+```
+
+To update all existing London rows after changing a mapped field such as
+Direction, preview and requeue already-tracked exports:
+
+```bash
+python scripts/backfill_google_sheet_exports.py \
+  --location London \
+  --requeue-existing
+
+python scripts/backfill_google_sheet_exports.py \
+  --location London \
+  --requeue-existing \
+  --expected-count 25 \
   --apply
 ```
 
