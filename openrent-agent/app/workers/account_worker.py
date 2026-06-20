@@ -1,7 +1,6 @@
 import asyncio
 from contextlib import suppress
 from datetime import datetime, timedelta
-from urllib.parse import quote, urlsplit, urlunsplit
 from uuid import uuid4
 
 from rq import Retry
@@ -46,6 +45,7 @@ from app.db.repository import (
     update_proxy_health,
 )
 from app.proxy.check_proxy import check_proxy
+from app.proxy.url import build_account_proxy_url
 
 from app.queue.queues import worker_queue
 from app.utils.scheduling import is_operating_hours
@@ -75,44 +75,7 @@ def _status_is_in_flight(account):
 
 
 def _proxy_url_for_account(account):
-    """
-    Build a proxy URL for the Playwright proxy option.
-    Prefers the linked Proxy record (proxy_id), falls back to legacy fields.
-    """
-    linked = getattr(account, "proxy", None)
-    if linked and linked.is_active and linked.host:
-        server = f"http://{linked.host}:{linked.port}"
-        if not linked.username:
-            return server
-        username = quote(linked.username, safe="")
-        password = quote(linked.password or "", safe="")
-        return f"http://{username}:{password}@{linked.host}:{linked.port}"
-
-    proxy_server = (account.proxy_server or "").strip()
-    if not proxy_server:
-        return None
-
-    parsed = urlsplit(
-        proxy_server if "://" in proxy_server else f"http://{proxy_server}"
-    )
-    if not account.proxy_username:
-        return urlunsplit(parsed)
-
-    username = quote(account.proxy_username, safe="")
-    password = quote(account.proxy_password or "", safe="")
-    credentials = f"{username}:{password}@"
-    netloc = parsed.netloc
-    if "@" in netloc:
-        netloc = netloc.split("@", 1)[1]
-    return urlunsplit(
-        (
-            parsed.scheme,
-            f"{credentials}{netloc}",
-            parsed.path,
-            parsed.query,
-            parsed.fragment,
-        )
-    )
+    return build_account_proxy_url(account)
 
 
 def _proxy_check_is_fresh(account) -> bool:

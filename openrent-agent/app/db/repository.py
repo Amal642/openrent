@@ -1784,6 +1784,8 @@ def get_sheet_export_payload(export_id):
             return None
 
         export, conversation, listing, search_profile, account = row
+        from app.proxy.url import build_account_proxy_url
+
         return {
             "export_id": export.id,
             "conversation_id": conversation.id,
@@ -1801,6 +1803,7 @@ def get_sheet_export_payload(export_id):
             "search_location": search_profile.location,
             "account_id": account.id,
             "account_email": account.email,
+            "proxy_url": build_account_proxy_url(account),
             "attempt_count": export.attempt_count,
             "current_status": export.status,
         }

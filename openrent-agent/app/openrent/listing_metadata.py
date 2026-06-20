@@ -2,7 +2,8 @@ import html
 import json
 import re
 from datetime import datetime
-from urllib.request import Request, urlopen
+from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
+import ssl
 
 from app.utils.logger import logger
 
@@ -111,7 +112,7 @@ def _address_from_heading(content, page_title=""):
 
     # The sheet's Address column uses the location, not the property type.
     heading = re.sub(
-        r"^\s*\d+\s*Bed\s+(?:Flat|House|Maisonette|Bungalow|Studio|Room)\s*,?\s*",
+        r"^\s*\d+\s*Bed\s+[^,]+,\s*",
         "",
         heading,
         flags=re.IGNORECASE,
@@ -224,7 +225,7 @@ def parse_listing_metadata(content, body_text="", page_title=""):
     }
 
 
-def fetch_listing_metadata(property_url, timeout=20):
+def fetch_listing_metadata(property_url, timeout=20, proxy_url=None):
     request = Request(
         property_url,
         headers={
@@ -235,7 +236,13 @@ def fetch_listing_metadata(property_url, timeout=20):
             "Accept": "text/html,application/xhtml+xml",
         },
     )
-    with urlopen(request, timeout=timeout) as response:
+    handlers = [HTTPSHandler(context=ssl.create_default_context())]
+    if proxy_url:
+        handlers.append(
+            ProxyHandler({"http": proxy_url, "https": proxy_url})
+        )
+    opener = build_opener(*handlers)
+    with opener.open(request, timeout=timeout) as response:
         content = response.read().decode("utf-8", errors="replace")
         final_url = response.geturl()
 
@@ -249,6 +256,7 @@ def fetch_listing_metadata(property_url, timeout=20):
     logger.info(
         "LISTING_METADATA_HTTP_FETCHED "
         f"requested_url={property_url} final_url={final_url} "
+        f"proxy_used={bool(proxy_url)} "
         f"address_present={bool(metadata.get('address'))} "
         f"landlord_name_present={bool(metadata.get('landlord_name'))} "
         f"bedrooms={metadata.get('bedrooms')} "

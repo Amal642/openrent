@@ -19,6 +19,10 @@ RETRY_DELAYS_MINUTES = (1, 5, 15, 60, 180, 360, 720, 1440)
 METADATA_FIELDS = ("landlord_name", "address", "bedrooms", "bathrooms", "rent_pcm")
 
 
+class MetadataHydrationError(OSError):
+    pass
+
+
 def _http_error_details(exc):
     status = getattr(getattr(exc, "resp", None), "status", None)
     content = getattr(exc, "content", b"")
@@ -60,7 +64,10 @@ def _hydrate_missing_metadata(payload):
         f"missing_fields={','.join(missing)}"
     )
     try:
-        metadata = fetch_listing_metadata(payload["property_url"])
+        metadata = fetch_listing_metadata(
+            payload["property_url"],
+            proxy_url=payload.get("proxy_url"),
+        )
         save_listing_metadata(payload["listing_pk"], metadata)
         refreshed = get_sheet_export_payload(payload["export_id"])
         remaining = [
@@ -71,16 +78,23 @@ def _hydrate_missing_metadata(payload):
             f"export_id={payload.get('export_id')} listing_id={payload.get('listing_id')} "
             f"remaining_fields={','.join(remaining) if remaining else 'none'}"
         )
+        if remaining:
+            raise MetadataHydrationError(
+                "OpenRent metadata remains incomplete after hydration: "
+                + ", ".join(remaining)
+            )
         return refreshed
     except Exception as exc:
-        # Phone and URL are still sufficient for an export. Keep the export
-        # moving, but make the metadata failure explicit in logs.
         logger.exception(
             "GOOGLE_SHEETS_METADATA_HYDRATION_FAILED "
             f"export_id={payload.get('export_id')} listing_id={payload.get('listing_id')} "
             f"missing_fields={','.join(missing)} error_type={type(exc).__name__}"
         )
-        return payload
+        if isinstance(exc, MetadataHydrationError):
+            raise
+        raise MetadataHydrationError(
+            f"OpenRent metadata hydration failed: {type(exc).__name__}: {exc}"
+        ) from exc
 
 
 def run_lead_sheet_export_sync(export_id):

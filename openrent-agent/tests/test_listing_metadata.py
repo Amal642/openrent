@@ -86,3 +86,25 @@ def test_parse_current_openrent_listing_layout():
     assert result["bedrooms"] == 2
     assert result["bathrooms"] == 1
     assert result["rent_pcm"] == 1700
+
+
+def test_parse_semi_detached_house_address():
+    content = """
+    <html><head>
+      <title>Feltham London - 2 Bed Semi-Detached House,
+      Engleheart Drive, TW14 - To Rent Now for £1,800.00 p/m</title>
+    </head><body>
+      <h1>2 Bed Semi-Detached House, Engleheart Drive, TW14</h1>
+      <span>2 bedrooms</span><span>1 bathrooms</span>
+      <tr><td>Rent PCM</td><td>£1,800.00</td></tr>
+      <h2>Meet the Landlord</h2><div><p>Huma K.</p></div>
+    </body></html>
+    """
+
+    result = parse_listing_metadata(content)
+
+    assert result["address"] == "Engleheart Drive, TW14"
+    assert result["landlord_name"] == "Huma K."
+    assert result["bedrooms"] == 2
+    assert result["bathrooms"] == 1
+    assert result["rent_pcm"] == 1800
