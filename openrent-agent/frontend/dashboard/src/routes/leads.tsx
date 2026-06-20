@@ -270,6 +270,7 @@ function LeadsList() {
               <TableHead>Stage</TableHead>
               <TableHead>Account</TableHead>
               <TableHead>Last update</TableHead>
+              <TableHead>Cancel</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -319,6 +320,9 @@ function LeadsList() {
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                   {fmtRelative(l.lastUpdatedAt)}
+                </TableCell>
+                <TableCell>
+                  <CancelStatusBadge lead={l} />
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
@@ -385,6 +389,31 @@ function LeadsList() {
       )}
     </>
   );
+}
+
+function CancelStatusBadge({ lead }: { lead: import("@/lib/types").Lead }) {
+  if (lead.viewingCancelled) {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
+        Cancelled
+      </span>
+    );
+  }
+  if (lead.cancelRequired && !lead.cancellationSentAt) {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300">
+        Queued
+      </span>
+    );
+  }
+  if (lead.viewingConfirmed) {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300">
+        Booked
+      </span>
+    );
+  }
+  return <span className="text-muted-foreground">—</span>;
 }
 
 function MultiSelectFilter({
