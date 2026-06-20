@@ -343,10 +343,8 @@ def test_ensure_account_persona_does_not_generate_mobile_number(db_session):
 
 def test_dashboard_leads_include_persisted_listing_metadata_and_ids(
     db_session,
-    monkeypatch,
 ):
     captured_at = datetime.utcnow()
-    monkeypatch.setattr(repository.settings, "GOOGLE_SHEET_DIRECTION", "South")
 
     with db_session() as session:
         account = Account(
@@ -410,4 +408,76 @@ def test_dashboard_leads_include_persisted_listing_metadata_and_ids(
     assert lead["bathrooms"] == 1
     assert lead["rent_pcm"] == 1700
     assert lead["metadata_captured_at"] == captured_at
-    assert lead["direction"] == "South"
+
+
+def test_metadata_backfill_candidates_require_explicit_ids_location_and_export(
+    db_session,
+):
+    with db_session() as session:
+        account = Account(email="scope@example.com", password="", session_file="scope.json")
+        session.add(account)
+        session.flush()
+        london = SearchProfile(account_id=account.id, location="South London")
+        manchester = SearchProfile(account_id=account.id, location="Manchester")
+        session.add_all([london, manchester])
+        session.flush()
+
+        london_listing = Listing(
+            listing_id="LONDON-1",
+            property_url="https://www.openrent.co.uk/LONDON-1",
+            search_profile_id=london.id,
+        )
+        manchester_listing = Listing(
+            listing_id="MANCHESTER-1",
+            property_url="https://www.openrent.co.uk/MANCHESTER-1",
+            search_profile_id=manchester.id,
+        )
+        untracked_listing = Listing(
+            listing_id="LONDON-UNTRACKED",
+            property_url="https://www.openrent.co.uk/LONDON-UNTRACKED",
+            search_profile_id=london.id,
+        )
+        session.add_all([london_listing, manchester_listing, untracked_listing])
+        session.flush()
+
+        conversations = [
+            Conversation(
+                thread_id="LONDON-T",
+                listing_id=london_listing.id,
+                extracted_phone="07111111111",
+                phone_found_at=datetime.utcnow(),
+            ),
+            Conversation(
+                thread_id="MANCHESTER-T",
+                listing_id=manchester_listing.id,
+                extracted_phone="07222222222",
+                phone_found_at=datetime.utcnow(),
+            ),
+            Conversation(
+                thread_id="UNTRACKED-T",
+                listing_id=untracked_listing.id,
+                extracted_phone="07333333333",
+                phone_found_at=datetime.utcnow(),
+            ),
+        ]
+        session.add_all(conversations)
+        session.flush()
+        session.add_all([
+            LeadSheetExport(conversation_id=conversations[0].id, status="EXPORTED"),
+            LeadSheetExport(conversation_id=conversations[1].id, status="EXPORTED"),
+        ])
+        session.commit()
+
+    result = repository.get_sheet_metadata_backfill_candidates(
+        ["LONDON-1", "MANCHESTER-1", "LONDON-UNTRACKED"],
+        location="London",
+    )
+
+    assert result["matched_listing_ids"] == ["LONDON-1"]
+    assert result["missing_listing_ids"] == [
+        "MANCHESTER-1",
+        "LONDON-UNTRACKED",
+    ]
+    assert [candidate["listing_id"] for candidate in result["candidates"]] == [
+        "LONDON-1"
+    ]

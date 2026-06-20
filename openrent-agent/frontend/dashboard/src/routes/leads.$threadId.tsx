@@ -172,7 +172,6 @@ function ConversationPage() {
             </div>
             <dl className="grid grid-cols-2 gap-2 text-xs">
               <Field label="Landlord" value={lead.landlordName || "—"} />
-              <Field label="Direction" value={lead.direction || "—"} />
               <Field label="Address" value={lead.propertyAddress || "—"} />
               <Field label="Rent PCM" value={lead.rent ? fmtMoney(lead.rent) : "—"} />
               <Field label="Bedrooms" value={lead.bedrooms ? String(lead.bedrooms) : "—"} />

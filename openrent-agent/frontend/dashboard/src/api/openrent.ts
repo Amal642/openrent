@@ -118,7 +118,6 @@ type BackendLead = {
   bathrooms?: number;
   rent_pcm?: number;
   metadata_captured_at?: string;
-  direction?: string;
   account_id?: number | string;
   account_email?: string;
   search_profile_id?: number | string;
@@ -344,7 +343,6 @@ function mapLead(lead: BackendLead): Lead {
     threadId: lead.thread_id || id,
     landlordName: lead.landlord_name || threadName,
     metadataCapturedAt: lead.metadata_captured_at,
-    direction: lead.direction,
     status: leadStatus,
     conversationStage: asStage(lead.conversation_stage),
     phoneNumber,

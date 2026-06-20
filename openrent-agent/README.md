@@ -165,6 +165,31 @@ python scripts/backfill_google_sheet_exports.py \
 Structured log events use the prefixes `LISTING_METADATA_`,
 `GOOGLE_SHEETS_OUTBOX_`, and `GOOGLE_SHEETS_`.
 
+To populate CRM property metadata for the fixed 23-lead London production
+cohort, first run the guarded dry-run:
+
+```bash
+venv/bin/python scripts/hydrate_listing_metadata.py \
+  --listing-id-file scripts/data/london_phone_leads_2026-06-20.txt \
+  --location London \
+  --expected-count 23
+```
+
+After confirming `allowlisted=23`, `matched=23`, and that every listed location
+is London, apply it:
+
+```bash
+venv/bin/python scripts/hydrate_listing_metadata.py \
+  --listing-id-file scripts/data/london_phone_leads_2026-06-20.txt \
+  --location London \
+  --expected-count 23 \
+  --apply
+```
+
+This command only considers the explicit allowlist, requires an existing phone
+lead and Google Sheets export record, and rejects Manchester or untracked leads.
+It updates persisted CRM listing metadata without re-exporting sheet rows.
+
 Generate the CRM password hash and signing secret without storing the plain-text
 password in `.env`:
 

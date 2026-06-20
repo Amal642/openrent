@@ -156,7 +156,6 @@ export interface Lead {
   threadId: string;
   landlordName: string;
   metadataCapturedAt?: string;
-  direction?: string;
   status: LeadStatus;
   conversationStage: ConversationStage;
   phoneNumber?: string;

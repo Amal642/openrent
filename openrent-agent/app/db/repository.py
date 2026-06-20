@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import joinedload
 
-from app.config import settings
 from app.db.connection import SessionLocal
 from app.db.models import (
     Account,
@@ -2032,6 +2031,66 @@ def backfill_sheet_export_outbox(
         return result
 
 
+def get_sheet_metadata_backfill_candidates(listing_ids, location=None):
+    normalized_ids = list(dict.fromkeys(
+        str(listing_id).strip()
+        for listing_id in listing_ids
+        if str(listing_id).strip()
+    ))
+    if not normalized_ids:
+        return {
+            "requested_listing_ids": [],
+            "matched_listing_ids": [],
+            "missing_listing_ids": [],
+            "candidates": [],
+        }
+
+    with session_scope() as db:
+        query = (
+            db.query(LeadSheetExport.id, Listing.listing_id)
+            .join(
+                Conversation,
+                LeadSheetExport.conversation_id == Conversation.id,
+            )
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .filter(
+                Listing.listing_id.in_(normalized_ids),
+                Conversation.extracted_phone != None,
+                Conversation.phone_found_at != None,
+            )
+        )
+        if location:
+            query = query.filter(
+                SearchProfile.location.ilike(f"%{str(location).strip()}%")
+            )
+        rows = query.all()
+
+    export_id_by_listing = {
+        str(listing_id): export_id
+        for export_id, listing_id in rows
+    }
+    matched_listing_ids = [
+        listing_id
+        for listing_id in normalized_ids
+        if listing_id in export_id_by_listing
+    ]
+    candidates = [
+        get_sheet_export_payload(export_id_by_listing[listing_id])
+        for listing_id in matched_listing_ids
+    ]
+    return {
+        "requested_listing_ids": normalized_ids,
+        "matched_listing_ids": matched_listing_ids,
+        "missing_listing_ids": [
+            listing_id
+            for listing_id in normalized_ids
+            if listing_id not in export_id_by_listing
+        ],
+        "candidates": [candidate for candidate in candidates if candidate],
+    }
+
+
 def save_ai_reply(
     thread_id,
     reply
@@ -2394,7 +2453,6 @@ def get_dashboard_leads(status=None):
                 "bathrooms": listing.bathrooms,
                 "rent_pcm": listing.rent_pcm,
                 "metadata_captured_at": listing.metadata_captured_at,
-                "direction": settings.GOOGLE_SHEET_DIRECTION or "",
                 "account_id": account.id,
                 "account_email": account.email,
                 "search_profile_id": search_profile.id,
