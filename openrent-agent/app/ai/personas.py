@@ -91,12 +91,12 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["James", "Daniel", "Oliver", "Sam"],
-            "partner": ["Sophie", "Hannah", "Amelia", "Leah"],
+            "primary": ["Sophie", "Hannah", "Amelia", "Leah"],
+            "partner": ["James", "Daniel", "Oliver", "Sam"],
         },
         "jobs": {
-            "primary": ["Product Manager", "Business Analyst", "Software Engineer"],
-            "partner": ["Marketing Manager", "Project Coordinator", "UX Designer"],
+            "primary": ["Marketing Manager", "Project Coordinator", "UX Designer"],
+            "partner": ["Product Manager", "Business Analyst", "Software Engineer"],
         },
     },
     "quiet_it_worker": {
@@ -195,8 +195,8 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Michael", "Ethan", "Charlotte", "Rebecca"],
-            "partner": ["Emma", "Lucy", "Alex", "Chris"],
+            "primary": ["Charlotte", "Rebecca", "Victoria", "Claire"],
+            "partner": ["Michael", "Ethan", "Alex", "Chris"],
         },
         "jobs": {
             "primary": ["Mechanical Engineer", "Management Consultant", "Solutions Architect"],

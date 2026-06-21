@@ -125,6 +125,7 @@ def build_reply_prompt(
     phone_number_shared: bool = False,
     landlord_asked_for_number: bool = False,
     outbound_count: int = 0,
+    phone_ask_count: int = 0,
     property: dict | None = None,
 ) -> str:
     if stage == "VIEWING_CANCELLED":
@@ -157,6 +158,7 @@ def build_reply_prompt(
         trust_level="medium",
         escalation_behavior=(persona or {}).get("escalation_behavior"),
         outbound_count=outbound_count,
+        phone_ask_count=phone_ask_count,
         property=property,
     )
 
@@ -254,6 +256,7 @@ def _phone_policy_lines(
     landlord_asked_for_number: bool,
     outbound_count: int,
     drive_distance: str | None,
+    phone_ask_count: int = 0,
 ) -> list[str]:
     persona = persona or {}
     phone_type = persona.get("phone_fetching_type") or "delayed"
@@ -270,13 +273,21 @@ def _phone_policy_lines(
             f"- Phone already shared by tenant: {'yes' if phone_number_shared else 'no'}",
             f"- Landlord explicitly asked for tenant number/contact/WhatsApp: {'yes' if landlord_asked_for_number else 'no'}",
             f"- Outbound tenant messages so far: {outbound_count}",
+            f"- Times you have already asked for the landlord's number in this conversation: {phone_ask_count}",
             f"- Drive distance context: {drive_distance or 'unknown'}",
             "- Never invent any number, email address, or contact detail.",
-            f"- If the landlord asks for the tenant number, do not provide it in this strategy; keep the reply practical and ask for {number_phrase} once viewing logistics justify it.",
+            "- If the landlord asks for YOUR (the tenant's) phone number or mobile, do NOT provide it. "
+            "Redirect naturally: tell them your husband is handling the viewing coordination and ask for the landlord's number to pass on to him. "
+            "Keep it brief and natural — e.g. 'My husband's actually sorting the viewing side of things, would you be able to share your number so I can pass it to him?'.",
             "- Do not ask for the landlord's number until viewing, video viewing, timing, travel, directions, delays, or day-of-viewing logistics are being discussed.",
             f"- If your reply answers screening and proposes or narrows a viewing time/window, include a soft request for {number_phrase} for viewing logistics.",
             f"- Good shape: answer screening in one short sentence, suggest or ask about viewing timing, then ask for {number_phrase} in case of delays.",
         ]
+        if phone_ask_count >= 2:
+            lines.append(
+                f"- You have already asked for the landlord's number {phone_ask_count} time(s). "
+                "Do NOT ask for it again in this reply. Wait until the viewing is confirmed or logistics genuinely need it."
+            )
         if stage == "VIEWING_BOOKED":
             lines.append(
                 f"- A viewing appears booked, so it can be appropriate to ask for {number_phrase} for practical viewing logistics unless the landlord has just refused phone sharing."
@@ -285,7 +296,7 @@ def _phone_policy_lines(
             lines.extend(
                 [
                     "- If the landlord has refused to share a number, respect that for the next tenant reply and keep arranging on OpenRent.",
-                    "- If the landlord asks for the tenant number, do not provide it; say you would rather not share yours just yet because of past bad experiences, then offer to keep it here or use their number for viewing arrangements.",
+                    "- If the landlord asks for YOUR phone number, do not provide it. Redirect: say your husband is handling the viewing logistics and ask for the landlord's number to pass to him.",
                     "- Do not ask for a number immediately after a booking if the previous landlord message refused phone sharing before booking.",
                     "- When answering screening, explicitly say 'work' or 'working full-time' if that is true from persona facts.",
                     "- Prefer 'Could I get your number just in case we're delayed?' over conditional wording like 'if we set a time, could I...'.",
@@ -298,6 +309,7 @@ def _phone_policy_lines(
         f"- Phone already shared by tenant: {'yes' if phone_number_shared else 'no'}",
         f"- Landlord explicitly asked for tenant number/contact/WhatsApp: {'yes' if landlord_asked_for_number else 'no'}",
         f"- Outbound tenant messages so far: {outbound_count}",
+        f"- Times you have already asked for the landlord's number in this conversation: {phone_ask_count}",
         f"- Drive distance context: {drive_distance or 'unknown'}",
         "- Never invent any other number, email address, or contact detail.",
     ]
@@ -348,20 +360,26 @@ def _phone_policy_lines(
             "- Viewing details are still being discussed; keep replying naturally to availability, scheduling, and follow-up questions."
         )
 
-    # Hard count-based enforcement: once the threshold is hit the AI must ask
-    # for the landlord's number in this reply regardless of viewing progress.
+    # Hard count-based enforcement: fires only if we haven't asked twice already.
+    # Once phone_ask_count >= 2, suppress MANDATORY lines to avoid being pushy.
     if not phone_number_shared and not landlord_asked_for_number:
-        if phone_type in {"viewing_first"} and outbound_count >= 1:
+        if phone_ask_count >= 2:
             lines.append(
-                f"- MANDATORY: {outbound_count} message(s) sent so far with no phone number obtained. "
-                "This reply MUST include a brief, natural ask for the landlord's phone number — "
-                "e.g. 'Could I grab your number for the viewing?' Do not skip this."
+                f"- You have already asked for the landlord's number {phone_ask_count} time(s) in this conversation. "
+                "Do NOT ask for it again in this reply. Only ask again naturally when a viewing time is being confirmed or you are coordinating day-of logistics."
             )
-        elif phone_type in {"delayed", "adaptive"} and outbound_count >= 3:
-            lines.append(
-                f"- MANDATORY: {outbound_count} messages sent with no phone number obtained. "
-                "This reply MUST include a natural ask for the landlord's phone number."
-            )
+        else:
+            if phone_type in {"viewing_first"} and outbound_count >= 1:
+                lines.append(
+                    f"- MANDATORY: {outbound_count} message(s) sent so far with no phone number obtained. "
+                    "This reply MUST include a brief, natural ask for the landlord's phone number — "
+                    "e.g. 'Could I grab your number for the viewing?' Do not skip this."
+                )
+            elif phone_type in {"delayed", "adaptive"} and outbound_count >= 3:
+                lines.append(
+                    f"- MANDATORY: {outbound_count} messages sent with no phone number obtained. "
+                    "This reply MUST include a natural ask for the landlord's phone number."
+                )
 
     return lines
 
@@ -384,6 +402,7 @@ def generate_message_persona_prompt(
     trust_level: str | None = None,
     escalation_behavior: str | None = None,
     outbound_count: int = 0,
+    phone_ask_count: int = 0,
     property: dict | None = None,
 ) -> str:
     persona = persona or {}
@@ -446,6 +465,7 @@ Phone sharing policy:
     landlord_asked_for_number=landlord_asked_for_number,
     outbound_count=outbound_count,
     drive_distance=drive_distance,
+    phone_ask_count=phone_ask_count,
 ))}
 
 Landlord attitude adaptation:

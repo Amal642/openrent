@@ -606,17 +606,23 @@ async def process_account_replies(
                 phone_already_requested = bool(conversation and conversation.phone_requested_at)
                 phone_already_captured = bool(conversation and conversation.extracted_phone)
 
-                in_cancel_window = _cancel_window_passed(viewing_dt) or (
-                    viewing_dt is None and (phone_already_requested or phone_already_captured)
+                # Safe to cancel only when: phone captured, OR phone was asked
+                # and enough time has passed for landlord to respond (≥4 h).
+                _phone_ask_age_h = (
+                    (datetime.utcnow() - conversation.phone_requested_at).total_seconds() / 3600
+                    if phone_already_requested and conversation and conversation.phone_requested_at
+                    else 0
+                )
+                safe_to_cancel = phone_already_captured or (
+                    phone_already_requested and _phone_ask_age_h >= 4
                 )
 
+                # Only enter the cancel window when we know WHEN the viewing is.
+                in_cancel_window = viewing_dt is not None and _cancel_window_passed(viewing_dt)
+
                 if in_cancel_window:
-                    if phone_already_requested or phone_already_captured:
-                        # Number ask already sent last run → cancel now
-                        hours_label = (
-                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
-                            if viewing_dt else "no_datetime"
-                        )
+                    if safe_to_cancel:
+                        hours_label = f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
                         logger.info(
                             f"VIEWING_CANCEL_NOW thread_id={thread_id} reason={hours_label}"
                         )
@@ -626,12 +632,9 @@ async def process_account_replies(
                         if not cancelled:
                             logger.warning(f"VIEWING_CANCEL_FAILED thread_id={thread_id}")
                         continue
-                    else:
-                        # First time in cancel window — ask for number before cancelling
-                        hours_label = (
-                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h"
-                            if viewing_dt else "no_datetime"
-                        )
+                    elif not phone_already_requested:
+                        # Haven't asked yet — send number ask, cancel on next run
+                        hours_label = f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h"
                         logger.info(
                             f"PRE_CANCEL_NUMBER_ASK thread_id={thread_id} hours_until={hours_label}"
                         )
@@ -641,27 +644,32 @@ async def process_account_replies(
                             travel_city=travel_city_for_ask,
                         )
                         continue
+                    else:
+                        # Asked recently — give landlord time to respond, reply normally
+                        logger.info(
+                            f"VIEWING_CANCEL_WAITING thread_id={thread_id} "
+                            f"phone_ask_age={_phone_ask_age_h:.1f}h — waiting for landlord response"
+                        )
                 else:
-                    # Outside cancel window — AI replies normally.
-                    # For VIEWING_BOOKED stage, build_reply_prompt routes to
-                    # build_phone_request_prompt so the AI asks for the number naturally.
+                    # Outside cancel window or no datetime yet — reply naturally
                     if viewing_dt is not None:
                         hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
                         logger.info(
                             f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
                             f"hours_until={hours_until:.1f} — replying naturally while awaiting cancel window"
                         )
-                    else:
+                    elif not phone_already_requested:
+                        # Viewing confirmed but no datetime — ask for number now
                         logger.info(
                             f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} reason=no_datetime — asking for number"
                         )
-                        # No datetime yet and phone not asked → send pre-cancel ask now
                         travel_city_for_ask = get_travel_city(thread_id)
                         await _send_pre_cancel_number_ask(
                             thread_id, messages, latest_landlord_message, page,
                             travel_city=travel_city_for_ask,
                         )
                         continue
+                    # else: no datetime but already asked → reply normally, wait for response
 
             if (
                 conversation

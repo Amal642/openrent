@@ -233,6 +233,17 @@ def generate_reply(
     number_shared = phone_shared_state(messages, persona, conversation=conversation_state)
     sent_count = outbound_count(messages)
 
+    _number_ask_keywords = (
+        "your number", "phone number", "mobile number", "your mobile",
+        "your contact", "contact number", "get your number", "share your number",
+        "could i get your number", "can i get your number",
+    )
+    num_ask_count = sum(
+        1 for m in (messages or [])
+        if str(m.get("direction") or m.get("sender") or "").lower() in {"outbound", "operator", "ai", "user"}
+        and any(kw in (m.get("message") or m.get("content") or m.get("text") or "").lower() for kw in _number_ask_keywords)
+    )
+
     # Detect landlord screening questions in the latest message.
     # When present the AI must answer them first — skip the phone-reply shortcut
     # so the full prompt (which instructs "answer questions first") takes over.
@@ -280,6 +291,7 @@ def generate_reply(
             phone_number_shared=number_shared,
             landlord_asked_for_number=landlord_asked_number,
             outbound_count=sent_count,
+            phone_ask_count=num_ask_count,
         )
 
     result = generate_reply_result(
