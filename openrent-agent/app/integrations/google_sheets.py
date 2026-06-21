@@ -1,9 +1,7 @@
-import calendar
 import hashlib
 import json
 import os
 import re
-import secrets
 from collections import Counter
 from datetime import timezone
 
@@ -24,9 +22,6 @@ EXPECTED_HEADERS = {
     7: "Rent amount",
     11: "OpenRent Links",
 }
-MONTH_NAMES = tuple(calendar.month_name[1:])
-
-
 class GoogleSheetsConfigurationError(RuntimeError):
     pass
 
@@ -112,14 +107,14 @@ class GoogleSheetsLeadExporter:
         spreadsheet_id,
         *,
         person="Becky",
+        destination_tab="Becky",
         direction="",
-        template_tab=None,
     ):
         self.service = service
         self.spreadsheet_id = spreadsheet_id
         self.person = person
+        self.destination_tab = destination_tab
         self.direction = direction
-        self.template_tab = template_tab
 
     def _spreadsheet_metadata(self):
         response = (
@@ -214,126 +209,33 @@ class GoogleSheetsLeadExporter:
                 return row_number
         return None
 
-    def _select_template(self, sheets, target_month):
-        by_title = {sheet["title"]: sheet for sheet in sheets}
-        if self.template_tab:
-            template = by_title.get(self.template_tab)
-            if not template:
-                raise GoogleSheetsStructureError(
-                    f"Configured template tab {self.template_tab!r} does not exist"
-                )
-            return template
-
-        month_index = MONTH_NAMES.index(target_month)
-        for offset in range(1, 13):
-            candidate = MONTH_NAMES[(month_index - offset) % 12]
-            if candidate in by_title:
-                return by_title[candidate]
-
-        monthly = [sheet for sheet in sheets if sheet["title"] in MONTH_NAMES]
-        if monthly:
-            return sorted(monthly, key=lambda item: item.get("index", 0))[-1]
-
-        for sheet in sheets:
-            values = self._get_values(sheet["title"], "A1:L5")
-            try:
-                self._validate_headers(sheet["title"], values)
-            except GoogleSheetsStructureError:
-                continue
-            return sheet
-
-        raise GoogleSheetsStructureError(
-            "No monthly or header-compatible template tab was found"
-        )
-
-    @staticmethod
-    def _new_sheet_id(existing_ids):
-        while True:
-            candidate = secrets.randbelow(2_000_000_000) + 1
-            if candidate not in existing_ids:
-                return candidate
-
-    def _create_month_tab(self, sheets, target_month):
-        template = self._select_template(sheets, target_month)
-        template_values = self._get_values(template["title"])
-        self._validate_headers(template["title"], template_values)
-        lead_rows = self._lead_rows(template_values)
-        first_data_row = lead_rows[0] if lead_rows else 3
-        cadence = self._infer_cadence(lead_rows)
-
-        existing_ids = {sheet["sheetId"] for sheet in sheets}
-        new_sheet_id = self._new_sheet_id(existing_ids)
-        row_count = template.get("gridProperties", {}).get("rowCount", 1000)
-
-        logger.info(
-            "GOOGLE_SHEETS_MONTH_CREATE_START "
-            f"spreadsheet_id={self.spreadsheet_id} target_tab={target_month} "
-            f"template_tab={template['title']} template_sheet_id={template['sheetId']} "
-            f"new_sheet_id={new_sheet_id} first_data_row={first_data_row} cadence={cadence}"
-        )
-
-        body = {
-            "requests": [
-                {
-                    "duplicateSheet": {
-                        "sourceSheetId": template["sheetId"],
-                        "insertSheetIndex": len(sheets),
-                        "newSheetId": new_sheet_id,
-                        "newSheetName": target_month,
-                    }
-                },
-                {
-                    "updateCells": {
-                        "range": {
-                            "sheetId": new_sheet_id,
-                            "startRowIndex": 1,
-                            "endRowIndex": row_count,
-                            "startColumnIndex": 0,
-                            "endColumnIndex": 12,
-                        },
-                        "rows": [],
-                        "fields": "userEnteredValue,textFormatRuns",
-                    }
-                },
-            ]
-        }
-        self.service.spreadsheets().batchUpdate(
-            spreadsheetId=self.spreadsheet_id,
-            body=body,
-        ).execute()
-
-        logger.info(
-            "GOOGLE_SHEETS_MONTH_CREATE_SUCCESS "
-            f"spreadsheet_id={self.spreadsheet_id} target_tab={target_month} "
-            f"new_sheet_id={new_sheet_id}"
-        )
-        return {
-            "sheetId": new_sheet_id,
-            "title": target_month,
-            "index": len(sheets),
-            "gridProperties": dict(template.get("gridProperties", {})),
-        }, first_data_row, cadence
-
-    def _ensure_month_tab(self, target_month):
+    def _ensure_destination_tab(self):
         metadata = self._spreadsheet_metadata()
         sheets = self._sheet_properties(metadata)
-        for sheet in sheets:
-            if sheet["title"] == target_month:
-                values = self._get_values(target_month)
-                self._validate_headers(target_month, values)
-                lead_rows = self._lead_rows(values)
-                return (
-                    sheet,
-                    values,
-                    lead_rows[0] if lead_rows else 3,
-                    self._infer_cadence(lead_rows),
-                    False,
-                )
+        target_tab = str(self.destination_tab or "").strip()
+        if not target_tab:
+            raise GoogleSheetsConfigurationError(
+                "A fixed Google Sheets destination tab is required"
+            )
 
-        sheet, first_data_row, cadence = self._create_month_tab(sheets, target_month)
-        values = self._get_values(target_month)
-        self._validate_headers(target_month, values)
-        return sheet, values, first_data_row, cadence, True
+        sheet = next(
+            (item for item in sheets if item["title"] == target_tab),
+            None,
+        )
+        if not sheet:
+            raise GoogleSheetsStructureError(
+                f"Configured destination tab {target_tab!r} does not exist"
+            )
+
+        values = self._get_values(target_tab)
+        self._validate_headers(target_tab, values)
+        lead_rows = self._lead_rows(values)
+        return (
+            sheet,
+            values,
+            lead_rows[0] if lead_rows else 3,
+            self._infer_cadence(lead_rows),
+        )
 
     @staticmethod
     def _cell(value, *, link=None):
@@ -474,11 +376,9 @@ class GoogleSheetsLeadExporter:
         if phone_found_at.tzinfo is None:
             phone_found_at = phone_found_at.replace(tzinfo=timezone.utc)
         event_date = phone_found_at.astimezone(UK_TZ)
-        target_month = event_date.strftime("%B")
+        target_tab = str(self.destination_tab or "").strip()
 
-        sheet, values, first_data_row, cadence, created = self._ensure_month_tab(
-            target_month
-        )
+        sheet, values, first_data_row, cadence = self._ensure_destination_tab()
         listing_id = str(payload.get("listing_id") or "")
         existing_row = self._find_existing_row(
             values,
@@ -509,7 +409,7 @@ class GoogleSheetsLeadExporter:
         row_values, cells = self._build_row(payload, event_date)
         digest = payload_hash(
             {
-                "tab": target_month,
+                "tab": target_tab,
                 "row": target_row,
                 "values": row_values,
                 "listing_id": listing_id,
@@ -520,8 +420,7 @@ class GoogleSheetsLeadExporter:
             "GOOGLE_SHEETS_EXPORT_START "
             f"export_id={payload.get('export_id')} conversation_id={payload.get('conversation_id')} "
             f"thread_id={payload.get('thread_id')} listing_id={listing_id} "
-            f"tab={target_month} row={target_row} action={action} "
-            f"tab_created={created} cadence={cadence}"
+            f"tab={target_tab} row={target_row} action={action} cadence={cadence}"
         )
 
         self._write_row(
@@ -535,14 +434,14 @@ class GoogleSheetsLeadExporter:
         logger.info(
             "GOOGLE_SHEETS_EXPORT_SUCCESS "
             f"export_id={payload.get('export_id')} listing_id={listing_id} "
-            f"tab={target_month} row={target_row} action={action} payload_hash={digest}"
+            f"tab={target_tab} row={target_row} action={action} payload_hash={digest}"
         )
         return {
-            "tab": target_month,
+            "tab": target_tab,
             "row": target_row,
             "action": action,
             "payload_hash": digest,
-            "tab_created": created,
+            "tab_created": False,
         }
 
     def audit(self):
@@ -653,6 +552,6 @@ def configured_exporter(service=None):
         service or build_sheets_service(),
         settings.GOOGLE_SHEET_ID,
         person=settings.GOOGLE_SHEET_PERSON or "Becky",
+        destination_tab=settings.GOOGLE_SHEET_TAB or "Becky",
         direction=settings.GOOGLE_SHEET_DIRECTION or "",
-        template_tab=settings.GOOGLE_SHEET_TEMPLATE_TAB,
     )

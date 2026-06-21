@@ -72,6 +72,7 @@ service-account key that has not been shared in chat or committed to Git:
 GOOGLE_SHEETS_ENABLED=false
 GOOGLE_SHEET_ID=<spreadsheet-id-between-/d/-and-/edit>
 GOOGLE_SHEET_PERSON=Becky
+GOOGLE_SHEET_TAB=Becky
 GOOGLE_SHEET_DIRECTION=South
 GOOGLE_APPLICATION_CREDENTIALS=C:/Users/anees/.secrets/landroyal-sheets.json
 ```
@@ -86,8 +87,8 @@ Run the read-only audit before enabling writes:
 python scripts\audit_google_sheet.py
 ```
 
-The audit reports monthly tabs, header compatibility, lead-row cadence, and
-whether the Person dropdown accepts `Becky`. Once the audit is clean:
+The audit verifies the `Becky` tab's headers, lead-row cadence, and whether its
+Person dropdown accepts `Becky`. Once the audit is clean:
 
 ```env
 GOOGLE_SHEETS_ENABLED=true

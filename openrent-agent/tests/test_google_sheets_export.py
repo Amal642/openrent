@@ -112,13 +112,13 @@ def test_export_uses_next_formatted_lead_row():
         "sheets": [
             {
                 "sheetId": 10,
-                "title": "June",
+                "title": "Becky",
                 "index": 0,
                 "gridProperties": {"rowCount": 1000, "columnCount": 12},
             }
         ],
         "values": {
-            "June": [
+            "Becky": [
                 HEADERS,
                 [],
                 ["Pooja", "01/06/2026", "", "A", "07111", "Addr", "2 bed 1 bath", 1000, "", "", "", "https://www.openrent.co.uk/11111"],
@@ -132,7 +132,7 @@ def test_export_uses_next_formatted_lead_row():
 
     result = exporter.export(make_payload())
 
-    assert result["tab"] == "June"
+    assert result["tab"] == "Becky"
     assert result["row"] == 7
     assert result["action"] == "insert"
     requests = state["requests"][-1]["requests"]
@@ -152,12 +152,12 @@ def test_export_writes_configured_direction():
         "sheets": [
             {
                 "sheetId": 10,
-                "title": "June",
+                "title": "Becky",
                 "index": 0,
                 "gridProperties": {"rowCount": 1000, "columnCount": 12},
             }
         ],
-        "values": {"June": [HEADERS]},
+        "values": {"Becky": [HEADERS]},
         "requests": [],
     }
     exporter = GoogleSheetsLeadExporter(
@@ -179,13 +179,13 @@ def test_export_updates_existing_listing_row():
         "sheets": [
             {
                 "sheetId": 10,
-                "title": "June",
+                "title": "Becky",
                 "index": 0,
                 "gridProperties": {"rowCount": 1000, "columnCount": 12},
             }
         ],
         "values": {
-            "June": [
+            "Becky": [
                 HEADERS,
                 [],
                 ["Old", "01/06/2026", "", "", "", "", "", "", "", "", "", payload["property_url"]],
@@ -201,18 +201,18 @@ def test_export_updates_existing_listing_row():
     assert result["action"] == "update"
 
 
-def test_export_creates_missing_month_from_previous_month():
+def test_export_uses_becky_tab_for_any_month_without_creating_month_tabs():
     state = {
         "sheets": [
             {
                 "sheetId": 10,
-                "title": "June",
+                "title": "Becky",
                 "index": 0,
                 "gridProperties": {"rowCount": 1000, "columnCount": 12},
             }
         ],
         "values": {
-            "June": [
+            "Becky": [
                 HEADERS,
                 [],
                 ["Pooja", "01/06/2026", "", "A", "07111", "Addr", "2 bed 1 bath", 1000, "", "", "", "https://www.openrent.co.uk/11111"],
@@ -224,9 +224,34 @@ def test_export_creates_missing_month_from_previous_month():
 
     result = exporter.export(make_payload(month=7))
 
-    assert result["tab"] == "July"
-    assert result["tab_created"] is True
-    assert result["row"] == 3
-    create_requests = state["requests"][0]["requests"]
-    assert create_requests[0]["duplicateSheet"]["newSheetName"] == "July"
-    assert create_requests[1]["updateCells"]["range"]["startRowIndex"] == 1
+    assert result["tab"] == "Becky"
+    assert result["tab_created"] is False
+    assert result["row"] == 5
+    assert all(
+        "duplicateSheet" not in request
+        for batch in state["requests"]
+        for request in batch["requests"]
+    )
+
+
+def test_export_fails_if_configured_destination_tab_is_missing():
+    state = {
+        "sheets": [
+            {
+                "sheetId": 10,
+                "title": "June",
+                "index": 0,
+                "gridProperties": {"rowCount": 1000, "columnCount": 12},
+            }
+        ],
+        "values": {"June": [HEADERS]},
+        "requests": [],
+    }
+    exporter = GoogleSheetsLeadExporter(FakeService(state), "sheet-1", person="Becky")
+
+    try:
+        exporter.export(make_payload())
+    except Exception as exc:
+        assert "destination tab 'Becky' does not exist" in str(exc)
+    else:
+        raise AssertionError("Expected a missing destination tab error")
