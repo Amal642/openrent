@@ -37,7 +37,7 @@ def test_save_phone_number_sets_acquisition_timestamp(db_session):
         session.add(account)
         session.flush()
         account_id = account.id
-        profile = SearchProfile(account_id=account.id, location="Leeds")
+        profile = SearchProfile(account_id=account.id, location="London")
         session.add(profile)
         session.flush()
         listing = Listing(
@@ -68,6 +68,33 @@ def test_save_phone_number_sets_acquisition_timestamp(db_session):
         assert export.next_attempt_at is not None
 
     assert repository.count_phones_today(account_id) == 1
+
+
+def test_save_phone_number_does_not_queue_non_london_sheet_export(db_session):
+    with db_session() as session:
+        account = Account(email="north@example.com", password="", session_file="s.json")
+        session.add(account)
+        session.flush()
+        profile = SearchProfile(account_id=account.id, location="Manchester")
+        session.add(profile)
+        session.flush()
+        listing = Listing(
+            listing_id="M1",
+            property_url="https://example.com/m1",
+            search_profile_id=profile.id,
+        )
+        session.add(listing)
+        session.flush()
+        session.add(Conversation(thread_id="M-T1", listing_id=listing.id))
+        session.commit()
+
+    repository.save_phone_number("M-T1", "07123456789")
+
+    with db_session() as session:
+        conversation = session.query(Conversation).filter_by(thread_id="M-T1").one()
+        assert conversation.phone_found is True
+        assert conversation.status == "PHONE_ACQUIRED"
+        assert session.query(LeadSheetExport).count() == 0
 
 
 def test_save_phone_number_resets_existing_sheet_export(db_session):

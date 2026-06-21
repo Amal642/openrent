@@ -73,6 +73,7 @@ GOOGLE_SHEETS_ENABLED=false
 GOOGLE_SHEET_ID=<spreadsheet-id-between-/d/-and-/edit>
 GOOGLE_SHEET_PERSON=Becky
 GOOGLE_SHEET_TAB=Becky
+GOOGLE_SHEET_LOCATION=London
 GOOGLE_SHEET_DIRECTION=South
 GOOGLE_APPLICATION_CREDENTIALS=C:/Users/anees/.secrets/landroyal-sheets.json
 ```

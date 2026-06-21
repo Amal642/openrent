@@ -1679,21 +1679,40 @@ def save_phone_number(
     thread_id,
     phone
 ):
+    from app.config import settings
     from app.utils.logger import logger
 
     with session_scope() as db:
-        conversation = db.query(
-            Conversation
-        ).filter(
-            Conversation.thread_id == thread_id
-        ).first()
+        row = (
+            db.query(Conversation, SearchProfile)
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .filter(Conversation.thread_id == thread_id)
+            .first()
+        )
 
-        if conversation:
+        if row:
+            conversation, search_profile = row
             now = datetime.utcnow()
             conversation.extracted_phone = phone
             conversation.phone_found = True
             conversation.phone_found_at = now
             conversation.status = "PHONE_ACQUIRED"
+
+            target_location = str(settings.GOOGLE_SHEET_LOCATION or "").strip()
+            search_location = str(search_profile.location or "").strip()
+            if (
+                target_location
+                and target_location.casefold() not in search_location.casefold()
+            ):
+                db.commit()
+                logger.info(
+                    "GOOGLE_SHEETS_OUTBOX_SKIPPED_LOCATION "
+                    f"conversation_id={conversation.id} thread_id={thread_id} "
+                    f"search_location={search_location!r} "
+                    f"target_location={target_location!r}"
+                )
+                return
 
             export = db.query(LeadSheetExport).filter(
                 LeadSheetExport.conversation_id == conversation.id
@@ -1833,6 +1852,24 @@ def mark_sheet_export_succeeded(
         export.destination_row = destination_row
         export.payload_hash = payload_hash
         export.exported_at = now
+        export.updated_at = now
+        db.commit()
+        return True
+
+
+def mark_sheet_export_skipped(export_id, reason):
+    now = datetime.utcnow()
+    with session_scope() as db:
+        export = db.query(LeadSheetExport).filter(
+            LeadSheetExport.id == export_id
+        ).first()
+        if not export:
+            return False
+
+        export.status = "SKIPPED"
+        export.next_attempt_at = None
+        export.processing_started_at = None
+        export.last_error = str(reason)[:4000]
         export.updated_at = now
         db.commit()
         return True

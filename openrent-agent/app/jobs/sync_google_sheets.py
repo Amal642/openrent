@@ -4,6 +4,7 @@ from app.config import settings
 from app.db.repository import (
     get_sheet_export_payload,
     mark_sheet_export_failed,
+    mark_sheet_export_skipped,
     mark_sheet_export_succeeded,
     save_listing_metadata,
 )
@@ -110,6 +111,29 @@ def run_lead_sheet_export_sync(export_id):
             f"export_id={export_id} listing_id={payload.get('listing_id')}"
         )
         return {"exported": True, "reason": "already_exported"}
+
+    target_location = str(settings.GOOGLE_SHEET_LOCATION or "").strip()
+    search_location = str(payload.get("search_location") or "").strip()
+    if (
+        target_location
+        and target_location.casefold() not in search_location.casefold()
+    ):
+        reason = (
+            f"search location {search_location!r} does not match "
+            f"target {target_location!r}"
+        )
+        mark_sheet_export_skipped(export_id, reason)
+        logger.info(
+            "GOOGLE_SHEETS_EXPORT_SKIPPED_LOCATION "
+            f"export_id={export_id} listing_id={payload.get('listing_id')} "
+            f"search_location={search_location!r} "
+            f"target_location={target_location!r}"
+        )
+        return {
+            "exported": False,
+            "skipped": True,
+            "reason": "location_not_allowed",
+        }
 
     try:
         payload = _hydrate_missing_metadata(payload)

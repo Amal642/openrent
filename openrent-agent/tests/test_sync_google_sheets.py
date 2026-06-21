@@ -93,3 +93,43 @@ def test_hydrate_missing_metadata_uses_account_proxy(monkeypatch):
 
     assert captured["proxy_url"] == payload["proxy_url"]
     assert result["address"] == "Engleheart Drive, TW14"
+
+
+def test_export_sync_skips_non_london_payload_before_hydration(monkeypatch):
+    payload = {
+        "export_id": 9,
+        "listing_id": "MANCHESTER-1",
+        "search_location": "Manchester",
+        "current_status": "PENDING",
+    }
+    skipped = {}
+
+    monkeypatch.setattr(
+        sync_google_sheets,
+        "get_sheet_export_payload",
+        lambda export_id: payload,
+    )
+    monkeypatch.setattr(
+        sync_google_sheets,
+        "mark_sheet_export_skipped",
+        lambda export_id, reason: skipped.update(
+            {"export_id": export_id, "reason": reason}
+        ),
+    )
+    monkeypatch.setattr(
+        sync_google_sheets,
+        "_hydrate_missing_metadata",
+        lambda values: (_ for _ in ()).throw(
+            AssertionError("Manchester payload must not be hydrated")
+        ),
+    )
+
+    result = sync_google_sheets.run_lead_sheet_export_sync(9)
+
+    assert result == {
+        "exported": False,
+        "skipped": True,
+        "reason": "location_not_allowed",
+    }
+    assert skipped["export_id"] == 9
+    assert "Manchester" in skipped["reason"]
