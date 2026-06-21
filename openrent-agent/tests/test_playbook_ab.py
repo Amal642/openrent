@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from app.ai.prompts import build_reply_prompt
@@ -91,6 +91,20 @@ def _patch_process_flow(
     monkeypatch.setattr(process_replies, "save_banner_state", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(process_replies, "save_inbound_messages", lambda *_args: None)
     monkeypatch.setattr(process_replies, "get_conversation_by_thread_id", lambda _thread_id: conversation)
+    monkeypatch.setattr(
+        process_replies,
+        "get_playbook_ab_enrollment_state",
+        lambda _thread_id: {
+            "outbound_count": 1,
+            "inbound_count": 1,
+            "message_contents": ["Initial enquiry", latest_message],
+            "phone_found": False,
+            "extracted_phone": None,
+            "phone_found_at": None,
+            "phone_requested_at": None,
+            "last_ai_reply": None,
+        },
+    )
     monkeypatch.setattr(process_replies, "get_latest_landlord_message", lambda _messages: latest_message)
     monkeypatch.setattr(process_replies, "_screenshot_thread", noop_async)
     monkeypatch.setattr(process_replies, "should_ai_reply", lambda _messages: True)
@@ -152,6 +166,91 @@ def test_assignment_helper_is_noop_when_flag_off(monkeypatch, tmp_path):
 
     assert process_replies._assign_playbook_ab_if_enabled("thread-001", PERSONA) is None
     assert not log_path.exists()
+
+
+def test_assignment_helper_excludes_non_fresh_thread(monkeypatch, tmp_path):
+    assignment_log = tmp_path / "assignments.jsonl"
+    exclusion_log = tmp_path / "exclusions.jsonl"
+
+    monkeypatch.setenv("PLAYBOOK_AB_ENABLED", "1")
+    monkeypatch.setenv("PLAYBOOK_AB_LOG", str(assignment_log))
+    monkeypatch.setenv("PLAYBOOK_AB_EXCLUSION_LOG", str(exclusion_log))
+    monkeypatch.setattr(
+        process_replies,
+        "get_playbook_ab_enrollment_state",
+        lambda _thread_id: {
+            "outbound_count": 2,
+            "inbound_count": 2,
+            "message_contents": ["Initial enquiry", "Earlier AI reply"],
+            "phone_found": False,
+            "extracted_phone": None,
+            "phone_found_at": None,
+            "phone_requested_at": None,
+            "last_ai_reply": "Earlier AI reply",
+        },
+    )
+
+    assert process_replies._assign_playbook_ab_if_enabled(
+        "thread-old",
+        PERSONA,
+    ) is None
+    assert not assignment_log.exists()
+    exclusion = json.loads(exclusion_log.read_text(encoding="utf-8").strip())
+    assert exclusion["eligible"] is False
+    assert "prior_automated_reply" in exclusion["reasons"]
+
+
+def test_existing_assignment_remains_stable_when_thread_is_no_longer_fresh(
+    monkeypatch,
+    tmp_path,
+):
+    assignment_log = tmp_path / "assignments.jsonl"
+    existing = playbook_ab.assign(
+        "thread-existing",
+        PERSONA,
+        str(assignment_log),
+        now=10.0,
+        eligibility={"eligible": True, "reasons": []},
+    )
+
+    monkeypatch.setenv("PLAYBOOK_AB_ENABLED", "1")
+    monkeypatch.setenv("PLAYBOOK_AB_LOG", str(assignment_log))
+    monkeypatch.setattr(
+        process_replies,
+        "get_playbook_ab_enrollment_state",
+        lambda _thread_id: (_ for _ in ()).throw(
+            AssertionError("existing assignments must not be re-evaluated")
+        ),
+    )
+
+    assert process_replies._assign_playbook_ab_if_enabled(
+        "thread-existing",
+        PERSONA,
+    ) == existing
+
+
+def test_enrollment_rejects_prior_capture_or_request():
+    captured = playbook_ab.enrollment_eligibility(
+        {
+            "outbound_count": 1,
+            "inbound_count": 1,
+            "message_contents": ["Call me on 07123 456789"],
+            "phone_found": False,
+        }
+    )
+    requested = playbook_ab.enrollment_eligibility(
+        {
+            "outbound_count": 1,
+            "inbound_count": 1,
+            "message_contents": [],
+            "phone_requested_at": datetime.utcnow(),
+        }
+    )
+
+    assert captured["eligible"] is False
+    assert "prior_phone_capture" in captured["reasons"]
+    assert requested["eligible"] is False
+    assert "prior_phone_request" in requested["reasons"]
 
 
 def test_assignment_uses_stable_roughly_even_split():
@@ -320,3 +419,80 @@ def test_outcome_log_is_append_only_diagnostic_and_arm_free(tmp_path):
         "effective_design_id",
         "experiment",
     }.intersection(records[0])
+
+
+def test_capture_is_logged_immediately_only_for_assigned_thread(monkeypatch, tmp_path):
+    assignment_log = tmp_path / "assignments.jsonl"
+    outcome_log = tmp_path / "outcomes.jsonl"
+    playbook_ab.assign(
+        "thread-001",
+        PERSONA,
+        str(assignment_log),
+        eligibility={"eligible": True, "reasons": []},
+    )
+    monkeypatch.setenv("PLAYBOOK_AB_ENABLED", "1")
+    monkeypatch.setenv("PLAYBOOK_AB_LOG", str(assignment_log))
+    monkeypatch.setenv("PLAYBOOK_AB_OUTCOME_LOG", str(outcome_log))
+
+    process_replies._log_playbook_ab_phone_capture("thread-unassigned")
+    assert not outcome_log.exists()
+
+    process_replies._log_playbook_ab_phone_capture("thread-001")
+    record = json.loads(outcome_log.read_text(encoding="utf-8").strip())
+    assert record["event"] == "phone_capture"
+    assert record["landlord_phone_captured"] is True
+    assert record["source_of_truth"] == "database.conversations.phone_found_at"
+
+
+def test_database_capture_summary_counts_only_post_assignment_eligible_rows():
+    assigned_at = datetime(2026, 6, 20, tzinfo=timezone.utc)
+    assignments = [
+        {
+            "lead_id": "a-post",
+            "assigned_arm": "A",
+            "assigned_at": assigned_at.timestamp(),
+            "eligibility": {"eligible": True, "reasons": []},
+        },
+        {
+            "lead_id": "b-pre",
+            "assigned_arm": "B",
+            "assigned_at": assigned_at.timestamp(),
+            "eligibility": {"eligible": True, "reasons": []},
+        },
+        {
+            "lead_id": "legacy",
+            "assigned_arm": "B",
+            "assigned_at": assigned_at.timestamp(),
+        },
+    ]
+    outcomes = {
+        "a-post": {
+            "phone_found": True,
+            "phone_found_at": assigned_at + timedelta(hours=1),
+        },
+        "b-pre": {
+            "phone_found": True,
+            "phone_found_at": assigned_at - timedelta(hours=1),
+        },
+        "legacy": {
+            "phone_found": True,
+            "phone_found_at": assigned_at + timedelta(hours=1),
+        },
+    }
+
+    report = playbook_ab.summarize_database_captures(assignments, outcomes)
+
+    assert report["source_of_truth"] == "database.conversations.phone_found_at"
+    assert report["arms"]["A"] == {
+        "assigned": 1,
+        "captured": 1,
+        "capture_rate": 1.0,
+    }
+    assert report["arms"]["B"] == {
+        "assigned": 1,
+        "captured": 0,
+        "capture_rate": 0.0,
+    }
+    assert report["excluded"] == [
+        {"lead_id": "legacy", "reason": "legacy_missing_eligibility"}
+    ]

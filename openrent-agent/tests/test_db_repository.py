@@ -11,6 +11,7 @@ from app.db.models import (
     Conversation,
     LeadSheetExport,
     Listing,
+    Message,
     SearchProfile,
 )
 
@@ -68,6 +69,38 @@ def test_save_phone_number_sets_acquisition_timestamp(db_session):
         assert export.next_attempt_at is not None
 
     assert repository.count_phones_today(account_id) == 1
+
+
+def test_playbook_ab_enrollment_state_uses_persisted_messages(db_session):
+    with db_session() as session:
+        conversation = Conversation(
+            thread_id="AB-1",
+            phone_requested_at=datetime.utcnow(),
+        )
+        session.add(conversation)
+        session.flush()
+        session.add_all(
+            [
+                Message(
+                    conversation_id=conversation.id,
+                    direction="outbound",
+                    content="Initial enquiry",
+                ),
+                Message(
+                    conversation_id=conversation.id,
+                    direction="inbound",
+                    content="When can you view?",
+                ),
+            ]
+        )
+        session.commit()
+
+    state = repository.get_playbook_ab_enrollment_state("AB-1")
+
+    assert state["outbound_count"] == 1
+    assert state["inbound_count"] == 1
+    assert state["phone_requested_at"] is not None
+    assert state["message_contents"] == ["Initial enquiry", "When can you view?"]
 
 
 def test_save_phone_number_does_not_queue_non_london_sheet_export(db_session):

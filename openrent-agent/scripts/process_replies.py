@@ -24,6 +24,7 @@ from app.db.repository import (
     get_thread_property_location,
     get_travel_city,
     save_travel_city,
+    get_playbook_ab_enrollment_state,
     increment_follow_up_count,
     reset_follow_up_count,
     mark_conversation_inactive,
@@ -282,20 +283,73 @@ def _parse_ai_viewing_datetime(dt_str):
 
 
 def _assign_playbook_ab_if_enabled(thread_id, persona):
-    """Idempotently assign/log before any automated message when the A/B flag is on."""
+    """Assign only a fresh thread, immediately before its first controlled reply."""
     if os.getenv("PLAYBOOK_AB_ENABLED") != "1":
+        return None
+
+    assignment_log = os.getenv(
+        "PLAYBOOK_AB_LOG",
+        "logs/playbook_ab_assignments.jsonl",
+    )
+    existing = playbook_ab.get_assignment(thread_id, assignment_log)
+    if existing:
+        return existing
+
+    eligibility = playbook_ab.enrollment_eligibility(
+        get_playbook_ab_enrollment_state(thread_id)
+    )
+    if not eligibility["eligible"]:
+        exclusion_log = os.getenv(
+            "PLAYBOOK_AB_EXCLUSION_LOG",
+            "logs/playbook_ab_exclusions.jsonl",
+        )
+        playbook_ab.log_exclusion(thread_id, exclusion_log, eligibility)
+        logger.info(
+            f"PLAYBOOK_AB_EXCLUDED thread_id={thread_id} "
+            f"reasons={eligibility['reasons']}"
+        )
         return None
 
     assignment = playbook_ab.assign(
         thread_id,
         persona,
-        os.getenv("PLAYBOOK_AB_LOG", "logs/playbook_ab_assignments.jsonl"),
+        assignment_log,
+        eligibility=eligibility,
     )
     logger.info(
         f"PLAYBOOK_AB thread_id={thread_id} arm={assignment['assigned_arm']} "
         f"design={assignment['assigned_design_id']} expose_mobile={assignment['expose_mobile']}"
     )
     return assignment
+
+
+def _log_playbook_ab_phone_capture(thread_id):
+    """Record a capture immediately after the authoritative database write."""
+    if os.getenv("PLAYBOOK_AB_ENABLED") != "1":
+        return
+
+    assignment = playbook_ab.get_assignment(
+        thread_id,
+        os.getenv("PLAYBOOK_AB_LOG", "logs/playbook_ab_assignments.jsonl"),
+    )
+    if not assignment:
+        return
+
+    try:
+        playbook_ab.log_outcome(
+            thread_id,
+            os.getenv(
+                "PLAYBOOK_AB_OUTCOME_LOG",
+                "logs/playbook_ab_outcomes.jsonl",
+            ),
+            event="phone_capture",
+            landlord_phone_captured=True,
+            source_of_truth="database.conversations.phone_found_at",
+        )
+    except Exception as exc:
+        logger.warning(
+            f"PLAYBOOK_AB capture log failed thread_id={thread_id}: {exc}"
+        )
 
 
 async def _cancel_viewing_and_handoff(
@@ -305,7 +359,6 @@ async def _cancel_viewing_and_handoff(
     """Send a viewing cancellation, mark the viewing cancelled, and complete handoff."""
     logger.info(f"VIEWING_CANCEL_TRIGGERED thread_id={thread_id}")
 
-    _assign_playbook_ab_if_enabled(thread_id, persona)
     cancel_msg, error = generate_cancel_viewing_message(messages)
     if not cancel_msg or error:
         logger.warning(
@@ -383,7 +436,6 @@ async def _send_handoff_message(
 ):
     logger.info("PHONE NUMBER EXTRACTED")
 
-    _assign_playbook_ab_if_enabled(thread_id, persona)
     if message:
         handoff_message = message
         handoff_error = None
@@ -692,7 +744,6 @@ async def process_account_replies(
                     if days_silent < FOLLOW_UP_INTERVAL_DAYS:
                         update_conversation_status(thread_id, SKIPPED)
                     elif follow_up_count < FOLLOW_UP_MAX:
-                        _assign_playbook_ab_if_enabled(thread_id, None)
                         follow_up_msg, err = generate_follow_up_message(
                             messages, follow_up_number=follow_up_count + 1
                         )
@@ -821,6 +872,7 @@ async def process_account_replies(
                             f"OLD_PHONE={stored_phone} NEW_PHONE={phone}"
                         )
                         save_phone_number(thread_id, phone)
+                        _log_playbook_ab_phone_capture(thread_id)
                         update_last_processed_message(thread_id, latest_landlord_message)
                         continue
 
@@ -831,6 +883,7 @@ async def process_account_replies(
 
                     logger.info(f"PHONE_FOUND thread_id={thread_id} phone={phone}")
                     save_phone_number(thread_id, phone)
+                    _log_playbook_ab_phone_capture(thread_id)
 
                     # Try to extract viewing datetime from messages and apply the
                     # 3–5h cancellation window strategy.
@@ -899,6 +952,7 @@ async def process_account_replies(
                         f"OLD_PHONE={stored_phone} NEW_PHONE={phone}"
                     )
                     save_phone_number(thread_id, phone)
+                    _log_playbook_ab_phone_capture(thread_id)
                     update_last_processed_message(thread_id, latest_landlord_message)
                     continue
 
@@ -909,6 +963,7 @@ async def process_account_replies(
 
                 logger.info(f"PHONE_FOUND thread_id={thread_id} phone={phone}")
                 save_phone_number(thread_id, phone)
+                _log_playbook_ab_phone_capture(thread_id)
 
                 saved_dt = await _try_save_viewing_datetime(thread_id, messages)
                 if saved_dt:
@@ -1204,8 +1259,9 @@ async def process_account_replies(
                     playbook_ab.log_outcome(
                         thread_id,
                         os.getenv("PLAYBOOK_AB_OUTCOME_LOG", "logs/playbook_ab_outcomes.jsonl"),
+                        event="reply_sent",
                         reply_received=bool(landlord_texts),
-                        landlord_phone_captured=bool(phone),
+                        landlord_phone_captured=None,
                         landlord_number_requested=playbook_ab.asks_for_landlord_number(reply),
                         tenant_number_given_first=bool(mobile and mobile in reply and not phone),
                         conversation_progressed=(stage == "VIEWING_BOOKED"),

@@ -82,6 +82,28 @@ playbook_ab.log_outcome(
 then joined on lead_id for analysis (abtest/analyze_ab.py applies the LOCKED falsifier:
 B−A ≥ +10pp qualified, one-sided CI excludes 0, safety not worse, reply rate not down >5pp).
 
+## Enrollment and capture source of truth
+
+New assignments are created only immediately before the first A/B-controlled
+reply. A thread is excluded if it already has more than the initial outbound
+message, a previous AI reply, a previous phone request, or any previously
+captured phone token. Exclusions are written idempotently to
+`logs/playbook_ab_exclusions.jsonl` (override with
+`PLAYBOOK_AB_EXCLUSION_LOG`).
+
+Successful captures are logged immediately after `save_phone_number()`.
+The outcome JSONL remains diagnostic; the authoritative capture event is
+`conversations.phone_found_at` in the database. Generate the database-backed
+report with:
+
+```
+python scripts/analyze_playbook_ab.py
+```
+
+Assignments created before eligibility metadata was added are excluded by
+default. `--include-legacy` is available only for auditing the historical,
+contaminated cohort and must not be used for the locked experiment result.
+
 ## Verify
 
 ```

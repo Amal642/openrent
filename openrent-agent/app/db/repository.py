@@ -2186,6 +2186,62 @@ def get_conversation_messages(thread_id):
         return result
 
 
+def get_playbook_ab_enrollment_state(thread_id):
+    """Return persisted state used to decide whether a thread is fresh enough to enroll."""
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if not conversation:
+            return None
+
+        rows = (
+            db.query(Message)
+            .filter(Message.conversation_id == conversation.id)
+            .order_by(Message.created_at.asc(), Message.id.asc())
+            .all()
+        )
+
+        return {
+            "thread_id": thread_id,
+            "outbound_count": sum(row.direction == "outbound" for row in rows),
+            "inbound_count": sum(row.direction == "inbound" for row in rows),
+            "message_contents": [row.content or "" for row in rows],
+            "phone_found": bool(conversation.phone_found),
+            "extracted_phone": conversation.extracted_phone,
+            "phone_found_at": conversation.phone_found_at,
+            "phone_requested_at": conversation.phone_requested_at,
+            "last_ai_reply": conversation.last_ai_reply,
+        }
+
+
+def get_playbook_ab_database_outcomes(lead_ids):
+    """Return database capture timestamps; the database is authoritative for capture events."""
+    normalized_ids = [str(lead_id) for lead_id in lead_ids if str(lead_id).strip()]
+    if not normalized_ids:
+        return {}
+
+    with session_scope() as db:
+        rows = (
+            db.query(
+                Conversation.thread_id,
+                Conversation.phone_found,
+                Conversation.phone_found_at,
+            )
+            .filter(Conversation.thread_id.in_(normalized_ids))
+            .all()
+        )
+
+        return {
+            str(thread_id): {
+                "phone_found": bool(phone_found),
+                "phone_found_at": phone_found_at,
+            }
+            for thread_id, phone_found, phone_found_at in rows
+        }
+
+
 def mark_listing_skipped(listing_id, reason="SKIPPED"):
     with session_scope() as db:
         listing = db.query(Listing).filter(Listing.id == listing_id).first()

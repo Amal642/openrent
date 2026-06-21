@@ -16,6 +16,7 @@ per lead before the first AI message, (2) tells the caller which conversation_de
 to generate_reply, and (3) logs the decision + outcome fields. No ML, no triage.
 """
 from __future__ import annotations
+from datetime import datetime, timezone
 import hashlib, json, os, re, time
 
 try:
@@ -77,7 +78,59 @@ def _load(log_path: str) -> dict:
                     seen[r["lead_id"]] = r
     return seen
 
-def assign(lead_id: str, persona: dict | None, log_path: str, now: float | None = None) -> dict:
+def get_assignment(lead_id: str, log_path: str) -> dict | None:
+    return _load(log_path).get(str(lead_id))
+
+
+def enrollment_eligibility(state: dict | None) -> dict:
+    """Only fresh first-reply threads may enter the experiment."""
+    reasons = []
+    state = state or {}
+    outbound_count = int(state.get("outbound_count") or 0)
+    message_contents = state.get("message_contents") or []
+
+    if not state:
+        reasons.append("conversation_not_found")
+    if outbound_count > 1 or state.get("last_ai_reply"):
+        reasons.append("prior_automated_reply")
+    if (
+        state.get("phone_found")
+        or state.get("extracted_phone")
+        or state.get("phone_found_at")
+        or any(contains_phone(content) for content in message_contents)
+    ):
+        reasons.append("prior_phone_capture")
+    if state.get("phone_requested_at"):
+        reasons.append("prior_phone_request")
+
+    return {
+        "eligible": not reasons,
+        "reasons": reasons,
+        "outbound_count": outbound_count,
+        "inbound_count": int(state.get("inbound_count") or 0),
+    }
+
+
+def log_exclusion(lead_id: str, exclusion_log: str, eligibility: dict) -> None:
+    if str(lead_id) in _load(exclusion_log):
+        return
+    rec = {
+        "lead_id": str(lead_id),
+        "excluded_at": time.time(),
+        **eligibility,
+    }
+    os.makedirs(os.path.dirname(exclusion_log) or ".", exist_ok=True)
+    with open(exclusion_log, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec) + "\n")
+
+
+def assign(
+    lead_id: str,
+    persona: dict | None,
+    log_path: str,
+    now: float | None = None,
+    eligibility: dict | None = None,
+) -> dict:
     """Idempotently assign a lead to an arm and LOG it BEFORE the first AI message. Returns a
     record carrying the design id the caller must pass to generate_reply (`assigned_design_id`)."""
     seen = _load(log_path)
@@ -90,6 +143,7 @@ def assign(lead_id: str, persona: dict | None, log_path: str, now: float | None 
         "assigned_arm": arm,
         "propensity": PROPENSITY,
         "assigned_at": now if now is not None else time.time(),
+        "eligibility": eligibility or {"eligible": True, "reasons": []},
         "operator_knobs": _operator_knobs(persona),     # what the operator had selected
         **effective_config(arm),                          # assigned/effective design, expose_mobile
         # Diagnostic outcome placeholders for later joins. The primary outcome
@@ -116,6 +170,57 @@ def log_outcome(lead_id: str, outcome_log: str, **fields) -> None:
     os.makedirs(os.path.dirname(outcome_log) or ".", exist_ok=True)
     with open(outcome_log, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec) + "\n")
+
+
+def summarize_database_captures(
+    assignments: list[dict],
+    database_outcomes: dict,
+    *,
+    include_legacy: bool = False,
+) -> dict:
+    """Summarize post-assignment captures using phone_found_at from the database."""
+    arms = {
+        "A": {"assigned": 0, "captured": 0},
+        "B": {"assigned": 0, "captured": 0},
+    }
+    exclusions = []
+
+    for assignment in assignments:
+        lead_id = str(assignment["lead_id"])
+        eligibility = assignment.get("eligibility")
+        if not include_legacy and not eligibility:
+            exclusions.append({"lead_id": lead_id, "reason": "legacy_missing_eligibility"})
+            continue
+        if eligibility and not eligibility.get("eligible", False):
+            exclusions.append({"lead_id": lead_id, "reason": "ineligible_assignment"})
+            continue
+
+        arm = assignment["assigned_arm"]
+        arms[arm]["assigned"] += 1
+        outcome = database_outcomes.get(lead_id) or {}
+        captured_at = outcome.get("phone_found_at")
+        if not outcome.get("phone_found") or not captured_at:
+            continue
+
+        assigned_at = datetime.fromtimestamp(
+            float(assignment["assigned_at"]),
+            tz=timezone.utc,
+        )
+        if captured_at.tzinfo is None:
+            captured_at = captured_at.replace(tzinfo=timezone.utc)
+        if captured_at >= assigned_at:
+            arms[arm]["captured"] += 1
+
+    for arm in arms.values():
+        arm["capture_rate"] = (
+            arm["captured"] / arm["assigned"] if arm["assigned"] else None
+        )
+
+    return {
+        "source_of_truth": "database.conversations.phone_found_at",
+        "arms": arms,
+        "excluded": exclusions,
+    }
 
 # --- light heuristics for the outcome hook (diagnostics only) ---
 _PHONE_RE = re.compile(r"(?:\(Number Removed\)|(?:\+?44|0)\s?7\d(?:[\s-]?\d){6,}|(?:\d[\s-]?){9,})")
