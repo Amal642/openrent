@@ -2,61 +2,54 @@
 
 Last updated: 2026-06-22
 
-## Current production findings
+## Current production state (as of 2026-06-22 evening)
 
 ### Account and profile state
-- Seven accounts are enabled, but only four have active search profiles.
-- Accounts 16, 18, and 19 have no search profile, so they cannot discover or contact listings.
-- Accounts 11 (Upper Norwood) and 14 (Hanworth) currently provide most new outreach.
-- New outreach is intentionally limited to one message per account every 1–3 hours.
-- The daily limit of eight is a maximum, not a quota the scheduler guarantees it will fill.
-- Sessions and proxies were healthy during the audit; they were not the main throughput bottleneck.
+- All 7 active accounts now have search profiles and are sending.
+- Max daily capacity: 56 messages/day (7 accounts × 8/day).
+- Proxies healthy across all accounts: proxy_status=ok, proxy_failures=0.
+- Processing failure root cause identified and fixed (see below).
 
-### South London coverage — profile swap broke the design
-- The original design was correct: 4 accounts with large radii, zero listing overlap, covering South London.
-- Accounts 12 and 13 had their productive large-radius profiles **replaced** with much smaller ones at some point. This is the root cause of their inventory exhaustion.
-- Account 12 was **Kingston Upon Thames 10mi** (SW London). It is now **Green Street Green 4mi** — only 11 listings ever discovered.
-- Account 13 was **Bexleyheath 10mi** (SE London, 30% phone rate, 125 listings). It is now **Bexley 6mi** — only 38 listings ever discovered.
-- The inactive profiles (Kingston 10mi, Bexleyheath 10mi) have avail=0 only because they have not been scraped since deactivation. New listings in those areas are waiting to be discovered.
-- Increasing scroll depth in the scraper is not the bottleneck. The scraper already discovers 300+ listings per run in active large-radius profiles.
+### Active coverage — South London only
+| Account | Email | Sender | Area | Radius |
+|---|---|---|---|---|
+| 11 | mooncrest2026 | Aisha | Upper Norwood, London | 11mi |
+| 12 | wavehub2026 | Oliver* | Kingston Upon Thames | 10mi |
+| 13 | cloudhaven2027 | Michael* | Bexleyheath, Greater London | 10mi |
+| 14 | citybloom2026 | (correct) | Hanworth, London | 11mi |
+| 16 | riverstone2027 | Maya | Lewisham, London | 10mi (new) |
+| 18 | silverwind2026 | Priya | Croydon, Greater London | 10mi (new) |
+| 19 | upperwind2027 | Hannah | Woolwich, Greater London | 10mi (new) |
 
-### Agent listings and processing failures
-- ~35–76% of discovered listings per area are agent listings and are correctly skipped.
-- ~45% of private-landlord listings fail processing (processing_failed=true). This is a major drain on contactable inventory and worth investigating.
-- 292 listings across active profiles are skipped as agents.
+*Accounts 12 and 13 still have inverted names (male sender) — pending fix, see below.
 
-### Phone capture rate by area (all-time, from live data)
-- Woolwich, Greater London (inactive, 10mi): **40% phone rate** — best performing South London area.
-- Bexleyheath, Greater London (inactive, 10mi): **30% phone rate**.
-- Sidcup, Greater London (inactive, 10mi): 18.8% phone rate.
-- Kingston Upon Thames (inactive, 10mi): 20% phone rate.
-- Hanworth, London (active, 11mi): 13.3% phone rate.
-- Upper Norwood, London (active, 11mi): 11.5% phone rate.
-- The two currently active London areas have the lowest phone rates of any area ever run.
+### Phone capture rate by area (all-time)
+- Woolwich, Greater London (10mi): **40% phone rate** — best performing.
+- Bexleyheath, Greater London (10mi): **30% phone rate**.
+- Kingston Upon Thames (10mi): 20% phone rate.
+- Sidcup, Greater London (10mi): 18.8% phone rate.
+- Hanworth, London (11mi): 13.3% phone rate.
+- Upper Norwood, London (11mi): 11.5% phone rate.
+- Lewisham, Croydon: new — no data yet.
 
-### Daily outreach trend
-- Peak was 39 messages/day on 2026-06-15; has been declining as inventory depletes.
-- As of 2026-06-22: 4 messages sent (day still in progress).
-- Phone captures track outreach: 2–7/day when outreach was healthy, down to 2 today.
+### Processing failure fix (deployed 2026-06-22)
+- Root cause: transient proxy tunnel errors (`ERR_TUNNEL_CONNECTION_FAILED`) hit the broad `except Exception` in `process_listings.py`, permanently marking listings as failed with no reason stored.
+- **Fix deployed**: `fail_reason` column added to listings table. All 3 call sites in `process_listings.py` now store a reason string. Exception path stores `ExcType: message[:300]` so tunnel errors are now queryable.
+- **Proxy recovery fix deployed**: `reset_failed_listings_for_account()` called in `proxy_health_monitor.py` on both proxy recovery and proxy reassignment paths — failed listings auto-reset when proxy heals.
+- **329 existing failed listings manually reset** on 2026-06-22 after confirming all proxies healthy.
 
 ### Persona and name issues
-- All couple persona templates are designed correctly: female name is `primary` (the sender), male name is `partner`. The wife is supposed to be texting.
-- **3 of 7 active accounts have the husband texting** because the DB assignment is inverted — likely caused by name pool exhaustion during setup:
-  - Account 12 (wavehub2026): **Oliver** sending — Oliver is a male partner-pool name.
-  - Account 13 (cloudhaven2027): **Michael** sending — Michael is a male partner-pool name.
-  - Account 19 (upperwind2027): **Oliver** sending — same issue.
-- Account 13 also has **Alex** as the partner name, which is also from the male partner pool for `engineer_consultant_couple`. Even after swapping, neither name is clearly female. Account 13 needs a proper female primary name (Charlotte, Rebecca, Victoria, or Claire).
-- Account 13 has **multiple live VIEWING_DISCUSSION conversations** as of 2026-06-22. Do not swap its names until those threads close (allow 2–3 days).
-- Account 12 has one potentially live VIEWING_DISCUSSION thread (44514537, last inbound 2026-06-19). Low but real risk to swap now.
-- Account 19 has **zero conversations and no profile** — name swap is completely safe immediately.
-- The prompts in `prompts.py:280` and `prompts.py:299` correctly say "my husband is handling the viewing coordination" — but this only makes sense when a female persona is the sender. On accounts 12, 13, 19 it produces a male persona saying "my husband", which is incoherent.
-- Name pool size (4 names per role per template) is too small for the number of accounts. When the pool is exhausted, `materialize_persona` falls back to reusing names.
+- All couple persona templates are correct: female `primary` (sender), male `partner`.
+- **Account 19 fixed (2026-06-22)**: was Oliver/Hannah → now Hannah/Oliver. Zero conversations, safe.
+- **Account 12 still inverted**: Oliver sending, Amelia is partner. Has 7 live convos, 1 viewing thread. Fix after threads settle.
+- **Account 13 still inverted**: Michael sending, Alex as partner (also male pool). Has 21 live convos, 6 viewing threads. Needs a fresh female name (Charlotte, Rebecca, Victoria, or Claire) — simple swap insufficient as both names are male. Fix after viewing threads close (~2026-06-25).
+- Name pool size (4 names per role per template) is too small — causes duplicates on pool exhaustion.
 
 ### Duplicate names across accounts
 - Daniel: 4 accounts (6, 7, 14, 18)
 - Aisha: 3 accounts (7, 9, 11)
 - Alex: 3 accounts (8, 13, 17)
-- Oliver: 2 accounts (12, 19)
+- Oliver: 2 accounts (12, 19 — 19 fixed, now partner not sender)
 - Michael: 2 accounts (13, 17)
 - Leah: 2 accounts (6, 10)
 - Sam: 2 accounts (9, 10)
@@ -64,31 +57,18 @@ Last updated: 2026-06-22
 
 ## Immediate operational TODO
 
-### Highest priority — restore South London coverage (biggest volume impact)
-- [ ] **Account 12**: Deactivate Green Street Green 4mi. Reactivate Kingston Upon Thames 10mi (profile ID 8). Restores SW London coverage and triggers fresh scrape of an under-exploited area.
-- [ ] **Account 13**: Deactivate Bexley 6mi. Reactivate Bexleyheath 10mi (profile ID 7). Restores SE London coverage (30% phone rate, 125 listings when previously active). Do this after live conversations settle (~2026-06-25).
-- [ ] **Account 11**: Reactivate Woolwich 10mi (profile ID 10) alongside Upper Norwood. Best phone rate at 40%.
-- [ ] Assign South London profiles to accounts **16, 18, and 19**. These accounts are fully idle. Each adds up to 8 messages/day. Proven South London corridors: Eltham, Lewisham, Bromley (town centre), Catford for SE; Morden, Mitcham, Tooting for south-central.
-
-### Persona name fixes
-- [ ] **Account 19**: Swap `persona_name` ↔ `persona_partner_name` and `persona_job` ↔ `persona_partner_job` in the DB. Safe to do immediately (zero conversations).
-- [ ] **Account 12**: Same swap. Do after thread 44514537 closes or goes cold.
-- [ ] **Account 13**: Assign a proper female primary name (Charlotte, Rebecca, Victoria, or Claire) from the `engineer_consultant_couple` template. Simple swap is insufficient — both current names are from the male partner pool. Do after live VIEWING_DISCUSSION threads close (~2026-06-25).
-- [ ] Expand name pools in `app/ai/personas.py` from 4 to at least 8–10 names per role per template to prevent future pool exhaustion and duplicate reuse.
+### Persona name fixes (accounts 12 and 13)
+- [ ] **Account 12**: Swap `persona_name` ↔ `persona_partner_name` and jobs. Do after thread 44514537 closes or goes cold.
+- [ ] **Account 13**: Assign a proper female primary name (Charlotte, Rebecca, Victoria, or Claire). Simple swap is insufficient — both current names are from the male partner pool. Do after live VIEWING_DISCUSSION threads close (~2026-06-25).
+- [ ] Expand name pools in `app/ai/personas.py` from 4 to at least 8–10 names per role per template.
 
 ### Other
-- [ ] Investigate why ~45% of private-landlord listings fail processing (`processing_failed=true`). Fixing this would roughly double contactable yield without any new areas or accounts.
 - [ ] Verify outreach only consumes listings from active search profiles.
 - [ ] Decide the intended outreach pacing:
   - Current: one initial message every 1–3 hours per productive account.
   - Confirm whether the goal is natural pacing or reliably reaching eight messages per account per day.
 - [ ] Add an account readiness indicator that distinguishes:
-  - Enabled
-  - Has active profile
-  - Has usable inventory
-  - Healthy session
-  - Healthy proxy
-  - Outreach due
+  - Enabled / has active profile / has usable inventory / healthy session / healthy proxy / outreach due
 - [ ] Display a clear reason when an enabled account sends zero messages.
 
 
@@ -193,15 +173,17 @@ Create a shared market-intelligence layer that is separate from sending accounts
   - How many additional SIMs/proxies are justified?
 
 
-## Recommended implementation sequence
+## Recommended next sequence
 
-1. [ ] Restore South London coverage: reactivate Kingston 10mi (acct 12), Bexleyheath 10mi (acct 13), Woolwich 10mi (acct 11).
-2. [ ] Fix persona name inversions on accounts 19 (immediate), 12, and 13 (after live threads close).
-3. [ ] Assign profiles to accounts 16, 18, 19 with proven South London areas.
-4. [ ] Investigate and fix the ~45% processing failure rate on private-landlord listings.
-5. [ ] Add reliable per-area supply and usability metrics.
-6. [ ] Collect at least 7–14 days of comparable area data.
-7. [ ] Add deterministic area scoring and saturation reporting.
-8. [ ] Add account, SIM, and proxy capacity recommendations.
-9. [ ] Add the conversational AI adviser over the verified metrics.
-10. [ ] Provision additional sending infrastructure only after the data justifies it.
+1. [x] ~~Restore South London coverage: reactivate Kingston 10mi (acct 12), Bexleyheath 10mi (acct 13).~~
+2. [x] ~~Fix persona name inversion on account 19.~~
+3. [x] ~~Assign profiles to accounts 16, 18, 19 (Lewisham, Croydon, Woolwich).~~
+4. [x] ~~Investigate and fix the ~45% processing failure rate — fail_reason column + proxy recovery reset deployed.~~
+5. [ ] Fix persona name inversions on accounts 12 and 13 after live threads close (~2026-06-25).
+6. [ ] Expand name pools in personas.py (4 → 8–10 per role).
+7. [ ] Monitor Lewisham, Croydon, Woolwich for 7–14 days to establish phone rate baselines.
+8. [ ] Add reliable per-area supply and usability metrics.
+9. [ ] Add deterministic area scoring and saturation reporting.
+10. [ ] Add account, SIM, and proxy capacity recommendations.
+11. [ ] Add the conversational AI adviser over the verified metrics.
+12. [ ] Provision additional sending infrastructure only after the data justifies it.
