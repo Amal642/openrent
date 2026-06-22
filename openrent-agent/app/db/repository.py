@@ -1118,7 +1118,7 @@ def mark_listing_contacted(
             db.commit()
 
 
-def mark_listing_failed(listing_id):
+def mark_listing_failed(listing_id, reason=None):
     with session_scope() as db:
         listing = db.query(Listing).filter(
             Listing.id == listing_id
@@ -1126,11 +1126,39 @@ def mark_listing_failed(listing_id):
 
         if listing:
             listing.processing_failed = True
+            listing.fail_reason = reason
             listing.last_processed_at = datetime.utcnow()
             listing.processing_owner = None
             listing.processing_started_at = None
 
             db.commit()
+
+
+def reset_failed_listings_for_account(account_id):
+    """Clear processing_failed on unsent listings so they can be retried.
+
+    Called when a proxy recovers or is reassigned — failures caused by proxy
+    tunnel errors are transient and the listing itself is still valid.
+    """
+    with session_scope() as db:
+        db.query(Listing).filter(
+            Listing.search_profile_id.in_(
+                db.query(SearchProfile.id).filter(
+                    SearchProfile.account_id == account_id
+                )
+            ),
+            Listing.processing_failed == True,
+            Listing.message_sent == False,
+        ).update(
+            {
+                "processing_failed": False,
+                "fail_reason": None,
+                "processing_owner": None,
+                "processing_started_at": None,
+            },
+            synchronize_session=False,
+        )
+        db.commit()
 
 def save_message_url(
     listing_id,

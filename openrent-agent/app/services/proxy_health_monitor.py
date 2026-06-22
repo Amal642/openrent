@@ -133,6 +133,9 @@ async def _run_monitor_cycle():
             for candidate in accounts:
                 if _proxy_key(candidate) != key:
                     continue
+                from app.db.repository import reset_failed_listings_for_account
+                reset_failed_listings_for_account(candidate.id)
+                logger.info(f"LISTINGS_RESET account_id={candidate.id} reason=proxy_recovered")
                 worker_status = str(getattr(candidate, "worker_status", "") or "").lower()
                 if worker_status in UNHEALTHY_WORKER_STATUSES:
                     update_account_worker_state(candidate.id, "idle", phase="proxy_recovered")
@@ -158,6 +161,9 @@ async def _run_monitor_cycle():
                         candidate.id, reason="proxy_unhealthy_3_retries"
                     )
                     if outcome.get("reassigned"):
+                        from app.db.repository import reset_failed_listings_for_account
+                        reset_failed_listings_for_account(candidate.id)
+                        logger.info(f"LISTINGS_RESET account_id={candidate.id} reason=proxy_reassigned")
                         update_account_worker_state(
                             candidate.id, "idle", phase="proxy_reassigned"
                         )

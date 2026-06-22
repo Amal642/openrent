@@ -191,6 +191,7 @@ class Listing(Base):
     message_sent = Column(Boolean, default=False)
 
     processing_failed = Column(Boolean, default=False)
+    fail_reason = Column(String, nullable=True)
 
     skip_reason = Column(String, nullable=True)
 

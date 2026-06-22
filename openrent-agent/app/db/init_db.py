@@ -86,6 +86,7 @@ REQUIRED_COLUMNS = {
         "rent_pcm": "INTEGER",
         "landlord_name": "VARCHAR",
         "metadata_captured_at": "TIMESTAMP",
+        "fail_reason": "TEXT",
     },
 
     "conversations": {

@@ -193,7 +193,7 @@ async def process_account_listings(
 
             if not message_text:
                 logger.warning(f"Failed generating message: {error}")
-                mark_listing_failed(listing_pk)
+                mark_listing_failed(listing_pk, reason="message_generation_failed")
                 continue
 
             # Send — only mark contacted after OpenRent returns a thread URL.
@@ -214,7 +214,7 @@ async def process_account_listings(
                     f"Initial send did not produce a thread for "
                     f"listing {listing_ext_id}; final_url={final_url}"
                 )
-                mark_listing_failed(listing_pk)
+                mark_listing_failed(listing_pk, reason="no_thread_returned")
                 continue
 
             mark_listing_contacted(listing_pk, thread_id=thread_id)
@@ -243,7 +243,7 @@ async def process_account_listings(
                 f"Processing failed for listing {listing_ext_id} "
                 f"(pk={listing_pk}): {e}"
             )
-            mark_listing_failed(listing_pk)
+            mark_listing_failed(listing_pk, reason=f"{type(e).__name__}: {str(e)[:300]}")
 
         finally:
             release_listing_claim(
