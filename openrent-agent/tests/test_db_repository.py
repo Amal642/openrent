@@ -103,6 +103,87 @@ def test_playbook_ab_enrollment_state_uses_persisted_messages(db_session):
     assert state["message_contents"] == ["Initial enquiry", "When can you view?"]
 
 
+def test_cancellation_blocked_until_landlord_replies_after_phone_request(db_session):
+    requested_at = datetime.utcnow() - timedelta(hours=5)
+
+    with db_session() as session:
+        conversation = Conversation(
+            thread_id="CANCEL-WAIT",
+            phone_requested_at=requested_at,
+        )
+        session.add(conversation)
+        session.flush()
+        session.add(
+            Message(
+                conversation_id=conversation.id,
+                direction="inbound",
+                content="Earlier landlord message",
+                created_at=requested_at - timedelta(minutes=5),
+            )
+        )
+        session.commit()
+
+    assert (
+        repository.get_automatic_cancellation_block_reason("CANCEL-WAIT")
+        == "awaiting_phone_request_response"
+    )
+
+    with db_session() as session:
+        conversation = session.query(Conversation).filter_by(
+            thread_id="CANCEL-WAIT"
+        ).one()
+        session.add(
+            Message(
+                conversation_id=conversation.id,
+                direction="inbound",
+                content="I prefer to keep it on OpenRent",
+                created_at=requested_at + timedelta(minutes=5),
+            )
+        )
+        session.commit()
+
+    assert repository.get_automatic_cancellation_block_reason("CANCEL-WAIT") is None
+
+
+def test_cancellation_not_blocked_when_no_phone_request_exists(db_session):
+    with db_session() as session:
+        session.add(Conversation(thread_id="CANCEL-NO-REQUEST"))
+        session.commit()
+
+    assert (
+        repository.get_automatic_cancellation_block_reason("CANCEL-NO-REQUEST")
+        is None
+    )
+
+
+def test_cancellation_allowed_after_landlord_supplies_number(db_session):
+    requested_at = datetime.utcnow()
+
+    with db_session() as session:
+        conversation = Conversation(
+            thread_id="CANCEL-NUMBER-REPLY",
+            phone_requested_at=requested_at,
+        )
+        session.add(conversation)
+        session.flush()
+        session.add(
+            Message(
+                conversation_id=conversation.id,
+                direction="inbound",
+                content="Yes, call me on 07123 456789",
+                created_at=requested_at + timedelta(minutes=2),
+            )
+        )
+        session.commit()
+
+    assert (
+        repository.get_automatic_cancellation_block_reason(
+            "CANCEL-NUMBER-REPLY"
+        )
+        is None
+    )
+
+
 def test_count_new_outreach_on_day_counts_only_first_outbound(db_session):
     target_day = datetime(2026, 6, 22).date()
     with db_session() as session:

@@ -2321,6 +2321,35 @@ def get_conversation_by_thread_id(
         ).first()
 
 
+def get_automatic_cancellation_block_reason(thread_id):
+    """
+    Return a reason when automatic viewing cancellation must not proceed.
+
+    Once a phone request has been sent, cancellation stays blocked until a
+    newer inbound landlord message is persisted. The reply does not need to
+    contain a number; it only needs to prove the landlord has responded after
+    seeing the request.
+    """
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+
+        if not conversation or not conversation.phone_requested_at:
+            return None
+
+        landlord_replied = db.query(Message.id).filter(
+            Message.conversation_id == conversation.id,
+            Message.direction == "inbound",
+            Message.created_at > conversation.phone_requested_at,
+        ).first()
+
+        if landlord_replied:
+            return None
+
+        return "awaiting_phone_request_response"
+
+
 def update_last_processed_message(
     thread_id,
     message

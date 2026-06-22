@@ -6,6 +6,7 @@ from app.browser.launcher import launch_browser
 from app.db.repository import (
     claim_conversation,
     get_active_accounts,
+    get_automatic_cancellation_block_reason,
     get_due_viewing_cancellations,
     mark_viewing_cancelled,
     release_conversation_claim,
@@ -59,6 +60,14 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
 
             await open_thread(page, thread_id)
             messages = await extract_conversation(page)
+
+            block_reason = get_automatic_cancellation_block_reason(thread_id)
+            if block_reason:
+                logger.info(
+                    f"CANCELLATION_BLOCKED thread_id={thread_id} "
+                    f"reason={block_reason}"
+                )
+                continue
 
             message, error = generate_cancellation_message(messages)
             if not message or error:

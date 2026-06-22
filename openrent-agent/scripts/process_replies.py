@@ -10,6 +10,7 @@ from app.db.repository import (
     update_conversation_stage,
     update_conversation_status,
     get_conversation_by_thread_id,
+    get_automatic_cancellation_block_reason,
     update_last_processed_message,
     phone_exists,
     mark_handoff_complete,
@@ -357,6 +358,13 @@ async def _cancel_viewing_and_handoff(
     persona=None, landlord_attitude=None,
 ):
     """Send a viewing cancellation, mark the viewing cancelled, and complete handoff."""
+    block_reason = get_automatic_cancellation_block_reason(thread_id)
+    if block_reason:
+        logger.info(
+            f"CANCELLATION_BLOCKED thread_id={thread_id} reason={block_reason}"
+        )
+        return False
+
     logger.info(f"VIEWING_CANCEL_TRIGGERED thread_id={thread_id}")
 
     cancel_msg, error = generate_cancel_viewing_message(messages)
@@ -657,16 +665,21 @@ async def process_account_replies(
                 viewing_dt = getattr(conversation, "viewing_datetime", None)
                 phone_already_requested = bool(conversation and conversation.phone_requested_at)
                 phone_already_captured = bool(conversation and conversation.extracted_phone)
+                cancellation_block_reason = (
+                    get_automatic_cancellation_block_reason(thread_id)
+                )
 
-                # Safe to cancel only when: phone captured, OR phone was asked
-                # and enough time has passed for landlord to respond (≥4 h).
+                # An unanswered phone request always blocks cancellation.
+                # After a response, preserve the existing timing rule: cancel
+                # when a phone was captured or the request is at least 4h old.
                 _phone_ask_age_h = (
                     (datetime.utcnow() - conversation.phone_requested_at).total_seconds() / 3600
                     if phone_already_requested and conversation and conversation.phone_requested_at
                     else 0
                 )
-                safe_to_cancel = phone_already_captured or (
-                    phone_already_requested and _phone_ask_age_h >= 4
+                safe_to_cancel = not cancellation_block_reason and (
+                    phone_already_captured
+                    or (phone_already_requested and _phone_ask_age_h >= 4)
                 )
 
                 # Only enter the cancel window when we know WHEN the viewing is.
@@ -697,10 +710,15 @@ async def process_account_replies(
                         )
                         continue
                     else:
-                        # Asked recently — give landlord time to respond, reply normally
+                        if cancellation_block_reason:
+                            logger.info(
+                                f"CANCELLATION_BLOCKED thread_id={thread_id} "
+                                f"reason={cancellation_block_reason}"
+                            )
+                            continue
                         logger.info(
                             f"VIEWING_CANCEL_WAITING thread_id={thread_id} "
-                            f"phone_ask_age={_phone_ask_age_h:.1f}h — waiting for landlord response"
+                            f"phone_ask_age={_phone_ask_age_h:.1f}h"
                         )
                 else:
                     # Outside cancel window or no datetime yet — reply naturally
