@@ -91,12 +91,12 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Sophie", "Hannah", "Amelia", "Leah"],
-            "partner": ["James", "Daniel", "Oliver", "Sam"],
+            "primary": ["Sophie", "Hannah", "Amelia", "Leah", "Emma", "Chloe", "Jessica", "Natalie"],
+            "partner": ["James", "Daniel", "Oliver", "Sam", "Jack", "Liam", "Harry", "Josh"],
         },
         "jobs": {
-            "primary": ["Marketing Manager", "Project Coordinator", "UX Designer"],
-            "partner": ["Product Manager", "Business Analyst", "Software Engineer"],
+            "primary": ["Marketing Manager", "Project Coordinator", "UX Designer", "HR Business Partner", "Brand Manager"],
+            "partner": ["Product Manager", "Business Analyst", "Software Engineer", "Data Analyst", "DevOps Engineer"],
         },
     },
     "quiet_it_worker": {
@@ -117,11 +117,11 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Tom", "Ben", "Luke", "Ryan"],
+            "primary": ["Tom", "Ben", "Luke", "Ryan", "Matt", "Jake", "Chris", "Dan"],
             "partner": [],
         },
         "jobs": {
-            "primary": ["Systems Administrator", "Cloud Engineer", "IT Support Lead"],
+            "primary": ["Systems Administrator", "Cloud Engineer", "IT Support Lead", "Network Engineer", "DevOps Engineer"],
             "partner": [],
         },
     },
@@ -143,12 +143,12 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Aisha", "Maya", "Priya", "Sarah"],
-            "partner": ["Adam", "Omar", "Daniel", "Imran"],
+            "primary": ["Aisha", "Maya", "Priya", "Sarah", "Fatima", "Nadia", "Zara", "Jasmine"],
+            "partner": ["Adam", "Omar", "Daniel", "Imran", "Khalid", "Hassan", "Yusuf", "Tariq"],
         },
         "jobs": {
-            "primary": ["NHS Nurse", "Radiographer", "Clinical Pharmacist"],
-            "partner": ["Civil Engineer", "Operations Manager", "Data Analyst"],
+            "primary": ["NHS Nurse", "Radiographer", "Clinical Pharmacist", "Midwife", "Physiotherapist"],
+            "partner": ["Civil Engineer", "Operations Manager", "Data Analyst", "Project Manager", "Logistics Manager"],
         },
     },
     "academic_researcher": {
@@ -169,11 +169,11 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Emily", "Laura", "Jonathan", "Nathan"],
+            "primary": ["Emily", "Laura", "Jonathan", "Nathan", "Anna", "Rachel", "Thomas", "William"],
             "partner": [],
         },
         "jobs": {
-            "primary": ["University Lecturer", "Research Fellow", "Policy Researcher"],
+            "primary": ["University Lecturer", "Research Fellow", "Policy Researcher", "Postdoctoral Researcher", "Data Scientist"],
             "partner": [],
         },
     },
@@ -195,12 +195,12 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Charlotte", "Rebecca", "Victoria", "Claire"],
-            "partner": ["Michael", "Ethan", "Alex", "Chris"],
+            "primary": ["Charlotte", "Rebecca", "Victoria", "Claire", "Katherine", "Louise", "Nicola", "Helen"],
+            "partner": ["Michael", "Ethan", "Alex", "Chris", "David", "Andrew", "Marcus", "Simon"],
         },
         "jobs": {
-            "primary": ["Mechanical Engineer", "Management Consultant", "Solutions Architect"],
-            "partner": ["Financial Consultant", "Account Manager", "Civil Engineer"],
+            "primary": ["Mechanical Engineer", "Management Consultant", "Solutions Architect", "Structural Engineer", "Business Consultant"],
+            "partner": ["Financial Consultant", "Account Manager", "Civil Engineer", "Commercial Manager", "IT Consultant"],
         },
     },
     "single_income_couple": {
@@ -220,11 +220,11 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Mary", "Aisha", "Priya", "Hannah"],
-            "partner": ["James", "Omar", "Daniel", "Sam"],
+            "primary": ["Mary", "Aisha", "Priya", "Hannah", "Grace", "Rachel", "Lisa", "Nina"],
+            "partner": ["James", "Omar", "Daniel", "Sam", "Robert", "Kevin", "Patrick", "Marcus"],
         },
         "jobs": {
-            "primary": ["IT Support Lead", "Product Manager", "Accountant"],
+            "primary": ["IT Support Lead", "Product Manager", "Accountant", "Office Manager", "Teaching Assistant"],
             "partner": ["currently at home", "full-time parent", "homemaker"],
         },
     },
