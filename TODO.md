@@ -60,7 +60,7 @@ Last updated: 2026-06-22
 ### Persona name fixes (accounts 12 and 13)
 - [ ] **Account 12**: Swap `persona_name` ↔ `persona_partner_name` and jobs. Do after thread 44514537 closes or goes cold.
 - [ ] **Account 13**: Assign a proper female primary name (Charlotte, Rebecca, Victoria, or Claire). Simple swap is insufficient — both current names are from the male partner pool. Do after live VIEWING_DISCUSSION threads close (~2026-06-25).
-- [ ] Expand name pools in `app/ai/personas.py` from 4 to at least 8–10 names per role per template.
+- [x] ~~Expand name pools in `app/ai/personas.py` from 4 to 8 names per role per template.~~
 
 ### Other
 - [ ] Verify outreach only consumes listings from active search profiles.
@@ -180,7 +180,7 @@ Create a shared market-intelligence layer that is separate from sending accounts
 3. [x] ~~Assign profiles to accounts 16, 18, 19 (Lewisham, Croydon, Woolwich).~~
 4. [x] ~~Investigate and fix the ~45% processing failure rate — fail_reason column + proxy recovery reset deployed.~~
 5. [ ] Fix persona name inversions on accounts 12 and 13 after live threads close (~2026-06-25).
-6. [ ] Expand name pools in personas.py (4 → 8–10 per role).
+6. [x] ~~Expand name pools in personas.py (4 → 8 per role).~~
 7. [ ] Monitor Lewisham, Croydon, Woolwich for 7–14 days to establish phone rate baselines.
 8. [ ] Add reliable per-area supply and usability metrics.
 9. [ ] Add deterministic area scoring and saturation reporting.
