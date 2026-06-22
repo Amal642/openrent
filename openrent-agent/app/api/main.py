@@ -26,6 +26,7 @@ from app.api.auth import (
 from app.db.init_db import init_db
 from app.db.repository import (
     clear_account_failed,
+    count_new_outreach_on_day,
     create_account,
     create_location,
     create_proxy,
@@ -807,6 +808,12 @@ def api_metrics():
     leads = get_dashboard_leads()
     accounts = get_dashboard_accounts()
     today = datetime.utcnow().date()
+    new_outreach_today = count_new_outreach_on_day(today)
+    daily_phone_target = (
+        (new_outreach_today + 2) // 3
+        if new_outreach_today
+        else 0
+    )
 
     phones_today = [
         lead for lead in leads
@@ -849,7 +856,8 @@ def api_metrics():
         "total_leads": len(leads),
         "total_phones": len([lead for lead in leads if lead.get("phone")]),
         "phones_today": len(phones_today),
-        "daily_phone_target": len([a for a in accounts if a.get("active")]) * 3,
+        "new_outreach_today": new_outreach_today,
+        "daily_phone_target": daily_phone_target,
         "active_accounts": len([account for account in accounts if account.get("active")]),
         "series": [by_day[day] for day in sorted(by_day.keys())[-14:]],
     }

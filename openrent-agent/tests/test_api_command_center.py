@@ -74,6 +74,18 @@ def test_account_create_toggle_update_delete_flow(client):
     assert deleted.json()["deleted"] is True
 
 
+def test_phone_target_is_one_third_of_new_outreach_rounded_up(client, monkeypatch):
+    monkeypatch.setattr("app.api.main.get_dashboard_leads", lambda: [])
+    monkeypatch.setattr("app.api.main.get_dashboard_accounts", lambda: [])
+    monkeypatch.setattr("app.api.main.count_new_outreach_on_day", lambda _day: 7)
+
+    response = client.get("/api/metrics")
+
+    assert response.status_code == 200
+    assert response.json()["new_outreach_today"] == 7
+    assert response.json()["daily_phone_target"] == 3
+
+
 def test_search_profile_crud_and_404s(client):
     account = client.post(
         "/api/accounts",

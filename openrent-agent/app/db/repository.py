@@ -3,6 +3,7 @@ import random
 import re
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from app.db.connection import SessionLocal
@@ -2240,6 +2241,32 @@ def get_playbook_ab_database_outcomes(lead_ids):
             }
             for thread_id, phone_found, phone_found_at in rows
         }
+
+
+def count_new_outreach_on_day(day=None):
+    """Count conversations whose first persisted outbound message was sent that UTC day."""
+    target_day = day or datetime.utcnow().date()
+    day_start = datetime.combine(target_day, datetime.min.time())
+    day_end = day_start + timedelta(days=1)
+
+    with session_scope() as db:
+        first_outbound = (
+            db.query(
+                Message.conversation_id.label("conversation_id"),
+                func.min(Message.created_at).label("first_outbound_at"),
+            )
+            .filter(Message.direction == "outbound")
+            .group_by(Message.conversation_id)
+            .subquery()
+        )
+        return (
+            db.query(first_outbound.c.conversation_id)
+            .filter(
+                first_outbound.c.first_outbound_at >= day_start,
+                first_outbound.c.first_outbound_at < day_end,
+            )
+            .count()
+        )
 
 
 def mark_listing_skipped(listing_id, reason="SKIPPED"):

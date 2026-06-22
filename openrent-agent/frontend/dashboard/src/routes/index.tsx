@@ -111,7 +111,7 @@ function Dashboard() {
   const accountsActive =
     metrics?.active_accounts ?? accounts.filter((a) => a.workerStatus !== "paused").length;
   const phonesToday = metrics?.phones_today ?? 0;
-  const phoneTarget = metrics?.daily_phone_target ?? accounts.length * 3;
+  const phoneTarget = metrics?.daily_phone_target ?? 0;
   const phoneProgress = Math.min(100, Math.round((phonesToday / Math.max(phoneTarget, 1)) * 100));
 
   const recent = useMemo(() => {
@@ -173,7 +173,7 @@ function Dashboard() {
               <MiniMetric
                 label="Phone progress"
                 value={`${phonesToday}/${phoneTarget}`}
-                helper="today's target"
+                helper="1 per 3 new conversations"
               />
               <MiniMetric
                 label="Active accounts"
@@ -188,7 +188,7 @@ function Dashboard() {
               <div>
                 <h2 className="font-semibold">Phone target</h2>
                 <p className="text-sm text-muted-foreground">
-                  A simple view of today's collection goal.
+                  One target phone for every three new conversations today.
                 </p>
               </div>
               <div className="flex size-10 items-center justify-center rounded-md bg-success/10 text-success">

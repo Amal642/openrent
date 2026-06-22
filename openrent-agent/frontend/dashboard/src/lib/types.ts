@@ -199,6 +199,7 @@ export interface AutomationMetrics {
   total_leads: number;
   total_phones: number;
   phones_today: number;
+  new_outreach_today: number;
   daily_phone_target: number;
   active_accounts: number;
   series: MetricsSeriesPoint[];

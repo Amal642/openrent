@@ -103,6 +103,59 @@ def test_playbook_ab_enrollment_state_uses_persisted_messages(db_session):
     assert state["message_contents"] == ["Initial enquiry", "When can you view?"]
 
 
+def test_count_new_outreach_on_day_counts_only_first_outbound(db_session):
+    target_day = datetime(2026, 6, 22).date()
+    with db_session() as session:
+        first = Conversation(thread_id="OUTREACH-1")
+        second = Conversation(thread_id="OUTREACH-2")
+        old = Conversation(thread_id="OUTREACH-OLD")
+        session.add_all([first, second, old])
+        session.flush()
+        session.add_all(
+            [
+                Message(
+                    conversation_id=first.id,
+                    direction="outbound",
+                    content="Initial",
+                    created_at=datetime(2026, 6, 22, 8, 0),
+                ),
+                Message(
+                    conversation_id=first.id,
+                    direction="outbound",
+                    content="Reply",
+                    created_at=datetime(2026, 6, 22, 9, 0),
+                ),
+                Message(
+                    conversation_id=second.id,
+                    direction="inbound",
+                    content="Landlord first",
+                    created_at=datetime(2026, 6, 22, 9, 30),
+                ),
+                Message(
+                    conversation_id=second.id,
+                    direction="outbound",
+                    content="Initial",
+                    created_at=datetime(2026, 6, 22, 10, 0),
+                ),
+                Message(
+                    conversation_id=old.id,
+                    direction="outbound",
+                    content="Initial yesterday",
+                    created_at=datetime(2026, 6, 21, 10, 0),
+                ),
+                Message(
+                    conversation_id=old.id,
+                    direction="outbound",
+                    content="Reply today",
+                    created_at=datetime(2026, 6, 22, 10, 30),
+                ),
+            ]
+        )
+        session.commit()
+
+    assert repository.count_new_outreach_on_day(target_day) == 2
+
+
 def test_save_phone_number_does_not_queue_non_london_sheet_export(db_session):
     with db_session() as session:
         account = Account(email="north@example.com", password="", session_file="s.json")
