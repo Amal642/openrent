@@ -11,7 +11,6 @@ from app.db.repository import (
     get_capacity_stats,
     get_dashboard_accounts,
     get_dashboard_leads,
-    get_proxies,
 )
 
 
@@ -24,7 +23,9 @@ def _account_snapshot() -> dict:
     running = sum(1 for a in accounts if (a.get("worker_status") or "") == "running")
     messages_today = sum(a.get("messages_sent_today", 0) for a in accounts)
     daily_capacity = sum(
-        a.get("daily_message_limit", 0) for a in accounts if a.get("active")
+        a.get("daily_message_limit", a.get("daily_limit", 0))
+        for a in accounts
+        if a.get("active")
     )
     return {
         "total": total,
@@ -52,10 +53,29 @@ def _proxy_snapshot() -> dict:
     }
 
 
+def _is_date_today(value, today) -> bool:
+    if not value:
+        return False
+    if isinstance(value, datetime):
+        return value.date() == today
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).date() == today
+        except ValueError:
+            return False
+    return False
+
+
 def _lead_snapshot() -> dict:
     leads = get_dashboard_leads()
+    today = datetime.utcnow().date()
     total = len(leads)
     with_phone = sum(1 for l in leads if l.get("phone_number"))
+    phones_today = sum(
+        1
+        for l in leads
+        if l.get("phone_number") and _is_date_today(l.get("phone_found_at"), today)
+    )
     replied = sum(1 for l in leads if l.get("last_processed_message"))
     active = sum(
         1
@@ -69,6 +89,7 @@ def _lead_snapshot() -> dict:
         "total_leads": total,
         "active_conversations": active,
         "phone_numbers_collected": with_phone,
+        "phone_numbers_collected_today": phones_today,
         "landlords_replied": replied,
         "reply_rate_pct": reply_rate,
         "ai_failed": failed,
@@ -145,7 +166,8 @@ def answer_stats_question(question: str) -> str:
             f"• Total leads: {l['total_leads']}\n"
             f"• Landlords who replied: {l['landlords_replied']}\n"
             f"• Reply rate: {l['reply_rate_pct']}%\n"
-            f"• Phone numbers collected: {l['phone_numbers_collected']}\n"
+            f"• Phone numbers collected today: {l['phone_numbers_collected_today']}\n"
+            f"• Phone numbers collected total: {l['phone_numbers_collected']}\n"
             f"• Failed conversations: {l['ai_failed']}"
         )
 
@@ -164,6 +186,7 @@ def all_stats_for_prompt() -> str:
         f"Connection services: {p['healthy']} healthy, {p['degraded']} degraded, {p['failed']} down\n"
         f"Leads: {l['total_leads']} total, "
         f"{l['landlords_replied']} replies ({l['reply_rate_pct']}% rate), "
-        f"{l['phone_numbers_collected']} phones collected, "
+        f"{l['phone_numbers_collected_today']} phones collected today, "
+        f"{l['phone_numbers_collected']} phones collected total, "
         f"{l['new_outreach_today']} new contacts today"
     )

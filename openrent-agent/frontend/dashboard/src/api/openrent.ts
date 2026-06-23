@@ -802,7 +802,7 @@ export async function disableFailedAccount(accountId: string): Promise<unknown> 
 }
 
 export interface AdvisorResponse {
-  type: "troubleshooting" | "stats" | "recommendation";
+  type: "troubleshooting" | "stats" | "recommendation" | "info" | "out_of_scope";
   response: string;
 }
 

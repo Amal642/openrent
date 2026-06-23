@@ -1,6 +1,6 @@
 # OpenRent Operations and Area Intelligence TODO
 
-Last updated: 2026-06-22
+Last updated: 2026-06-24
 
 ## Current production state (as of 2026-06-22 evening)
 
@@ -159,6 +159,11 @@ Create a shared market-intelligence layer that is separate from sending accounts
 
 ## Dashboard and advisory interface
 
+- [x] Add an initial AI Advisor tab to the dashboard sidebar and route (`/advisor`).
+- [x] Add `/api/advisor/chat` backend endpoint.
+- [x] Add troubleshooting responses from `troubleshooting_guide.md`.
+- [x] Add live account/proxy/lead stats responses from dashboard repository queries.
+- [x] Add LLM-backed recommendation responses using current platform stats plus fixed business rules.
 - [ ] Add an Area Intelligence page.
 - [ ] Show area supply, usable inventory, conversion rates, and trend charts.
 - [ ] Show account-to-area allocation.
@@ -170,6 +175,24 @@ Create a shared market-intelligence layer that is separate from sending accounts
   - How many accounts can this area support?
   - Where should the next account be assigned?
   - How many additional SIMs/proxies are justified?
+
+### AI Advisor audit notes (2026-06-24)
+
+- [x] Verified dashboard production build succeeds after advisor route/sidebar changes.
+- [x] Verified guide parser loads `troubleshooting_guide.md`.
+- [x] Verified sample advisor routing:
+  - Identity question -> `info`.
+  - Active-account count -> `stats`.
+  - Message sending issue -> `troubleshooting`.
+  - General joke/capital question -> `out_of_scope`.
+  - SIM/area planning question -> `recommendation`.
+- [x] Verified unrelated scheduling change tests pass (`tests/test_scheduling.py`).
+- [x] Add focused advisor tests for classification, scope refusal, guide lookup, and stats snapshots.
+- [x] Fix "phones collected today" behavior: current stats snapshot reports all-time phone count, not phones found today.
+- [x] Fix advisor daily capacity stats to read backend `daily_limit` values.
+- [ ] Make recommendation outputs deterministic for area/account/SIM capacity before asking the LLM to explain them.
+- [ ] Add measured area-supply data before marking "conversational AI adviser over verified metrics" complete.
+- [x] Align frontend `AdvisorResponse` type with backend response types (`info`, `out_of_scope`).
 
 
 ## Recommended next sequence
