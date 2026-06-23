@@ -14,14 +14,13 @@ Last updated: 2026-06-22
 | Account | Email | Sender | Area | Radius |
 |---|---|---|---|---|
 | 11 | mooncrest2026 | Aisha | Upper Norwood, London | 11mi |
-| 12 | wavehub2026 | Oliver* | Kingston Upon Thames | 10mi |
-| 13 | cloudhaven2027 | Michael* | Bexleyheath, Greater London | 10mi |
+| 12 | wavehub2026 | Amelia | Kingston Upon Thames | 10mi |
+| 13 | cloudhaven2027 | Alex | Bexleyheath, Greater London | 10mi |
 | 14 | citybloom2026 | (correct) | Hanworth, London | 11mi |
 | 16 | riverstone2027 | Maya | Lewisham, London | 10mi (new) |
 | 18 | silverwind2026 | Priya | Croydon, Greater London | 10mi (new) |
 | 19 | upperwind2027 | Hannah | Woolwich, Greater London | 10mi (new) |
 
-*Accounts 12 and 13 still have inverted names (male sender) — pending fix, see below.
 
 ### Phone capture rate by area (all-time)
 - Woolwich, Greater London (10mi): **40% phone rate** — best performing.
@@ -58,8 +57,8 @@ Last updated: 2026-06-22
 ## Immediate operational TODO
 
 ### Persona name fixes (accounts 12 and 13)
-- [ ] **Account 12**: Swap `persona_name` ↔ `persona_partner_name` and jobs. Do after thread 44514537 closes or goes cold.
-- [ ] **Account 13**: Assign a proper female primary name (Charlotte, Rebecca, Victoria, or Claire). Simple swap is insufficient — both current names are from the male partner pool. Do after live VIEWING_DISCUSSION threads close (~2026-06-25).
+- [x] ~~Account 12~~: DB and OpenRent both show Amelia. Fixed.
+- [x] ~~Account 13~~: Keeping "Alex" permanently. Every active conversation already mentions "Alex" and new ones start continuously — pausing the account to do a clean cut would cost ~100+ outbound messages with no landlord-facing benefit. Alex is gender-neutral and the account is performing (phone captured).
 - [x] ~~Expand name pools in `app/ai/personas.py` from 4 to 8 names per role per template.~~
 
 ### Other
@@ -179,7 +178,7 @@ Create a shared market-intelligence layer that is separate from sending accounts
 2. [x] ~~Fix persona name inversion on account 19.~~
 3. [x] ~~Assign profiles to accounts 16, 18, 19 (Lewisham, Croydon, Woolwich).~~
 4. [x] ~~Investigate and fix the ~45% processing failure rate — fail_reason column + proxy recovery reset deployed.~~
-5. [ ] Fix persona name inversions on accounts 12 and 13 after live threads close (~2026-06-25).
+5. [x] ~~Fix persona name inversions on accounts 12 and 13~~ — Amelia fixed on 12; Alex kept on 13 (gender-neutral, all threads exposed, not worth pausing).
 6. [x] ~~Expand name pools in personas.py (4 → 8 per role).~~
 7. [ ] Monitor Lewisham, Croydon, Woolwich for 7–14 days to establish phone rate baselines.
 8. [ ] Add reliable per-area supply and usability metrics.
