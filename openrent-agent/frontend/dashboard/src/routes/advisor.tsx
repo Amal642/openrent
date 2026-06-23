@@ -5,11 +5,13 @@ import {
   BarChart2,
   Brain,
   ChevronRight,
+  Info,
   Lightbulb,
   Loader2,
   MessageSquare,
   Plus,
   Send,
+  ShieldOff,
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,7 +33,7 @@ export const Route = createFileRoute("/advisor")({
 // ---------------------------------------------------------------------------
 
 type MessageRole = "user" | "assistant";
-type ResponseType = "troubleshooting" | "stats" | "recommendation";
+type ResponseType = "troubleshooting" | "stats" | "recommendation" | "info" | "out_of_scope";
 
 interface ChatMessage {
   id: string;
@@ -68,6 +70,8 @@ const TYPE_META: Record<ResponseType, { label: string; color: string; icon: type
   troubleshooting: { label: "Troubleshooting guide", color: "text-blue-500", icon: Wrench },
   stats: { label: "Platform data", color: "text-emerald-500", icon: BarChart2 },
   recommendation: { label: "AI recommendation", color: "text-violet-500", icon: Lightbulb },
+  info: { label: "About this advisor", color: "text-primary", icon: Info },
+  out_of_scope: { label: "Out of scope", color: "text-muted-foreground", icon: ShieldOff },
 };
 
 // Very simple markdown-like renderer: **bold**, bullet lists, section separators

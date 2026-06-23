@@ -11,6 +11,126 @@ from app.advisor.recommendation_engine import generate_recommendation
 
 
 # ---------------------------------------------------------------------------
+# Identity response
+# ---------------------------------------------------------------------------
+
+_IDENTITY_RESPONSE = (
+    "I am the Land Royal Operations Advisor — an AI assistant built specifically "
+    "for managing your UK rental outreach platform.\n\n"
+    "I can help you with:\n\n"
+    "**Platform Statistics**\n"
+    "• Current account counts, active and disabled\n"
+    "• Today's outreach numbers, reply rates, and phone numbers collected\n"
+    "• Proxy health and capacity summaries\n\n"
+    "**Troubleshooting**\n"
+    "• Step-by-step fixes for account, proxy, messaging, and listing issues\n"
+    "• Guidance drawn from the platform's built-in troubleshooting guide\n\n"
+    "**Operational Recommendations**\n"
+    "• How many accounts and SIMs are needed for a given area\n"
+    "• Which cities or boroughs to target next\n"
+    "• Coverage planning and scaling advice\n\n"
+    "**UK Rental Knowledge**\n"
+    "• Tenancy terms, landlord-tenant concepts, and OpenRent platform questions\n\n"
+    "I only answer questions about this platform and UK property operations. "
+    "I do not browse the internet, write code, or answer general knowledge questions."
+)
+
+_REFUSAL_RESPONSE = (
+    "I can only help with OpenRent operations, platform troubleshooting, account management, "
+    "listing coverage, messaging performance, and UK rental property related questions.\n\n"
+    "Try asking something related to accounts, listings, proxies, coverage planning, "
+    "landlord conversations, or platform operations."
+)
+
+
+# ---------------------------------------------------------------------------
+# Domain scope patterns
+# ---------------------------------------------------------------------------
+
+_IDENTITY_PATTERNS = [
+    r"\bwho\s+are\s+you\b",
+    r"\bwhat\s+are\s+you\b",
+    r"\bwhat\s+(?:can\s+you|do\s+you)\s+(?:do|help)\b",
+    r"\bwhat\s+is\s+your\s+(?:name|purpose|role)\b",
+    r"\byour\s+(?:name|role|purpose)\b",
+    r"\bintroduce\s+yourself\b",
+    r"\btell\s+me\s+about\s+yourself\b",
+    r"\bwhat\s+(?:kind\s+of\s+)?(?:ai|bot|assistant)\s+are\s+you\b",
+    r"\bwhat\s+are\s+your\s+capabilit",
+    r"\bwhat\s+can\s+(?:i|we)\s+ask\b",
+]
+
+_OUT_OF_SCOPE_PATTERNS = [
+    # Food & cooking
+    r"\brecipe(?:s)?\b", r"\bcook(?:ing|ed)?\b", r"\bbak(?:e|ing)\b",
+    r"\bingredient(?:s)?\b", r"\bdish(?:es)?\s+to\s+make\b",
+    r"\brestaurant(?:s)?\b", r"\bchicken\s+curry\b", r"\bdessert\b",
+    # General programming / dev help (not platform-related)
+    r"\bflutter\b", r"\bandroid\s+app\b", r"\bios\s+app\b",
+    r"\bwrite\s+(?:a\s+)?(?:function|class|script|program|algorithm)\b",
+    r"\bhelp\s+(?:me\s+)?(?:with\s+)?(?:coding|programming|debugging)\b",
+    r"\bwrite\s+(?:a\s+)?(?:flutter|django|react|vue|node|swift|kotlin|java|php|ruby|rust)\b",
+    # General world knowledge
+    r"\bcapital\s+(?:city\s+)?of\s+\w+\b",
+    r"\bwhat\s+(?:is\s+the\s+)?flag\s+of\b",
+    r"\bwho\s+(?:won|invented|discovered|wrote|painted|composed)\b",
+    r"\bhistory\s+of\b",
+    # Finance / markets
+    r"\bstock\s+(?:market|price|tip)\b",
+    r"\bcrypto(?:currency)?\b", r"\bbitcoin\b", r"\bethereum\b",
+    r"\binvest(?:ment|ing)?\s+(?:advice|tip|strategy)\b",
+    r"\bshare\s+price\b", r"\bforex\b",
+    # Medical
+    r"\bmedical\s+advice\b", r"\bsymptom(?:s)?\s+of\b",
+    r"\bprescription\b", r"\bdiagnos[ei]\b",
+    r"\bdoctor\s+(?:advice|recommend)\b", r"\bdrug\s+dose\b",
+    # Travel
+    r"\bflight\s+(?:to|from|price|booking)\b",
+    r"\bhotel\s+(?:in|near|booking|recommend)\b",
+    r"\bvisa\s+(?:for|requirement|apply)\b",
+    r"\btravel\s+(?:to|advice|tips|itinerary)\b",
+    # Weather
+    r"\bweather\s+(?:today|tomorrow|forecast|in)\b",
+    r"\bwill\s+it\s+rain\b",
+    # Generic chatbot usage
+    r"\btell\s+me\s+a\s+(?:story|joke|poem|fun\s+fact)\b",
+    r"\bwrite\s+(?:an?\s+)?(?:essay|poem|story|song|letter\s+to)\b",
+    r"\btranslate\s+(?:this|to|from)\b",
+    # Personal
+    r"\bdating\s+(?:advice|app|tip)\b",
+    r"\brelationship\s+advice\b",
+    r"\bweight\s+loss\b", r"\bdiet\s+plan\b",
+    r"\bhoroscope\b", r"\bstar\s+sign\b",
+]
+
+# If ANY of these words are in the message the question is always in scope
+_IN_SCOPE_SIGNALS = [
+    r"\baccounts?\b", r"\bprox(?:y|ies)\b", r"\blistings?\b",
+    r"\bmessage(?:s|ing)?\b", r"\bleads?\b", r"\bsims?\b",
+    r"\bopenrent\b", r"\blandlord(?:s)?\b", r"\btenant(?:s)?\b",
+    r"\bpropert(?:y|ies)\b", r"\bworker(?:s)?\b", r"\bcoverage\b",
+    r"\boutreach\b", r"\bphone\s*number(?:s)?\b",
+    r"\b(?:london|birmingham|manchester|leeds|sheffield|bristol|liverpool|nottingham|glasgow|edinburgh)\b",
+    r"\bplatform\b", r"\bdashboard\b", r"\boperations?\b",
+    r"\bguarantor\b", r"\bdeposit\b", r"\btenancy\b",
+    r"\bletting(?:s)?\b", r"\brenter(?:s)?\b", r"\brent(?:al)?\b",
+    r"\buk\s+rental\b", r"\bourreach\b",
+    r"\bborough(?:s)?\b", r"\bcoverage\b",
+]
+
+
+def _is_identity_question(text: str) -> bool:
+    return any(re.search(p, text) for p in _IDENTITY_PATTERNS)
+
+
+def _is_out_of_scope(text: str) -> bool:
+    has_in_scope_signal = any(re.search(p, text) for p in _IN_SCOPE_SIGNALS)
+    if has_in_scope_signal:
+        return False
+    return any(re.search(p, text) for p in _OUT_OF_SCOPE_PATTERNS)
+
+
+# ---------------------------------------------------------------------------
 # Classification patterns
 # ---------------------------------------------------------------------------
 
@@ -94,6 +214,16 @@ def _classify(message: str) -> str:
 
 
 def handle_chat(message: str) -> dict:
+    text = message.lower().strip()
+
+    # Identity check — must come before scope check
+    if _is_identity_question(text):
+        return {"type": "info", "response": _IDENTITY_RESPONSE}
+
+    # Domain scope check — refuse anything clearly off-topic
+    if _is_out_of_scope(text):
+        return {"type": "out_of_scope", "response": _REFUSAL_RESPONSE}
+
     kind = _classify(message)
 
     if kind == "stats":
