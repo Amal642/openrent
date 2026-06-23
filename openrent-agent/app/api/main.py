@@ -201,6 +201,10 @@ class SettingsPayload(BaseModel):
     daily_message_limit: int | None = None
 
 
+class AdvisorChatPayload(BaseModel):
+    message: str
+
+
 RUNTIME_SETTINGS = {
     "openai_model": os.getenv("OPENAI_REPLY_MODEL", "gpt-4.1-mini"),
     "auto_send": os.getenv("AI_AUTOSEND", "true").lower() == "true",
@@ -1231,6 +1235,15 @@ def thread_screenshot_latest(thread_id: str):
     if not pngs:
         raise HTTPException(status_code=404, detail="No screenshots found for this thread")
     return FileResponse(str(pngs[-1]), media_type="image/png")
+
+
+@app.post("/api/advisor/chat")
+async def advisor_chat(payload: AdvisorChatPayload):
+    from app.advisor.handler import handle_chat
+    import asyncio
+
+    result = await asyncio.to_thread(handle_chat, payload.message)
+    return result
 
 
 @app.get("/")

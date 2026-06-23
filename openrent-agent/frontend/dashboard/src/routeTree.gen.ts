@@ -19,6 +19,7 @@ import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as WorkersRouteImport } from './routes/workers'
 import { Route as LocationsRouteImport } from './routes/locations'
 import { Route as FailedAccountsRouteImport } from './routes/failed-accounts'
+import { Route as AdvisorRouteImport } from './routes/advisor'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsThreadIdRouteImport } from './routes/leads.$threadId'
 
@@ -82,6 +83,11 @@ const LeadsThreadIdRoute = LeadsThreadIdRouteImport.update({
   path: '/$threadId',
   getParentRoute: () => LeadsRoute,
 } as any)
+const AdvisorRoute = AdvisorRouteImport.update({
+  id: '/advisor',
+  path: '/advisor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/locations': typeof LocationsRoute
   '/failed-accounts': typeof FailedAccountsRoute
+  '/advisor': typeof AdvisorRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
 }
 export interface FileRoutesByTo {
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/locations': typeof LocationsRoute
   '/failed-accounts': typeof FailedAccountsRoute
+  '/advisor': typeof AdvisorRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
 }
 export interface FileRoutesById {
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/locations': typeof LocationsRoute
   '/failed-accounts': typeof FailedAccountsRoute
+  '/advisor': typeof AdvisorRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
 }
 export interface FileRouteTypes {
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/locations'
     | '/failed-accounts'
+    | '/advisor'
     | '/leads/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/locations'
     | '/failed-accounts'
+    | '/advisor'
     | '/leads/$threadId'
   id:
     | '__root__'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/locations'
     | '/failed-accounts'
+    | '/advisor'
     | '/leads/$threadId'
   fileRoutesById: FileRoutesById
 }
@@ -183,6 +195,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   LocationsRoute: typeof LocationsRoute
   FailedAccountsRoute: typeof FailedAccountsRoute
+  AdvisorRoute: typeof AdvisorRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -264,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FailedAccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/advisor': {
+      id: '/advisor'
+      path: '/advisor'
+      fullPath: '/advisor'
+      preLoaderRoute: typeof AdvisorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/leads/$threadId': {
       id: '/leads/$threadId'
       path: '/$threadId'
@@ -296,6 +316,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   LocationsRoute: LocationsRoute,
   FailedAccountsRoute: FailedAccountsRoute,
+  AdvisorRoute: AdvisorRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

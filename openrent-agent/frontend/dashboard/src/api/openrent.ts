@@ -800,3 +800,12 @@ export async function clearFailedAccount(accountId: string): Promise<unknown> {
 export async function disableFailedAccount(accountId: string): Promise<unknown> {
   return post(`/failed-accounts/${accountId}/disable`, {});
 }
+
+export interface AdvisorResponse {
+  type: "troubleshooting" | "stats" | "recommendation";
+  response: string;
+}
+
+export async function postAdvisorChat(message: string): Promise<AdvisorResponse> {
+  return post<AdvisorResponse>("/advisor/chat", { message });
+}
