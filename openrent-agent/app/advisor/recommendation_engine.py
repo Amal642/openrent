@@ -7,6 +7,7 @@ import os
 
 from openai import APIError, APITimeoutError, OpenAI, RateLimitError
 
+from app.advisor.area_intelligence import answer_area_question, area_metrics_summary
 from app.advisor.rules import rules_summary_for_prompt
 from app.advisor.stats_service import all_stats_for_prompt
 
@@ -22,6 +23,9 @@ Business rules (fixed — use these for all calculations):
 Current platform data:
 {data}
 
+Area intelligence:
+{area_data}
+
 How to answer:
 - Use plain English. Never mention databases, servers, connections, APIs, or infrastructure.
 - Show your calculation when answering "how many" or "how long" questions.
@@ -33,10 +37,15 @@ How to answer:
 
 
 def generate_recommendation(question: str) -> str:
+    deterministic = answer_area_question(question)
+    if deterministic:
+        return deterministic
+
     rules = rules_summary_for_prompt()
     data = all_stats_for_prompt()
+    area_data = area_metrics_summary()
 
-    system = _SYSTEM_PROMPT.format(rules=rules, data=data)
+    system = _SYSTEM_PROMPT.format(rules=rules, data=data, area_data=area_data)
 
     try:
         response = _client.chat.completions.create(

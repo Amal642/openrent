@@ -1246,6 +1246,13 @@ async def advisor_chat(payload: AdvisorChatPayload):
     return result
 
 
+@app.get("/api/advisor/areas")
+def advisor_areas():
+    from app.advisor.area_intelligence import get_area_metrics
+
+    return get_area_metrics()
+
+
 @app.get("/")
 def dashboard_index():
     return _serve_frontend_asset()

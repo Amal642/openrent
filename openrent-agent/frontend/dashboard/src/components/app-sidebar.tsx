@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { AlertTriangle, Brain, Cpu, LayoutDashboard, MapPin, MessageSquare, Network, ScrollText, Search, Settings, Users, Zap } from "lucide-react";
+import { AlertTriangle, BarChart3, Brain, Cpu, LayoutDashboard, MapPin, MessageSquare, Network, ScrollText, Search, Settings, Users, Zap } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -22,6 +22,7 @@ const items = [
   { title: "Proxies", url: "/proxies", icon: Network },
   { title: "Locations", url: "/locations", icon: MapPin },
   { title: "Search Profiles", url: "/search-profiles", icon: Search },
+  { title: "Area Intelligence", url: "/area-intelligence", icon: BarChart3 },
   { title: "Leads", url: "/leads", icon: MessageSquare },
   { title: "Logs", url: "/logs", icon: ScrollText },
   { title: "Settings", url: "/settings", icon: Settings },

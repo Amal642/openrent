@@ -809,3 +809,33 @@ export interface AdvisorResponse {
 export async function postAdvisorChat(message: string): Promise<AdvisorResponse> {
   return post<AdvisorResponse>("/advisor/chat", { message });
 }
+
+export interface AreaIntelligenceMetric {
+  location: string;
+  active_profiles: number;
+  active_accounts: number;
+  total_listings: number;
+  new_listings_24h: number;
+  new_listings_7d: number;
+  private_landlord_listings: number;
+  agent_listings: number;
+  unknown_landlord_type_listings: number;
+  contactable_listings: number;
+  not_contactable_listings: number;
+  previously_contacted_listings: number;
+  processing_failures: number;
+  usable_inventory: number;
+  conversations: number;
+  replies: number;
+  phones: number;
+  reply_rate_pct: number;
+  phone_capture_rate_pct: number;
+  estimated_supported_accounts: number;
+  current_account_gap: number;
+  status: "expand" | "maintain" | "pause" | "insufficient_data";
+  evidence: string;
+}
+
+export function getAreaIntelligence(): Promise<AreaIntelligenceMetric[]> {
+  return get<AreaIntelligenceMetric[]>("/advisor/areas");
+}

@@ -95,20 +95,20 @@ Create a shared market-intelligence layer that is separate from sending accounts
 
 ### Data to collect by area
 
-- [ ] Total listings discovered.
-- [ ] New listings per day.
-- [ ] Unique listings after deduplication.
-- [ ] Private-landlord listings.
-- [ ] Agent listings.
-- [ ] Contactable listings.
-- [ ] Not-contactable listings.
-- [ ] Previously contacted listings.
-- [ ] Processing failures and failure reasons.
-- [ ] Currently usable inventory.
+- [x] Total listings discovered.
+- [x] New listings per day/window (24h and 7d from `first_seen`).
+- [x] Unique listings after deduplication (`listings.listing_id` unique).
+- [x] Private-landlord listings.
+- [x] Agent listings.
+- [x] Contactable listings.
+- [x] Not-contactable listings.
+- [x] Previously contacted listings.
+- [x] Processing failures.
+- [x] Currently usable inventory.
 - [ ] Inventory age and exhaustion rate.
-- [ ] Reply rate.
+- [x] Reply rate.
 - [ ] Viewing-booking rate.
-- [ ] Phone-capture rate.
+- [x] Phone-capture rate.
 - [ ] Qualified phone-capture rate.
 - [ ] Scam reports, refusals, blocks, and other safety signals.
 
@@ -122,17 +122,17 @@ Create a shared market-intelligence layer that is separate from sending accounts
   - Qualified phone-capture rate
   - Inventory exhaustion rate
   - Safety/account-risk signals
-- [ ] Do not let an AI model invent metrics or scores.
-- [ ] Use AI only to explain the measured data and recommend actions.
-- [ ] Mark areas as `expand`, `maintain`, `pause`, or `insufficient data`.
+- [x] Do not let an AI model invent metrics or scores.
+- [x] Use AI only to explain the measured data and recommend actions.
+- [x] Mark areas as `expand`, `maintain`, `pause`, or `insufficient data`.
 
 ### Capacity recommendations
 
 - [ ] Calculate realistic messages per productive account per day.
-- [ ] Estimate how many sending accounts each area can support.
-- [ ] Recommend account allocation by area.
+- [x] Estimate how many sending accounts each area can support from measured usable inventory and 7d listing supply.
+- [x] Recommend account allocation by area.
 - [ ] Add 15–20% spare account capacity for session, proxy, and account failures.
-- [ ] Do not recommend new SIMs, accounts, or proxies unless measured listing supply supports them.
+- [x] Do not recommend new SIMs, accounts, or proxies unless measured listing supply supports them.
 
 
 ## Discovery architecture
@@ -164,12 +164,14 @@ Create a shared market-intelligence layer that is separate from sending accounts
 - [x] Add troubleshooting responses from `troubleshooting_guide.md`.
 - [x] Add live account/proxy/lead stats responses from dashboard repository queries.
 - [x] Add LLM-backed recommendation responses using current platform stats plus fixed business rules.
-- [ ] Add an Area Intelligence page.
-- [ ] Show area supply, usable inventory, conversion rates, and trend charts.
+- [x] Add an Area Intelligence page.
+- [x] Show area supply, usable inventory, and conversion rates.
+- [ ] Add Area Intelligence trend charts.
 - [ ] Show account-to-area allocation.
 - [ ] Show accounts enabled without profiles or inventory.
-- [ ] Show recommended areas and the evidence behind each recommendation.
-- [ ] Allow questions such as:
+- [x] Show recommended areas and the evidence behind each recommendation.
+- [x] Add `/api/advisor/areas` for future Area Intelligence UI consumption.
+- [x] Allow advisor questions over measured area data such as:
   - Which areas should we focus on this week?
   - Which areas are exhausted?
   - How many accounts can this area support?
@@ -190,9 +192,20 @@ Create a shared market-intelligence layer that is separate from sending accounts
 - [x] Add focused advisor tests for classification, scope refusal, guide lookup, and stats snapshots.
 - [x] Fix "phones collected today" behavior: current stats snapshot reports all-time phone count, not phones found today.
 - [x] Fix advisor daily capacity stats to read backend `daily_limit` values.
-- [ ] Make recommendation outputs deterministic for area/account/SIM capacity before asking the LLM to explain them.
-- [ ] Add measured area-supply data before marking "conversational AI adviser over verified metrics" complete.
+- [x] Make recommendation outputs deterministic for area/account/SIM capacity before asking the LLM to explain them.
+- [x] Add measured area-supply data before marking "conversational AI adviser over verified metrics" complete.
 - [x] Align frontend `AdvisorResponse` type with backend response types (`info`, `out_of_scope`).
+
+### Area Intelligence implementation notes (2026-06-24)
+
+- [x] Added read-only `app/advisor/area_intelligence.py` over existing search profiles, listings, landlords, and conversations.
+- [x] Added deterministic area answers before OpenAI fallback for next-area and area capacity questions.
+- [x] Added typed frontend API helper for `GET /api/advisor/areas`.
+- [x] Added focused Area Intelligence tests, including no-OpenAI deterministic recommendation routing.
+- [x] Build the first visual Area Intelligence page with status filters and an operational table.
+- [ ] Expand the Area Intelligence page with trend charts and account drilldowns.
+- [ ] Add persistent central discovery separate from sending accounts.
+- [ ] Add inventory age/exhaustion, viewing-booking, qualified-phone, and safety-signal metrics.
 
 
 ## Recommended next sequence
@@ -204,8 +217,8 @@ Create a shared market-intelligence layer that is separate from sending accounts
 5. [x] ~~Fix persona name inversions on accounts 12 and 13~~ — Amelia fixed on 12; Alex kept on 13 (gender-neutral, all threads exposed, not worth pausing).
 6. [x] ~~Expand name pools in personas.py (4 → 8 per role).~~
 7. [ ] Monitor Lewisham, Croydon, Woolwich for 7–14 days to establish phone rate baselines.
-8. [ ] Add reliable per-area supply and usability metrics.
-9. [ ] Add deterministic area scoring and saturation reporting.
-10. [ ] Add account, SIM, and proxy capacity recommendations.
-11. [ ] Add the conversational AI adviser over the verified metrics.
+8. [x] Add reliable per-area supply and usability metrics.
+9. [x] Add deterministic area scoring and saturation reporting.
+10. [x] Add account, SIM, and proxy capacity recommendations.
+11. [x] Add the conversational AI adviser over the verified metrics.
 12. [ ] Provision additional sending infrastructure only after the data justifies it.
