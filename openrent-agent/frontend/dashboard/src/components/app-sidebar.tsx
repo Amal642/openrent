@@ -25,7 +25,7 @@ const items = [
   { title: "Leads", url: "/leads", icon: MessageSquare },
   { title: "Logs", url: "/logs", icon: ScrollText },
   { title: "Settings", url: "/settings", icon: Settings },
-  { title: "AI Advisor 🧠", url: "/advisor", icon: Brain },
+  { title: "AI Advisor", url: "/advisor", icon: Brain },
 ];
 
 export function AppSidebar() {
