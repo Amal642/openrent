@@ -51,7 +51,7 @@ const SUGGESTED_QUESTIONS = [
   { label: "How many active accounts do we have?", icon: BarChart2, type: "stats" as const },
   { label: "How many phone numbers were collected today?", icon: BarChart2, type: "stats" as const },
   { label: "How many SIMs do we need for South London?", icon: Lightbulb, type: "recommendation" as const },
-  { label: "How long will it take to cover Birmingham?", icon: Lightbulb, type: "recommendation" as const },
+  { label: "How long will it take to cover Croydon?", icon: Lightbulb, type: "recommendation" as const },
   { label: "Proxy degraded — what should I do?", icon: Wrench, type: "troubleshooting" as const },
   { label: "Why are messages not sending?", icon: Wrench, type: "troubleshooting" as const },
   { label: "Which area should we target next?", icon: Lightbulb, type: "recommendation" as const },

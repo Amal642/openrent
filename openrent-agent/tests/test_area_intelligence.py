@@ -141,6 +141,15 @@ def test_area_metrics_calculate_supply_and_conversion(db_session):
     assert croydon["status"] == "maintain"
 
 
+def test_area_metrics_excludes_non_south_london_locations(db_session):
+    _seed_area(db_session, location="Croydon, Greater London")
+    _seed_area(db_session, location="Greater Manchester")
+
+    metrics = area_intelligence.get_area_metrics()
+
+    assert [metric["location"] for metric in metrics] == ["Croydon, Greater London"]
+
+
 def test_area_metrics_counts_unique_active_accounts(db_session):
     with db_session() as db:
         account = Account(email="unique@example.com", password="", active=True)

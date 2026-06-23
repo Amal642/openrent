@@ -20,8 +20,8 @@ import { useQuery } from "@tanstack/react-query";
 export const Route = createFileRoute("/area-intelligence")({
   head: () => ({
     meta: [
-      { title: "Area Intelligence - Land Royal" },
-      { name: "description", content: "Measured area supply, conversion, and account capacity." },
+      { title: "South London Area Intelligence - Land Royal" },
+      { name: "description", content: "Measured South London supply, conversion, and account capacity." },
     ],
   }),
   component: AreaIntelligencePage,
@@ -98,13 +98,13 @@ function AreaIntelligencePage() {
     : 0;
 
   if (isLoading) {
-    return <PageHeader title="Area Intelligence" description="Loading measured area data..." />;
+    return <PageHeader title="South London Area Intelligence" description="Loading measured area data..." />;
   }
 
   if (error) {
     return (
       <PageHeader
-        title="Area Intelligence"
+        title="South London Area Intelligence"
         description="Could not load area intelligence data from the API."
       />
     );
@@ -113,8 +113,8 @@ function AreaIntelligencePage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Area Intelligence"
-        description="Measured area supply, conversion, and account capacity from existing OpenRent data."
+        title="South London Area Intelligence"
+        description="Measured South London supply, conversion, and account capacity from existing OpenRent data."
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -227,8 +227,7 @@ function AreaIntelligencePage() {
       <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
         <CircleGauge className="mt-0.5 size-4 shrink-0" />
         <p>
-          Status and capacity are calculated from measured listings and conversations. This page
-          does not use AI-generated metrics.
+          Status and capacity are calculated from measured listings and conversations.
         </p>
       </div>
     </div>

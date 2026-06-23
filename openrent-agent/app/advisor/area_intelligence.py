@@ -22,6 +22,37 @@ from app.db.models import Account, Conversation, Landlord, Listing, SearchProfil
 MIN_CONTACTED_FOR_RATE = 5
 MIN_TOTAL_LISTINGS_FOR_DECISION = 10
 
+SOUTH_LONDON_KEYWORDS = {
+    "battersea",
+    "bexley",
+    "bexleyheath",
+    "brixton",
+    "bromley",
+    "camberwell",
+    "clapham",
+    "croydon",
+    "dulwich",
+    "green street green",
+    "greenwich",
+    "hanworth",
+    "kingston",
+    "lambeth",
+    "lewisham",
+    "merton",
+    "norwood",
+    "peckham",
+    "putney",
+    "sidcup",
+    "southwark",
+    "streatham",
+    "sutton",
+    "tooting",
+    "upper norwood",
+    "wandsworth",
+    "wimbledon",
+    "woolwich",
+}
+
 
 @dataclass
 class AreaMetrics:
@@ -54,14 +85,14 @@ class AreaMetrics:
 
 
 def get_area_metrics() -> list[dict]:
-    """Return deterministic area metrics sorted by actionability."""
+    """Return South London deterministic area metrics sorted by actionability."""
     return [metric.to_dict() for metric in _load_area_metrics()]
 
 
 def area_metrics_summary(limit: int = 5) -> str:
     metrics = _load_area_metrics()
     if not metrics:
-        return "No area intelligence data is available yet."
+        return "No South London area intelligence data is available yet."
 
     lines = []
     for metric in metrics[:limit]:
@@ -113,6 +144,8 @@ def _load_area_metrics(now: datetime | None = None) -> list[AreaMetrics]:
             .all()
         )
         for profile in profiles:
+            if not _is_south_london_location(profile.location):
+                continue
             metric = areas.setdefault(profile.location, AreaMetrics(profile.location))
             if profile.active:
                 metric.active_profiles += 1
@@ -134,6 +167,8 @@ def _load_area_metrics(now: datetime | None = None) -> list[AreaMetrics]:
     for listing in listings:
         if not listing.search_profile:
             continue
+        if not _is_south_london_location(listing.search_profile.location):
+            continue
         metric = areas.setdefault(
             listing.search_profile.location,
             AreaMetrics(listing.search_profile.location),
@@ -147,6 +182,13 @@ def _load_area_metrics(now: datetime | None = None) -> list[AreaMetrics]:
         _finalize_metric(metric)
 
     return sorted(areas.values(), key=_sort_key)
+
+
+def _is_south_london_location(location: str | None) -> bool:
+    if not location:
+        return False
+    normalized = re.sub(r"[^a-z0-9]+", " ", location.lower()).strip()
+    return any(keyword in normalized for keyword in SOUTH_LONDON_KEYWORDS)
 
 
 def _apply_listing(
