@@ -536,27 +536,47 @@ async def process_account_replies(
             # Reads the full conversation to determine if a viewing is genuinely
             # arranged. Result is merged into `banners` so the cancel block and
             # all downstream logic use one consistent dict.
-            if not banners["viewing_confirmed"]:
+            #
+            # IMPORTANT: "Viewing Requested" means someone clicked the request
+            # button — it does NOT mean the viewing is confirmed. Never run AI
+            # detection when only a request banner is present, as the AI would
+            # likely false-positive on the tenant's own "can we arrange a viewing?"
+            # question and incorrectly promote the thread to viewing_confirmed.
+            if not banners["viewing_confirmed"] and not banners["viewing_requested"]:
                 ai_viewing = ai_detect_viewing_arranged(messages)
                 if ai_viewing.get("viewing_arranged"):
                     ai_dt = _parse_ai_viewing_datetime(ai_viewing.get("viewing_datetime"))
-                    banners["viewing_confirmed"] = True
+                    # Only promote to confirmed when the AI also identified a
+                    # specific datetime. A viewing with no agreed time is not
+                    # truly "booked" and must not enter the cancel flow.
                     if ai_dt:
+                        banners["viewing_confirmed"] = True
                         banners["viewing_datetime"] = ai_dt
-                    save_banner_state(
-                        thread_id,
-                        viewing_confirmed=True,
-                        viewing_datetime=banners.get("viewing_datetime"),
-                    )
-                    logger.info(
-                        f"AI_VIEWING_DETECTED thread_id={thread_id} "
-                        f"datetime={ai_dt} reason={ai_viewing.get('reason')!r}"
-                    )
+                        save_banner_state(
+                            thread_id,
+                            viewing_confirmed=True,
+                            viewing_datetime=ai_dt,
+                        )
+                        logger.info(
+                            f"AI_VIEWING_DETECTED thread_id={thread_id} "
+                            f"datetime={ai_dt} reason={ai_viewing.get('reason')!r}"
+                        )
+                    else:
+                        logger.info(
+                            f"AI_VIEWING_DETECTED_NO_DATETIME thread_id={thread_id} "
+                            f"reason={ai_viewing.get('reason')!r} "
+                            "— not promoting to confirmed (no specific time agreed)"
+                        )
                 else:
                     logger.info(
                         f"AI_VIEWING_NOT_DETECTED thread_id={thread_id} "
                         f"reason={ai_viewing.get('reason')!r}"
                     )
+            elif banners["viewing_requested"] and not banners["viewing_confirmed"]:
+                logger.info(
+                    f"AI_VIEWING_DETECTION_SKIPPED thread_id={thread_id} "
+                    "reason=viewing_requested_only — awaiting landlord confirmation"
+                )
 
             save_inbound_messages(thread_id, messages)
 
@@ -626,6 +646,32 @@ async def process_account_replies(
                 # for threads that already completed (just the status column lagged).
                 if conversation.status == "AI_FAILED":
                     update_conversation_status(thread_id, conversation.conversation_stage)
+
+                # Even after cancellation/handoff the landlord may reply with their
+                # phone number (e.g. "call me on WhatsApp"). Extract it so the lead
+                # isn't lost just because the viewing was cancelled.
+                if (
+                    not conversation.extracted_phone
+                    and has_unanswered_landlord_message
+                    and latest_landlord_entry
+                ):
+                    _check_texts = get_landlord_messages(messages)
+                    _late_phone = regex_extract_phone(_check_texts) or ai_extract_phone(_check_texts)
+                    if _late_phone:
+                        _late_phone = normalize_uk_phone(_late_phone)
+                    if _late_phone and not phone_exists(_late_phone):
+                        logger.info(
+                            f"PHONE_FOUND_AFTER_CANCEL thread_id={thread_id} "
+                            f"phone={_late_phone}"
+                        )
+                        save_phone_number(thread_id, _late_phone)
+                        _log_playbook_ab_phone_capture(thread_id)
+                    elif _late_phone:
+                        logger.info(
+                            f"PHONE_DUPLICATE_AFTER_CANCEL thread_id={thread_id} "
+                            f"phone={_late_phone}"
+                        )
+
                 update_last_processed_message(thread_id, latest_landlord_message)
                 continue
 
