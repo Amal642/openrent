@@ -223,10 +223,6 @@ def reassign_account_proxy(account_id: int, reason: str = "proxy_failure"):
     new_proxy_id = find_replacement_proxy(old_proxy_id, prefer_type=prefer_type)
 
     if not new_proxy_id:
-        mark_account_failed(
-            account_id,
-            f"NO_SPARE_PROXY_AVAILABLE old_proxy_id={old_proxy_id} reason={reason}",
-        )
         logger.error(
             f"PROXY_REASSIGN_FAILED account_id={account_id} "
             f"old_proxy_id={old_proxy_id} reason=no_spare_available"
