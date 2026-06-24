@@ -5,6 +5,7 @@ import type {
   AutomationSettings,
   CapacityStatus,
   ConversationStage,
+  DeletedAccount,
   FailedAccount,
   HealthStatus,
   Lead,
@@ -799,6 +800,47 @@ export async function clearFailedAccount(accountId: string): Promise<unknown> {
 
 export async function disableFailedAccount(accountId: string): Promise<unknown> {
   return post(`/failed-accounts/${accountId}/disable`, {});
+}
+
+type BackendDeletedAccount = {
+  id: number | string;
+  email: string;
+  proxy_name?: string;
+  proxy_server?: string;
+  deleted_at?: string;
+  messages_sent?: number;
+  phones_captured?: number;
+  created_at?: string;
+};
+
+function mapDeletedAccount(a: BackendDeletedAccount): DeletedAccount {
+  return {
+    id: String(a.id),
+    email: a.email,
+    proxyName: a.proxy_name,
+    proxyServer: a.proxy_server,
+    deletedAt: a.deleted_at ?? "",
+    messagesSent: a.messages_sent,
+    phonesCaptured: a.phones_captured,
+    createdAt: a.created_at,
+  };
+}
+
+export async function getDeletedAccounts(): Promise<DeletedAccount[]> {
+  const rows = await get<BackendDeletedAccount[]>("/deleted-accounts");
+  return rows.map(mapDeletedAccount);
+}
+
+export async function hardDeleteAccount(accountId: string): Promise<unknown> {
+  return post(`/deleted-accounts/${accountId}/hard-delete`, {});
+}
+
+export async function softDeleteAccount(accountId: string): Promise<unknown> {
+  return post(`/deleted-accounts/${accountId}/soft-delete`, {});
+}
+
+export async function restoreAccount(accountId: string): Promise<unknown> {
+  return post(`/deleted-accounts/${accountId}/restore`, {});
 }
 
 export interface AdvisorResponse {

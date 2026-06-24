@@ -19,6 +19,7 @@ import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as WorkersRouteImport } from './routes/workers'
 import { Route as LocationsRouteImport } from './routes/locations'
 import { Route as FailedAccountsRouteImport } from './routes/failed-accounts'
+import { Route as DeletedAccountsRouteImport } from './routes/deleted-accounts'
 import { Route as AdvisorRouteImport } from './routes/advisor'
 import { Route as AreaIntelligenceRouteImport } from './routes/area-intelligence'
 import { Route as IndexRouteImport } from './routes/index'
@@ -32,6 +33,11 @@ const LocationsRoute = LocationsRouteImport.update({
 const FailedAccountsRoute = FailedAccountsRouteImport.update({
   id: '/failed-accounts',
   path: '/failed-accounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeletedAccountsRoute = DeletedAccountsRouteImport.update({
+  id: '/deleted-accounts',
+  path: '/deleted-accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/locations': typeof LocationsRoute
   '/failed-accounts': typeof FailedAccountsRoute
+  '/deleted-accounts': typeof DeletedAccountsRoute
   '/advisor': typeof AdvisorRoute
   '/area-intelligence': typeof AreaIntelligenceRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/locations': typeof LocationsRoute
   '/failed-accounts': typeof FailedAccountsRoute
+  '/deleted-accounts': typeof DeletedAccountsRoute
   '/advisor': typeof AdvisorRoute
   '/area-intelligence': typeof AreaIntelligenceRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/locations': typeof LocationsRoute
   '/failed-accounts': typeof FailedAccountsRoute
+  '/deleted-accounts': typeof DeletedAccountsRoute
   '/advisor': typeof AdvisorRoute
   '/area-intelligence': typeof AreaIntelligenceRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/locations'
     | '/failed-accounts'
+    | '/deleted-accounts'
     | '/advisor'
     | '/area-intelligence'
     | '/leads/$threadId'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/locations'
     | '/failed-accounts'
+    | '/deleted-accounts'
     | '/advisor'
     | '/area-intelligence'
     | '/leads/$threadId'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/locations'
     | '/failed-accounts'
+    | '/deleted-accounts'
     | '/advisor'
     | '/area-intelligence'
     | '/leads/$threadId'
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   LocationsRoute: typeof LocationsRoute
   FailedAccountsRoute: typeof FailedAccountsRoute
+  DeletedAccountsRoute: typeof DeletedAccountsRoute
   AdvisorRoute: typeof AdvisorRoute
   AreaIntelligenceRoute: typeof AreaIntelligenceRoute
 }
@@ -290,6 +303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FailedAccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/deleted-accounts': {
+      id: '/deleted-accounts'
+      path: '/deleted-accounts'
+      fullPath: '/deleted-accounts'
+      preLoaderRoute: typeof DeletedAccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/advisor': {
       id: '/advisor'
       path: '/advisor'
@@ -336,6 +356,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   LocationsRoute: LocationsRoute,
   FailedAccountsRoute: FailedAccountsRoute,
+  DeletedAccountsRoute: DeletedAccountsRoute,
   AdvisorRoute: AdvisorRoute,
   AreaIntelligenceRoute: AreaIntelligenceRoute,
 }

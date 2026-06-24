@@ -73,6 +73,8 @@ REQUIRED_COLUMNS = {
         "failed": "BOOLEAN DEFAULT FALSE",
         "failed_at": "TIMESTAMP",
         "failure_reason": "TEXT",
+
+        "deleted_at": "TIMESTAMP",
     },
 
     "listings": {

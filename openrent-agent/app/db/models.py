@@ -151,6 +151,8 @@ class Account(Base):
     failed_at = Column(DateTime, nullable=True)
     failure_reason = Column(Text, nullable=True)
 
+    deleted_at = Column(DateTime, nullable=True)
+
     proxy_id = Column(Integer, ForeignKey("proxies.id"), nullable=True)
 
     # relationships

@@ -302,6 +302,17 @@ export interface FailedAccount {
   active: boolean;
 }
 
+export interface DeletedAccount {
+  id: string;
+  email: string;
+  proxyName?: string;
+  proxyServer?: string;
+  deletedAt: string;
+  messagesSent?: number;
+  phonesCaptured?: number;
+  createdAt?: string;
+}
+
 export interface AutomationSettings {
   openai_model: string;
   auto_send: boolean;

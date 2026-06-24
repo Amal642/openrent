@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { AlertTriangle, BarChart3, Brain, Cpu, LayoutDashboard, MapPin, MessageSquare, Network, ScrollText, Search, Settings, Users, Zap } from "lucide-react";
+import { AlertTriangle, BarChart3, Brain, Cpu, LayoutDashboard, MapPin, MessageSquare, Network, ScrollText, Search, Settings, Trash2, Users, Zap } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -91,6 +91,18 @@ export function AppSidebar() {
                         {failedCount}
                       </span>
                     )}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive("/deleted-accounts")}
+                  tooltip="Deleted Accounts"
+                >
+                  <Link to="/deleted-accounts" onClick={closeMobileSidebar}>
+                    <Trash2 className="size-4" />
+                    <span>Deleted Accounts</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

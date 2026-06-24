@@ -596,6 +596,7 @@ def serialize_account(account):
         "failed": bool(account.failed) if hasattr(account, "failed") else False,
         "failed_at": _utc(account.failed_at) if hasattr(account, "failed_at") else None,
         "failure_reason": account.failure_reason if hasattr(account, "failure_reason") else None,
+        "deleted_at": _utc(account.deleted_at) if hasattr(account, "deleted_at") else None,
     }
 
 
@@ -604,7 +605,7 @@ def get_active_accounts():
         accounts = (
             db.query(Account)
             .options(joinedload(Account.proxy))
-            .filter(Account.active == True)
+            .filter(Account.active == True, Account.deleted_at == None)
             .all()
         )
         for account in accounts:
@@ -617,6 +618,7 @@ def get_dashboard_accounts():
         accounts = (
             db.query(Account)
             .options(joinedload(Account.proxy))
+            .filter(Account.deleted_at == None)
             .order_by(Account.created_at.desc())
             .all()
         )
@@ -628,7 +630,7 @@ def get_capacity_stats():
 
     in_flight_statuses = {"running", "queued", "stopping", "retrying"}
     with session_scope() as db:
-        all_accounts = db.query(Account).all()
+        all_accounts = db.query(Account).filter(Account.deleted_at == None).all()
         all_proxies = db.query(_Proxy).filter(_Proxy.is_active == True).all()
 
         running = sum(1 for a in all_accounts if (a.worker_status or "").lower() == "running")
@@ -806,6 +808,58 @@ def create_search_profile(
 
 
 def delete_account(account_id):
+    """Soft-delete: hides the account from the UI but keeps all data intact."""
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return False
+        account.active = False
+        account.deleted_at = datetime.utcnow()
+        db.commit()
+        return True
+
+
+def get_deleted_accounts():
+    with session_scope() as db:
+        accounts = (
+            db.query(Account)
+            .options(joinedload(Account.proxy))
+            .filter(Account.deleted_at != None)
+            .order_by(Account.deleted_at.desc())
+            .all()
+        )
+        results = []
+        for account in accounts:
+            base = serialize_account(account)
+            base["messages_sent"] = _count_account_outbound_messages(db, account.id, days=30)
+            base["phones_captured"] = (
+                db.query(Conversation)
+                .join(Listing, Conversation.listing_id == Listing.id)
+                .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+                .filter(
+                    SearchProfile.account_id == account.id,
+                    Conversation.extracted_phone != None,
+                )
+                .count()
+            )
+            results.append(base)
+        return results
+
+
+def restore_account(account_id):
+    """Undo a soft-delete: bring the account back to active."""
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account or account.deleted_at is None:
+            return False
+        account.deleted_at = None
+        account.active = True
+        db.commit()
+        return True
+
+
+def hard_delete_account(account_id):
+    """Permanently delete the account and all associated data."""
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
         if not account:
@@ -830,14 +884,72 @@ def delete_account(account_id):
                     .all()
                 )
                 for conversation in conversations:
-                    (
-                        db.query(Message)
-                        .filter(Message.conversation_id == conversation.id)
-                        .delete(synchronize_session=False)
-                    )
+                    db.query(Message).filter(
+                        Message.conversation_id == conversation.id
+                    ).delete(synchronize_session=False)
                     db.delete(conversation)
                 db.delete(listing)
             db.delete(profile)
+
+        db.delete(account)
+        db.commit()
+        return True
+
+
+def partial_delete_account(account_id):
+    """
+    Delete the account credentials but keep conversations that have captured
+    a phone number, along with their messages and listing details.
+
+    Conversations without a phone number are deleted. Search profiles that
+    have at least one phone conversation are kept but unlinked from the
+    account (account_id set to NULL) so the lead data survives.
+    """
+    with session_scope() as db:
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return False
+
+        profiles = (
+            db.query(SearchProfile)
+            .filter(SearchProfile.account_id == account_id)
+            .all()
+        )
+
+        for profile in profiles:
+            listings = (
+                db.query(Listing)
+                .filter(Listing.search_profile_id == profile.id)
+                .all()
+            )
+
+            profile_has_phone_lead = False
+
+            for listing in listings:
+                conversations = (
+                    db.query(Conversation)
+                    .filter(Conversation.listing_id == listing.id)
+                    .all()
+                )
+
+                listing_has_phone = any(c.extracted_phone for c in conversations)
+
+                for conversation in conversations:
+                    if not conversation.extracted_phone:
+                        db.query(Message).filter(
+                            Message.conversation_id == conversation.id
+                        ).delete(synchronize_session=False)
+                        db.delete(conversation)
+
+                if listing_has_phone:
+                    profile_has_phone_lead = True
+                else:
+                    db.delete(listing)
+
+            if profile_has_phone_lead:
+                profile.account_id = None
+            else:
+                db.delete(profile)
 
         db.delete(account)
         db.commit()
@@ -2862,7 +2974,7 @@ def get_failed_accounts():
         accounts = (
             db.query(Account)
             .options(joinedload(Account.proxy))
-            .filter(Account.failed == True)
+            .filter(Account.failed == True, Account.deleted_at == None)
             .order_by(Account.failed_at.desc())
             .all()
         )
@@ -2877,7 +2989,7 @@ def get_failed_accounts():
 
 def get_failed_account_count() -> int:
     with session_scope() as db:
-        return db.query(Account).filter(Account.failed == True).count()
+        return db.query(Account).filter(Account.failed == True, Account.deleted_at == None).count()
 
 
 def mark_account_failed(account_id: int, reason: str):

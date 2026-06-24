@@ -41,12 +41,16 @@ from app.db.repository import (
     get_dashboard_accounts,
     get_dashboard_leads,
     get_dashboard_search_profiles,
+    get_deleted_accounts,
     get_failed_account_count,
     get_failed_accounts,
     get_locations,
     get_proxies,
     get_proxy,
+    hard_delete_account,
     mark_account_failed,
+    partial_delete_account,
+    restore_account,
     update_location,
     update_proxy,
     update_proxy_health,
@@ -695,6 +699,35 @@ def api_delete_account(account_id: int):
     if not deleted:
         raise HTTPException(status_code=404, detail="Account not found")
     return {"account_id": account_id, "deleted": True}
+
+
+@app.get("/api/deleted-accounts")
+def api_deleted_accounts():
+    return get_deleted_accounts()
+
+
+@app.post("/api/deleted-accounts/{account_id}/hard-delete")
+def api_hard_delete_account(account_id: int):
+    deleted = hard_delete_account(account_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"account_id": account_id, "hard_deleted": True}
+
+
+@app.post("/api/deleted-accounts/{account_id}/soft-delete")
+def api_partial_delete_account(account_id: int):
+    deleted = partial_delete_account(account_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"account_id": account_id, "soft_deleted": True}
+
+
+@app.post("/api/deleted-accounts/{account_id}/restore")
+def api_restore_account(account_id: int):
+    restored = restore_account(account_id)
+    if not restored:
+        raise HTTPException(status_code=404, detail="Account not found or not in deleted state")
+    return {"account_id": account_id, "restored": True}
 
 
 @app.get("/api/search-profiles")
