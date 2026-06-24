@@ -65,6 +65,7 @@ from app.services.failed_account_detector import (
 )
 from app.services.proxy_health_monitor import (
     start_proxy_health_monitor,
+    start_proxy_prewarm,
     stop_proxy_health_monitor,
 )
 from app.services.google_sheets_export_dispatcher import (
@@ -219,6 +220,7 @@ RUNTIME_SETTINGS = {
 async def lifespan(app_instance):
     validate_auth_config()
     init_db()
+    start_proxy_prewarm()
     app_instance.state.account_scheduler_task = start_account_scheduler()
     app_instance.state.proxy_health_monitor_task = start_proxy_health_monitor()
     app_instance.state.failed_account_detector_task = start_failed_account_detector()

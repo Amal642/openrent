@@ -14,7 +14,7 @@ from app.utils.scheduling import UK_TZ, is_operating_hours, uk_now
 SCHEDULER_INTERVAL_SECONDS = 60
 MAX_PARALLEL_WORKERS = settings.MAX_PARALLEL_WORKERS
 IN_FLIGHT_STATUSES = {"running", "queued", "stopping", "retrying"}
-HEALTHY_PROXY_STATUSES = {"ok", "healthy"}
+HEALTHY_PROXY_STATUSES = {"ok", "healthy", "degraded", "slow"}
 STALE_HEARTBEAT_MINUTES = 10
 
 

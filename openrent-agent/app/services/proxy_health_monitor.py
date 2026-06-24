@@ -208,3 +208,57 @@ async def stop_proxy_health_monitor(task):
     task.cancel()
     with suppress(asyncio.CancelledError):
         await task
+
+
+async def prewarm_proxy_health():
+    """
+    Check all active proxies concurrently at startup so the 20-minute health
+    cache is populated before the scheduler dispatches the first worker cycle.
+
+    Deduplicates by proxy key — one check per physical proxy, not per account.
+    Max 5 concurrent checks (each takes up to 5s, so ~5s total wall time for
+    up to 5 proxies, ~10s for up to 10, etc.).
+    """
+    from app.proxy.check_proxy import check_proxy
+    from app.db.repository import get_active_accounts, update_proxy_health
+
+    accounts = get_active_accounts()
+
+    seen_keys: set[str] = set()
+    to_check: list[tuple[object, str]] = []
+    for account in accounts:
+        key = _proxy_key(account)
+        url = _proxy_url(account)
+        if key and url and key not in seen_keys:
+            seen_keys.add(key)
+            to_check.append((account, url))
+
+    if not to_check:
+        logger.info("PROXY_PREWARM_SKIP reason=no_active_proxies")
+        return
+
+    logger.info(f"PROXY_PREWARM_START proxies={len(to_check)}")
+    semaphore = asyncio.Semaphore(5)
+
+    async def _check_one(account, url: str):
+        async with semaphore:
+            try:
+                result = await asyncio.to_thread(check_proxy, url)
+                update_proxy_health(account.id, result)
+                logger.info(
+                    f"PROXY_PREWARM_RESULT "
+                    f"account_id={account.id} "
+                    f"status={result.get('status')} "
+                    f"latency={result.get('latency')}s"
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"PROXY_PREWARM_ERROR account_id={account.id} error={exc}"
+                )
+
+    await asyncio.gather(*[_check_one(acc, url) for acc, url in to_check])
+    logger.info("PROXY_PREWARM_COMPLETE")
+
+
+def start_proxy_prewarm():
+    return asyncio.create_task(prewarm_proxy_health(), name="proxy-prewarm")

@@ -53,7 +53,7 @@ from app.utils.scheduling import is_operating_hours
 ACTIVE_WORKERS = {}
 ACTIVE_BROWSER_RESOURCES = {}
 IN_FLIGHT_STATUSES = {"running", "queued", "stopping", "retrying"}
-HEALTHY_PROXY_STATUSES = {"ok", "healthy"}
+HEALTHY_PROXY_STATUSES = {"ok", "healthy", "degraded", "slow"}
 PROXY_CHECK_CACHE_MINUTES = 20
 
 
@@ -81,10 +81,10 @@ def _proxy_url_for_account(account):
 def _proxy_check_is_fresh(account) -> bool:
     cutoff = datetime.utcnow() - timedelta(minutes=PROXY_CHECK_CACHE_MINUTES)
     proxy_obj = getattr(account, "proxy", None)
-    if proxy_obj and proxy_obj.health_status == "ok" and proxy_obj.last_check_at:
+    if proxy_obj and (proxy_obj.health_status or "").lower() in HEALTHY_PROXY_STATUSES and proxy_obj.last_check_at:
         if proxy_obj.last_check_at > cutoff:
             return True
-    if account.proxy_status == "ok" and account.proxy_last_checked:
+    if (account.proxy_status or "").lower() in HEALTHY_PROXY_STATUSES and account.proxy_last_checked:
         if account.proxy_last_checked > cutoff:
             return True
     return False

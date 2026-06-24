@@ -709,11 +709,14 @@ def update_proxy_health(account_id, result):
 
         healthy = bool(result.get("healthy"))
         latency = result.get("latency")
-        account.proxy_status = result.get("status") if result.get("status") == "not_configured" else (
-            "ok" if healthy else "down"
-        )
-        if latency is not None and healthy and latency > 5:
-            account.proxy_status = "degraded"
+
+        _VALID_STATUSES = {"not_configured", "ok", "degraded", "slow", "down"}
+        result_status = result.get("status", "")
+        if result_status in _VALID_STATUSES:
+            account.proxy_status = result_status
+        else:
+            account.proxy_status = "ok" if healthy else "down"
+
         account.proxy_ip = result.get("ip") or account.proxy_ip
         account.proxy_latency = latency
         account.proxy_last_checked = datetime.utcnow()
@@ -723,7 +726,7 @@ def update_proxy_health(account_id, result):
         else:
             account.proxy_failures = 0
         if account.proxy:
-            account.proxy.health_status = "ok" if healthy else "down"
+            account.proxy.health_status = account.proxy_status
             account.proxy.last_check_at = account.proxy_last_checked
             account.proxy.failure_count = (
                 0 if healthy else (account.proxy.failure_count or 0) + 1
