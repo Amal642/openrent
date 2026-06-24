@@ -18,6 +18,7 @@ from app.db.repository import (
     mark_phone_requested,
     mark_phone_number_shared,
     mark_landlord_asked_phone,
+    mark_our_number_shared,
     update_conversation_memory,
     save_viewing_datetime,
     save_banner_state,
@@ -74,11 +75,13 @@ from app.experiments import playbook_ab  # OPEN-21D playbook A/B
 from app.ai.validators import (
     remove_unapproved_phone_numbers
 )
+from app.ai.personas import tenant_shared_phone
 
 from app.ai.conversation_memory import (
     detect_landlord_attitude,
     detect_screening_questions,
     latest_landlord_asked_for_phone,
+    latest_landlord_hesitant_about_phone,
 )
 
 from app.utils.phone import (
@@ -899,6 +902,7 @@ async def process_account_replies(
                 else persona.get("conversation_style")
             )
             landlord_asked_number = latest_landlord_asked_for_phone(messages)
+            landlord_hesitant = latest_landlord_hesitant_about_phone(messages)
 
             update_conversation_memory(
                 thread_id,
@@ -1278,20 +1282,22 @@ async def process_account_replies(
             # screening questions.  If questions are present, the AI was
             # already instructed to answer them first; injecting a number here
             # would override that answer with a phone line.
-            if landlord_asked_number:
+            if landlord_asked_number or landlord_hesitant:
                 before_safeguard = reply
                 reply = remove_unapproved_phone_numbers(reply, mobile)
 
                 if mobile and mobile not in reply and not screening_questions and ab_expose_mobile:
-                    reply = (
-                        f"{reply.rstrip()} My number is {mobile}."
-                        if reply
-                        else f"My number is {mobile}."
+                    whatsapp_line = (
+                        f"My husband's WhatsApp is {mobile} — "
+                        "he handles the viewing coordination, so best to reach him there."
                     )
+                    reply = f"{reply.rstrip()} {whatsapp_line}" if reply else whatsapp_line
 
                 logger.info(
                     f"Phone safeguard applied for thread {thread_id}; "
                     f"mobile_assigned={bool(mobile)}; "
+                    f"landlord_asked={landlord_asked_number}; "
+                    f"landlord_hesitant={landlord_hesitant}; "
                     f"screening_questions_present={bool(screening_questions)}; "
                     f"changed={before_safeguard != reply}"
                 )
@@ -1358,6 +1364,13 @@ async def process_account_replies(
             logger.info("Reply sent")
             save_message(thread_id, "outbound", reply)
             logger.info(f"Outbound reply persisted for thread {thread_id}")
+
+            # Track when we share our WhatsApp number with the landlord
+            if mobile and tenant_shared_phone(
+                [{"sender": "outbound", "message": reply}], mobile
+            ):
+                mark_our_number_shared(thread_id)
+                logger.info(f"OUR_NUMBER_SHARED thread_id={thread_id}")
 
             # OPEN-21D playbook A/B - append-only HEURISTIC outcome diagnostics. No-op unless
             # enabled; wrapped so it can NEVER affect reply behaviour. NOT the primary outcome:

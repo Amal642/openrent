@@ -1703,6 +1703,17 @@ def mark_landlord_asked_phone(thread_id):
             db.commit()
 
 
+def mark_our_number_shared(thread_id):
+    """Record the first time we share our WhatsApp number with a landlord."""
+    with session_scope() as db:
+        conversation = db.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        ).first()
+        if conversation and not conversation.our_number_shared_at:
+            conversation.our_number_shared_at = datetime.utcnow()
+            db.commit()
+
+
 def update_conversation_memory(
     thread_id,
     *,
@@ -2769,6 +2780,7 @@ def get_dashboard_leads(status=None):
                 "phone_number_shared_at": conversation.phone_number_shared_at,
                 "landlord_asked_phone_at": conversation.landlord_asked_phone_at,
                 "handoff_completed_at": conversation.handoff_completed_at,
+                "our_number_shared_at": conversation.our_number_shared_at,
                 "landlord_attitude": conversation.landlord_attitude,
                 "conversation_style": (
                     conversation.conversation_style

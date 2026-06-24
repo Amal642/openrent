@@ -205,6 +205,7 @@ export interface AutomationMetrics {
   new_outreach_today: number;
   daily_phone_target: number;
   active_accounts: number;
+  our_whatsapp_shared: number;
   series: MetricsSeriesPoint[];
 }
 

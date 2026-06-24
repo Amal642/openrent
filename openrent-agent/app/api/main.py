@@ -891,6 +891,11 @@ def api_metrics():
             {"date": day, "leads": 0, "replies": 0, "phones": 0, "failures": 0},
         )
 
+    our_whatsapp_shared = len([
+        lead for lead in leads
+        if lead.get("our_number_shared_at")
+    ])
+
     return {
         "total_leads": len(leads),
         "total_phones": len([lead for lead in leads if lead.get("phone")]),
@@ -898,6 +903,7 @@ def api_metrics():
         "new_outreach_today": new_outreach_today,
         "daily_phone_target": daily_phone_target,
         "active_accounts": len([account for account in accounts if account.get("active")]),
+        "our_whatsapp_shared": our_whatsapp_shared,
         "series": [by_day[day] for day in sorted(by_day.keys())[-14:]],
     }
 

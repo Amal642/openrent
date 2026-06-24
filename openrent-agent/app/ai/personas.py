@@ -397,39 +397,41 @@ def should_share_phone_now(
 
 def generate_phone_share_reply(persona, landlord_attitude="responsive"):
     mobile = (persona or {}).get("mobile_number")
-    # mobile = "+447743722832"
     if not mobile:
         return None
 
+    # The persona sending is female; the number belongs to her husband/partner.
+    # Always frame as husband's WhatsApp (or partner's when in doubt) and guide
+    # the landlord to contact via WhatsApp only — never ask for their number here.
     attitude = landlord_attitude if landlord_attitude in LANDLORD_ATTITUDES else "responsive"
     options = {
         "cold": [
-            f"Sure, my number is {mobile}.",
-            f"Yes, it's {mobile}.",
+            f"My husband handles the viewing side of things — his WhatsApp is {mobile}.",
+            f"Sure, my husband's WhatsApp is {mobile}. Best to reach him there.",
         ],
         "aggressive": [
-            f"Of course, my number is {mobile}.",
-            f"Sure, you can reach me on {mobile}.",
+            f"Of course — my husband sorts all the viewing logistics, his WhatsApp is {mobile}. Feel free to message him directly.",
+            f"Sure — my husband's WhatsApp is {mobile}. He'll be the one coordinating viewings.",
         ],
         "suspicious": [
-            f"Of course, my number is {mobile}. Happy to coordinate the viewing there.",
-            f"Sure, it's {mobile}. I'm happy to use that for viewing coordination.",
+            f"No problem — my husband handles the viewing coordination, his WhatsApp is {mobile}. Happy to sort everything through there.",
+            f"Of course — my partner's WhatsApp is {mobile}. He's the one dealing with viewings, so easiest to go through him.",
         ],
         "friendly": [
-            f"Sure, my number is {mobile}.",
-            f"Of course, it's {mobile}. Feel free to give me a call.",
+            f"Sure! My husband's WhatsApp is {mobile} — he's sorting the viewing side, so feel free to message him there.",
+            f"Of course — my husband handles all of that, his WhatsApp is {mobile}. He's the best person to reach for the viewing.",
         ],
         "helpful": [
-            f"Thanks, my number is {mobile}. Happy to coordinate there.",
-            f"Sure, it's {mobile}. Happy to coordinate there.",
+            f"Thanks — my husband's WhatsApp is {mobile}. He's handling the viewing coordination, so best to reach him there.",
+            f"Sure — my partner's WhatsApp is {mobile}. He sorts the viewing logistics, so easiest to message him directly.",
         ],
         "slow_reply": [
-            f"Sure, my number is {mobile}.",
-            f"Yes, it's {mobile}.",
+            f"My husband's WhatsApp is {mobile} — he handles the viewing side.",
+            f"Sure, my partner's WhatsApp is {mobile}. He'll be coordinating the viewing.",
         ],
         "responsive": [
-            f"Sure, my number is {mobile}.",
-            f"Of course, it's {mobile}.",
+            f"Of course — my husband's WhatsApp is {mobile}. He handles the viewing coordination, so easiest to reach him there.",
+            f"Sure — my husband sorts all the viewing logistics. His WhatsApp is {mobile}.",
         ],
     }
     return random.choice(options[attitude])

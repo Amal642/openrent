@@ -127,6 +127,7 @@ REQUIRED_COLUMNS = {
 
         "last_outbound_at": "TIMESTAMP",
         "follow_up_count": "INTEGER DEFAULT 0",
+        "our_number_shared_at": "TIMESTAMP",
     },
 }
 

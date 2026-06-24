@@ -262,6 +262,7 @@ class Conversation(Base):
     phone_number_shared_at = Column(DateTime, nullable=True)
     landlord_asked_phone_at = Column(DateTime, nullable=True)
     handoff_completed_at = Column(DateTime, nullable=True)
+    our_number_shared_at = Column(DateTime, nullable=True)
 
     closed = Column(Boolean, default=False)
 

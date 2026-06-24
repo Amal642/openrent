@@ -83,6 +83,49 @@ def latest_landlord_asked_for_phone(messages):
     return landlord_asked_for_phone(_content(landlords[-1]))
 
 
+_HESITANT_PHONE_PATTERNS = [
+    re.compile(
+        r"\b(don'?t|do not|won'?t|would not|not comfortable|not happy|"
+        r"prefer not to|rather not|wouldn'?t)\b.{0,60}"
+        r"\b(give|share|provide|send|pass|hand).{0,30}\b(number|contact|phone|mobile)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\b(prefer|happy|rather|want).{0,40}"
+        r"\b(keep|stay|stick|communicate|message|talk).{0,30}"
+        r"\b(here|on here|openrent|app|platform|this)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\bkeep\b.{0,30}\b(on here|through here|via this|on openrent|on the app)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\b(number|contact|phone)\b.{0,60}\b(once|when|after|until).{0,40}"
+        r"\b(we meet|we'?ve met|you'?ve seen|we know|i know|viewi)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\bnot.{0,20}\bshare.{0,30}\b(number|phone|mobile)\b.{0,40}"
+        r"\b(haven'?t|not|don'?t).{0,20}\b(met|know)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\blet'?s\b.{0,30}\b(keep|stick|stay).{0,30}\b(messages|messaging|this|here|app)\b",
+        re.I,
+    ),
+]
+
+
+def latest_landlord_hesitant_about_phone(messages):
+    """Return True if the latest landlord message shows reluctance to share their number."""
+    landlords = landlord_messages(messages)
+    if not landlords:
+        return False
+    text = _content(landlords[-1])
+    return any(p.search(text) for p in _HESITANT_PHONE_PATTERNS)
+
+
 # Each entry: (compiled regex, topic label)
 _SCREENING_PATTERNS = [
     (re.compile(r"\byour (full\s+)?name\b", re.I), "name"),

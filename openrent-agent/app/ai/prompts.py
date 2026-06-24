@@ -314,16 +314,19 @@ def _phone_policy_lines(
         "- Never invent any other number, email address, or contact detail.",
     ]
     if mobile:
-        lines.insert(0, f"- Correct tenant mobile number: {mobile}")
+        lines.insert(0, f"- Husband's/partner's WhatsApp number: {mobile}")
         lines.insert(
             5,
-            "- If the landlord asks for the tenant number, ALWAYS share the exact correct tenant mobile number above.",
+            f"- If the landlord asks for our number OR seems reluctant to share their own: share {mobile} as "
+            "'my husband's WhatsApp' (or 'my partner's WhatsApp' if unsure). "
+            "Tell them to reach out via WhatsApp only. Do NOT ask for their number in that same message.",
         )
     else:
-        lines.insert(0, "- No tenant mobile number is assigned for this account.")
+        lines.insert(0, "- No mobile number is assigned for this account.")
         lines.insert(
             5,
-            "- If the landlord asks for the tenant number, do not provide any number; answer the rest of their message naturally and keep arranging the viewing in OpenRent.",
+            "- If the landlord asks for our number, do not provide any number; "
+            "answer the rest of their message naturally and keep arranging the viewing in OpenRent.",
         )
 
     if not mobile:

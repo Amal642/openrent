@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock3,
   MessageCircle,
+  MessageSquareShare,
   Phone,
   Send,
   Server,
@@ -113,6 +114,7 @@ function Dashboard() {
   const phonesToday = metrics?.phones_today ?? 0;
   const phoneTarget = metrics?.daily_phone_target ?? 0;
   const phoneProgress = Math.min(100, Math.round((phonesToday / Math.max(phoneTarget, 1)) * 100));
+  const ourWhatsappShared = metrics?.our_whatsapp_shared ?? 0;
 
   const recent = useMemo(() => {
     return [...leads]
@@ -422,6 +424,13 @@ function Dashboard() {
               value={skipped}
               helper="Useful for quality review"
               tone="muted"
+            />
+            <AttentionItem
+              icon={MessageSquareShare}
+              label="Shared WhatsApp number"
+              value={ourWhatsappShared}
+              helper="Landlords we've given our WhatsApp to"
+              tone="info"
             />
           </div>
         </div>

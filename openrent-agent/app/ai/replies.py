@@ -19,6 +19,7 @@ from app.ai.prompts import (
 from app.ai.conversation_memory import (
     detect_screening_questions,
     latest_landlord_asked_for_phone,
+    latest_landlord_hesitant_about_phone,
     outbound_count,
     phone_shared_state,
     viewing_requested,
@@ -230,6 +231,7 @@ def generate_reply(
     conversation_state = conversation
     conversation = format_conversation(messages)
     landlord_asked_number = latest_landlord_asked_for_phone(messages)
+    landlord_hesitant = latest_landlord_hesitant_about_phone(messages)
     number_shared = phone_shared_state(messages, persona, conversation=conversation_state)
     sent_count = outbound_count(messages)
 
@@ -257,10 +259,11 @@ def generate_reply(
         )
 
     if (
-        landlord_asked_number
+        (landlord_asked_number or landlord_hesitant)
         and not number_shared
         and not screening_questions  # defer to full prompt when screening present
         and conversation_design_id not in LANDLORD_NUMBER_CAPTURE_DESIGNS
+        and (persona or {}).get("mobile_number")  # only if we have a number to share
     ):
         phone_reply = generate_phone_share_reply(
             persona,
