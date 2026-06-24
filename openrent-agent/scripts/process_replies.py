@@ -92,6 +92,7 @@ from app.db.status import (
     AI_FAILED,
     AI_REPLIED,
     HANDOFF_COMPLETE,
+    VIEWING_BOOKED,
     VIEWING_PENDING,
     VIEWING_CANCELLED,
     INACTIVE_NO_REPLY,

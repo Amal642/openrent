@@ -11,7 +11,7 @@ OUTREACH_START = time(8, 0)
 OUTREACH_END = time(23, 0)
 
 # Full system operating window — scheduler only queues jobs inside this range
-OPERATING_START = time(8, 15)
+OPERATING_START = time(8, 0)
 OPERATING_END = time(23, 0)
 
 

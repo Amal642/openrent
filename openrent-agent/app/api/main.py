@@ -125,7 +125,7 @@ class AccountCreatePayload(BaseModel):
     proxy_server: str | None = None
     proxy_username: str | None = None
     proxy_password: str | None = None
-    daily_limit: int = 5
+    daily_limit: int = 8
     active: bool = True
     mobile_number: str | None = None
     persona_type: str | None = None
@@ -217,7 +217,7 @@ RUNTIME_SETTINGS = {
     "min_delay_seconds": int(os.getenv("MIN_DELAY_SECONDS", "45")),
     "max_delay_seconds": int(os.getenv("MAX_DELAY_SECONDS", "180")),
     "retry_limit": int(os.getenv("RETRY_LIMIT", "3")),
-    "daily_message_limit": int(os.getenv("DEFAULT_DAILY_MESSAGE_LIMIT", "5")),
+    "daily_message_limit": int(os.getenv("DEFAULT_DAILY_MESSAGE_LIMIT", "8")),
 }
 
 @asynccontextmanager

@@ -1,8 +1,20 @@
 export function fmtMoney(n: number) {
   return "£" + n.toLocaleString();
 }
+
+// Backend stores UTC datetimes but may omit the 'Z' suffix on some fields.
+// Without a timezone marker JS Date() interprets the string as LOCAL time,
+// shifting the displayed time by the browser's UTC offset. Appending 'Z'
+// forces UTC interpretation for any naive ISO string.
+function toUtc(iso: string): Date {
+  if (iso && !iso.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(iso)) {
+    return new Date(iso + "Z");
+  }
+  return new Date(iso);
+}
+
 export function fmtRelative(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
+  const diff = Date.now() - toUtc(iso).getTime();
   const m = Math.round(diff / 60000);
   if (m < 1) return "just now";
   if (m < 60) return `${m}m ago`;
@@ -13,7 +25,7 @@ export function fmtRelative(iso: string) {
 }
 export function fmtDateTime(iso: string): string {
   if (!iso) return "-";
-  const d = new Date(iso);
+  const d = toUtc(iso);
   if (isNaN(d.getTime())) return "-";
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
@@ -30,7 +42,7 @@ export function fmtDateTime(iso: string): string {
 
 export function fmtDate(iso: string): string {
   if (!iso) return "-";
-  const d = new Date(iso);
+  const d = toUtc(iso);
   if (isNaN(d.getTime())) return "-";
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",

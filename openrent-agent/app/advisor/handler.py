@@ -8,6 +8,7 @@ import re
 from app.advisor.guide_parser import search_guide
 from app.advisor.stats_service import answer_stats_question
 from app.advisor.recommendation_engine import generate_recommendation
+from app.advisor.area_intelligence import answer_area_question, area_metrics_summary
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +214,15 @@ def _classify(message: str) -> str:
     return "troubleshooting"  # default — guide usually has something useful
 
 
+_LOCATION_PATTERN = re.compile(
+    r"\b(croydon|brixton|clapham|wandsworth|battersea|lewisham|greenwich|bromley|"
+    r"streatham|dulwich|tooting|camberwell|peckham|kingston|wimbledon|sutton|"
+    r"merton|lambeth|southwark|woolwich|bexley|bexleyheath|sidcup|"
+    r"putney|norwood|upper norwood|hanworth|london)\b",
+    re.I,
+)
+
+
 def handle_chat(message: str) -> dict:
     text = message.lower().strip()
 
@@ -224,10 +234,22 @@ def handle_chat(message: str) -> dict:
     if _is_out_of_scope(text):
         return {"type": "out_of_scope", "response": _REFUSAL_RESPONSE}
 
+    # Area intelligence takes priority: if we can answer deterministically from
+    # real coverage data, return that before any classification or LLM call.
+    area_answer = answer_area_question(message)
+    if area_answer:
+        return {"type": "recommendation", "response": area_answer}
+
     kind = _classify(message)
 
     if kind == "stats":
         response = answer_stats_question(message)
+        # When the question mentions a specific area, append the live area
+        # intelligence data so the answer reflects real coverage numbers.
+        if _LOCATION_PATTERN.search(text):
+            area_ctx = area_metrics_summary()
+            if area_ctx:
+                response += "\n\n**Area Intelligence**\n" + area_ctx
         return {"type": "stats", "response": response}
 
     if kind == "recommendation":

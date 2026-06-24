@@ -239,11 +239,34 @@ def validate_schema_or_die():
         )
 
 
+def _migrate_daily_limit_to_8():
+    """One-time migration: accounts still on the old default of 5 are bumped to 8."""
+    from app.db.connection import SessionLocal
+    from app.db.models import Account
+
+    db = SessionLocal()
+    try:
+        updated = (
+            db.query(Account)
+            .filter(Account.daily_limit == 5)
+            .update({"daily_limit": 8}, synchronize_session=False)
+        )
+        if updated:
+            db.commit()
+            print(f"Migrated {updated} account(s) daily_limit 5 → 8")
+    except Exception as exc:
+        db.rollback()
+        print(f"daily_limit migration skipped: {exc}")
+    finally:
+        db.close()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 
     apply_schema_updates()
     _migrate_account_proxies()
+    _migrate_daily_limit_to_8()
     validate_schema_or_die()
 
     print("Database initialized successfully")
