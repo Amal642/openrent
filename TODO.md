@@ -203,7 +203,8 @@ Create a shared market-intelligence layer that is separate from sending accounts
 - [x] Added typed frontend API helper for `GET /api/advisor/areas`.
 - [x] Added focused Area Intelligence tests, including no-OpenAI deterministic recommendation routing.
 - [x] Build the first visual Area Intelligence page with status filters and an operational table.
-- [x] Pulled production to commit `dd6c1b0` and restarted backend/worker services.
+- [x] Pulled production to commit `a3c4eb9` and restarted backend/worker services.
+- [x] Audited Hetzner host health after production restart: backend/worker active, API healthy, no failed systemd units, CPU/memory/disk healthy.
 - [x] Scoped Area Intelligence output and advisor area prompts to South London only.
 - [ ] Expand the Area Intelligence page with trend charts and account drilldowns.
 - [ ] Add persistent central discovery separate from sending accounts.
