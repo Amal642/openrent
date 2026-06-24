@@ -7,6 +7,12 @@ class Settings:
     EMAIL = os.getenv("EMAIL")
     PASSWORD = os.getenv("PASSWORD")
 
+    # Field-level encryption key for sensitive DB columns (accounts.password,
+    # proxies.password, etc.).  Generate once with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # and store in .env as FIELD_ENCRYPTION_KEY=<key>.
+    FIELD_ENCRYPTION_KEY = os.getenv("FIELD_ENCRYPTION_KEY", "")
+
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     OPENAI_REPLY_MODEL = os.getenv("OPENAI_REPLY_MODEL", "gpt-4.1-mini")
 

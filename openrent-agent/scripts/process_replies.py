@@ -647,11 +647,14 @@ async def process_account_replies(
                 if conversation.status == "AI_FAILED":
                     update_conversation_status(thread_id, conversation.conversation_stage)
 
-                # Even after cancellation/handoff the landlord may reply with their
-                # phone number (e.g. "call me on WhatsApp"). Extract it so the lead
-                # isn't lost just because the viewing was cancelled.
+                # When the viewing was cancelled and the landlord replies back,
+                # check for a phone number first. If found, save it. Either way,
+                # track whether a number was obtained so we can decide whether
+                # to reply or permanently skip this thread.
+                _late_phone_found = False
                 if (
-                    not conversation.extracted_phone
+                    conversation.conversation_stage == VIEWING_CANCELLED
+                    and not conversation.extracted_phone
                     and has_unanswered_landlord_message
                     and latest_landlord_entry
                 ):
@@ -666,14 +669,33 @@ async def process_account_replies(
                         )
                         save_phone_number(thread_id, _late_phone)
                         _log_playbook_ab_phone_capture(thread_id)
+                        _late_phone_found = True
                     elif _late_phone:
                         logger.info(
                             f"PHONE_DUPLICATE_AFTER_CANCEL thread_id={thread_id} "
                             f"phone={_late_phone}"
                         )
+                        _late_phone_found = True  # treat duplicate as obtained
 
-                update_last_processed_message(thread_id, latest_landlord_message)
-                continue
+                # VIEWING_CANCELLED + landlord replied + still no phone →
+                # fall through to the normal reply flow so the AI can re-engage
+                # and naturally ask for the landlord's WhatsApp/number.
+                # All other cases (HANDOFF_COMPLETE, phone already obtained,
+                # no new landlord message) are permanently skipped.
+                _should_reply_after_cancel = (
+                    conversation.conversation_stage == VIEWING_CANCELLED
+                    and not conversation.extracted_phone
+                    and not _late_phone_found
+                    and has_unanswered_landlord_message
+                )
+                if not _should_reply_after_cancel:
+                    update_last_processed_message(thread_id, latest_landlord_message)
+                    continue
+
+                logger.info(
+                    f"REPLY_AFTER_CANCEL thread_id={thread_id} "
+                    "reason=no_phone_landlord_replied — resuming reply flow"
+                )
 
             # Viewing confirmed — 2-step cancel flow:
             #   Step 1: ask for landlord's number (pre-cancel ask)

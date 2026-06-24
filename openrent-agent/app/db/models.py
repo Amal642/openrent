@@ -10,8 +10,30 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.types import TypeDecorator
 
 from datetime import datetime
+from app.utils.crypto import decrypt, encrypt
+
+
+class EncryptedString(TypeDecorator):
+    """
+    Transparently encrypts on write and decrypts on read.
+    Stored as TEXT in the DB; legacy plaintext values are returned
+    unchanged so migration can happen row-by-row without downtime.
+    """
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return encrypt(str(value))
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return decrypt(value)
 
 Base = declarative_base()
 
@@ -38,7 +60,7 @@ class Proxy(Base):
     host = Column(String, nullable=False)
     port = Column(Integer, nullable=False)
     username = Column(String, nullable=True)
-    password = Column(String, nullable=True)
+    password = Column(EncryptedString, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
@@ -63,7 +85,7 @@ class Account(Base):
     id = Column(Integer, primary_key=True)
 
     email = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
+    password = Column(EncryptedString, nullable=False)
 
     initial_message = Column(Text, nullable=True)
 
@@ -71,7 +93,7 @@ class Account(Base):
 
     proxy_server = Column(String, nullable=True)
     proxy_username = Column(String, nullable=True)
-    proxy_password = Column(String, nullable=True)
+    proxy_password = Column(EncryptedString, nullable=True)
 
     daily_limit = Column(Integer, default=5)
     messages_sent_today = Column(Integer, default=0)
