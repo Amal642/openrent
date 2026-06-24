@@ -25,9 +25,7 @@ BOOKED_PATTERNS = [
     r"\bmeet you\b",
     r"\bsee you then\b",
     r"\bsee you tomorrow\b",
-    r"\bthat works\b",
-    r"\bworks for me\b",
-    r"\blooking forward\b",
+    r"\blooking forward to (meeting|seeing) you\b",
     r"\bsee you there\b",
 ]
 
@@ -84,6 +82,14 @@ def _overlaps_any(span, spans):
     return any(start < other_end and end > other_start for other_start, other_end in spans)
 
 
+def _is_explicit_time_match(match) -> bool:
+    """Return False for bare integers (e.g. '1' in '1 bed flat', '4' in '4 months').
+    A real time reference requires either HH:MM format or an am/pm suffix."""
+    has_minutes = match.group(2) is not None
+    has_ampm = bool((match.group(3) or "").strip())
+    return has_minutes or has_ampm
+
+
 def _target_date_from_text(text, now):
     if "day after tomorrow" in text:
         return (now + timedelta(days=2)).date()
@@ -134,7 +140,7 @@ def _target_date_from_text(text, now):
 def _has_time(text):
     date_spans = _date_spans(text)
     return any(
-        not _overlaps_any(match.span(), date_spans)
+        not _overlaps_any(match.span(), date_spans) and _is_explicit_time_match(match)
         for match in TIME_PATTERN.finditer(text)
     )
 
@@ -179,22 +185,19 @@ def detect_stage(messages):
     if discussion_after_booking:
         return VIEWING_DISCUSSION
 
-    booking_context = [
-        message
-        for message in recent
-        if _matches_any(_message_text(message).lower(), BOOKED_PATTERNS)
-        or _has_time(_message_text(message).lower())
-    ]
-
-    if booking_context:
-        combined_booking = "\n".join(_message_text(m).lower() for m in booking_context[-4:])
-        if _matches_any(combined_booking, BOOKED_PATTERNS) and _has_time_or_day(combined_booking):
-            _stage_log("VIEWING_CONFIRMATION_DETECTED", "booked pattern + time/day both present in recent context")
+    # VIEWING_BOOKED requires a booking phrase AND a specific time/day in the SAME
+    # message. Combining signals across different messages causes false positives
+    # (e.g. "that works" in one reply + "1 bed flat" in the opener).
+    for message in recent:
+        text = _message_text(message).lower()
+        if _matches_any(text, BOOKED_PATTERNS) and _has_time_or_day(text):
+            _stage_log("VIEWING_CONFIRMATION_DETECTED", "booked pattern + time/day in same message")
             return VIEWING_BOOKED
-        # Booked-pattern present but no confirmed time — treat as pending, not booked
-        if _matches_any(combined_booking, BOOKED_PATTERNS):
-            _stage_log("VIEWING_PENDING", "booked pattern found but no specific time agreed")
-            return VIEWING_PENDING
+
+    # Booked-pattern found but no confirmed time — treat as pending, not booked
+    if any(_matches_any(_message_text(m).lower(), BOOKED_PATTERNS) for m in recent):
+        _stage_log("VIEWING_PENDING", "booked pattern found but no specific time agreed")
+        return VIEWING_PENDING
 
     if _matches_any(recent_text, DISCUSSION_PATTERNS):
         _stage_log("VIEWING_PENDING", "viewing discussion detected, no confirmed time")
@@ -220,6 +223,8 @@ def extract_viewing_datetime(messages, now=None):
         date_spans = _date_spans(text)
         for match in TIME_PATTERN.finditer(text):
             if _overlaps_any(match.span(), date_spans):
+                continue
+            if not _is_explicit_time_match(match):
                 continue
             candidates.append((text, match))
 

@@ -133,6 +133,7 @@ type BackendLead = {
   conversation_stage?: string;
   viewing_datetime?: string;
   viewing_confirmed?: boolean;
+  viewing_confirmation_source?: "banner" | "ai";
   viewing_cancelled?: boolean;
   cancel_required?: boolean;
   cancellation_sent_at?: string;
@@ -349,6 +350,7 @@ function mapLead(lead: BackendLead): Lead {
     phoneNumber,
     viewingDatetime: lead.viewing_datetime,
     viewingConfirmed: lead.viewing_confirmed ?? false,
+    viewingConfirmationSource: lead.viewing_confirmation_source,
     viewingCancelled: lead.viewing_cancelled ?? false,
     cancelRequired: lead.cancel_required ?? false,
     cancellationSentAt: lead.cancellation_sent_at,

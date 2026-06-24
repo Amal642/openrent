@@ -1539,6 +1539,8 @@ def save_viewing_datetime(thread_id, viewing_datetime):
         if conversation:
             conversation.viewing_datetime = viewing_datetime
             conversation.viewing_confirmed = True
+            if not conversation.viewing_confirmation_source:
+                conversation.viewing_confirmation_source = "ai"
             conversation.conversation_stage = "VIEWING_BOOKED"
             conversation.last_stage_change = datetime.utcnow()
 
@@ -1574,6 +1576,7 @@ def save_banner_state(
     viewing_requested: bool = False,
     viewing_confirmed: bool = False,
     viewing_datetime=None,
+    confirmation_source: str = "banner",
 ):
     """
     Persist deterministic viewing state extracted from OpenRent system banners.
@@ -1604,6 +1607,8 @@ def save_banner_state(
 
         if viewing_confirmed:
             conversation.viewing_confirmed = True
+            if not conversation.viewing_confirmation_source:
+                conversation.viewing_confirmation_source = confirmation_source
             if viewing_datetime:
                 conversation.viewing_datetime = viewing_datetime
                 if not conversation.cancel_target_hours:
@@ -2755,6 +2760,7 @@ def get_dashboard_leads(status=None):
                 "conversation_stage": conversation.conversation_stage,
                 "viewing_datetime": conversation.viewing_datetime,
                 "viewing_confirmed": conversation.viewing_confirmed,
+                "viewing_confirmation_source": conversation.viewing_confirmation_source,
                 "viewing_cancelled": conversation.viewing_cancelled,
                 "cancel_required": conversation.cancel_required,
                 "cancellation_sent_at": conversation.cancellation_sent_at,

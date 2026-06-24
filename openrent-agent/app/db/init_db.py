@@ -111,6 +111,7 @@ REQUIRED_COLUMNS = {
 
         "viewing_requested": "BOOLEAN DEFAULT FALSE",
         "viewing_confirmed": "BOOLEAN DEFAULT FALSE",
+        "viewing_confirmation_source": "VARCHAR",
         "viewing_cancelled": "BOOLEAN DEFAULT FALSE",
 
         "cancel_required": "BOOLEAN DEFAULT TRUE",

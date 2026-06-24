@@ -320,6 +320,11 @@ class Conversation(Base):
         default=False
     )
 
+    viewing_confirmation_source = Column(
+        String,
+        nullable=True,
+    )
+
     viewing_cancelled = Column(
         Boolean,
         default=False

@@ -556,6 +556,7 @@ async def process_account_replies(
                             thread_id,
                             viewing_confirmed=True,
                             viewing_datetime=ai_dt,
+                            confirmation_source="ai",
                         )
                         logger.info(
                             f"AI_VIEWING_DETECTED thread_id={thread_id} "
@@ -710,9 +711,15 @@ async def process_account_replies(
             # Banner is primary source of truth. Fallback: banner gone but DB has
             # a past uncancelled viewing_datetime → treat as in cancel window.
             _db_viewing_dt = getattr(conversation, "viewing_datetime", None) if conversation else None
+            # Fallback only fires when the DB has a confirmed viewing but the
+            # banner is gone (landlord cleared it on their side). If the
+            # "Viewing Requested" banner is still showing the viewing was never
+            # confirmed, so we must not enter the cancel flow.
             _fallback_cancel = (
                 not banners["viewing_confirmed"]
+                and not banners.get("viewing_requested")
                 and conversation
+                and getattr(conversation, "viewing_confirmed", False)
                 and not getattr(conversation, "viewing_cancelled", False)
                 and not conversation.handoff_completed_at
                 and _db_viewing_dt is not None
@@ -1091,36 +1098,20 @@ async def process_account_replies(
             
             
                 
-            stage = detect_stage(
-                messages
-            )
-
-            if stage:
-
-                if stage == "VIEWING_BOOKED":
-                    viewing_datetime = extract_viewing_datetime(messages)
-                    if viewing_datetime:
-                        save_viewing_datetime(thread_id, viewing_datetime)
-                        logger.info(
-                            f"VIEWING_BOOKED_SET thread_id={thread_id} "
-                            f"viewing_datetime={viewing_datetime}"
-                        )
-                    else:
-                        # Stage signal seen but no confirmed date+time — record
-                        # as pending so cancellation logic cannot trigger.
-                        logger.warning(
-                            f"VIEWING_PENDING thread_id={thread_id} "
-                            "reason=no_confirmed_datetime stage_signal=VIEWING_BOOKED"
-                        )
-                        update_conversation_stage(thread_id, VIEWING_PENDING)
-                elif stage == VIEWING_PENDING:
+            # VIEWING_BOOKED is only ever set by:
+            #   1. The OpenRent "Viewing Confirmed" banner (most reliable)
+            #   2. ai_detect_viewing_arranged() when no banner is present (lines ~545)
+            # Regex-based detect_stage is intentionally NOT used for VIEWING_BOOKED
+            # because it false-positives on phrases like "that works" or bare numbers
+            # like "1 bed flat". Only non-booking stages are updated here.
+            stage = detect_stage(messages)
+            if stage and stage != VIEWING_BOOKED:
+                if stage == VIEWING_PENDING:
                     logger.info(
                         f"VIEWING_PENDING thread_id={thread_id} "
                         "reason=vague_viewing_promise no_specific_time"
                     )
-                    update_conversation_stage(thread_id, VIEWING_PENDING)
-                else:
-                    update_conversation_stage(thread_id, stage)
+                update_conversation_stage(thread_id, stage)
 
             if not should_ai_reply(messages):
                 logger.info(f"No AI reply needed for thread {thread_id}")

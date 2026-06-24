@@ -161,6 +161,7 @@ export interface Lead {
   phoneNumber?: string;
   viewingDatetime?: string;
   viewingConfirmed: boolean;
+  viewingConfirmationSource?: "banner" | "ai";
   viewingCancelled: boolean;
   cancelRequired: boolean;
   cancellationSentAt?: string;

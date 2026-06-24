@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ExternalLink, CheckCircle2, XCircle, Phone, Copy } from "lucide-react";
+import { ArrowLeft, ExternalLink, CheckCircle2, XCircle, Phone, Copy, Bot, Tag } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -191,14 +191,29 @@ function ConversationPage() {
                 value={lead.metadataCapturedAt ? fmtDateTime(lead.metadataCapturedAt) : "—"}
               />
               <Field label="Initial sent" value={fmtRelative(lead.initialMessageSentAt)} />
-              <Field
-                label="Viewing"
-                value={
-                  lead.viewingDatetime
-                    ? `${fmtDateTime(lead.viewingDatetime)}${lead.viewingCancelled ? " · cancelled" : ""}`
-                    : "—"
-                }
-              />
+              <dt className="text-muted-foreground">Viewing</dt>
+              <dd className="text-foreground">
+                {lead.viewingDatetime ? (
+                  <span className="flex items-center gap-1.5 flex-wrap">
+                    <span>{fmtDateTime(lead.viewingDatetime)}</span>
+                    {lead.viewingCancelled && <span className="text-destructive">· cancelled</span>}
+                    {lead.viewingConfirmationSource && (
+                      <span
+                        title={lead.viewingConfirmationSource === "banner" ? "Confirmed via OpenRent banner" : "Confirmed via AI reading conversation"}
+                        className={cn(
+                          "inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                          lead.viewingConfirmationSource === "banner"
+                            ? "bg-success/15 text-success"
+                            : "bg-info/15 text-info"
+                        )}
+                      >
+                        {lead.viewingConfirmationSource === "banner" ? <Tag className="size-2.5" /> : <Bot className="size-2.5" />}
+                        {lead.viewingConfirmationSource}
+                      </span>
+                    )}
+                  </span>
+                ) : "—"}
+              </dd>
             </dl>
             {lead.phoneNumber && (
               <div className="rounded-md border border-success/30 bg-success/10 p-3">
@@ -278,7 +293,11 @@ function ConversationPage() {
               {lead.viewingConfirmed && (
                 <TimelineItem
                   time={lead.viewingDatetime ? fmtDateTime(lead.viewingDatetime) : "Time pending"}
-                  label={lead.viewingCancelled ? "Viewing cancelled" : "Viewing booked"}
+                  label={
+                    lead.viewingCancelled
+                      ? "Viewing cancelled"
+                      : `Viewing booked${lead.viewingConfirmationSource ? ` · via ${lead.viewingConfirmationSource}` : ""}`
+                  }
                   tone={lead.viewingCancelled ? "warning" : "success"}
                 />
               )}
