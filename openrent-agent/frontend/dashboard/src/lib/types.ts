@@ -10,6 +10,7 @@ export type LeadStatus =
   | "DUPLICATE_LEAD"
   | "VIEWING_CANCELLED"
   | "INACTIVE_NO_REPLY"
+  | "SHORT_TERM_PROPERTY"
   | "CLOSED";
 
 export type ConversationStage =
@@ -20,6 +21,7 @@ export type ConversationStage =
   | "CONTACT_REQUESTED"
   | "HANDOFF_COMPLETE"
   | "VIEWING_CANCELLED"
+  | "SHORT_TERM_PROPERTY"
   | "CLOSED";
 
 export type SessionStatus =

@@ -214,6 +214,32 @@ def parse_listing_metadata(content, body_text="", page_title=""):
         )
         landlord_name = _clean_text(landlord_match.group(1)) if landlord_match else None
 
+    # --- tenancy length detection ---
+    min_tenancy_months = None
+    is_short_term = False
+
+    # "Minimum Tenancy: 6 Months" / "Minimum Tenancy\n6 Months" / "Min Tenancy: 1 Year"
+    tenancy_match = re.search(
+        r"min(?:imum)?\s*tenancy\s*[:\-]?\s*(\d+)\s*(month|year)s?",
+        searchable,
+        re.IGNORECASE,
+    )
+    if tenancy_match:
+        n = int(tenancy_match.group(1))
+        unit = tenancy_match.group(2).lower()
+        min_tenancy_months = n * 12 if "year" in unit else n
+        if min_tenancy_months < 12:
+            is_short_term = True
+
+    # Explicit short-term/holiday let keywords
+    if not is_short_term and re.search(
+        r"\b(?:short[- ]term(?:\s+let)?|short\s+let|holiday\s+let|"
+        r"short\s+stay|serviced\s+accommodation|temporary\s+accommodation)\b",
+        searchable,
+        re.IGNORECASE,
+    ):
+        is_short_term = True
+
     return {
         "rent_pcm": rent_pcm,
         "available_from": available_from,
@@ -222,6 +248,8 @@ def parse_listing_metadata(content, body_text="", page_title=""):
         "max_tenants": max_tenants,
         "address": address,
         "landlord_name": landlord_name,
+        "min_tenancy_months": min_tenancy_months,
+        "is_short_term": is_short_term,
     }
 
 

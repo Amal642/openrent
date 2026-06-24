@@ -619,6 +619,101 @@ def ai_detect_viewing_arranged(messages, retries=2, base_delay=1):
     return {"viewing_arranged": False, "viewing_datetime": None, "reason": "detection_failed"}
 
 
+def detect_short_term_tenancy(messages, retries=2, base_delay=1) -> bool:
+    """
+    Return True if the landlord has explicitly stated the property is only
+    available short-term (less than 12 months).  Defaults to False on any
+    error so we never incorrectly close a conversation.
+    """
+    recent = messages[-6:] if len(messages) > 6 else messages
+    conversation = format_conversation(recent)
+    prompt = f"""You are analysing a UK rental conversation to determine if the landlord has explicitly stated this property is only available for a short-term tenancy (less than 12 months).
+
+Return JSON only: {{"is_short_term": true/false, "reason": "brief explanation"}}
+
+Rules:
+- Only return true if the landlord EXPLICITLY STATED the property is short-term, temporary, holiday let, or has a maximum tenancy of less than 12 months.
+- Phrases like "short-term let", "maximum 6 months", "only available until [date]", "minimum 2 months maximum 4 months" mean is_short_term = true.
+- If the tenant mentioned "long-term" but the landlord said nothing about tenancy length, return false.
+- If unsure, return false.
+
+Conversation:
+{conversation}
+
+JSON only:""".strip()
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            if raw.startswith("```"):
+                raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.S).strip()
+            result = json.loads(raw)
+            is_short = bool(result.get("is_short_term", False))
+            logger.info(
+                f"SHORT_TERM_DETECTION is_short={is_short} "
+                f"reason={result.get('reason', '')!r}"
+            )
+            return is_short
+        except Exception as exc:
+            logger.warning(f"Short-term detection attempt {attempt}/{retries} error: {exc}")
+            if attempt < retries:
+                time.sleep(base_delay)
+
+    return False
+
+
+def generate_short_term_close_message(messages=None, retries=3, base_delay=2):
+    """Generate a polite closing message for short-term/holiday let properties."""
+    conversation = format_conversation(messages or [])
+    prompt = f"""You are writing a short, polite reply to a landlord who has indicated their property is only available as a short-term let (less than 12 months).
+
+Write a brief, friendly message explaining you are looking for a long-term rental (minimum 12 months) and wishing them well.
+
+Guidelines:
+- One or two sentences maximum
+- Friendly and warm tone
+- No mention of AI or automation
+- Do not ask any questions
+
+Examples:
+Thanks so much for getting back to me — unfortunately we're specifically looking for a long-term let of at least 12 months, so this one won't quite work for us. All the best with finding a tenant!
+Thank you for letting me know — we're ideally looking for somewhere for at least 12 months, so this property won't be the right fit for us. Wishing you all the best!
+
+Conversation:
+{conversation}
+
+Return only the message text.""".strip()
+
+    last_error = None
+    for attempt in range(1, retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+            )
+            reply = _sanitize_dashes(response.choices[0].message.content.strip())
+            if not is_valid_reply(reply):
+                return None, "invalid_short_term_close"
+            return reply, None
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            last_error = str(exc)
+            logger.warning(f"Short-term close attempt {attempt}/{retries} failed: {exc}")
+            if attempt < retries:
+                time.sleep(base_delay * attempt)
+        except Exception as exc:
+            last_error = str(exc)
+            logger.exception(f"Unexpected short-term close error: {exc}")
+            break
+
+    return None, last_error or "short_term_close_failed"
+
+
 def generate_pre_cancel_number_ask(messages, place=None, retries=3, base_delay=2):
     """Generate a natural phone-ask message to send one run before cancelling a viewing."""
     conversation = format_conversation(messages or [])

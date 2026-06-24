@@ -12,6 +12,7 @@ export const STATUS_META: Record<LeadStatus, { label: string; tone: "info" | "wa
   DUPLICATE_LEAD: { label: "Duplicate", tone: "muted" },
   VIEWING_CANCELLED: { label: "Viewing cancelled", tone: "muted" },
   INACTIVE_NO_REPLY: { label: "Inactive (no reply)", tone: "muted" },
+  SHORT_TERM_PROPERTY: { label: "Short term", tone: "muted" },
   CLOSED: { label: "Closed", tone: "success" },
 };
 

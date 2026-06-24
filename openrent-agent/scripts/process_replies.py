@@ -64,6 +64,8 @@ from app.ai.replies import (
     generate_reply,
     generate_distant_location,
     generate_follow_up_message,
+    detect_short_term_tenancy,
+    generate_short_term_close_message,
 )
 
 import os  # OPEN-21D playbook A/B
@@ -96,6 +98,7 @@ from app.db.status import (
     VIEWING_PENDING,
     VIEWING_CANCELLED,
     INACTIVE_NO_REPLY,
+    SHORT_TERM_PROPERTY,
 )
 
 from datetime import datetime, timezone
@@ -638,7 +641,7 @@ async def process_account_replies(
                 await _screenshot_thread(page, thread_id)
 
             if conversation and conversation.conversation_stage in (
-                HANDOFF_COMPLETE, VIEWING_CANCELLED
+                HANDOFF_COMPLETE, VIEWING_CANCELLED, SHORT_TERM_PROPERTY
             ):
                 logger.info(
                     f"THREAD_SKIPPED_REASON thread_id={thread_id} "
@@ -1140,6 +1143,33 @@ async def process_account_replies(
                     latest_landlord_message
                 )
 
+                continue
+
+            # Short-term property guard: if the landlord has explicitly stated
+            # this is a short-term / holiday let (<12 months), send a polite
+            # closing reply and permanently mark the conversation.
+            if detect_short_term_tenancy(messages):
+                logger.info(
+                    f"SHORT_TERM_PROPERTY detected thread_id={thread_id} "
+                    "— sending polite close and marking conversation"
+                )
+                _close_msg, _close_err = generate_short_term_close_message(messages)
+                if _close_msg:
+                    _close_sent = await send_reply(page, _close_msg)
+                    if _close_sent:
+                        save_message(thread_id, "outbound", _close_msg)
+                    else:
+                        logger.warning(
+                            f"SHORT_TERM_CLOSE_SEND_FAILED thread_id={thread_id}"
+                        )
+                else:
+                    logger.warning(
+                        f"SHORT_TERM_CLOSE_GENERATE_FAILED thread_id={thread_id} "
+                        f"error={_close_err}"
+                    )
+                update_conversation_status(thread_id, SHORT_TERM_PROPERTY)
+                update_conversation_stage(thread_id, SHORT_TERM_PROPERTY)
+                update_last_processed_message(thread_id, latest_landlord_message)
                 continue
 
             # OPEN-21D playbook A/B: assign + log BEFORE any automated reply path.

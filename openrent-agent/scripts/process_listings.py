@@ -171,6 +171,18 @@ async def process_account_listings(
             metadata = await extract_listing_metadata(page)
             save_listing_metadata(listing_pk, metadata)
 
+            min_months = metadata.get("min_tenancy_months")
+            if metadata.get("is_short_term") or (
+                min_months is not None and min_months < 12
+            ):
+                logger.info(
+                    f"SHORT_TERM_PROPERTY listing={listing_ext_id} "
+                    f"min_tenancy_months={min_months} — skipping"
+                )
+                mark_listing_skipped(listing_pk, reason="SHORT_TERM_PROPERTY")
+                skipped_other += 1
+                continue
+
             message_link = await get_message_link(page)
             contactable = message_link is not None
 
