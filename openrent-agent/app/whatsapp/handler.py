@@ -35,11 +35,13 @@ from app.whatsapp.repository import (
 
 
 def _normalize_phone(raw: str) -> str:
-    """Strip non-digits. Ensure starts with country code (default 44 for UK)."""
+    """Strip non-digits. Ensure starts with country code (default 44 for UK).
+    lid: prefixed identifiers are passed through unchanged."""
+    if raw.startswith("lid:"):
+        return raw
     digits = re.sub(r"\D", "", raw)
     if not digits:
         return raw
-    # If starts with 0, replace with 44
     if digits.startswith("0"):
         digits = "44" + digits[1:]
     return digits

@@ -115,10 +115,13 @@ async function connectToWhatsApp() {
         phone = jid.replace("@s.whatsapp.net", "");
       } else if (jid.endsWith("@lid")) {
         var lid = jid.replace("@lid", "");
-        phone = lidToPhone[lid];
-        if (!phone) {
-          console.log("[whatsapp-service] @lid message, no phone mapping yet — skipping: " + jid);
-          continue;
+        if (lidToPhone[lid]) {
+          phone = lidToPhone[lid];
+        } else {
+          // Real phone not resolved yet — use lid as stable unique identifier.
+          // FastAPI will match on name (pushName) instead.
+          phone = "lid:" + lid;
+          console.log("[whatsapp-service] @lid unresolved, using temporary id: " + phone);
         }
       } else {
         continue;
