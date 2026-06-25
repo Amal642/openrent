@@ -81,14 +81,43 @@ async function connectToWhatsApp() {
 
   // Build lid → phone mapping as WhatsApp pushes contact data
   sock.ev.on("contacts.upsert", function(contacts) {
+    console.log("[whatsapp-service] contacts.upsert count=" + contacts.length);
     for (var i = 0; i < contacts.length; i++) {
       var contact = contacts[i];
-      // contact.id is the @s.whatsapp.net JID (real phone)
-      // contact.lid is the @lid JID (device identifier)
+      console.log("[whatsapp-service] contact: id=" + contact.id + " lid=" + contact.lid + " name=" + contact.name);
       if (contact.lid && contact.id && contact.id.endsWith("@s.whatsapp.net")) {
         var lid = contact.lid.replace("@lid", "");
         var realPhone = contact.id.replace("@s.whatsapp.net", "");
         lidToPhone[lid] = realPhone;
+        console.log("[whatsapp-service] lid→phone mapped: " + lid + " → " + realPhone);
+      }
+    }
+  });
+
+  sock.ev.on("contacts.update", function(contacts) {
+    for (var i = 0; i < contacts.length; i++) {
+      var contact = contacts[i];
+      console.log("[whatsapp-service] contacts.update: id=" + contact.id + " lid=" + contact.lid);
+      if (contact.lid && contact.id && contact.id.endsWith("@s.whatsapp.net")) {
+        var lid = contact.lid.replace("@lid", "");
+        var realPhone = contact.id.replace("@s.whatsapp.net", "");
+        lidToPhone[lid] = realPhone;
+        console.log("[whatsapp-service] contacts.update lid→phone: " + lid + " → " + realPhone);
+      }
+    }
+  });
+
+  // messaging-history.set fires on connect and includes the full contact list
+  sock.ev.on("messaging-history.set", function(data) {
+    var contacts = data.contacts || [];
+    console.log("[whatsapp-service] messaging-history.set contacts=" + contacts.length);
+    for (var i = 0; i < contacts.length; i++) {
+      var contact = contacts[i];
+      if (contact.lid && contact.id && contact.id.endsWith("@s.whatsapp.net")) {
+        var lid = contact.lid.replace("@lid", "");
+        var realPhone = contact.id.replace("@s.whatsapp.net", "");
+        lidToPhone[lid] = realPhone;
+        console.log("[whatsapp-service] history lid→phone: " + lid + " → " + realPhone);
       }
     }
   });

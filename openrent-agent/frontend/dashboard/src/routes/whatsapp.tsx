@@ -60,6 +60,9 @@ function StatusBadge({ status }: { status: WhatsAppContactStatus }) {
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
 function fmtPhone(phone: string): string {
+  if (phone.startsWith("lid:")) {
+    return `${phone.slice(4)} (unresolved)`;
+  }
   if (phone.startsWith("44") && phone.length >= 12) {
     return `+44 ${phone.slice(2, 6)} ${phone.slice(6, 9)} ${phone.slice(9)}`;
   }
