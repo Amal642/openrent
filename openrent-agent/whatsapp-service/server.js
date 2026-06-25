@@ -79,12 +79,46 @@ async function connectToWhatsApp() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  // name (normalised) → real phone — built from contacts.upsert on initial sync
-  // Used to resolve @lid messages replayed from history (contacts arrive BEFORE messages)
+  // name (normalised) → real phone — built from contacts events on initial sync
   const nameToPhone = {};
 
   // Pending @lid live messages waiting for contacts.upsert to fire
   const pendingLids = {};
+
+  // Levenshtein-based similarity — handles "Mohammed" vs "Mohamed" (edit dist = 1)
+  function editDist(a, b) {
+    var m = a.length, n = b.length;
+    if (!m) return n;
+    if (!n) return m;
+    var prev = [], curr = [];
+    for (var j = 0; j <= n; j++) prev[j] = j;
+    for (var i = 1; i <= m; i++) {
+      curr[0] = i;
+      for (var j = 1; j <= n; j++) {
+        curr[j] = a[i-1] === b[j-1] ? prev[j-1] : 1 + Math.min(prev[j], curr[j-1], prev[j-1]);
+      }
+      prev = curr.slice();
+    }
+    return prev[n];
+  }
+
+  function namesSimilar(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.includes(b) || b.includes(a)) return true;
+    var maxLen = Math.max(a.length, b.length);
+    return maxLen > 0 && (1 - editDist(a, b) / maxLen) >= 0.80;
+  }
+
+  function findPhoneByName(name) {
+    if (!name) return null;
+    var key = name.toLowerCase().replace(/\s+/g, "");
+    if (nameToPhone[key]) return nameToPhone[key];
+    for (var stored in nameToPhone) {
+      if (namesSimilar(stored, key)) return nameToPhone[stored];
+    }
+    return null;
+  }
 
   function processContactList(contacts) {
     for (var i = 0; i < contacts.length; i++) {
@@ -92,32 +126,26 @@ async function connectToWhatsApp() {
       if (!contact.id || !contact.id.endsWith("@s.whatsapp.net")) continue;
       var realPhone = contact.id.replace("@s.whatsapp.net", "");
 
-      // Build name → phone map
+      // Build name → phone map (exact key for fast lookup + fuzzy via findPhoneByName)
       if (contact.name) {
-        var key = contact.name.toLowerCase().replace(/\s+/g, "");
-        nameToPhone[key] = realPhone;
+        nameToPhone[contact.name.toLowerCase().replace(/\s+/g, "")] = realPhone;
       }
 
-      // Also resolve via lid field if present
+      // Direct lid field (rarely populated but handle it)
       if (contact.lid) {
-        var lid = contact.lid.replace("@lid", "");
-        lidToPhone[lid] = realPhone;
+        lidToPhone[contact.lid.replace("@lid", "")] = realPhone;
       }
 
-      // Resolve any pending live-message lids by name or if only one is waiting
+      // Resolve any pending live-message lids
       var contactName = (contact.name || "").toLowerCase().replace(/\s+/g, "");
       for (var pendingLid in pendingLids) {
         var pending = pendingLids[pendingLid];
         var pendingName = (pending.pushName || "").toLowerCase().replace(/\s+/g, "");
-        var nameMatch = contactName && pendingName && (
-          contactName === pendingName ||
-          contactName.includes(pendingName) ||
-          pendingName.includes(contactName)
-        );
+        var nameMatch = namesSimilar(contactName, pendingName);
         var onlyOne = Object.keys(pendingLids).length === 1;
         if (nameMatch || onlyOne) {
           lidToPhone[pendingLid] = realPhone;
-          console.log("[whatsapp-service] lid resolved via contacts: " + pendingLid + " → " + realPhone);
+          console.log("[whatsapp-service] lid resolved: " + pendingLid + " → " + realPhone);
           pending.resolve(realPhone);
           delete pendingLids[pendingLid];
           break;
@@ -160,10 +188,10 @@ async function connectToWhatsApp() {
           // Already resolved from a previous or concurrent contact event
           phone = lidToPhone[lidKey];
         } else if (pushNameRaw) {
-          // Try name→phone map built during initial contact sync (handles history replay)
-          var nameKey = pushNameRaw.toLowerCase().replace(/\s+/g, "");
-          if (nameToPhone[nameKey]) {
-            phone = nameToPhone[nameKey];
+          // Try name→phone map (fuzzy) built during initial contact sync — handles history replay
+          var resolvedByName = findPhoneByName(pushNameRaw);
+          if (resolvedByName) {
+            phone = resolvedByName;
             lidToPhone[lidKey] = phone;
             console.log("[whatsapp-service] @lid resolved via name: " + lidKey + " → " + phone);
           }
