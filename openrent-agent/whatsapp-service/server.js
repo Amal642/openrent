@@ -22,16 +22,37 @@ const qrcode = require("qrcode-terminal");
 const axios = require("axios");
 const express = require("express");
 const pino = require("pino");
+const fs = require("fs");
 
 const FASTAPI_URL = "http://localhost:8000/api/whatsapp/incoming";
 const PORT = 3001;
+const CONTACTS_CACHE = "./contacts_cache.json";
 
 const logger = pino({ level: "warn" });
 
 let sock = null;
 
-// Maps @lid identifier → real phone number, populated via contacts.upsert
+// Persistent contact maps — survive restarts
 const lidToPhone = {};
+const nameToPhone = {};
+
+// Load persisted maps from previous sessions
+try {
+  if (fs.existsSync(CONTACTS_CACHE)) {
+    var cached = JSON.parse(fs.readFileSync(CONTACTS_CACHE, "utf8"));
+    Object.assign(lidToPhone, cached.lidToPhone || {});
+    Object.assign(nameToPhone, cached.nameToPhone || {});
+    console.log("[whatsapp-service] Loaded cache: " + Object.keys(lidToPhone).length + " lid→phone, " + Object.keys(nameToPhone).length + " name→phone mappings");
+  }
+} catch(e) {
+  console.log("[whatsapp-service] Could not load contacts cache: " + e.message);
+}
+
+function saveCache() {
+  try {
+    fs.writeFileSync(CONTACTS_CACHE, JSON.stringify({lidToPhone: lidToPhone, nameToPhone: nameToPhone}));
+  } catch(e) {}
+}
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
@@ -78,9 +99,6 @@ async function connectToWhatsApp() {
   });
 
   sock.ev.on("creds.update", saveCreds);
-
-  // name (normalised) → real phone — built from contacts events on initial sync
-  const nameToPhone = {};
 
   // Pending @lid live messages waiting for contacts.upsert to fire
   const pendingLids = {};
@@ -137,6 +155,8 @@ async function connectToWhatsApp() {
       if (contact.lid) {
         lidToPhone[contact.lid.replace("@lid", "")] = realPhone;
       }
+
+      saveCache();
 
       var contactName = (contact.name || contact.notify || "").toLowerCase().replace(/\s+/g, "");
       for (var pendingLid in pendingLids) {
