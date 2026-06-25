@@ -30,6 +30,9 @@ const logger = pino({ level: "warn" });
 
 let sock = null;
 
+// Maps @lid identifier → real phone number, populated via contacts.upsert
+const lidToPhone = {};
+
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
   const { version } = await fetchLatestBaileysVersion();
@@ -76,6 +79,20 @@ async function connectToWhatsApp() {
 
   sock.ev.on("creds.update", saveCreds);
 
+  // Build lid → phone mapping as WhatsApp pushes contact data
+  sock.ev.on("contacts.upsert", function(contacts) {
+    for (var i = 0; i < contacts.length; i++) {
+      var contact = contacts[i];
+      // contact.id is the @s.whatsapp.net JID (real phone)
+      // contact.lid is the @lid JID (device identifier)
+      if (contact.lid && contact.id && contact.id.endsWith("@s.whatsapp.net")) {
+        var lid = contact.lid.replace("@lid", "");
+        var realPhone = contact.id.replace("@s.whatsapp.net", "");
+        lidToPhone[lid] = realPhone;
+      }
+    }
+  });
+
   sock.ev.on("messages.upsert", async function(event) {
     var messages = event.messages;
     var type = event.type;
@@ -93,7 +110,19 @@ async function connectToWhatsApp() {
 
       if (jid.endsWith("@g.us")) continue;
 
-      var phone = jid.replace("@s.whatsapp.net", "").replace("@lid", "");
+      var phone;
+      if (jid.endsWith("@s.whatsapp.net")) {
+        phone = jid.replace("@s.whatsapp.net", "");
+      } else if (jid.endsWith("@lid")) {
+        var lid = jid.replace("@lid", "");
+        phone = lidToPhone[lid];
+        if (!phone) {
+          console.log("[whatsapp-service] @lid message, no phone mapping yet — skipping: " + jid);
+          continue;
+        }
+      } else {
+        continue;
+      }
 
       var text = "";
       if (msg.message) {
