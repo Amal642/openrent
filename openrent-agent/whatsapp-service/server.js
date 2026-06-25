@@ -80,7 +80,8 @@ async function connectToWhatsApp() {
     var messages = event.messages;
     var type = event.type;
 
-    if (type !== "notify") return;
+    // "notify" = live messages, "append" = history sync on connect
+    if (type !== "notify" && type !== "append") return;
 
     for (var i = 0; i < messages.length; i++) {
       var msg = messages[i];
@@ -111,12 +112,15 @@ async function connectToWhatsApp() {
         ? Number(msg.messageTimestamp)
         : Math.floor(Date.now() / 1000);
 
-      console.log("[whatsapp-service] Incoming from " + phone + ": " + text.substring(0, 80));
+      // pushName is the sender's WhatsApp display name — use it directly
+      var senderName = msg.pushName || null;
+
+      console.log("[whatsapp-service] Incoming from " + phone + (senderName ? " (" + senderName + ")" : "") + ": " + text.substring(0, 80));
 
       try {
         await axios.post(
           FASTAPI_URL,
-          { phone: phone, message: text, timestamp: timestamp },
+          { phone: phone, message: text, timestamp: timestamp, sender_name: senderName },
           { timeout: 10000 }
         );
       } catch (err) {

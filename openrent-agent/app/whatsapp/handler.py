@@ -73,13 +73,15 @@ async def handle_incoming_message(
     phone_number: str,
     message: str,
     timestamp: Optional[int] = None,
+    sender_name: Optional[str] = None,
 ) -> None:
     """
     Main entry point called by the FastAPI webhook.
     Runs the state machine and schedules a reply.
+    sender_name: WhatsApp display name from msg.pushName (most reliable source).
     """
     phone = _normalize_phone(phone_number)
-    logger.info(f"WHATSAPP_INCOMING phone={phone} message_len={len(message)}")
+    logger.info(f"WHATSAPP_INCOMING phone={phone} sender_name={sender_name!r} message_len={len(message)}")
 
     # Get or create contact record
     contact = get_or_create_contact(phone, message)
@@ -99,9 +101,16 @@ async def handle_incoming_message(
     current_status = contact.status or "NEW_CONTACT"
     name = contact.name  # may already be known from a previous message
 
+    # If WhatsApp gave us the contact's display name and we don't have it yet, store it
+    if sender_name and not name:
+        name = sender_name
+        update_contact(contact.id, name=name)
+        logger.info(f"WHATSAPP_NAME_FROM_PUSHNAME phone={phone} name={name!r}")
+
     # ── NEW_CONTACT ─────────────────────────────────────────────────────────────
     if current_status == "NEW_CONTACT":
-        extracted_name = extract_name_from_message(message)
+        # Use pushName if available, otherwise extract from message text
+        extracted_name = name or extract_name_from_message(message)
 
         if not extracted_name:
             # No name — ask who they are

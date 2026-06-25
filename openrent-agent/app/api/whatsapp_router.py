@@ -34,6 +34,7 @@ class IncomingMessagePayload(BaseModel):
     phone: str
     message: str
     timestamp: Optional[int] = None
+    sender_name: Optional[str] = None
 
 
 @router.post("/incoming")
@@ -45,6 +46,7 @@ async def whatsapp_incoming(payload: IncomingMessagePayload):
         phone_number=payload.phone,
         message=payload.message,
         timestamp=payload.timestamp,
+        sender_name=payload.sender_name,
     )
     return {"status": "ok"}
 
