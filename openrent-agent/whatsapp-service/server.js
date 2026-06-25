@@ -123,26 +123,28 @@ async function connectToWhatsApp() {
   function processContactList(contacts) {
     for (var i = 0; i < contacts.length; i++) {
       var contact = contacts[i];
+      console.log("[DBG contact] id=" + contact.id + " lid=" + contact.lid + " name=" + contact.name + " notify=" + contact.notify);
       if (!contact.id || !contact.id.endsWith("@s.whatsapp.net")) continue;
       var realPhone = contact.id.replace("@s.whatsapp.net", "");
 
-      // Build name → phone map (exact key for fast lookup + fuzzy via findPhoneByName)
-      if (contact.name) {
-        nameToPhone[contact.name.toLowerCase().replace(/\s+/g, "")] = realPhone;
+      // Try all name fields the contact might use
+      var names = [contact.name, contact.notify, contact.verifiedName].filter(Boolean);
+      for (var ni = 0; ni < names.length; ni++) {
+        nameToPhone[names[ni].toLowerCase().replace(/\s+/g, "")] = realPhone;
       }
+      console.log("[DBG contact] stored phone=" + realPhone + " under names=" + JSON.stringify(names));
 
-      // Direct lid field (rarely populated but handle it)
       if (contact.lid) {
         lidToPhone[contact.lid.replace("@lid", "")] = realPhone;
       }
 
-      // Resolve any pending live-message lids
-      var contactName = (contact.name || "").toLowerCase().replace(/\s+/g, "");
+      var contactName = (contact.name || contact.notify || "").toLowerCase().replace(/\s+/g, "");
       for (var pendingLid in pendingLids) {
         var pending = pendingLids[pendingLid];
         var pendingName = (pending.pushName || "").toLowerCase().replace(/\s+/g, "");
         var nameMatch = namesSimilar(contactName, pendingName);
         var onlyOne = Object.keys(pendingLids).length === 1;
+        console.log("[DBG pending] lid=" + pendingLid + " contactName=" + contactName + " pendingName=" + pendingName + " nameMatch=" + nameMatch + " onlyOne=" + onlyOne);
         if (nameMatch || onlyOne) {
           lidToPhone[pendingLid] = realPhone;
           console.log("[whatsapp-service] lid resolved: " + pendingLid + " → " + realPhone);
@@ -154,10 +156,12 @@ async function connectToWhatsApp() {
     }
   }
 
-  sock.ev.on("contacts.upsert", processContactList);
-  sock.ev.on("contacts.update", processContactList);
+  sock.ev.on("contacts.upsert", function(c) { console.log("[DBG] contacts.upsert count=" + c.length); processContactList(c); });
+  sock.ev.on("contacts.update", function(c) { console.log("[DBG] contacts.update count=" + c.length); processContactList(c); });
   sock.ev.on("messaging-history.set", function(data) {
-    processContactList(data.contacts || []);
+    var c = data.contacts || [];
+    console.log("[DBG] messaging-history.set contacts=" + c.length);
+    processContactList(c);
   });
 
   sock.ev.on("messages.upsert", async function(event) {
@@ -184,12 +188,14 @@ async function connectToWhatsApp() {
         var lidKey = jid.replace("@lid", "");
         var pushNameRaw = msg.pushName || null;
 
+        console.log("[DBG @lid] lid=" + lidKey + " pushName=" + pushNameRaw + " nameToPhone keys=" + JSON.stringify(Object.keys(nameToPhone)));
+
         if (lidToPhone[lidKey]) {
-          // Already resolved from a previous or concurrent contact event
           phone = lidToPhone[lidKey];
+          console.log("[DBG @lid] resolved from lidToPhone cache: " + phone);
         } else if (pushNameRaw) {
-          // Try name→phone map (fuzzy) built during initial contact sync — handles history replay
           var resolvedByName = findPhoneByName(pushNameRaw);
+          console.log("[DBG @lid] findPhoneByName(" + pushNameRaw + ") = " + resolvedByName);
           if (resolvedByName) {
             phone = resolvedByName;
             lidToPhone[lidKey] = phone;
@@ -198,7 +204,7 @@ async function connectToWhatsApp() {
         }
 
         if (!phone) {
-          // Last resort: wait up to 3s for contacts.upsert to fire (live messages)
+          console.log("[DBG @lid] entering 3s wait, pendingLids=" + JSON.stringify(Object.keys(pendingLids)));
           phone = await new Promise(function(resolve) {
             pendingLids[lidKey] = {pushName: pushNameRaw, resolve: resolve};
             setTimeout(function() {
@@ -208,6 +214,7 @@ async function connectToWhatsApp() {
               }
             }, 3000);
           });
+          console.log("[DBG @lid] after 3s wait result=" + phone);
         }
 
         if (!phone) {
