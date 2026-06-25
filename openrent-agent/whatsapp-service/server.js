@@ -93,7 +93,7 @@ async function connectToWhatsApp() {
 
       if (jid.endsWith("@g.us")) continue;
 
-      var phone = jid.replace("@s.whatsapp.net", "");
+      var phone = jid.replace("@s.whatsapp.net", "").replace("@lid", "");
 
       var text = "";
       if (msg.message) {

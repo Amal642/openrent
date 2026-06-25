@@ -274,7 +274,7 @@ app.include_router(whatsapp_router)
 class CRMAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        is_public = path in {"/api/health", "/api/auth/login"}
+        is_public = path in {"/api/health", "/api/auth/login", "/api/whatsapp/incoming"}
         if request.method != "OPTIONS" and path.startswith("/api/") and not is_public:
             try:
                 request.state.crm_username = verify_request(request)
