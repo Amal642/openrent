@@ -79,45 +79,48 @@ async function connectToWhatsApp() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  // Build lid → phone mapping as WhatsApp pushes contact data
+  // Pending @lid messages waiting for contacts.upsert to fire with the real phone.
+  // Key: lid string, Value: {pushName, resolve}
+  const pendingLids = {};
+
+  // When contacts.upsert fires, resolve any waiting @lid messages by name + timing.
   sock.ev.on("contacts.upsert", function(contacts) {
-    console.log("[whatsapp-service] contacts.upsert count=" + contacts.length);
     for (var i = 0; i < contacts.length; i++) {
       var contact = contacts[i];
-      console.log("[whatsapp-service] contact: id=" + contact.id + " lid=" + contact.lid + " name=" + contact.name);
-      if (contact.lid && contact.id && contact.id.endsWith("@s.whatsapp.net")) {
-        var lid = contact.lid.replace("@lid", "");
-        var realPhone = contact.id.replace("@s.whatsapp.net", "");
-        lidToPhone[lid] = realPhone;
-        console.log("[whatsapp-service] lid→phone mapped: " + lid + " → " + realPhone);
+      if (!contact.id || !contact.id.endsWith("@s.whatsapp.net")) continue;
+      var realPhone = contact.id.replace("@s.whatsapp.net", "");
+      var contactName = (contact.name || "").toLowerCase().replace(/\s+/g, "");
+
+      // Try to match against any pending @lid
+      for (var pendingLid in pendingLids) {
+        var pending = pendingLids[pendingLid];
+        var pendingName = (pending.pushName || "").toLowerCase().replace(/\s+/g, "");
+        // Match if names are similar OR if only one lid is pending (timing-based)
+        var nameMatch = pendingName && contactName && (
+          contactName === pendingName ||
+          contactName.includes(pendingName) ||
+          pendingName.includes(contactName)
+        );
+        var onlyOnePending = Object.keys(pendingLids).length === 1;
+
+        if (nameMatch || onlyOnePending) {
+          lidToPhone[pendingLid] = realPhone;
+          console.log("[whatsapp-service] resolved lid→phone: " + pendingLid + " → " + realPhone);
+          pending.resolve(realPhone);
+          delete pendingLids[pendingLid];
+          break;
+        }
       }
     }
   });
 
-  sock.ev.on("contacts.update", function(contacts) {
-    for (var i = 0; i < contacts.length; i++) {
-      var contact = contacts[i];
-      console.log("[whatsapp-service] contacts.update: id=" + contact.id + " lid=" + contact.lid);
-      if (contact.lid && contact.id && contact.id.endsWith("@s.whatsapp.net")) {
-        var lid = contact.lid.replace("@lid", "");
-        var realPhone = contact.id.replace("@s.whatsapp.net", "");
-        lidToPhone[lid] = realPhone;
-        console.log("[whatsapp-service] contacts.update lid→phone: " + lid + " → " + realPhone);
-      }
-    }
-  });
-
-  // messaging-history.set fires on connect and includes the full contact list
   sock.ev.on("messaging-history.set", function(data) {
     var contacts = data.contacts || [];
-    console.log("[whatsapp-service] messaging-history.set contacts=" + contacts.length);
     for (var i = 0; i < contacts.length; i++) {
       var contact = contacts[i];
       if (contact.lid && contact.id && contact.id.endsWith("@s.whatsapp.net")) {
         var lid = contact.lid.replace("@lid", "");
-        var realPhone = contact.id.replace("@s.whatsapp.net", "");
-        lidToPhone[lid] = realPhone;
-        console.log("[whatsapp-service] history lid→phone: " + lid + " → " + realPhone);
+        lidToPhone[lid] = contact.id.replace("@s.whatsapp.net", "");
       }
     }
   });
@@ -143,14 +146,22 @@ async function connectToWhatsApp() {
       if (jid.endsWith("@s.whatsapp.net")) {
         phone = jid.replace("@s.whatsapp.net", "");
       } else if (jid.endsWith("@lid")) {
-        var lid = jid.replace("@lid", "");
-        if (lidToPhone[lid]) {
-          phone = lidToPhone[lid];
+        var lidKey = jid.replace("@lid", "");
+        if (lidToPhone[lidKey]) {
+          phone = lidToPhone[lidKey];
         } else {
-          // Real phone not resolved yet — use lid as stable unique identifier.
-          // FastAPI will match on name (pushName) instead.
-          phone = "lid:" + lid;
-          console.log("[whatsapp-service] @lid unresolved, using temporary id: " + phone);
+          // Wait up to 3s for contacts.upsert to fire with the real phone
+          var senderNameForLid = msg.pushName || null;
+          phone = await new Promise(function(resolve) {
+            pendingLids[lidKey] = {pushName: senderNameForLid, resolve: resolve};
+            setTimeout(function() {
+              if (pendingLids[lidKey]) {
+                delete pendingLids[lidKey];
+                resolve("lid:" + lidKey);
+              }
+            }, 3000);
+          });
+          console.log("[whatsapp-service] @lid resolved to: " + phone);
         }
       } else {
         continue;

@@ -71,7 +71,9 @@ function fmtPhone(phone: string): string {
 
 function fmtRelative(iso?: string): string {
   if (!iso) return "—";
-  const diff = Date.now() - new Date(iso).getTime();
+  // Backend returns naive UTC strings without Z — force UTC interpretation
+  const utc = iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z";
+  const diff = Date.now() - new Date(utc).getTime();
   const mins = Math.floor(diff / 60_000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
