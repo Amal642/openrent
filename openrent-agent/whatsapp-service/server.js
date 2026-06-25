@@ -1,3 +1,5 @@
+"use strict";
+
 /**
  * Baileys WhatsApp bridge for OpenRent phone acquisition.
  *
@@ -12,20 +14,18 @@
  *   node server.js
  */
 
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-} from "@whiskeysockets/baileys";
-import qrcode from "qrcode-terminal";
-import axios from "axios";
-import express from "express";
-import pino from "pino";
+const baileys = require("@whiskeysockets/baileys");
+const makeWASocket = baileys.default || baileys.makeWASocket || baileys;
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys;
+
+const qrcode = require("qrcode-terminal");
+const axios = require("axios");
+const express = require("express");
+const pino = require("pino");
 
 const FASTAPI_URL = "http://localhost:8000/api/whatsapp/incoming";
 const PORT = 3001;
 
-// Suppress verbose Baileys logs
 const logger = pino({ level: "warn" });
 
 let sock = null;
@@ -35,6 +35,7 @@ async function connectToWhatsApp() {
   const { version } = await fetchLatestBaileysVersion();
 
   console.log("[whatsapp-service] Connecting using Baileys v" + version.join("."));
+  console.log("[whatsapp-service] makeWASocket type:", typeof makeWASocket);
 
   sock = makeWASocket({
     version,
@@ -56,17 +57,11 @@ async function connectToWhatsApp() {
 
     if (connection === "close") {
       var statusCode;
-      if (
-        lastDisconnect &&
-        lastDisconnect.error &&
-        lastDisconnect.error.output
-      ) {
+      if (lastDisconnect && lastDisconnect.error && lastDisconnect.error.output) {
         statusCode = lastDisconnect.error.output.statusCode;
       }
       var shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      console.log(
-        "[whatsapp-service] Connection closed (" + statusCode + "). Reconnecting: " + shouldReconnect
-      );
+      console.log("[whatsapp-service] Connection closed (" + statusCode + "). Reconnecting: " + shouldReconnect);
       if (shouldReconnect) {
         setTimeout(connectToWhatsApp, 3000);
       } else {
@@ -95,25 +90,17 @@ async function connectToWhatsApp() {
       var jid = msg.key.remoteJid;
       if (!jid) continue;
 
-      // Skip group messages
       if (jid.endsWith("@g.us")) continue;
 
       var phone = jid.replace("@s.whatsapp.net", "");
 
-      // Extract message text
       var text = "";
       if (msg.message) {
         if (msg.message.conversation) {
           text = msg.message.conversation;
-        } else if (
-          msg.message.extendedTextMessage &&
-          msg.message.extendedTextMessage.text
-        ) {
+        } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) {
           text = msg.message.extendedTextMessage.text;
-        } else if (
-          msg.message.imageMessage &&
-          msg.message.imageMessage.caption
-        ) {
+        } else if (msg.message.imageMessage && msg.message.imageMessage.caption) {
           text = msg.message.imageMessage.caption;
         }
       }
@@ -133,15 +120,13 @@ async function connectToWhatsApp() {
           { timeout: 10000 }
         );
       } catch (err) {
-        console.error(
-          "[whatsapp-service] Failed to forward message to FastAPI: " + err.message
-        );
+        console.error("[whatsapp-service] Failed to forward to FastAPI: " + err.message);
       }
     }
   });
 }
 
-// ── Express HTTP server for outbound sends ────────────────────────────────────
+// ── Express HTTP server ───────────────────────────────────────────────────────
 
 const app = express();
 app.use(express.json());

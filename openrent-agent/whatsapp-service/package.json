@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Baileys WhatsApp bridge for OpenRent acquisition system",
   "main": "server.js",
-  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"
