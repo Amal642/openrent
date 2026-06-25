@@ -3,15 +3,9 @@
 /**
  * Baileys WhatsApp bridge for OpenRent phone acquisition.
  *
- * - Connects to WhatsApp via Baileys (multi-device)
- * - Saves auth state in ./auth_info_baileys/
- * - Prints QR code to terminal on first run
- * - Forwards all incoming messages to FastAPI at http://localhost:8000/api/whatsapp/incoming
- * - Exposes POST /send for FastAPI to trigger outbound messages
- *
- * Usage:
- *   npm install
- *   node server.js
+ * Only processes messages from people who text this number.
+ * No contact list syncing. @lid messages are skipped (real landlords
+ * text from @s.whatsapp.net which includes their actual phone number).
  */
 
 const baileys = require("@whiskeysockets/baileys");
@@ -22,44 +16,19 @@ const qrcode = require("qrcode-terminal");
 const axios = require("axios");
 const express = require("express");
 const pino = require("pino");
-const fs = require("fs");
 
 const FASTAPI_URL = "http://localhost:8000/api/whatsapp/incoming";
 const PORT = 3001;
-const CONTACTS_CACHE = "./contacts_cache.json";
 
 const logger = pino({ level: "warn" });
 
 let sock = null;
-
-// Persistent contact maps — survive restarts
-const lidToPhone = {};
-const nameToPhone = {};
-
-// Load persisted maps from previous sessions
-try {
-  if (fs.existsSync(CONTACTS_CACHE)) {
-    var cached = JSON.parse(fs.readFileSync(CONTACTS_CACHE, "utf8"));
-    Object.assign(lidToPhone, cached.lidToPhone || {});
-    Object.assign(nameToPhone, cached.nameToPhone || {});
-    console.log("[whatsapp-service] Loaded cache: " + Object.keys(lidToPhone).length + " lid→phone, " + Object.keys(nameToPhone).length + " name→phone mappings");
-  }
-} catch(e) {
-  console.log("[whatsapp-service] Could not load contacts cache: " + e.message);
-}
-
-function saveCache() {
-  try {
-    fs.writeFileSync(CONTACTS_CACHE, JSON.stringify({lidToPhone: lidToPhone, nameToPhone: nameToPhone}));
-  } catch(e) {}
-}
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
   const { version } = await fetchLatestBaileysVersion();
 
   console.log("[whatsapp-service] Connecting using Baileys v" + version.join("."));
-  console.log("[whatsapp-service] makeWASocket type:", typeof makeWASocket);
 
   sock = makeWASocket({
     version,
@@ -100,96 +69,12 @@ async function connectToWhatsApp() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  // Pending @lid live messages waiting for contacts.upsert to fire
-  const pendingLids = {};
-
-  // Levenshtein-based similarity — handles "Mohammed" vs "Mohamed" (edit dist = 1)
-  function editDist(a, b) {
-    var m = a.length, n = b.length;
-    if (!m) return n;
-    if (!n) return m;
-    var prev = [], curr = [];
-    for (var j = 0; j <= n; j++) prev[j] = j;
-    for (var i = 1; i <= m; i++) {
-      curr[0] = i;
-      for (var j = 1; j <= n; j++) {
-        curr[j] = a[i-1] === b[j-1] ? prev[j-1] : 1 + Math.min(prev[j], curr[j-1], prev[j-1]);
-      }
-      prev = curr.slice();
-    }
-    return prev[n];
-  }
-
-  function namesSimilar(a, b) {
-    if (!a || !b) return false;
-    if (a === b) return true;
-    if (a.includes(b) || b.includes(a)) return true;
-    var maxLen = Math.max(a.length, b.length);
-    return maxLen > 0 && (1 - editDist(a, b) / maxLen) >= 0.80;
-  }
-
-  function findPhoneByName(name) {
-    if (!name) return null;
-    var key = name.toLowerCase().replace(/\s+/g, "");
-    if (nameToPhone[key]) return nameToPhone[key];
-    for (var stored in nameToPhone) {
-      if (namesSimilar(stored, key)) return nameToPhone[stored];
-    }
-    return null;
-  }
-
-  function processContactList(contacts) {
-    for (var i = 0; i < contacts.length; i++) {
-      var contact = contacts[i];
-      console.log("[DBG contact] id=" + contact.id + " lid=" + contact.lid + " name=" + contact.name + " notify=" + contact.notify);
-      if (!contact.id || !contact.id.endsWith("@s.whatsapp.net")) continue;
-      var realPhone = contact.id.replace("@s.whatsapp.net", "");
-
-      // Try all name fields the contact might use
-      var names = [contact.name, contact.notify, contact.verifiedName].filter(Boolean);
-      for (var ni = 0; ni < names.length; ni++) {
-        nameToPhone[names[ni].toLowerCase().replace(/\s+/g, "")] = realPhone;
-      }
-      console.log("[DBG contact] stored phone=" + realPhone + " under names=" + JSON.stringify(names));
-
-      if (contact.lid) {
-        lidToPhone[contact.lid.replace("@lid", "")] = realPhone;
-      }
-
-      saveCache();
-
-      var contactName = (contact.name || contact.notify || "").toLowerCase().replace(/\s+/g, "");
-      for (var pendingLid in pendingLids) {
-        var pending = pendingLids[pendingLid];
-        var pendingName = (pending.pushName || "").toLowerCase().replace(/\s+/g, "");
-        var nameMatch = namesSimilar(contactName, pendingName);
-        var onlyOne = Object.keys(pendingLids).length === 1;
-        console.log("[DBG pending] lid=" + pendingLid + " contactName=" + contactName + " pendingName=" + pendingName + " nameMatch=" + nameMatch + " onlyOne=" + onlyOne);
-        if (nameMatch || onlyOne) {
-          lidToPhone[pendingLid] = realPhone;
-          console.log("[whatsapp-service] lid resolved: " + pendingLid + " → " + realPhone);
-          pending.resolve(realPhone);
-          delete pendingLids[pendingLid];
-          break;
-        }
-      }
-    }
-  }
-
-  sock.ev.on("contacts.upsert", function(c) { console.log("[DBG] contacts.upsert count=" + c.length); processContactList(c); });
-  sock.ev.on("contacts.update", function(c) { console.log("[DBG] contacts.update count=" + c.length); processContactList(c); });
-  sock.ev.on("messaging-history.set", function(data) {
-    var c = data.contacts || [];
-    console.log("[DBG] messaging-history.set contacts=" + c.length);
-    processContactList(c);
-  });
-
   sock.ev.on("messages.upsert", async function(event) {
     var messages = event.messages;
     var type = event.type;
 
-    // "notify" = live messages, "append" = history sync on connect
-    if (type !== "notify" && type !== "append") return;
+    // Only handle live incoming messages — ignore history replay
+    if (type !== "notify") return;
 
     for (var i = 0; i < messages.length; i++) {
       var msg = messages[i];
@@ -199,52 +84,16 @@ async function connectToWhatsApp() {
       var jid = msg.key.remoteJid;
       if (!jid) continue;
 
+      // Skip groups
       if (jid.endsWith("@g.us")) continue;
 
-      var phone;
-      if (jid.endsWith("@s.whatsapp.net")) {
-        phone = jid.replace("@s.whatsapp.net", "");
-      } else if (jid.endsWith("@lid")) {
-        var lidKey = jid.replace("@lid", "");
-        var pushNameRaw = msg.pushName || null;
-
-        console.log("[DBG @lid] lid=" + lidKey + " pushName=" + pushNameRaw + " nameToPhone keys=" + JSON.stringify(Object.keys(nameToPhone)));
-
-        if (lidToPhone[lidKey]) {
-          phone = lidToPhone[lidKey];
-          console.log("[DBG @lid] resolved from lidToPhone cache: " + phone);
-        } else if (pushNameRaw) {
-          var resolvedByName = findPhoneByName(pushNameRaw);
-          console.log("[DBG @lid] findPhoneByName(" + pushNameRaw + ") = " + resolvedByName);
-          if (resolvedByName) {
-            phone = resolvedByName;
-            lidToPhone[lidKey] = phone;
-            console.log("[whatsapp-service] @lid resolved via name: " + lidKey + " → " + phone);
-          }
-        }
-
-        if (!phone) {
-          console.log("[DBG @lid] entering 3s wait, pendingLids=" + JSON.stringify(Object.keys(pendingLids)));
-          phone = await new Promise(function(resolve) {
-            pendingLids[lidKey] = {pushName: pushNameRaw, resolve: resolve};
-            setTimeout(function() {
-              if (pendingLids[lidKey]) {
-                delete pendingLids[lidKey];
-                resolve(null);
-              }
-            }, 3000);
-          });
-          console.log("[DBG @lid] after 3s wait result=" + phone);
-        }
-
-        if (!phone) {
-          console.log("[whatsapp-service] @lid could not resolve real phone, skipping: " + jid);
-          continue;
-        }
-        console.log("[whatsapp-service] @lid final phone: " + phone);
-      } else {
+      // Only process real phone numbers — skip @lid (device identifiers, not phone numbers)
+      if (!jid.endsWith("@s.whatsapp.net")) {
+        console.log("[whatsapp-service] Skipping non-phone JID: " + jid);
         continue;
       }
+
+      var phone = jid.replace("@s.whatsapp.net", "");
 
       var text = "";
       if (msg.message) {
@@ -263,10 +112,9 @@ async function connectToWhatsApp() {
         ? Number(msg.messageTimestamp)
         : Math.floor(Date.now() / 1000);
 
-      // pushName is the sender's WhatsApp display name — use it directly
       var senderName = msg.pushName || null;
 
-      console.log("[whatsapp-service] Incoming from " + phone + (senderName ? " (" + senderName + ")" : "") + ": " + text.substring(0, 80));
+      console.log("[whatsapp-service] Incoming from +" + phone + (senderName ? " (" + senderName + ")" : "") + ": " + text.substring(0, 80));
 
       try {
         await axios.post(
@@ -301,7 +149,7 @@ app.post("/send", async function(req, res) {
   try {
     var jid = phone.includes("@") ? phone : phone + "@s.whatsapp.net";
     await sock.sendMessage(jid, { text: message });
-    console.log("[whatsapp-service] Sent to " + phone + ": " + message.substring(0, 80));
+    console.log("[whatsapp-service] Sent to +" + phone + ": " + message.substring(0, 80));
     return res.json({ status: "sent" });
   } catch (err) {
     console.error("[whatsapp-service] Send failed: " + err.message);
@@ -320,7 +168,6 @@ app.listen(PORT, function() {
   console.log("[whatsapp-service] HTTP server listening on port " + PORT);
 });
 
-// ── Start ─────────────────────────────────────────────────────────────────────
 connectToWhatsApp().catch(function(err) {
   console.error("[whatsapp-service] Fatal error:", err);
   process.exit(1);
