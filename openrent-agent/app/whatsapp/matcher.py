@@ -25,6 +25,17 @@ _STRIP_WORDS = {
     "thanks", "thank", "you", "please", "there",
 }
 
+_TRAILING_NON_NAME_WORDS = {
+    "the",
+    "owner",
+    "landlord",
+    "property",
+    "house",
+    "flat",
+    "apartment",
+    "room",
+}
+
 _NAME_PATTERNS = [
     re.compile(r"\bi(?:'m| am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)", re.IGNORECASE),
     re.compile(r"\bmy name(?:'s| is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)", re.IGNORECASE),
@@ -41,12 +52,19 @@ def _strip_greeting(text: str) -> str:
     return " ".join(result)
 
 
+def _clean_name_candidate(text: str) -> str:
+    words = text.strip().split()
+    while words and words[-1].lower().strip(".,!?") in _TRAILING_NON_NAME_WORDS:
+        words.pop()
+    return " ".join(words).strip(" ,.!?")
+
+
 def extract_name_from_message(text: str) -> Optional[str]:
     """Try regex patterns first; fall back to LLM for messages >= 3 words."""
     for pattern in _NAME_PATTERNS:
         match = pattern.search(text)
         if match:
-            name = match.group(1).strip()
+            name = _clean_name_candidate(match.group(1))
             if name:
                 return name
 
@@ -108,6 +126,52 @@ def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a.lower(), b.lower()).ratio() * 100
 
 
+def _norm(text: str | None) -> str:
+    return re.sub(r"\s+", " ", (text or "").lower()).strip()
+
+
+def _token_words(text: str | None) -> list[str]:
+    return [
+        token
+        for token in re.findall(r"[a-z0-9]+", _norm(text))
+        if len(token) >= 3
+    ]
+
+
+def _name_score(candidate: str | None, stored: str | None) -> float:
+    if not candidate or not stored:
+        return 0.0
+    candidate_norm = _norm(candidate)
+    stored_norm = _norm(stored)
+    score = _similarity(candidate_norm, stored_norm)
+    if candidate_norm and candidate_norm in stored_norm:
+        score = max(score, 82.0)
+    candidate_tokens = set(_token_words(candidate_norm))
+    stored_tokens = set(_token_words(stored_norm))
+    if candidate_tokens and candidate_tokens.issubset(stored_tokens):
+        score = max(score, 78.0)
+    return score
+
+
+def _property_score(candidate: str | None, stored: str | None) -> float:
+    if not candidate or not stored:
+        return 0.0
+    candidate_norm = _norm(candidate)
+    stored_norm = _norm(stored)
+    score = _similarity(candidate_norm, stored_norm)
+    if candidate_norm and candidate_norm in stored_norm:
+        score = max(score, 92.0)
+    candidate_tokens = set(_token_words(candidate_norm))
+    stored_tokens = set(_token_words(stored_norm))
+    if candidate_tokens and candidate_tokens.issubset(stored_tokens):
+        score = max(score, 88.0)
+
+    postcode = re.search(r"\b[a-z]{1,2}\d[a-z\d]?\s*\d[a-z]{2}\b", candidate_norm)
+    if postcode and postcode.group(0).replace(" ", "") in stored_norm.replace(" ", ""):
+        score = max(score, 96.0)
+    return score
+
+
 def match_landlord_by_name(name: str) -> list[dict]:
     """
     Query listings table for landlord_name matches.
@@ -125,11 +189,12 @@ def match_landlord_by_name(name: str) -> list[dict]:
         for listing in listings:
             if not listing.landlord_name:
                 continue
-            sim = _similarity(name, listing.landlord_name)
+            sim = _name_score(name, listing.landlord_name)
             if sim >= 40:  # minimum to consider
                 results.append({
                     "listing_id": listing.id,
                     "listing_listing_id": listing.listing_id,
+                    "thread_id": listing.thread_id,
                     "landlord_name": listing.landlord_name,
                     "landlord_id": listing.landlord_id,
                     "property_address": listing.property_address,
@@ -166,12 +231,12 @@ def match_landlord_by_property(
         for listing in listings:
             if not listing.property_address:
                 continue
-            addr_sim = _similarity(property_hint, listing.property_address)
+            addr_sim = _property_score(property_hint, listing.property_address)
 
             # Combine name similarity if we have a name
             score = addr_sim
             if name and listing.landlord_name:
-                name_sim = _similarity(name, listing.landlord_name)
+                name_sim = _name_score(name, listing.landlord_name)
                 # Weight: 60% address, 40% name
                 score = addr_sim * 0.6 + name_sim * 0.4
                 if name_sim > 50 and addr_sim > 50:
@@ -182,6 +247,7 @@ def match_landlord_by_property(
                 best = {
                     "listing_id": listing.id,
                     "listing_listing_id": listing.listing_id,
+                    "thread_id": listing.thread_id,
                     "landlord_name": listing.landlord_name,
                     "landlord_id": listing.landlord_id,
                     "property_address": listing.property_address,
@@ -229,3 +295,71 @@ def get_all_match_candidates(
     # Re-sort by confidence
     candidates.sort(key=lambda x: x["confidence"], reverse=True)
     return candidates, best_confidence
+
+
+def match_by_evidence(
+    names: list[str] | None,
+    property_hints: list[str] | None,
+) -> tuple[list[dict], float]:
+    """Score listings against accumulated WhatsApp name and property evidence."""
+    names = [n.strip() for n in (names or []) if n and n.strip()]
+    property_hints = [p.strip() for p in (property_hints or []) if p and p.strip()]
+
+    db = SessionLocal()
+    try:
+        listings = db.query(Listing).all()
+        candidates = []
+
+        for listing in listings:
+            best_name = (None, 0.0)
+            for name in names:
+                score = _name_score(name, listing.landlord_name)
+                if score > best_name[1]:
+                    best_name = (name, score)
+
+            best_property = (None, 0.0)
+            for hint in property_hints:
+                score = _property_score(hint, listing.property_address)
+                if score > best_property[1]:
+                    best_property = (hint, score)
+
+            name_score = best_name[1]
+            property_score = best_property[1]
+
+            if name_score and property_score:
+                confidence = property_score * 0.6 + name_score * 0.4
+                reason = "name+property"
+                if name_score >= 60 and property_score >= 75:
+                    confidence = min(98.0, confidence + 8)
+            elif property_score:
+                confidence = property_score
+                reason = "property"
+            elif name_score:
+                # Name-only is useful but less safe because names are not unique.
+                confidence = min(name_score, 72.0)
+                reason = "name"
+            else:
+                continue
+
+            if confidence < 40:
+                continue
+
+            candidates.append({
+                "listing_id": listing.id,
+                "listing_listing_id": listing.listing_id,
+                "thread_id": listing.thread_id,
+                "landlord_name": listing.landlord_name,
+                "landlord_id": listing.landlord_id,
+                "property_address": listing.property_address,
+                "confidence": confidence,
+                "name_score": name_score,
+                "property_score": property_score,
+                "matched_name": best_name[0],
+                "matched_property_hint": best_property[0],
+                "reason": reason,
+            })
+
+        candidates.sort(key=lambda x: x["confidence"], reverse=True)
+        return candidates, candidates[0]["confidence"] if candidates else 0.0
+    finally:
+        db.close()

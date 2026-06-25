@@ -4,13 +4,31 @@
  * Baileys WhatsApp bridge for OpenRent phone acquisition.
  *
  * Only processes messages from people who text this number.
- * No contact list syncing. @lid messages are skipped (real landlords
- * text from @s.whatsapp.net which includes their actual phone number).
+ * No contact list syncing. Some WhatsApp accounts arrive as @lid
+ * identifiers instead of @s.whatsapp.net phone JIDs (WhatsApp's phone-hiding
+ * Linked-ID system). On Baileys v7 we recover the real phone number from the
+ * message key (remoteJidAlt) and the on-device lidMapping store; only when
+ * that fails do we fall back to forwarding lid:<id> so the CRM still records
+ * the lead.
+ *
+ * Baileys v7 is ESM-only (package.json "type": "module"), so it is loaded via
+ * a dynamic import() from this CommonJS module.
  */
 
-const baileys = require("@whiskeysockets/baileys");
-const makeWASocket = baileys.default || baileys.makeWASocket || baileys;
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys;
+// Baileys exports resolved at startup by loadBaileys().
+let makeWASocket = null;
+let useMultiFileAuthState = null;
+let DisconnectReason = null;
+let fetchLatestBaileysVersion = null;
+
+async function loadBaileys() {
+  // v7 ESM namespace: named exports sit on the namespace; default is makeWASocket.
+  const baileys = await import("@whiskeysockets/baileys");
+  makeWASocket = baileys.makeWASocket || baileys.default;
+  useMultiFileAuthState = baileys.useMultiFileAuthState;
+  DisconnectReason = baileys.DisconnectReason;
+  fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
+}
 
 const qrcode = require("qrcode-terminal");
 const axios = require("axios");
@@ -18,13 +36,108 @@ const express = require("express");
 const pino = require("pino");
 
 const FASTAPI_URL = "http://localhost:8000/api/whatsapp/incoming";
+const RESOLVE_URL = "http://localhost:8000/api/whatsapp/resolve";
 const PORT = 3001;
 
 const logger = pino({ level: "warn" });
 
 let sock = null;
 
+function phoneFromJid(jid) {
+  if (!jid) return null;
+  if (jid.endsWith("@s.whatsapp.net")) {
+    return jid.replace("@s.whatsapp.net", "");
+  }
+  if (jid.endsWith("@lid")) {
+    return "lid:" + jid.replace("@lid", "");
+  }
+  return null;
+}
+
+function lidFromJid(jid) {
+  if (!jid) return null;
+  if (jid.endsWith("@lid")) {
+    return jid.replace("@lid", "");
+  }
+  return null;
+}
+
+function jidFromPhone(phone) {
+  if (phone.includes("@")) {
+    return phone;
+  }
+  if (phone.startsWith("lid:")) {
+    return phone.slice(4) + "@lid";
+  }
+  return phone + "@s.whatsapp.net";
+}
+
+function normalizeResolvedPhone(jidOrPhone) {
+  if (!jidOrPhone) return null;
+  if (jidOrPhone.endsWith && jidOrPhone.endsWith("@s.whatsapp.net")) {
+    return jidOrPhone.replace("@s.whatsapp.net", "");
+  }
+  var digits = String(jidOrPhone).replace(/\D/g, "");
+  return digits || null;
+}
+
+// Return bare phone digits from a phone JID (...@s.whatsapp.net) or raw PN, else null.
+function digitsFromPn(jidOrPn) {
+  if (!jidOrPn) return null;
+  var value = String(jidOrPn);
+  if (value.endsWith("@lid") || value.endsWith("@g.us")) return null;
+  if (value.endsWith("@s.whatsapp.net")) {
+    value = value.replace("@s.whatsapp.net", "");
+  }
+  var digits = value.replace(/\D/g, "");
+  return digits || null;
+}
+
+// Best-effort recovery of the real phone number behind an @lid sender.
+// 1. The PN often rides on the message key itself (remoteJidAlt for DMs).
+// 2. Otherwise consult Baileys' on-device PN<->LID store.
+// Returns bare phone digits or null when WhatsApp has not exposed the number.
+async function resolvePhoneForLid(socket, lidJid, msgKey) {
+  msgKey = msgKey || {};
+  var fromKey = digitsFromPn(msgKey.remoteJidAlt) || digitsFromPn(msgKey.senderPn);
+  if (fromKey) return fromKey;
+
+  try {
+    var store = socket && socket.signalRepository && socket.signalRepository.lidMapping;
+    if (store && typeof store.getPNForLID === "function") {
+      var pn = await store.getPNForLID(lidJid);
+      var digits = digitsFromPn(pn);
+      if (digits) return digits;
+    }
+  } catch (err) {
+    console.error("[whatsapp-service] lidMapping.getPNForLID failed: " + err.message);
+  }
+
+  return null;
+}
+
+async function postLidResolution(lid, phone, jid) {
+  var cleanLid = lid ? String(lid).replace("@lid", "").replace("lid:", "") : null;
+  var cleanPhone = normalizeResolvedPhone(phone || jid);
+  if (!cleanLid || !cleanPhone) return;
+
+  try {
+    await axios.post(
+      RESOLVE_URL,
+      { lid: cleanLid, phone: cleanPhone, jid: jid || null },
+      { timeout: 10000 }
+    );
+    console.log("[whatsapp-service] Resolved lid:" + cleanLid + " -> +" + cleanPhone);
+  } catch (err) {
+    console.error("[whatsapp-service] Failed to resolve LID in FastAPI: " + err.message);
+  }
+}
+
 async function connectToWhatsApp() {
+  if (!makeWASocket) {
+    await loadBaileys();
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
   const { version } = await fetchLatestBaileysVersion();
 
@@ -34,7 +147,6 @@ async function connectToWhatsApp() {
     version,
     auth: state,
     logger,
-    printQRInTerminal: false,
     browser: ["Land Royal", "Chrome", "1.0.0"],
   });
 
@@ -69,6 +181,46 @@ async function connectToWhatsApp() {
 
   sock.ev.on("creds.update", saveCreds);
 
+  // v7: WhatsApp discovers a PN<->LID mapping after the fact. Payload shape is
+  // still WIP upstream, so read every plausible field defensively.
+  sock.ev.on("lid-mapping.update", async function(event) {
+    var items = Array.isArray(event) ? event : [event];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i] || {};
+      var lid = item.lid || item.lidJid || item.lidUser;
+      var pn = item.pn || item.phoneNumber || item.jid || item.pnJid;
+      await postLidResolution(lid, pn, pn);
+    }
+  });
+
+  sock.ev.on("chats.phoneNumberShare", async function(event) {
+    var items = Array.isArray(event) ? event : [event];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i] || {};
+      await postLidResolution(item.lid || item.lidJid, item.jid || item.phoneNumber, item.jid);
+    }
+  });
+
+  sock.ev.on("contacts.upsert", async function(contacts) {
+    contacts = Array.isArray(contacts) ? contacts : [contacts];
+    for (var i = 0; i < contacts.length; i++) {
+      var contact = contacts[i] || {};
+      if (contact.lid && contact.id && String(contact.id).endsWith("@s.whatsapp.net")) {
+        await postLidResolution(contact.lid, contact.id, contact.id);
+      }
+    }
+  });
+
+  sock.ev.on("contacts.update", async function(contacts) {
+    contacts = Array.isArray(contacts) ? contacts : [contacts];
+    for (var i = 0; i < contacts.length; i++) {
+      var contact = contacts[i] || {};
+      if (contact.lid && contact.id && String(contact.id).endsWith("@s.whatsapp.net")) {
+        await postLidResolution(contact.lid, contact.id, contact.id);
+      }
+    }
+  });
+
   sock.ev.on("messages.upsert", async function(event) {
     var messages = event.messages;
     var type = event.type;
@@ -87,13 +239,11 @@ async function connectToWhatsApp() {
       // Skip groups
       if (jid.endsWith("@g.us")) continue;
 
-      // Only process real phone numbers — skip @lid (device identifiers, not phone numbers)
-      if (!jid.endsWith("@s.whatsapp.net")) {
+      var phone = phoneFromJid(jid);
+      if (!phone) {
         console.log("[whatsapp-service] Skipping non-phone JID: " + jid);
         continue;
       }
-
-      var phone = jid.replace("@s.whatsapp.net", "");
 
       var text = "";
       if (msg.message) {
@@ -113,13 +263,39 @@ async function connectToWhatsApp() {
         : Math.floor(Date.now() / 1000);
 
       var senderName = msg.pushName || null;
+      var lid = lidFromJid(jid);
+      var messageId = msg.key.id || null;
 
-      console.log("[whatsapp-service] Incoming from +" + phone + (senderName ? " (" + senderName + ")" : "") + ": " + text.substring(0, 80));
+      // Phone-hidden @lid sender: try to recover the real number (key alt field
+      // or the lidMapping store). On success, forward the real phone and merge
+      // any earlier lid:<id> row via the /resolve endpoint.
+      var resolvedPhone = null;
+      if (lid) {
+        resolvedPhone = await resolvePhoneForLid(sock, jid, msg.key);
+        if (resolvedPhone) {
+          phone = resolvedPhone;
+        }
+      }
+
+      var displayPhone = phone.startsWith("lid:") ? phone : "+" + phone;
+      console.log("[whatsapp-service] Incoming from " + displayPhone + (senderName ? " (" + senderName + ")" : "") + ": " + text.substring(0, 80));
+
+      if (lid && resolvedPhone) {
+        postLidResolution(lid, resolvedPhone, jid);
+      }
 
       try {
         await axios.post(
           FASTAPI_URL,
-          { phone: phone, message: text, timestamp: timestamp, sender_name: senderName },
+          {
+            phone: phone,
+            message: text,
+            timestamp: timestamp,
+            sender_name: senderName,
+            jid: jid,
+            lid: lid,
+            message_id: messageId
+          },
           { timeout: 10000 }
         );
       } catch (err) {
@@ -147,7 +323,7 @@ app.post("/send", async function(req, res) {
   }
 
   try {
-    var jid = phone.includes("@") ? phone : phone + "@s.whatsapp.net";
+    var jid = jidFromPhone(phone);
     await sock.sendMessage(jid, { text: message });
     console.log("[whatsapp-service] Sent to +" + phone + ": " + message.substring(0, 80));
     return res.json({ status: "sent" });

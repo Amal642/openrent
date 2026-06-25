@@ -24,6 +24,7 @@ from app.whatsapp.repository import (
     get_all_contacts,
     get_due_contacts,
     mark_reply_sent,
+    resolve_lid_to_phone,
     update_contact,
 )
 
@@ -35,6 +36,15 @@ class IncomingMessagePayload(BaseModel):
     message: str
     timestamp: Optional[int] = None
     sender_name: Optional[str] = None
+    jid: Optional[str] = None
+    lid: Optional[str] = None
+    message_id: Optional[str] = None
+
+
+class ResolveLidPayload(BaseModel):
+    lid: str
+    phone: str
+    jid: Optional[str] = None
 
 
 @router.post("/incoming")
@@ -47,8 +57,22 @@ async def whatsapp_incoming(payload: IncomingMessagePayload):
         message=payload.message,
         timestamp=payload.timestamp,
         sender_name=payload.sender_name,
+        jid=payload.jid,
+        lid=payload.lid,
+        message_id=payload.message_id,
     )
     return {"status": "ok"}
+
+
+@router.post("/resolve")
+async def whatsapp_resolve_lid(payload: ResolveLidPayload):
+    """Receive a Baileys LID-to-phone mapping and update the contact row."""
+    contact = resolve_lid_to_phone(payload.lid, payload.phone, payload.jid)
+    logger.info(
+        f"WHATSAPP_LID_RESOLVED lid={payload.lid} phone={payload.phone} "
+        f"contact_id={getattr(contact, 'id', None)}"
+    )
+    return {"status": "ok", "contact_id": getattr(contact, "id", None)}
 
 
 @router.get("/contacts")

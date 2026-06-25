@@ -32,6 +32,10 @@ class Settings:
     PROXY_PASSWORD = os.getenv("PROXY_PASSWORD")
 
     AI_AUTOSEND: bool = os.getenv("AI_AUTOSEND", "true").lower() == "true"
+    WHATSAPP_AUTO_REPLY_ENABLED: bool = (
+        os.getenv("WHATSAPP_AUTO_REPLY_ENABLED", "false").lower()
+        in {"1", "true", "yes", "on"}
+    )
     WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
     MAX_PARALLEL_WORKERS = int(os.getenv("MAX_PARALLEL_WORKERS", "2"))
     DISCOVERY_LIMIT_PER_RUN = int(os.getenv("DISCOVERY_LIMIT_PER_RUN", "25"))
