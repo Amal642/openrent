@@ -22,6 +22,7 @@ import { Route as FailedAccountsRouteImport } from './routes/failed-accounts'
 import { Route as DeletedAccountsRouteImport } from './routes/deleted-accounts'
 import { Route as AdvisorRouteImport } from './routes/advisor'
 import { Route as AreaIntelligenceRouteImport } from './routes/area-intelligence'
+import { Route as WhatsAppRouteImport } from './routes/whatsapp'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsThreadIdRouteImport } from './routes/leads.$threadId'
 
@@ -100,6 +101,11 @@ const AreaIntelligenceRoute = AreaIntelligenceRouteImport.update({
   path: '/area-intelligence',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WhatsAppRoute = WhatsAppRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/deleted-accounts': typeof DeletedAccountsRoute
   '/advisor': typeof AdvisorRoute
   '/area-intelligence': typeof AreaIntelligenceRoute
+  '/whatsapp': typeof WhatsAppRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
 }
 export interface FileRoutesByTo {
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/deleted-accounts': typeof DeletedAccountsRoute
   '/advisor': typeof AdvisorRoute
   '/area-intelligence': typeof AreaIntelligenceRoute
+  '/whatsapp': typeof WhatsAppRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
 }
 export interface FileRoutesById {
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/deleted-accounts': typeof DeletedAccountsRoute
   '/advisor': typeof AdvisorRoute
   '/area-intelligence': typeof AreaIntelligenceRoute
+  '/whatsapp': typeof WhatsAppRoute
   '/leads/$threadId': typeof LeadsThreadIdRoute
 }
 export interface FileRouteTypes {
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/deleted-accounts'
     | '/advisor'
     | '/area-intelligence'
+    | '/whatsapp'
     | '/leads/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/deleted-accounts'
     | '/advisor'
     | '/area-intelligence'
+    | '/whatsapp'
     | '/leads/$threadId'
   id:
     | '__root__'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/deleted-accounts'
     | '/advisor'
     | '/area-intelligence'
+    | '/whatsapp'
     | '/leads/$threadId'
   fileRoutesById: FileRoutesById
 }
@@ -222,6 +234,7 @@ export interface RootRouteChildren {
   DeletedAccountsRoute: typeof DeletedAccountsRoute
   AdvisorRoute: typeof AdvisorRoute
   AreaIntelligenceRoute: typeof AreaIntelligenceRoute
+  WhatsAppRoute: typeof WhatsAppRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -324,6 +337,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AreaIntelligenceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/whatsapp': {
+      id: '/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof WhatsAppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/leads/$threadId': {
       id: '/leads/$threadId'
       path: '/$threadId'
@@ -359,6 +379,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeletedAccountsRoute: DeletedAccountsRoute,
   AdvisorRoute: AdvisorRoute,
   AreaIntelligenceRoute: AreaIntelligenceRoute,
+  WhatsAppRoute: WhatsAppRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -91,6 +91,22 @@ REQUIRED_COLUMNS = {
         "fail_reason": "TEXT",
     },
 
+    "whatsapp_contacts": {
+        "name": "VARCHAR",
+        "landlord_id": "INTEGER",
+        "listing_id": "INTEGER",
+        "thread_id": "VARCHAR",
+        "first_message": "TEXT",
+        "last_message": "TEXT",
+        "last_ai_reply": "TEXT",
+        "last_received_at": "TIMESTAMP",
+        "status": "VARCHAR DEFAULT 'NEW_CONTACT'",
+        "confidence": "FLOAT",
+        "reply_scheduled_at": "TIMESTAMP",
+        "created_at": "TIMESTAMP",
+        "updated_at": "TIMESTAMP",
+    },
+
     "conversations": {
         "ai_error_reason": "TEXT",
 

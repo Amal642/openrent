@@ -76,6 +76,11 @@ from app.services.google_sheets_export_dispatcher import (
     start_google_sheets_export_dispatcher,
     stop_google_sheets_export_dispatcher,
 )
+from app.api.whatsapp_router import (
+    router as whatsapp_router,
+    start_whatsapp_reply_dispatcher,
+    stop_whatsapp_reply_dispatcher,
+)
 
 
 class SearchProfilePayload(BaseModel):
@@ -231,6 +236,9 @@ async def lifespan(app_instance):
     app_instance.state.google_sheets_export_dispatcher_task = (
         start_google_sheets_export_dispatcher()
     )
+    app_instance.state.whatsapp_reply_dispatcher_task = (
+        start_whatsapp_reply_dispatcher()
+    )
     try:
         yield
     finally:
@@ -250,12 +258,17 @@ async def lifespan(app_instance):
                 None,
             )
         )
+        await stop_whatsapp_reply_dispatcher(
+            getattr(app_instance.state, "whatsapp_reply_dispatcher_task", None)
+        )
 
 
 app = FastAPI(
     title="OpenRent Automation API",
     lifespan=lifespan,
 )
+
+app.include_router(whatsapp_router)
 
 
 class CRMAuthMiddleware(BaseHTTPMiddleware):

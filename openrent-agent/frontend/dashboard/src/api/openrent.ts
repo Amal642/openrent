@@ -20,6 +20,7 @@ import type {
   SearchProfile,
   SessionStatus,
   ProxyStatus,
+  WhatsAppContact,
   WorkerStatus,
   WorkersStatus,
   WorkerSummary,
@@ -882,4 +883,10 @@ export interface AreaIntelligenceMetric {
 
 export function getAreaIntelligence(): Promise<AreaIntelligenceMetric[]> {
   return get<AreaIntelligenceMetric[]>("/advisor/areas");
+}
+
+// ---------------- WHATSAPP ACQUISITIONS ----------------
+
+export function getWhatsAppContacts(limit = 200): Promise<WhatsAppContact[]> {
+  return get<WhatsAppContact[]>(`/whatsapp/contacts?limit=${limit}`);
 }

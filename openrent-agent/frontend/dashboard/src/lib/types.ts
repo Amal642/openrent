@@ -317,6 +317,30 @@ export interface DeletedAccount {
   createdAt?: string;
 }
 
+export type WhatsAppContactStatus =
+  | "NEW_CONTACT"
+  | "AWAITING_NAME"
+  | "AWAITING_PROPERTY"
+  | "PHONE_ACQUIRED";
+
+export interface WhatsAppContact {
+  id: number;
+  phone_number: string;
+  name?: string;
+  landlord_id?: number;
+  listing_id?: number;
+  property_address?: string;
+  thread_id?: string;
+  first_message?: string;
+  last_message?: string;
+  last_received_at?: string;
+  status: WhatsAppContactStatus;
+  confidence?: number;
+  reply_scheduled_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface AutomationSettings {
   openai_model: string;
   auto_send: boolean;

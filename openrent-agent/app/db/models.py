@@ -435,3 +435,25 @@ class LeadSheetExport(Base):
     exported_at = Column(DateTime, nullable=True)
 
     conversation = relationship("Conversation", back_populates="sheet_export")
+
+
+# ---------------- WHATSAPP CONTACTS ----------------
+
+class WhatsAppContact(Base):
+    __tablename__ = "whatsapp_contacts"
+
+    id = Column(Integer, primary_key=True)
+    phone_number = Column(String, unique=True, nullable=False, index=True)
+    name = Column(String, nullable=True)
+    landlord_id = Column(Integer, ForeignKey("landlords.id"), nullable=True)
+    listing_id = Column(Integer, ForeignKey("listings.id"), nullable=True)
+    thread_id = Column(String, nullable=True)
+    first_message = Column(Text, nullable=True)
+    last_message = Column(Text, nullable=True)
+    last_ai_reply = Column(Text, nullable=True)
+    last_received_at = Column(DateTime, nullable=True)
+    status = Column(String, default="NEW_CONTACT")
+    confidence = Column(Float, nullable=True)
+    reply_scheduled_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
