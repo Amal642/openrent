@@ -157,11 +157,15 @@ async function connectToWhatsApp() {
             setTimeout(function() {
               if (pendingLids[lidKey]) {
                 delete pendingLids[lidKey];
-                resolve("lid:" + lidKey);
+                resolve(null); // could not resolve
               }
             }, 3000);
           });
-          console.log("[whatsapp-service] @lid resolved to: " + phone);
+          if (!phone) {
+            console.log("[whatsapp-service] @lid could not resolve real phone, skipping: " + jid);
+            continue;
+          }
+          console.log("[whatsapp-service] @lid resolved to real phone: " + phone);
         }
       } else {
         continue;
