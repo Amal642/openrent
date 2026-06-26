@@ -344,6 +344,40 @@ def resolve_lid_to_phone(lid: str, phone: str, jid: str | None = None) -> Option
         db.close()
 
 
+def create_manual_contact(phone: str, name: Optional[str], property_address: Optional[str]) -> WhatsAppContact:
+    """Create a manually-entered contact, marked as PHONE_ACQUIRED with no confidence score."""
+    db = SessionLocal()
+    try:
+        existing = db.query(WhatsAppContact).filter(WhatsAppContact.phone_number == phone).first()
+        if existing:
+            if name:
+                existing.name = name
+            if property_address:
+                existing.property_address = property_address
+            existing.is_manual = True
+            existing.status = "PHONE_ACQUIRED"
+            existing.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(existing)
+            return existing
+
+        contact = WhatsAppContact(
+            phone_number=phone,
+            name=name,
+            property_address=property_address,
+            status="PHONE_ACQUIRED",
+            is_manual=True,
+            match_status="UNMATCHED",
+            created_at=datetime.utcnow(),
+        )
+        db.add(contact)
+        db.commit()
+        db.refresh(contact)
+        return contact
+    finally:
+        db.close()
+
+
 def update_contact(contact_id: int, **kwargs) -> Optional[WhatsAppContact]:
     db = SessionLocal()
     try:
@@ -441,11 +475,11 @@ def get_all_contacts(limit: int = 200) -> list[dict]:
         )
         result = []
         for c in contacts:
-            # Attempt to fetch linked property address
-            property_address = None
+            # Property address: from linked listing, or direct column (manual entries)
+            property_address = getattr(c, "property_address", None)
             if c.listing_id:
                 listing = db.query(Listing).filter(Listing.id == c.listing_id).first()
-                if listing:
+                if listing and listing.property_address:
                     property_address = listing.property_address
 
             result.append({
@@ -468,6 +502,7 @@ def get_all_contacts(limit: int = 200) -> list[dict]:
                 "last_received_at": c.last_received_at.isoformat() if c.last_received_at else None,
                 "status": c.status,
                 "confidence": c.confidence,
+                "is_manual": bool(getattr(c, "is_manual", False)),
                 "reply_scheduled_at": c.reply_scheduled_at.isoformat() if c.reply_scheduled_at else None,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None,

@@ -15,13 +15,15 @@ from contextlib import suppress
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from app.utils.logger import logger
 from app.whatsapp.reply import send_whatsapp_message
 from app.whatsapp.repository import (
+    create_manual_contact,
     get_all_contacts,
+    get_contact_by_phone,
     get_due_contacts,
     mark_reply_sent,
     resolve_lid_to_phone,
@@ -79,6 +81,55 @@ async def whatsapp_resolve_lid(payload: ResolveLidPayload):
 def whatsapp_contacts(limit: int = 200):
     """Return all WhatsApp acquisition contacts for the dashboard."""
     return get_all_contacts(limit=limit)
+
+
+class ManualContactPayload(BaseModel):
+    phone: str
+    name: Optional[str] = None
+    property_address: Optional[str] = None
+
+
+class EditContactPayload(BaseModel):
+    phone: Optional[str] = None
+    name: Optional[str] = None
+    property_address: Optional[str] = None
+
+
+@router.post("/contacts")
+def whatsapp_create_manual_contact(payload: ManualContactPayload):
+    """Manually add a WhatsApp contact (bypasses state machine, marked PHONE_ACQUIRED)."""
+    phone = payload.phone.strip().lstrip("+").replace(" ", "")
+    if not phone:
+        raise HTTPException(status_code=400, detail="phone is required")
+    contact = create_manual_contact(phone, payload.name, payload.property_address)
+    return {"status": "ok", "id": contact.id}
+
+
+@router.patch("/contacts/{contact_id}")
+def whatsapp_edit_contact(contact_id: int, payload: EditContactPayload):
+    """Edit an unresolved (lid) contact — update phone, name, and/or property address."""
+    updates: dict = {}
+    if payload.name is not None:
+        updates["name"] = payload.name.strip() or None
+    if payload.property_address is not None:
+        updates["property_address"] = payload.property_address.strip() or None
+    if payload.phone is not None:
+        new_phone = payload.phone.strip().lstrip("+").replace(" ", "")
+        if new_phone:
+            existing = get_contact_by_phone(new_phone)
+            if existing and existing.id != contact_id:
+                raise HTTPException(status_code=409, detail="Phone number already exists")
+            updates["phone_number"] = new_phone
+            updates["status"] = "PHONE_ACQUIRED"
+            updates["is_manual"] = True
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    contact = update_contact(contact_id, **updates)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return {"status": "ok", "id": contact.id}
 
 
 # ── Background reply dispatcher ───────────────────────────────────────────────

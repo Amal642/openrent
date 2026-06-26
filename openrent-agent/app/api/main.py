@@ -81,6 +81,7 @@ from app.api.whatsapp_router import (
     start_whatsapp_reply_dispatcher,
     stop_whatsapp_reply_dispatcher,
 )
+from app.services.listing_cleanup import start_listing_cleanup, stop_listing_cleanup
 
 
 class SearchProfilePayload(BaseModel):
@@ -239,6 +240,7 @@ async def lifespan(app_instance):
     app_instance.state.whatsapp_reply_dispatcher_task = (
         start_whatsapp_reply_dispatcher()
     )
+    app_instance.state.listing_cleanup_task = start_listing_cleanup()
     try:
         yield
     finally:
@@ -260,6 +262,9 @@ async def lifespan(app_instance):
         )
         await stop_whatsapp_reply_dispatcher(
             getattr(app_instance.state, "whatsapp_reply_dispatcher_task", None)
+        )
+        await stop_listing_cleanup(
+            getattr(app_instance.state, "listing_cleanup_task", None)
         )
 
 
