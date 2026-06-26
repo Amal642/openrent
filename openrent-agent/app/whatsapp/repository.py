@@ -273,7 +273,12 @@ def apply_match_result(
 
 
 def resolve_lid_to_phone(lid: str, phone: str, jid: str | None = None) -> Optional[WhatsAppContact]:
-    """Replace or merge an unresolved lid:* row with the real phone number."""
+    """Replace or merge an unresolved lid:* row with the real phone number.
+
+    Baileys v7 can emit PN<->LID mappings for contacts that never sent an
+    inbound lead message. Those mappings should not create empty CRM contacts;
+    they should only resolve rows we already captured from /incoming.
+    """
     db = SessionLocal()
     try:
         lid_value = lid.replace("@lid", "").replace("lid:", "")
@@ -321,15 +326,7 @@ def resolve_lid_to_phone(lid: str, phone: str, jid: str | None = None) -> Option
 
         contact = source or target
         if not contact:
-            contact = WhatsAppContact(
-                phone_number=phone,
-                lid=lid_value,
-                jid=jid,
-                status="NEW_CONTACT",
-                match_status="UNMATCHED",
-            )
-            db.add(contact)
-            db.flush()
+            return None
         else:
             contact.phone_number = phone
             contact.lid = contact.lid or lid_value
