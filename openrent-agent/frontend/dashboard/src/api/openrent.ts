@@ -890,3 +890,18 @@ export function getAreaIntelligence(): Promise<AreaIntelligenceMetric[]> {
 export function getWhatsAppContacts(limit = 200): Promise<WhatsAppContact[]> {
   return get<WhatsAppContact[]>(`/whatsapp/contacts?limit=${limit}`);
 }
+
+export function createManualWhatsAppContact(data: {
+  phone: string;
+  name?: string;
+  property_address?: string;
+}): Promise<{ status: string; id: number }> {
+  return post<{ status: string; id: number }>("/whatsapp/contacts", data);
+}
+
+export function editWhatsAppContact(
+  id: number,
+  data: { phone?: string; name?: string; property_address?: string },
+): Promise<{ status: string; id: number }> {
+  return patch<{ status: string; id: number }>(`/whatsapp/contacts/${id}`, data);
+}

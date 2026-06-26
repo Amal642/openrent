@@ -462,6 +462,8 @@ class WhatsAppContact(Base):
     last_received_at = Column(DateTime, nullable=True)
     status = Column(String, default="NEW_CONTACT")
     confidence = Column(Float, nullable=True)
+    is_manual = Column(Boolean, default=False, nullable=True)
+    property_address = Column(String, nullable=True)
     reply_scheduled_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -2557,6 +2557,29 @@ def attach_landlord_to_listing(listing_id, landlord_id):
             db.commit()
 
 
+def delete_stale_uncontacted_listings(days: int = 30) -> int:
+    """Delete fetched listings that were never messaged and are older than `days` days.
+    Only touches message_sent=False rows — never deletes listings with sent messages."""
+    threshold = datetime.utcnow() - timedelta(days=days)
+    with session_scope() as db:
+        stale = (
+            db.query(Listing)
+            .filter(
+                Listing.message_sent == False,
+                Listing.first_seen < threshold,
+            )
+            .all()
+        )
+        count = len(stale)
+        for listing in stale:
+            db.delete(listing)
+        if stale:
+            db.commit()
+            from app.utils.logger import logger
+            logger.info(f"LISTING_CLEANUP_DELETED count={count} older_than_days={days}")
+        return count
+
+
 def archive_stale_listings(days: int = 30) -> int:
     """Archive uncontacted listings not seen within the given number of days."""
     threshold = datetime.utcnow() - timedelta(days=days)

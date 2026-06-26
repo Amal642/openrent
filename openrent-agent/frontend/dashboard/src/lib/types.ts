@@ -336,6 +336,7 @@ export interface WhatsAppContact {
   last_received_at?: string;
   status: WhatsAppContactStatus;
   confidence?: number;
+  is_manual?: boolean;
   reply_scheduled_at?: string;
   created_at?: string;
   updated_at?: string;
