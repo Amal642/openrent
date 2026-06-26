@@ -130,6 +130,31 @@ htmlcov/
 
 # -----------------------------
 
+# Node / Frontend
+
+# -----------------------------
+
+node_modules/
+package-lock.json
+bun.lock
+
+# Frontend build output
+frontend/dashboard/dist/
+frontend/simulation-lab/dist/
+frontend/openrent-command-center/dist/
+
+# -----------------------------
+
+# WhatsApp service
+
+# -----------------------------
+
+whatsapp-service/node_modules/
+whatsapp-service/auth_info_baileys/
+whatsapp-service/contacts_cache.json
+
+# -----------------------------
+
 # Misc
 
 # -----------------------------
