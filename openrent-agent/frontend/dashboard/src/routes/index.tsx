@@ -56,6 +56,7 @@ const statusFilters = [
   { label: "Needs attention", value: "attention" },
   { label: "Active", value: "active" },
   { label: "With phones", value: "phones" },
+  { label: "WhatsApp shared", value: "whatsapp_shared" },
   { label: "Inactive", value: "inactive" },
 ];
 
@@ -124,6 +125,7 @@ function Dashboard() {
           return ["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"].includes(lead.status);
         }
         if (statusFilter === "phones") return Boolean(lead.phoneNumber);
+        if (statusFilter === "whatsapp_shared") return Boolean(lead.ourNumberSharedAt);
         if (statusFilter === "inactive") return lead.status === "INACTIVE_NO_REPLY";
         return true;
       })
@@ -464,6 +466,11 @@ function Dashboard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{lead.landlordName}</span>
                   <StatusBadge status={lead.status} />
+                  {lead.ourNumberSharedAt && (
+                    <span className="inline-flex items-center rounded-full border border-blue-400/30 bg-blue-400/15 px-2 py-0.5 text-xs font-medium text-blue-400">
+                      WhatsApp shared
+                    </span>
+                  )}
                 </div>
                 <div className="mt-1 truncate text-xs text-muted-foreground">
                   {lead.area} /{" "}

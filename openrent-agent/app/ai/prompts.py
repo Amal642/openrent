@@ -317,9 +317,12 @@ def _phone_policy_lines(
         lines.insert(0, f"- Husband's/partner's WhatsApp number: {mobile}")
         lines.insert(
             5,
-            f"- If the landlord asks for our number OR seems reluctant to share their own: share {mobile} as "
-            "'my husband's WhatsApp' (or 'my partner's WhatsApp' if unsure). "
-            "Tell them to reach out via WhatsApp only. Do NOT ask for their number in that same message.",
+            f"- Only share {mobile} as 'my husband's WhatsApp' (or 'my partner's WhatsApp') when BOTH of the following are true: "
+            "(1) the landlord has explicitly asked for our phone number or WhatsApp, AND "
+            "(2) the landlord has indicated they will not share their own number. "
+            "If the landlord has already shared their phone number with us, do NOT share ours — there is no need. "
+            "If only one condition is met (e.g. they asked but haven't refused to share theirs, or they refused but haven't asked for ours), do not share our number yet. "
+            "When you do share it, tell them to reach out via WhatsApp only. Do NOT ask for their number in that same message.",
         )
     else:
         lines.insert(0, "- No mobile number is assigned for this account.")

@@ -141,6 +141,7 @@ type BackendLead = {
   phone_requested_at?: string;
   phone_found_at?: string;
   phone_number_shared_at?: string;
+  our_number_shared_at?: string;
   landlord_asked_phone_at?: string;
   landlord_attitude?: string;
   conversation_style?: string;
@@ -358,6 +359,7 @@ function mapLead(lead: BackendLead): Lead {
     phoneRequestedAt: lead.phone_requested_at,
     phoneFoundAt: lead.phone_found_at,
     phoneNumberSharedAt: lead.phone_number_shared_at,
+    ourNumberSharedAt: lead.our_number_shared_at,
     landlordAskedPhoneAt: lead.landlord_asked_phone_at,
     landlordAttitude: lead.landlord_attitude,
     conversationStyle: lead.conversation_style,

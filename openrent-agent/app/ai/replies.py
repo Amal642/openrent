@@ -258,12 +258,17 @@ def generate_reply(
             f" topics={screening_questions}"
         )
 
+    landlord_already_gave_number = bool(
+        conversation_state and getattr(conversation_state, "phone_found", False)
+    )
     if (
-        (landlord_asked_number or landlord_hesitant)
+        landlord_asked_number
+        and landlord_hesitant
+        and not landlord_already_gave_number
         and not number_shared
-        and not screening_questions  # defer to full prompt when screening present
+        and not screening_questions
         and conversation_design_id not in LANDLORD_NUMBER_CAPTURE_DESIGNS
-        and (persona or {}).get("mobile_number")  # only if we have a number to share
+        and (persona or {}).get("mobile_number")
     ):
         phone_reply = generate_phone_share_reply(
             persona,

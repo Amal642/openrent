@@ -1282,11 +1282,29 @@ async def process_account_replies(
             # screening questions.  If questions are present, the AI was
             # already instructed to answer them first; injecting a number here
             # would override that answer with a phone line.
-            if landlord_asked_number or landlord_hesitant:
+            # Only share our WhatsApp number when BOTH conditions are true:
+            # 1. Landlord explicitly asked for our number
+            # 2. Landlord is unwilling to share their own number
+            # Never share if we already received the landlord's number.
+            landlord_already_gave_number = bool(
+                conversation and getattr(conversation, "phone_found", False)
+            )
+            should_share_our_number = (
+                landlord_asked_number
+                and landlord_hesitant
+                and not landlord_already_gave_number
+            )
+            if should_share_our_number or landlord_asked_number or landlord_hesitant:
                 before_safeguard = reply
                 reply = remove_unapproved_phone_numbers(reply, mobile)
 
-                if mobile and mobile not in reply and not screening_questions and ab_expose_mobile:
+                if (
+                    should_share_our_number
+                    and mobile
+                    and mobile not in reply
+                    and not screening_questions
+                    and ab_expose_mobile
+                ):
                     whatsapp_line = (
                         f"My husband's WhatsApp is {mobile} — "
                         "he handles the viewing coordination, so best to reach him there."

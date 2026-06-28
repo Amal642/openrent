@@ -170,6 +170,7 @@ export interface Lead {
   phoneRequestedAt?: string;
   phoneFoundAt?: string;
   phoneNumberSharedAt?: string;
+  ourNumberSharedAt?: string;
   landlordAskedPhoneAt?: string;
   landlordAttitude?: string;
   conversationStyle?: string;
