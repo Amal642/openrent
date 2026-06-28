@@ -14,6 +14,7 @@ export const STATUS_META: Record<LeadStatus, { label: string; tone: "info" | "wa
   INACTIVE_NO_REPLY: { label: "Inactive (no reply)", tone: "muted" },
   SHORT_TERM_PROPERTY: { label: "Short term", tone: "muted" },
   CLOSED: { label: "Closed", tone: "success" },
+  WHATSAPP_SHARED: { label: "WhatsApp shared", tone: "info" },
 };
 
 export const TONE_CLASS: Record<string, string> = {

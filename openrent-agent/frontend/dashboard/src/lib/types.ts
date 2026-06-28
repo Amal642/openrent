@@ -11,7 +11,8 @@ export type LeadStatus =
   | "VIEWING_CANCELLED"
   | "INACTIVE_NO_REPLY"
   | "SHORT_TERM_PROPERTY"
-  | "CLOSED";
+  | "CLOSED"
+  | "WHATSAPP_SHARED";
 
 export type ConversationStage =
   | "NEW_LEAD"

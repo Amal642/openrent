@@ -125,12 +125,18 @@ function LeadsList() {
   const filtered = useMemo(
     () =>
       leads.filter((l) => {
-        if (statuses.length > 0 && !statuses.includes(l.status)) return false;
+        if (statuses.length > 0) {
+          const wantsWhatsapp = statuses.includes("WHATSAPP_SHARED");
+          const otherStatuses = statuses.filter((s) => s !== "WHATSAPP_SHARED");
+          const matchesStatus = otherStatuses.length === 0 || otherStatuses.some((s) => s === l.status);
+          const matchesWhatsapp = !wantsWhatsapp || Boolean(l.ourNumberSharedAt);
+          if (!matchesStatus || !matchesWhatsapp) return false;
+        }
         if (accountIds.length > 0 && !accountIds.includes(l.accountId)) return false;
         if (profileIds.length > 0 && !profileIds.includes(l.searchProfileId)) return false;
         if (hasPhone && !l.phoneNumber) return false;
         if (aiFailed && l.status !== "AI_FAILED") return false;
-        if (activeOnly && !["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"].includes(l.status))
+        if (activeOnly && !(["INITIAL_MESSAGE_SENT", "NEW_REPLY", "AI_REPLIED"] as LeadStatus[]).includes(l.status))
           return false;
         if (viewingsOnly && !l.viewingConfirmed) return false;
         if (lastUpdated !== "all") {
@@ -278,7 +284,14 @@ function LeadsList() {
             {paginated.map((l) => (
               <TableRow key={l.id} className="cursor-pointer">
                 <TableCell>
-                  <StatusBadge status={l.status} />
+                  <div className="flex flex-wrap gap-1">
+                    <StatusBadge status={l.status} />
+                    {l.ourNumberSharedAt && (
+                      <span className="inline-flex items-center gap-1.5 rounded-md border bg-info/15 text-info border-info/30 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+                        WhatsApp shared
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="max-w-[180px] truncate">{l.landlordName}</TableCell>
                 <TableCell className="tabular-nums text-sm">
