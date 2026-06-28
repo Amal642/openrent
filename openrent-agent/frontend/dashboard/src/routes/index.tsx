@@ -467,7 +467,7 @@ function Dashboard() {
                   <span className="font-medium">{lead.landlordName}</span>
                   <StatusBadge status={lead.status} />
                   {lead.ourNumberSharedAt && (
-                    <span className="inline-flex items-center rounded-full border border-blue-400/30 bg-blue-400/15 px-2 py-0.5 text-xs font-medium text-blue-400">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border bg-info/15 text-info border-info/30 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
                       WhatsApp shared
                     </span>
                   )}
