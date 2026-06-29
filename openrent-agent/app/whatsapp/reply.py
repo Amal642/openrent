@@ -51,22 +51,22 @@ def next_reply_time() -> datetime:
 
 
 def generate_closing_reply(name: Optional[str] = None) -> str:
-    """Generate a warm LLM closing reply after PHONE_ACQUIRED."""
-    name_part = f" {name}" if name else ""
+    """Generate a closing reply after a landlord has been matched to a property."""
     try:
         prompt = (
-            "You are a property owner's wife who handles their properties on OpenRent. "
-            "A landlord has just texted your WhatsApp number and you've identified who they are. "
-            f"Write a warm, brief, human closing message (1-2 sentences) thanking{name_part} for getting in touch. "
-            "Mention you'll speak to your husband and be in touch soon. "
-            "Vary the phrasing — do not use templates. Be natural, friendly, and British.\n\n"
+            "A landlord has texted a WhatsApp number about a property enquiry on OpenRent. "
+            "We've now identified which property they're advertising. "
+            "Write a very short, warm closing message (1 sentence) saying thanks and that we'll "
+            "discuss and get back to them. "
+            "Rules: casual WhatsApp tone, no names, no personal details, no em dashes, "
+            "no bullet points, vary the phrasing each time, sound like a real person not a template. "
             "Reply with ONLY the message text, no quotes."
         )
         response = _client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
-            max_tokens=80,
+            max_tokens=60,
         )
         text = response.choices[0].message.content.strip().strip('"')
         if text:
@@ -74,25 +74,17 @@ def generate_closing_reply(name: Optional[str] = None) -> str:
     except Exception as exc:
         logger.warning(f"WHATSAPP_CLOSING_LLM_FAILED error={exc}")
 
-    # Fallback
-    if name:
-        return f"Thanks so much for getting in touch, {name}! I'll have a chat with my husband and we'll be in touch very soon."
-    return "Thanks so much for getting in touch! I'll have a chat with my husband and we'll be in touch very soon."
+    return "Thanks for getting in touch! We'll have a discuss and get back to you soon."
 
 
 def build_name_ask() -> str:
-    return "Hi! Could I ask who I'm speaking with please?"
+    return "Hi! Sorry, could I ask who I'm speaking with?"
 
 
 def build_property_ask(name: Optional[str] = None) -> str:
-    if name:
-        return (
-            f"Thanks {name}! My wife handles our properties on OpenRent — "
-            "could you let me know which property you're enquiring about?"
-        )
     return (
-        "Thanks! My wife handles our properties on OpenRent — "
-        "could you let me know which property you're enquiring about?"
+        "Hi, my wife manages our enquiries on OpenRent. "
+        "Could you let us know the property address or details so we can look it up?"
     )
 
 
