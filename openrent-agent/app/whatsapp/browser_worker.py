@@ -79,22 +79,27 @@ class WhatsAppWebWorker:
         if not self.proxy_id:
             return None
         try:
-            from app.db.repository import get_proxy
-            proxy = get_proxy(self.proxy_id)  # returns a dict
-            if not proxy:
-                logger.warning(f"WHATSAPP_WEB_PROXY_NOT_FOUND proxy_id={self.proxy_id}")
-                return None
-            # get_proxy returns a serialized dict
-            host = proxy.get("host") if isinstance(proxy, dict) else getattr(proxy, "host", None)
-            port = proxy.get("port") if isinstance(proxy, dict) else getattr(proxy, "port", None)
-            is_active = proxy.get("is_active", True) if isinstance(proxy, dict) else getattr(proxy, "is_active", True)
-            username = proxy.get("username", "") if isinstance(proxy, dict) else (getattr(proxy, "username", "") or "")
-            password = proxy.get("password", "") if isinstance(proxy, dict) else (getattr(proxy, "password", "") or "")
-            if is_active and host:
-                server = f"http://{host}:{port}"
-                logger.info(f"WHATSAPP_WEB proxy_server={server} proxy_id={self.proxy_id}")
-                return {"server": server, "username": username or "", "password": password or ""}
-            logger.warning(f"WHATSAPP_WEB_PROXY_INACTIVE proxy_id={self.proxy_id}")
+            # Query the ORM directly — get_proxy() serializes to a dict that
+            # intentionally omits the password (security). We need the decrypted
+            # password, which EncryptedString provides transparently via the model.
+            from app.db.models import Proxy as _Proxy
+            from app.db.session import session_scope
+            with session_scope() as db:
+                proxy = db.query(_Proxy).filter(_Proxy.id == self.proxy_id).first()
+                if not proxy:
+                    logger.warning(f"WHATSAPP_WEB_PROXY_NOT_FOUND proxy_id={self.proxy_id}")
+                    return None
+                if not proxy.is_active or not proxy.host:
+                    logger.warning(f"WHATSAPP_WEB_PROXY_INACTIVE proxy_id={self.proxy_id}")
+                    return None
+                server = f"http://{proxy.host}:{proxy.port}"
+                username = proxy.username or ""
+                password = proxy.password or ""
+                logger.info(
+                    f"WHATSAPP_WEB proxy_server={server} proxy_id={self.proxy_id} "
+                    f"has_auth={bool(username)}"
+                )
+                return {"server": server, "username": username, "password": password}
         except Exception as exc:
             logger.warning(f"WHATSAPP_WEB_PROXY_LOAD_FAILED error={exc}")
         return None
