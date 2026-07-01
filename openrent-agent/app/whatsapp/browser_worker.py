@@ -432,6 +432,7 @@ class WhatsAppWebWorker:
 
     async def _handle_qr_scan(self) -> None:
         self.status = "needs_scan"
+        self.last_error = None
         await self._capture_qr()
         logger.warning(
             "WHATSAPP_WEB_AWAITING_QR_SCAN — open dashboard and scan the QR code"
@@ -464,38 +465,35 @@ class WhatsAppWebWorker:
     # ── QR capture ────────────────────────────────────────────────────────────
 
     async def _capture_qr(self) -> None:
-        import base64 as _b64
-
-        # Method 1: extract canvas data URL via JS (most reliable in Xvfb)
+        # Method 1: clip page screenshot to QR bounding box (works in Xvfb, avoids canvas taint)
         try:
-            data_url: str = await self._page.evaluate("""() => {
-                const container = document.querySelector('[data-testid="link-device-qr-code"]');
-                if (!container) return '';
-                const canvas = container.querySelector('canvas');
-                if (canvas) return canvas.toDataURL('image/png');
-                const img = container.querySelector('img');
-                if (img && img.src.startsWith('data:')) return img.src;
-                return '';
-            }""")
-            if data_url and "base64," in data_url:
-                img_bytes = _b64.b64decode(data_url.split(",", 1)[1])
-                QR_FILE.write_bytes(img_bytes)
-                logger.info(f"WHATSAPP_WEB_QR_CAPTURED_CANVAS size={len(img_bytes)} path={QR_FILE}")
+            qr_loc = self._page.locator(SEL_QR)
+            bbox = await qr_loc.bounding_box(timeout=5000)
+            if bbox and bbox["width"] > 10 and bbox["height"] > 10:
+                await self._page.screenshot(
+                    path=str(QR_FILE),
+                    clip={"x": bbox["x"], "y": bbox["y"],
+                          "width": bbox["width"], "height": bbox["height"]},
+                    timeout=10000,
+                )
+                logger.info(
+                    f"WHATSAPP_WEB_QR_CAPTURED_CLIP size={QR_FILE.stat().st_size} "
+                    f"bbox={bbox} path={QR_FILE}"
+                )
                 return
-            logger.warning("WHATSAPP_WEB_QR_CANVAS_EMPTY no canvas/img data found in QR container")
+            logger.warning(f"WHATSAPP_WEB_QR_BBOX_EMPTY bbox={bbox}")
         except Exception as exc:
-            logger.warning(f"WHATSAPP_WEB_QR_CANVAS_FAILED error={exc}")
+            logger.warning(f"WHATSAPP_WEB_QR_CLIP_FAILED error={exc}")
 
         # Method 2: element screenshot
         try:
-            qr = self._page.locator(SEL_QR)
-            await qr.screenshot(path=str(QR_FILE), timeout=10000)
+            await self._page.locator(SEL_QR).screenshot(path=str(QR_FILE), timeout=10000)
             logger.info(f"WHATSAPP_WEB_QR_CAPTURED_ELEMENT path={QR_FILE}")
             return
         except Exception as exc:
             logger.warning(f"WHATSAPP_WEB_QR_ELEMENT_FAILED error={exc}")
 
-        # Method 3: full page screenshot (user can crop)
+        # Method 3: full page screenshot
         try:
             await self._page.screenshot(path=str(QR_FILE), timeout=10000)
             logger.info("WHATSAPP_WEB_QR_CAPTURED_FULLPAGE")
