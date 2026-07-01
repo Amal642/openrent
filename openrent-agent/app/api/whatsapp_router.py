@@ -59,6 +59,17 @@ def whatsapp_qr():
     return FileResponse(str(QR_FILE), media_type="image/png")
 
 
+DIAG_FILE = Path("whatsapp-diag.png")
+
+
+@router.get("/diag")
+def whatsapp_diag():
+    """Serve the last diagnostic screenshot (captured on load timeout)."""
+    if not DIAG_FILE.exists():
+        raise HTTPException(status_code=404, detail="No diagnostic screenshot available")
+    return FileResponse(str(DIAG_FILE), media_type="image/png")
+
+
 @router.post("/reconnect")
 async def whatsapp_reconnect():
     """Force a full browser reconnect (clears session if needed)."""

@@ -147,6 +147,18 @@ function WorkerStatusCard() {
             </p>
           )}
 
+          {workerStatus?.status === "error" && (
+            <div className="flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Last diagnostic screenshot:</p>
+              <img
+                src="/api/whatsapp/diag"
+                alt="WhatsApp diagnostic"
+                className="w-64 rounded-md border"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            </div>
+          )}
+
           <div className="flex gap-4 text-xs text-muted-foreground">
             {workerStatus?.last_active && (
               <span>Last active: {fmtRelative(workerStatus.last_active)}</span>

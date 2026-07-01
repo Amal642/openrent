@@ -231,9 +231,12 @@ class WhatsAppWebWorker:
         self._page = await self._context.new_page()
 
         # Mask automation fingerprint
-        await self._page.add_init_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        )
+        await self._page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-GB', 'en']});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]});
+            window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){}, app: {} };
+        """)
         logger.info("WHATSAPP_WEB_BROWSER_LAUNCHED")
 
     async def _close_browser(self) -> None:
@@ -297,9 +300,9 @@ class WhatsAppWebWorker:
                 return
             raise
 
-        # Wait up to 60s — WhatsApp Web can be slow on first load
+        # Wait up to 120s — WhatsApp Web can be slow on first load through a proxy
         state = "loading"
-        for tick in range(120):
+        for tick in range(240):
             if self._generation != my_gen:
                 logger.info("WHATSAPP_WEB_NAVIGATE_SUPERSEDED — reconnect triggered, aborting")
                 return
