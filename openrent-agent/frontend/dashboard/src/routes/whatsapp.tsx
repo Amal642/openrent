@@ -54,6 +54,7 @@ const STATUS_META: Record<WhatsAppContactStatus, { label: string; cls: string }>
   AWAITING_NAME: { label: "Awaiting name", cls: "border-warning/40 bg-warning/15 text-warning" },
   AWAITING_PROPERTY: { label: "Awaiting property", cls: "border-warning/40 bg-warning/15 text-warning" },
   PHONE_ACQUIRED: { label: "Phone acquired", cls: "border-success/30 bg-success/15 text-success" },
+  CANCELLED: { label: "Cancelled", cls: "border-border bg-muted text-muted-foreground" },
 };
 
 function StatusBadge({ status }: { status: WhatsAppContactStatus }) {

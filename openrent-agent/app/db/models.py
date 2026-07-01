@@ -465,5 +465,6 @@ class WhatsAppContact(Base):
     is_manual = Column(Boolean, default=False, nullable=True)
     property_address = Column(String, nullable=True)
     reply_scheduled_at = Column(DateTime, nullable=True)
+    cancellation_sent_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

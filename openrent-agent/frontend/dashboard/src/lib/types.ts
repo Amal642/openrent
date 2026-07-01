@@ -323,7 +323,8 @@ export type WhatsAppContactStatus =
   | "NEW_CONTACT"
   | "AWAITING_NAME"
   | "AWAITING_PROPERTY"
-  | "PHONE_ACQUIRED";
+  | "PHONE_ACQUIRED"
+  | "CANCELLED";
 
 export interface WhatsAppContact {
   id: number;

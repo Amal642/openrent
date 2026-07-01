@@ -409,6 +409,75 @@ def get_due_contacts() -> list[WhatsAppContact]:
         db.close()
 
 
+def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
+    """
+    Return contacts linked to conversations where a viewing was cancelled
+    and a WhatsApp cancellation message hasn't been sent yet.
+
+    Matches via thread_id OR listing_id (union, deduplicated).
+    Triggers:
+      - conversation_stage='VIEWING_BOOKED' AND cancel_required=True
+      - conversation_stage='VIEWING_CANCELLED'
+    """
+    from sqlalchemy import or_, and_
+    db = SessionLocal()
+    try:
+        cancellation_condition = or_(
+            and_(
+                Conversation.conversation_stage == "VIEWING_BOOKED",
+                Conversation.cancel_required == True,
+            ),
+            Conversation.conversation_stage == "VIEWING_CANCELLED",
+        )
+
+        thread_ids = set(
+            row[0]
+            for row in db.query(WhatsAppContact.id)
+            .join(Conversation, WhatsAppContact.thread_id == Conversation.thread_id)
+            .filter(
+                cancellation_condition,
+                WhatsAppContact.cancellation_sent_at.is_(None),
+                WhatsAppContact.status != "CANCELLED",
+                WhatsAppContact.thread_id.isnot(None),
+            )
+            .all()
+        )
+
+        listing_ids = set(
+            row[0]
+            for row in db.query(WhatsAppContact.id)
+            .join(Conversation, WhatsAppContact.listing_id == Conversation.listing_id)
+            .filter(
+                cancellation_condition,
+                WhatsAppContact.cancellation_sent_at.is_(None),
+                WhatsAppContact.status != "CANCELLED",
+                WhatsAppContact.listing_id.isnot(None),
+            )
+            .all()
+        )
+
+        all_ids = thread_ids | listing_ids
+        if not all_ids:
+            return []
+        return db.query(WhatsAppContact).filter(WhatsAppContact.id.in_(all_ids)).all()
+    finally:
+        db.close()
+
+
+def mark_contact_cancelled(contact_id: int) -> None:
+    """Set contact status to CANCELLED and record cancellation_sent_at."""
+    db = SessionLocal()
+    try:
+        contact = db.query(WhatsAppContact).filter(WhatsAppContact.id == contact_id).first()
+        if contact:
+            contact.status = "CANCELLED"
+            contact.cancellation_sent_at = datetime.utcnow()
+            contact.updated_at = datetime.utcnow()
+            db.commit()
+    finally:
+        db.close()
+
+
 def mark_reply_sent(contact_id: int) -> None:
     db = SessionLocal()
     try:
@@ -501,6 +570,7 @@ def get_all_contacts(limit: int = 200) -> list[dict]:
                 "confidence": c.confidence,
                 "is_manual": bool(getattr(c, "is_manual", False)),
                 "reply_scheduled_at": c.reply_scheduled_at.isoformat() if c.reply_scheduled_at else None,
+                "cancellation_sent_at": c.cancellation_sent_at.isoformat() if c.cancellation_sent_at else None,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None,
             })

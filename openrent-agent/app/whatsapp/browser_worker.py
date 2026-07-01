@@ -512,12 +512,12 @@ class WhatsAppWebWorker:
     # ── Poll loop ─────────────────────────────────────────────────────────────
 
     async def _poll_loop(self) -> None:
-        logger.info("WHATSAPP_WEB_POLL_LOOP_STARTED interval=10-25s")
+        logger.info("WHATSAPP_WEB_POLL_LOOP_STARTED interval=10-15min")
         consecutive_errors = 0
 
         while True:
             try:
-                await asyncio.sleep(random.randint(10, 25))
+                await asyncio.sleep(random.randint(600, 900))
 
                 if self.status != "connected":
                     continue
@@ -537,6 +537,7 @@ class WhatsAppWebWorker:
                     continue
 
                 await self._process_unread_chats()
+                await self._dispatch_due_cancellations()
                 await self._dispatch_due_replies()
                 consecutive_errors = 0
 
@@ -797,6 +798,39 @@ class WhatsAppWebWorker:
         self.last_active = datetime.utcnow()
         logger.info(f"WHATSAPP_WEB_SENT phone={clean_phone}")
         return True
+
+    # ── Cancellation dispatch ──────────────────────────────────────────────────
+
+    _CANCELLATION_MESSAGES = [
+        "Hey, just to let you know we've had to cancel the viewing unfortunately. Really sorry about that!",
+        "Hi, bad news from our end — we won't be able to make the viewing. Really sorry for the inconvenience.",
+        "Hey, just wanted to give you a heads up — we've had to cancel the viewing. Sorry about that!",
+        "Hi, unfortunately something's come up and we can't make the viewing anymore. Really sorry for any hassle.",
+        "Hey, just letting you know the viewing's been cancelled on our end. Apologies for any inconvenience!",
+    ]
+
+    async def _dispatch_due_cancellations(self) -> None:
+        from app.whatsapp.repository import get_contacts_due_for_cancellation, mark_contact_cancelled
+
+        contacts = await asyncio.to_thread(get_contacts_due_for_cancellation)
+        if not contacts:
+            return
+
+        logger.info(f"WHATSAPP_WEB_CANCELLATION_DUE count={len(contacts)}")
+        for contact in contacts:
+            msg = random.choice(self._CANCELLATION_MESSAGES)
+            ok = await self.send_message(contact.phone_number, msg)
+            if ok:
+                await asyncio.to_thread(mark_contact_cancelled, contact.id)
+                logger.info(
+                    f"WHATSAPP_WEB_CANCELLATION_SENT phone={contact.phone_number} "
+                    f"contact_id={contact.id}"
+                )
+            else:
+                logger.warning(
+                    f"WHATSAPP_WEB_CANCELLATION_SEND_FAILED phone={contact.phone_number} "
+                    "reason=send failed — will retry next poll"
+                )
 
     # ── Reply dispatch (replaces the old Baileys dispatcher) ──────────────────
 

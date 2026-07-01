@@ -32,6 +32,7 @@ from app.whatsapp.reply import (
 from app.whatsapp.repository import (
     apply_match_result,
     capture_incoming_message,
+    get_contact_by_phone,
     update_contact,
     update_contact_evidence,
 )
@@ -158,6 +159,12 @@ async def handle_incoming_message(
         f"WHATSAPP_INCOMING phone={phone} lid={lid_value} "
         f"sender_name={sender_name!r} message_len={len(message)}"
     )
+
+    # Guard: never interact with cancelled contacts
+    _existing = get_contact_by_phone(phone)
+    if _existing and getattr(_existing, "status", None) == "CANCELLED":
+        logger.info(f"WHATSAPP_INCOMING_BLOCKED_CANCELLED phone={phone}")
+        return
 
     contact = capture_incoming_message(
         phone=phone,
