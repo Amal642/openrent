@@ -132,12 +132,20 @@ function WorkerStatusCard() {
           {workerStatus?.status === "needs_scan" && workerStatus.qr_available && (
             <div className="flex flex-col gap-2">
               <p className="text-xs text-warning">Scan the QR code with your WhatsApp to connect:</p>
-              <img
-                src="/api/whatsapp/qr"
-                alt="WhatsApp QR code"
-                className="w-48 h-48 rounded-md border"
-                key={Date.now()}
-              />
+              {(workerStatus as any).qr_b64 ? (
+                <img
+                  src={`data:image/png;base64,${(workerStatus as any).qr_b64}`}
+                  alt="WhatsApp QR code"
+                  className="w-48 h-48 rounded-md border bg-white"
+                />
+              ) : (
+                <img
+                  src="/api/whatsapp/qr"
+                  alt="WhatsApp QR code"
+                  className="w-48 h-48 rounded-md border bg-white"
+                  key={Date.now()}
+                />
+              )}
             </div>
           )}
 

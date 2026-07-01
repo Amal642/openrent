@@ -42,9 +42,17 @@ QR_FILE = Path("whatsapp-qr.png")
 
 @router.get("/status")
 def whatsapp_status():
-    """Return current browser worker state."""
+    """Return current browser worker state, including base64 QR when available."""
     from app.whatsapp.browser_worker import get_worker
-    return get_worker().get_status_dict()
+    data = get_worker().get_status_dict()
+    # Embed QR as base64 so the frontend doesn't need a separate image request
+    if data.get("qr_available") and QR_FILE.exists():
+        import base64
+        try:
+            data["qr_b64"] = base64.b64encode(QR_FILE.read_bytes()).decode()
+        except Exception:
+            pass
+    return data
 
 
 @router.get("/qr")
