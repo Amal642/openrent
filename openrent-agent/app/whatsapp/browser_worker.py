@@ -64,6 +64,7 @@ class WhatsAppWebWorker:
         self._page: Optional[Page] = None
         self._poll_task: Optional[asyncio.Task] = None
         self._send_lock = asyncio.Lock()
+        self._generation: int = 0  # incremented on stop; lets _navigate_and_wait bail early
 
         self.status: str = "disconnected"
         self.proxy_id: Optional[int] = getattr(settings, "WHATSAPP_PROXY_ID", None)
@@ -103,6 +104,30 @@ class WhatsAppWebWorker:
         self.proxy_id = proxy_id
         logger.info(f"WHATSAPP_WEB_PROXY_CHANGED old={old} new={proxy_id}")
 
+    def _auto_select_proxy(self) -> None:
+        """Pick a random active static proxy on first start if none is configured."""
+        try:
+            from app.db.repository import get_proxies
+            proxies = get_proxies()
+            candidates = [
+                p for p in proxies
+                if p.get("proxy_type") == "static" and p.get("is_active")
+            ]
+            if candidates:
+                chosen = random.choice(candidates)
+                self.proxy_id = chosen["id"]
+                logger.info(
+                    f"WHATSAPP_WEB_AUTO_PROXY selected proxy_id={self.proxy_id} "
+                    f"host={chosen.get('host')}"
+                )
+            else:
+                logger.warning(
+                    "WHATSAPP_WEB_AUTO_PROXY no active static proxies found — "
+                    "starting without proxy"
+                )
+        except Exception as exc:
+            logger.warning(f"WHATSAPP_WEB_AUTO_PROXY_FAILED error={exc}")
+
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -111,6 +136,9 @@ class WhatsAppWebWorker:
             return
         self.status = "starting"
         logger.info("WHATSAPP_WEB_STARTING")
+        # Auto-pick a static proxy if none has been explicitly assigned
+        if not self.proxy_id:
+            self._auto_select_proxy()
         try:
             await self._launch_browser()
             await self._navigate_and_wait()
@@ -130,6 +158,7 @@ class WhatsAppWebWorker:
             logger.error(f"WHATSAPP_WEB_START_FAILED error={exc}")
 
     async def stop(self) -> None:
+        self._generation += 1  # signals any running _navigate_and_wait to abort
         if self._poll_task:
             self._poll_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -251,12 +280,16 @@ class WhatsAppWebWorker:
 
     async def _navigate_and_wait(self) -> None:
         page = self._page
+        my_gen = self._generation
         logger.info("WHATSAPP_WEB_NAVIGATING")
         await page.goto(WA_URL, wait_until="domcontentloaded", timeout=45000)
 
         # Wait up to 60s — WhatsApp Web can be slow on first load
         state = "loading"
         for tick in range(120):
+            if self._generation != my_gen:
+                logger.info("WHATSAPP_WEB_NAVIGATE_SUPERSEDED — reconnect triggered, aborting")
+                return
             state = await self._detect_state()
             if state != "loading":
                 break
