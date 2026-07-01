@@ -38,9 +38,9 @@ QR_FILE = Path("whatsapp-qr.png")
 WA_URL = "https://web.whatsapp.com"
 
 # ── Stable WhatsApp Web selectors (data-testid preferred over class names) ────
-SEL_QR = '[data-testid="qr-code"]'
+SEL_QR = '[data-testid="link-device-qr-code"]'
 SEL_CHAT_LIST = '[data-testid="chat-list"]'
-SEL_INTRO = '[data-testid="intro-title"]'
+SEL_INTRO = '[data-testid="link-device-qrcode-alt-linking-hint"]'
 SEL_UNREAD_BADGE = '[data-testid="icon-unread-count"]'
 SEL_CHAT_ITEM = '[data-testid="cell-frame-container"]'
 SEL_COMPOSE = '[data-testid="compose-box"]'
