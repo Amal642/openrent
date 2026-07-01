@@ -79,18 +79,21 @@ class WhatsAppWebWorker:
             return None
         try:
             from app.db.repository import get_proxy
-            proxy = get_proxy(self.proxy_id)
-            if proxy and proxy.is_active and proxy.host:
-                server = f"http://{proxy.host}:{proxy.port}"
+            proxy = get_proxy(self.proxy_id)  # returns a dict
+            if not proxy:
+                logger.warning(f"WHATSAPP_WEB_PROXY_NOT_FOUND proxy_id={self.proxy_id}")
+                return None
+            # get_proxy returns a serialized dict
+            host = proxy.get("host") if isinstance(proxy, dict) else getattr(proxy, "host", None)
+            port = proxy.get("port") if isinstance(proxy, dict) else getattr(proxy, "port", None)
+            is_active = proxy.get("is_active", True) if isinstance(proxy, dict) else getattr(proxy, "is_active", True)
+            username = proxy.get("username", "") if isinstance(proxy, dict) else (getattr(proxy, "username", "") or "")
+            password = proxy.get("password", "") if isinstance(proxy, dict) else (getattr(proxy, "password", "") or "")
+            if is_active and host:
+                server = f"http://{host}:{port}"
                 logger.info(f"WHATSAPP_WEB proxy_server={server} proxy_id={self.proxy_id}")
-                return {
-                    "server": server,
-                    "username": proxy.username or "",
-                    "password": proxy.password or "",
-                }
-            logger.warning(
-                f"WHATSAPP_WEB_PROXY_NOT_FOUND proxy_id={self.proxy_id} — running without proxy"
-            )
+                return {"server": server, "username": username or "", "password": password or ""}
+            logger.warning(f"WHATSAPP_WEB_PROXY_INACTIVE proxy_id={self.proxy_id}")
         except Exception as exc:
             logger.warning(f"WHATSAPP_WEB_PROXY_LOAD_FAILED error={exc}")
         return None
@@ -111,9 +114,15 @@ class WhatsAppWebWorker:
         try:
             await self._launch_browser()
             await self._navigate_and_wait()
-            self._poll_task = asyncio.create_task(
-                self._poll_loop(), name="wa-web-poll"
-            )
+            if self.status in ("connected", "needs_scan"):
+                self._poll_task = asyncio.create_task(
+                    self._poll_loop(), name="wa-web-poll"
+                )
+            else:
+                logger.error(
+                    f"WHATSAPP_WEB_POLL_NOT_STARTED status={self.status} "
+                    "reason=browser did not reach connected or needs_scan state"
+                )
         except Exception as exc:
             self.status = "error"
             self.last_error = str(exc)
@@ -154,9 +163,9 @@ class WhatsAppWebWorker:
         # On servers without display use Chrome's new headless (far less detectable
         # than old headless, no Xvfb needed). Set HEADLESS=false + run Xvfb for
         # a true visible window on a desktop.
-        headless = settings.HEADLESS
+        headless = settings.WHATSAPP_HEADLESS
         if not headless:
-            logger.info("WHATSAPP_WEB_BROWSER headless=False (visible window)")
+            logger.info("WHATSAPP_WEB_BROWSER headless=False (visible window — needs display)")
         else:
             launch_args.append("--headless=new")
             logger.info("WHATSAPP_WEB_BROWSER headless=new (server mode)")
@@ -243,15 +252,37 @@ class WhatsAppWebWorker:
     async def _navigate_and_wait(self) -> None:
         page = self._page
         logger.info("WHATSAPP_WEB_NAVIGATING")
-        await page.goto(WA_URL, wait_until="domcontentloaded", timeout=30000)
+        await page.goto(WA_URL, wait_until="domcontentloaded", timeout=45000)
 
-        # Wait up to 25s for initial state
+        # Wait up to 60s — WhatsApp Web can be slow on first load
         state = "loading"
-        for _ in range(50):
+        for tick in range(120):
             state = await self._detect_state()
             if state != "loading":
                 break
+            if tick % 20 == 0 and tick > 0:
+                title = await page.title()
+                url = page.url
+                logger.info(
+                    f"WHATSAPP_WEB_STILL_LOADING tick={tick} title={title!r} url={url}"
+                )
             await asyncio.sleep(0.5)
+
+        if state == "loading":
+            # Take a screenshot so we can see what's on the page
+            try:
+                diag_path = "whatsapp-diag.png"
+                await page.screenshot(path=diag_path, full_page=True)
+                title = await page.title()
+                logger.error(
+                    f"WHATSAPP_WEB_LOAD_TIMEOUT title={title!r} "
+                    f"screenshot_saved={diag_path} "
+                    "reason=page did not reach a known state in 60s — "
+                    "check screenshot, may be blocked or JS not loading"
+                )
+            except Exception as exc:
+                logger.error(f"WHATSAPP_WEB_LOAD_TIMEOUT screenshot_failed={exc}")
+            state = "loading"
 
         logger.info(f"WHATSAPP_WEB_INITIAL_STATE state={state}")
 

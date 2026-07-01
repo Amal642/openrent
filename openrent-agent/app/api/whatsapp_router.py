@@ -84,12 +84,13 @@ async def whatsapp_set_proxy(payload: ProxyPayload):
     if payload.proxy_id:
         try:
             from app.db.repository import get_proxy
-            proxy = get_proxy(payload.proxy_id)
+            proxy = get_proxy(payload.proxy_id)  # returns a dict
             if not proxy:
                 raise HTTPException(status_code=404, detail="Proxy not found")
+            host = proxy.get("host") if isinstance(proxy, dict) else getattr(proxy, "host", "?")
             logger.info(
                 f"WHATSAPP_WEB_PROXY_ASSIGNED proxy_id={payload.proxy_id} "
-                f"host={proxy.host} — reconnecting to apply"
+                f"host={host} — reconnecting to apply"
             )
         except HTTPException:
             raise

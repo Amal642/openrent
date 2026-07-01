@@ -19,6 +19,7 @@ class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL")
 
     HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
+    WHATSAPP_HEADLESS = os.getenv("WHATSAPP_HEADLESS", "true").lower() == "true"
     SLOW_MO = int(os.getenv("SLOW_MO", 500))
     PLAYWRIGHT_BLOCK_IMAGE_MEDIA = (
         os.getenv("PLAYWRIGHT_BLOCK_IMAGE_MEDIA", "true").lower()
