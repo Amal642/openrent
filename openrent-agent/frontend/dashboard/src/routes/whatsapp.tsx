@@ -10,6 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,9 +31,14 @@ import {
   createManualWhatsAppContact,
   editWhatsAppContact,
   getWhatsAppContacts,
+  getWhatsAppWorkerStatus,
+  reconnectWhatsApp,
+  setWhatsAppProxy,
+  getProxies,
 } from "@/api/openrent";
 import type { WhatsAppContact, WhatsAppContactStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { fmtRelative } from "@/lib/format";
 
 export const Route = createFileRoute("/whatsapp")({
   head: () => ({
@@ -62,16 +74,126 @@ function fmtPhone(phone: string): string {
   return `+${phone}`;
 }
 
-function fmtRelative(iso?: string): string {
-  if (!iso) return "—";
-  const utc = iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z";
-  const diff = Date.now() - new Date(utc).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+// ── Worker status card ────────────────────────────────────────────────────────
+
+const WORKER_STATUS_META: Record<string, { label: string; cls: string }> = {
+  connected:        { label: "Connected",       cls: "bg-success/15 text-success border-success/30" },
+  needs_scan:       { label: "Needs QR scan",   cls: "bg-warning/15 text-warning border-warning/40" },
+  starting:         { label: "Starting…",       cls: "bg-info/15 text-info border-info/30" },
+  reconnecting:     { label: "Reconnecting…",   cls: "bg-info/15 text-info border-info/30" },
+  phone_disconnected: { label: "Phone offline", cls: "bg-destructive/15 text-destructive border-destructive/40" },
+  error:            { label: "Error",           cls: "bg-destructive/15 text-destructive border-destructive/40" },
+  disconnected:     { label: "Disconnected",    cls: "bg-muted text-muted-foreground border-border" },
+};
+
+function WorkerStatusCard() {
+  const queryClient = useQueryClient();
+
+  const { data: workerStatus, isLoading: statusLoading } = useQuery({
+    queryKey: ["whatsapp-worker-status"],
+    queryFn: getWhatsAppWorkerStatus,
+    refetchInterval: 8000,
+  });
+
+  const { data: proxies = [] } = useQuery({
+    queryKey: ["proxies"],
+    queryFn: getProxies,
+  });
+
+  const staticProxies = proxies.filter((p) => p.proxyType === "static" && p.isActive);
+
+  const reconnectMutation = useMutation({
+    mutationFn: reconnectWhatsApp,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["whatsapp-worker-status"] }),
+  });
+
+  const proxyMutation = useMutation({
+    mutationFn: (proxy_id: number | null) => setWhatsAppProxy(proxy_id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["whatsapp-worker-status"] }),
+  });
+
+  const meta = WORKER_STATUS_META[workerStatus?.status ?? "disconnected"];
+
+  return (
+    <div className="rounded-lg border bg-card p-4 mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-foreground">WhatsApp Worker</span>
+            {statusLoading ? (
+              <span className="text-xs text-muted-foreground">Loading…</span>
+            ) : (
+              <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium", meta.cls)}>
+                {meta.label}
+              </span>
+            )}
+          </div>
+
+          {workerStatus?.status === "needs_scan" && workerStatus.qr_available && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-warning">Scan the QR code with your WhatsApp to connect:</p>
+              <img
+                src="/api/whatsapp/qr"
+                alt="WhatsApp QR code"
+                className="w-48 h-48 rounded-md border"
+                key={Date.now()}
+              />
+            </div>
+          )}
+
+          {workerStatus?.last_error && workerStatus.status !== "connected" && (
+            <p className="text-xs text-destructive max-w-sm">
+              <span className="font-medium">Error:</span> {workerStatus.last_error}
+            </p>
+          )}
+
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            {workerStatus?.last_active && (
+              <span>Last active: {fmtRelative(workerStatus.last_active)}</span>
+            )}
+            {(workerStatus?.error_count ?? 0) > 0 && (
+              <span className="text-destructive">Errors: {workerStatus?.error_count}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 min-w-[220px]">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Proxy</Label>
+            <Select
+              value={workerStatus?.proxy_id?.toString() ?? "none"}
+              onValueChange={(v) => proxyMutation.mutate(v === "none" ? null : parseInt(v))}
+              disabled={proxyMutation.isPending}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="No proxy" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No proxy</SelectItem>
+                {staticProxies.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} ({p.host})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {proxyMutation.isPending && (
+              <p className="text-xs text-muted-foreground">Applying proxy + reconnecting…</p>
+            )}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => reconnectMutation.mutate()}
+            disabled={reconnectMutation.isPending}
+          >
+            {reconnectMutation.isPending ? "Reconnecting…" : "Force reconnect"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Contact form modal ────────────────────────────────────────────────────────
@@ -226,6 +348,8 @@ function WhatsAppPage() {
         description="Landlords who texted our WhatsApp number — tracked and matched to existing listings."
       />
 
+      <WorkerStatusCard />
+
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-4">
           <div className="rounded-lg border bg-card px-4 py-3 flex flex-col gap-0.5 min-w-[120px]">
@@ -361,7 +485,7 @@ function ContactRow({
         )}
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">
-        {fmtRelative(contact.last_received_at)}
+        {contact.last_received_at ? fmtRelative(contact.last_received_at) : "—"}
       </TableCell>
       <TableCell>
         {isUnresolved && (

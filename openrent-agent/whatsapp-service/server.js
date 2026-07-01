@@ -37,7 +37,12 @@ const pino = require("pino");
 
 const FASTAPI_URL = "http://localhost:8000/api/whatsapp/incoming";
 const RESOLVE_URL = "http://localhost:8000/api/whatsapp/resolve";
+const LOG_URL = "http://localhost:8000/api/whatsapp/log";
 const PORT = 3001;
+
+function logToBackend(level, message) {
+  axios.post(LOG_URL, { level: level, message: message }, { timeout: 5000 }).catch(function() {});
+}
 
 const logger = pino({ level: "warn" });
 
@@ -158,6 +163,7 @@ async function connectToWhatsApp() {
     if (qr) {
       console.log("\n[whatsapp-service] Scan this QR code with WhatsApp:\n");
       qrcode.generate(qr, { small: true });
+      logToBackend("warn", "QR code generated — waiting for WhatsApp scan");
     }
 
     if (connection === "close") {
@@ -168,14 +174,17 @@ async function connectToWhatsApp() {
       var shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       console.log("[whatsapp-service] Connection closed (" + statusCode + "). Reconnecting: " + shouldReconnect);
       if (shouldReconnect) {
+        logToBackend("warn", "WhatsApp connection closed (code=" + statusCode + ") — reconnecting");
         setTimeout(connectToWhatsApp, 3000);
       } else {
         console.log("[whatsapp-service] Logged out. Delete auth_info_baileys/ and restart.");
+        logToBackend("error", "WhatsApp logged out (401 device_removed) — delete auth_info_baileys/ and restart");
       }
     }
 
     if (connection === "open") {
       console.log("[whatsapp-service] WhatsApp connected successfully.");
+      logToBackend("info", "WhatsApp connected successfully");
     }
   });
 
@@ -278,7 +287,9 @@ async function connectToWhatsApp() {
       }
 
       var displayPhone = phone.startsWith("lid:") ? phone : "+" + phone;
-      console.log("[whatsapp-service] Incoming from " + displayPhone + (senderName ? " (" + senderName + ")" : "") + ": " + text.substring(0, 80));
+      var incomingDesc = "Incoming from " + displayPhone + (senderName ? " (" + senderName + ")" : "") + ": " + text.substring(0, 80);
+      console.log("[whatsapp-service] " + incomingDesc);
+      logToBackend("info", incomingDesc);
 
       if (lid && resolvedPhone) {
         postLidResolution(lid, resolvedPhone, jid);
@@ -300,6 +311,7 @@ async function connectToWhatsApp() {
         );
       } catch (err) {
         console.error("[whatsapp-service] Failed to forward to FastAPI: " + err.message);
+        logToBackend("error", "Failed to forward message to backend: " + err.message);
       }
     }
   });
@@ -325,10 +337,13 @@ app.post("/send", async function(req, res) {
   try {
     var jid = jidFromPhone(phone);
     await sock.sendMessage(jid, { text: message });
-    console.log("[whatsapp-service] Sent to +" + phone + ": " + message.substring(0, 80));
+    var sentDesc = "Sent to +" + phone + ": " + message.substring(0, 80);
+    console.log("[whatsapp-service] " + sentDesc);
+    logToBackend("info", sentDesc);
     return res.json({ status: "sent" });
   } catch (err) {
     console.error("[whatsapp-service] Send failed: " + err.message);
+    logToBackend("error", "Send failed to +" + phone + ": " + err.message);
     return res.status(500).json({ error: err.message });
   }
 });

@@ -36,6 +36,9 @@ class Settings:
         os.getenv("WHATSAPP_AUTO_REPLY_ENABLED", "false").lower()
         in {"1", "true", "yes", "on"}
     )
+    WHATSAPP_PROXY_ID: int | None = (
+        int(os.getenv("WHATSAPP_PROXY_ID")) if os.getenv("WHATSAPP_PROXY_ID") else None
+    )
     WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
     MAX_PARALLEL_WORKERS = int(os.getenv("MAX_PARALLEL_WORKERS", "2"))
     DISCOVERY_LIMIT_PER_RUN = int(os.getenv("DISCOVERY_LIMIT_PER_RUN", "25"))

@@ -81,6 +81,7 @@ from app.api.whatsapp_router import (
     start_whatsapp_reply_dispatcher,
     stop_whatsapp_reply_dispatcher,
 )
+from app.whatsapp.browser_worker import start_whatsapp_worker, stop_whatsapp_worker
 from app.services.listing_cleanup import start_listing_cleanup, stop_listing_cleanup
 
 
@@ -240,6 +241,7 @@ async def lifespan(app_instance):
     app_instance.state.whatsapp_reply_dispatcher_task = (
         start_whatsapp_reply_dispatcher()
     )
+    await start_whatsapp_worker()
     app_instance.state.listing_cleanup_task = start_listing_cleanup()
     try:
         yield
@@ -263,6 +265,7 @@ async def lifespan(app_instance):
         await stop_whatsapp_reply_dispatcher(
             getattr(app_instance.state, "whatsapp_reply_dispatcher_task", None)
         )
+        await stop_whatsapp_worker()
         await stop_listing_cleanup(
             getattr(app_instance.state, "listing_cleanup_task", None)
         )
@@ -1048,7 +1051,9 @@ def api_logs(limit: int = 250):
 
         category = "worker"
         lower = message.lower()
-        if "openai" in lower or "ai" in lower:
+        if "whatsapp" in lower:
+            category = "whatsapp"
+        elif "openai" in lower or "ai" in lower:
             category = "ai"
         elif "login" in lower:
             category = "login"

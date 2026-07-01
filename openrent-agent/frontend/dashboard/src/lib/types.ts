@@ -214,7 +214,7 @@ export interface AutomationMetrics {
 export interface LogEntry {
   id: string;
   level: "info" | "warn" | "error";
-  category: "worker" | "ai" | "login" | "retry" | "agent_skip";
+  category: "worker" | "ai" | "login" | "retry" | "agent_skip" | "whatsapp";
   accountId?: string;
   message: string;
   context?: Record<string, unknown>;

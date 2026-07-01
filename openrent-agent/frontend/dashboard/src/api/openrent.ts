@@ -887,6 +887,29 @@ export function getAreaIntelligence(): Promise<AreaIntelligenceMetric[]> {
   return get<AreaIntelligenceMetric[]>("/advisor/areas");
 }
 
+// ---------------- WHATSAPP WORKER ----------------
+
+export interface WhatsAppWorkerStatus {
+  status: "disconnected" | "starting" | "needs_scan" | "connected" | "reconnecting" | "error" | "phone_disconnected";
+  proxy_id: number | null;
+  last_active: string | null;
+  last_error: string | null;
+  error_count: number;
+  qr_available: boolean;
+}
+
+export function getWhatsAppWorkerStatus(): Promise<WhatsAppWorkerStatus> {
+  return get<WhatsAppWorkerStatus>("/whatsapp/status");
+}
+
+export function reconnectWhatsApp(): Promise<{ status: string }> {
+  return post<{ status: string }>("/whatsapp/reconnect", {});
+}
+
+export function setWhatsAppProxy(proxy_id: number | null): Promise<{ status: string; proxy_id: number | null }> {
+  return post<{ status: string; proxy_id: number | null }>("/whatsapp/proxy", { proxy_id });
+}
+
 // ---------------- WHATSAPP ACQUISITIONS ----------------
 
 export function getWhatsAppContacts(limit = 200): Promise<WhatsAppContact[]> {

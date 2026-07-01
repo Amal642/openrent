@@ -1,5 +1,5 @@
 """
-Business hours, reply scheduling, LLM-generated closings, and Baileys HTTP send.
+Business hours, reply scheduling, LLM-generated closings, and WhatsApp Web send.
 """
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import random
 from datetime import datetime, timedelta
 from typing import Optional
 
-import httpx
 from zoneinfo import ZoneInfo
 
 from openai import OpenAI
@@ -16,7 +15,6 @@ from app.config import settings
 from app.utils.logger import logger
 
 UK_TZ = ZoneInfo("Europe/London")
-BAILEYS_URL = "http://localhost:3001/send"
 
 _client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=15.0)
 
@@ -89,16 +87,18 @@ def build_property_ask(name: Optional[str] = None) -> str:
 
 
 def send_whatsapp_message(phone: str, message: str) -> bool:
-    """POST to Baileys service to send a WhatsApp message."""
+    """Send via the Playwright browser worker (replaces Baileys HTTP call)."""
+    import asyncio
+    from app.whatsapp.browser_worker import get_worker
+    worker = get_worker()
     try:
-        resp = httpx.post(
-            BAILEYS_URL,
-            json={"phone": phone, "message": message},
-            timeout=10.0,
-        )
-        resp.raise_for_status()
-        logger.info(f"WHATSAPP_SENT phone={phone} status={resp.status_code}")
-        return True
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                worker.send_message(phone, message), loop
+            )
+            return future.result(timeout=60)
+        return asyncio.run(worker.send_message(phone, message))
     except Exception as exc:
         logger.warning(f"WHATSAPP_SEND_FAILED phone={phone} error={exc}")
         return False

@@ -30,6 +30,7 @@ export const Route = createFileRoute("/logs")({
 
 const tabs = [
   { id: "all", label: "All" },
+  { id: "whatsapp", label: "WhatsApp" },
   { id: "worker", label: "Worker" },
   { id: "errors", label: "Errors" },
   { id: "ai", label: "AI failures" },
@@ -63,7 +64,7 @@ function LogsPage() {
       [...logs].reverse().filter((l) => {
         if (tab === "errors" && l.level !== "error") return false;
         if (tab === "ai" && !(l.category === "ai" && l.level === "error")) return false;
-        if (["worker", "login", "retry", "agent_skip"].includes(tab) && l.category !== tab)
+        if (["whatsapp", "worker", "login", "retry", "agent_skip"].includes(tab) && l.category !== tab)
           return false;
         if (q && !l.message.toLowerCase().includes(q.toLowerCase())) return false;
         return true;
