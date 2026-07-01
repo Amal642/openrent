@@ -75,11 +75,75 @@ def generate_closing_reply(name: Optional[str] = None) -> str:
     return "Thanks for getting in touch! We'll have a discuss and get back to you soon."
 
 
-def build_name_ask() -> str:
+def _format_history(history: Optional[list[dict]]) -> str:
+    if not history:
+        return "(no prior messages)"
+    lines = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        text = item.get("message")
+        if not text:
+            continue
+        sender = "US" if item.get("direction") == "outbound" else "LANDLORD"
+        lines.append(f"{sender}: {text}")
+    return "\n".join(lines) if lines else "(no prior messages)"
+
+
+def build_name_ask(history: Optional[list[dict]] = None) -> str:
+    """Ask who we're speaking with, phrased naturally from the conversation so far."""
+    try:
+        prompt = (
+            "Someone has messaged this WhatsApp number about a property enquiry from OpenRent, "
+            "but we don't know their name yet. "
+            "Write a very short, casual WhatsApp message asking who you're speaking with. "
+            "Rules: one sentence, no names, no em dashes or en dashes, no bullet points, "
+            "no brackets or placeholders, vary the phrasing each time, sound like a real person "
+            "texting, not a template. Reply with ONLY the message text, no quotes.\n\n"
+            f"Conversation so far:\n{_format_history(history)}"
+        )
+        response = _client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.9,
+            max_tokens=60,
+        )
+        text = response.choices[0].message.content.strip().strip('"')
+        if text:
+            return text
+    except Exception as exc:
+        logger.warning(f"WHATSAPP_NAME_ASK_LLM_FAILED error={exc}")
+
     return "Hi! Sorry, could I ask who I'm speaking with?"
 
 
-def build_property_ask(name: Optional[str] = None) -> str:
+def build_property_ask(name: Optional[str] = None, history: Optional[list[dict]] = None) -> str:
+    """Ask which property they mean, phrased naturally from the conversation so far."""
+    try:
+        prompt = (
+            "Someone has messaged this WhatsApp number about a property enquiry from OpenRent. "
+            "We know who they are but not which property they mean. "
+            "Persona fact: my wife handles our OpenRent enquiries, which is why we're texting from "
+            "this number. "
+            "Write a very short, casual WhatsApp message asking which property or address they mean, "
+            "working the wife/OpenRent detail in naturally. "
+            "Rules: one or two sentences, no em dashes or en dashes, no bullet points, "
+            "no brackets or placeholders, vary the phrasing each time, sound like a real person "
+            "texting, not a template. Reply with ONLY the message text, no quotes.\n\n"
+            f"Conversation so far:\n{_format_history(history)}"
+        )
+        response = _client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.9,
+            max_tokens=60,
+        )
+        text = response.choices[0].message.content.strip().strip('"')
+        if text:
+            return text
+    except Exception as exc:
+        logger.warning(f"WHATSAPP_PROPERTY_ASK_LLM_FAILED error={exc}")
+
     return (
         "Hi, my wife manages our enquiries on OpenRent. "
         "Could you let us know the property address or details so we can look it up?"

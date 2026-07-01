@@ -33,6 +33,7 @@ from app.whatsapp.repository import (
     apply_match_result,
     capture_incoming_message,
     get_contact_by_phone,
+    get_conversation_for_contact,
     update_contact,
     update_contact_evidence,
 )
@@ -40,6 +41,60 @@ from app.whatsapp.repository import (
 PARTIAL_MATCH_THRESHOLD = 65.0
 AUTO_MATCH_THRESHOLD = 85.0
 AUTO_MATCH_MIN_GAP = 5.0
+
+_VIEWING_KEYWORDS = (
+    "viewing",
+    "view the property",
+    "view the flat",
+    "view the house",
+    "see the property",
+    "see the flat",
+    "see the place",
+    "still on for",
+    "still happening",
+    "still good for",
+    "appointment",
+    "confirm the time",
+    "confirm the viewing",
+)
+
+
+def _mentions_viewing(message: str) -> bool:
+    text = message.lower()
+    return any(keyword in text for keyword in _VIEWING_KEYWORDS)
+
+
+async def _send_viewing_cancellation(contact, conversation) -> None:
+    """Reactively cancel when the landlord brings up the viewing themselves,
+    on top of the existing scheduled (time-based) cancellation dispatch."""
+    from app.ai.replies import generate_cancellation_message
+    from app.db.repository import mark_viewing_cancelled, save_message
+    from app.whatsapp.browser_worker import get_worker
+    from app.whatsapp.repository import get_contact_messages_for_ai, mark_contact_cancelled
+
+    history = get_contact_messages_for_ai(contact)
+    msg, error = generate_cancellation_message(history)
+    if not msg or error:
+        logger.warning(
+            f"WHATSAPP_REACTIVE_CANCEL_AI_FAILED phone={contact.phone_number} error={error}"
+        )
+        return
+
+    ok = await get_worker().send_message(contact.phone_number, msg)
+    if not ok:
+        logger.warning(
+            f"WHATSAPP_REACTIVE_CANCEL_SEND_FAILED phone={contact.phone_number} "
+            "reason=send failed, scheduled dispatch will retry"
+        )
+        return
+
+    mark_contact_cancelled(contact.id)
+    if conversation.thread_id:
+        save_message(conversation.thread_id, "outbound", msg)
+        mark_viewing_cancelled(conversation.thread_id)
+    logger.info(
+        f"WHATSAPP_REACTIVE_CANCEL_SENT phone={contact.phone_number} contact_id={contact.id}"
+    )
 
 
 def _normalize_phone(raw: str) -> str:
@@ -176,6 +231,24 @@ async def handle_incoming_message(
         message_id=message_id,
     )
 
+    if _mentions_viewing(message):
+        conversation = get_conversation_for_contact(contact)
+        if conversation:
+            cancellation_due = (
+                conversation.conversation_stage == "VIEWING_CANCELLED"
+                or (
+                    conversation.conversation_stage == "VIEWING_BOOKED"
+                    and conversation.cancel_required
+                )
+            )
+            if (
+                cancellation_due
+                and not contact.cancellation_sent_at
+                and contact.status != "CANCELLED"
+            ):
+                await _send_viewing_cancellation(contact, conversation)
+                return
+
     new_names: list[str] = []
     if sender_name:
         new_names.append(sender_name)
@@ -241,14 +314,16 @@ async def handle_incoming_message(
         )
         return
 
+    history = _json_list(contact.message_history)
+
     if all_names or all_property_hints:
         _schedule_reply(
             contact.id,
-            build_property_ask(display_name),
+            build_property_ask(display_name, history),
             "AWAITING_PROPERTY",
             name=display_name,
             confidence=confidence or None,
         )
         return
 
-    _schedule_reply(contact.id, build_name_ask(), "AWAITING_NAME")
+    _schedule_reply(contact.id, build_name_ask(history), "AWAITING_NAME")

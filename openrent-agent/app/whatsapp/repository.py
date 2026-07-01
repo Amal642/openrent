@@ -4,7 +4,7 @@ DB access functions for whatsapp_contacts table.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from app.db.connection import SessionLocal
@@ -411,13 +411,14 @@ def get_due_contacts() -> list[WhatsAppContact]:
 
 def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
     """
-    Return contacts linked to conversations where a viewing was cancelled
-    and a WhatsApp cancellation message hasn't been sent yet.
+    Return contacts linked to conversations whose viewing cancellation is due.
 
-    Matches via thread_id OR listing_id (union, deduplicated).
-    Triggers:
-      - conversation_stage='VIEWING_BOOKED' AND cancel_required=True
-      - conversation_stage='VIEWING_CANCELLED'
+    Matches via thread_id OR listing_id (union, deduplicated). If the linked
+    conversation is already VIEWING_CANCELLED (cancelled via the OpenRent
+    channel), the WhatsApp notice goes out immediately. Otherwise this follows
+    the same randomized timing window as the OpenRent automation: due once
+    now >= viewing_datetime - cancel_target_hours (see
+    app.db.repository.get_due_viewing_cancellations).
     """
     from sqlalchemy import or_, and_
     db = SessionLocal()
@@ -430,9 +431,8 @@ def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
             Conversation.conversation_stage == "VIEWING_CANCELLED",
         )
 
-        thread_ids = set(
-            row[0]
-            for row in db.query(WhatsAppContact.id)
+        by_thread = (
+            db.query(WhatsAppContact, Conversation)
             .join(Conversation, WhatsAppContact.thread_id == Conversation.thread_id)
             .filter(
                 cancellation_condition,
@@ -443,9 +443,8 @@ def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
             .all()
         )
 
-        listing_ids = set(
-            row[0]
-            for row in db.query(WhatsAppContact.id)
+        by_listing = (
+            db.query(WhatsAppContact, Conversation)
             .join(Conversation, WhatsAppContact.listing_id == Conversation.listing_id)
             .filter(
                 cancellation_condition,
@@ -456,12 +455,72 @@ def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
             .all()
         )
 
-        all_ids = thread_ids | listing_ids
-        if not all_ids:
-            return []
-        return db.query(WhatsAppContact).filter(WhatsAppContact.id.in_(all_ids)).all()
+        now = datetime.utcnow()
+        seen_ids: set[int] = set()
+        due: list[WhatsAppContact] = []
+        for contact, conversation in by_thread + by_listing:
+            if contact.id in seen_ids:
+                continue
+
+            if conversation.conversation_stage == "VIEWING_CANCELLED":
+                eligible = True
+            elif conversation.viewing_datetime:
+                target_h = conversation.cancel_target_hours or 4.0
+                cancel_at = conversation.viewing_datetime - timedelta(hours=target_h)
+                eligible = now >= cancel_at
+            else:
+                eligible = False
+
+            if eligible:
+                seen_ids.add(contact.id)
+                due.append(contact)
+
+        return due
     finally:
         db.close()
+
+
+def get_conversation_for_contact(contact: WhatsAppContact) -> Optional[Conversation]:
+    """Resolve the linked Conversation row for a WhatsApp contact (via thread_id
+    or listing_id), so cancellation sending can apply the phone-request guard
+    and sync the shared conversation state back after sending."""
+    db = SessionLocal()
+    try:
+        if contact.thread_id:
+            conv = (
+                db.query(Conversation)
+                .filter(Conversation.thread_id == contact.thread_id)
+                .first()
+            )
+            if conv:
+                return conv
+        if contact.listing_id:
+            return (
+                db.query(Conversation)
+                .filter(Conversation.listing_id == contact.listing_id)
+                .first()
+            )
+        return None
+    finally:
+        db.close()
+
+
+def get_contact_messages_for_ai(contact: WhatsAppContact) -> list[dict]:
+    """Convert the stored WhatsApp message history into the {sender, message}
+    shape expected by app.ai.replies.generate_cancellation_message."""
+    history = _json_list(contact.message_history)
+    messages = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        text = item.get("message")
+        if not text:
+            continue
+        messages.append({
+            "sender": "us" if item.get("direction") == "outbound" else "landlord",
+            "message": text,
+        })
+    return messages
 
 
 def mark_contact_cancelled(contact_id: int) -> None:

@@ -810,7 +810,18 @@ class WhatsAppWebWorker:
     ]
 
     async def _dispatch_due_cancellations(self) -> None:
-        from app.whatsapp.repository import get_contacts_due_for_cancellation, mark_contact_cancelled
+        from app.ai.replies import generate_cancellation_message
+        from app.db.repository import (
+            get_automatic_cancellation_block_reason,
+            mark_viewing_cancelled,
+            save_message,
+        )
+        from app.whatsapp.repository import (
+            get_contact_messages_for_ai,
+            get_contacts_due_for_cancellation,
+            get_conversation_for_contact,
+            mark_contact_cancelled,
+        )
 
         contacts = await asyncio.to_thread(get_contacts_due_for_cancellation)
         if not contacts:
@@ -818,10 +829,35 @@ class WhatsAppWebWorker:
 
         logger.info(f"WHATSAPP_WEB_CANCELLATION_DUE count={len(contacts)}")
         for contact in contacts:
-            msg = random.choice(self._CANCELLATION_MESSAGES)
+            conversation = await asyncio.to_thread(get_conversation_for_contact, contact)
+            thread_id = conversation.thread_id if conversation else None
+
+            if thread_id:
+                block_reason = await asyncio.to_thread(
+                    get_automatic_cancellation_block_reason, thread_id
+                )
+                if block_reason:
+                    logger.info(
+                        f"WHATSAPP_WEB_CANCELLATION_BLOCKED phone={contact.phone_number} "
+                        f"reason={block_reason}"
+                    )
+                    continue
+
+            history = await asyncio.to_thread(get_contact_messages_for_ai, contact)
+            msg, error = await asyncio.to_thread(generate_cancellation_message, history)
+            if not msg or error:
+                logger.warning(
+                    f"WHATSAPP_WEB_CANCELLATION_AI_FAILED phone={contact.phone_number} "
+                    f"error={error} reason=falling back to canned message"
+                )
+                msg = random.choice(self._CANCELLATION_MESSAGES)
+
             ok = await self.send_message(contact.phone_number, msg)
             if ok:
                 await asyncio.to_thread(mark_contact_cancelled, contact.id)
+                if thread_id:
+                    await asyncio.to_thread(save_message, thread_id, "outbound", msg)
+                    await asyncio.to_thread(mark_viewing_cancelled, thread_id)
                 logger.info(
                     f"WHATSAPP_WEB_CANCELLATION_SENT phone={contact.phone_number} "
                     f"contact_id={contact.id}"
