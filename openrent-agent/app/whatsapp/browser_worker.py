@@ -68,6 +68,7 @@ class WhatsAppWebWorker:
 
         self.status: str = "disconnected"
         self.proxy_id: Optional[int] = getattr(settings, "WHATSAPP_PROXY_ID", None)
+        self._proxy_user_cleared: bool = False  # True when user explicitly set "No proxy"
         self.last_active: Optional[datetime] = None
         self.last_error: Optional[str] = None
         self.error_count: int = 0
@@ -107,6 +108,7 @@ class WhatsAppWebWorker:
     def set_proxy(self, proxy_id: Optional[int]) -> None:
         old = self.proxy_id
         self.proxy_id = proxy_id
+        self._proxy_user_cleared = (proxy_id is None)  # remember explicit "no proxy" choice
         logger.info(f"WHATSAPP_WEB_PROXY_CHANGED old={old} new={proxy_id}")
 
     def _auto_select_proxy(self) -> None:
@@ -141,9 +143,6 @@ class WhatsAppWebWorker:
             return
         self.status = "starting"
         logger.info("WHATSAPP_WEB_STARTING")
-        # Auto-pick a static proxy if none has been explicitly assigned
-        if not self.proxy_id:
-            self._auto_select_proxy()
         try:
             await self._launch_browser()
             await self._navigate_and_wait()
@@ -786,6 +785,10 @@ def get_worker() -> WhatsAppWebWorker:
 
 async def start_whatsapp_worker() -> None:
     worker = get_worker()
+    # Auto-select a random static proxy on first boot only (not on reconnects).
+    # Skipped if WHATSAPP_PROXY_ID is set in .env or user already chose one.
+    if not worker.proxy_id and not worker._proxy_user_cleared:
+        worker._auto_select_proxy()
     asyncio.create_task(worker.start(), name="wa-web-start")
     logger.info("WHATSAPP_WEB_WORKER_QUEUED")
 
