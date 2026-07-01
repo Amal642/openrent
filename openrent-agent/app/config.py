@@ -40,6 +40,10 @@ class Settings:
     WHATSAPP_PROXY_ID: int | None = (
         int(os.getenv("WHATSAPP_PROXY_ID")) if os.getenv("WHATSAPP_PROXY_ID") else None
     )
+    # Set to false to start WhatsApp worker without any proxy (e.g. for testing)
+    WHATSAPP_USE_PROXY: bool = (
+        os.getenv("WHATSAPP_USE_PROXY", "true").lower() in {"1", "true", "yes", "on"}
+    )
     WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
     MAX_PARALLEL_WORKERS = int(os.getenv("MAX_PARALLEL_WORKERS", "2"))
     DISCOVERY_LIMIT_PER_RUN = int(os.getenv("DISCOVERY_LIMIT_PER_RUN", "25"))

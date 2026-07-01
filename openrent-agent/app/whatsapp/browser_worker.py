@@ -222,8 +222,10 @@ class WhatsAppWebWorker:
             "user_agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
+                "Chrome/131.0.0.0 Safari/537.36"
             ),
+            "color_scheme": "light",
+            "device_scale_factor": 1,
             "ignore_https_errors": True,
         }
         if proxy:
@@ -238,12 +240,56 @@ class WhatsAppWebWorker:
         self._context = await self._browser.new_context(**context_kwargs)
         self._page = await self._context.new_page()
 
-        # Mask automation fingerprint
+        # Stealth — mask headless/automation signals that WhatsApp detects
         await self._page.add_init_script("""
+            // webdriver flag
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            Object.defineProperty(navigator, 'languages', {get: () => ['en-GB', 'en']});
-            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]});
-            window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){}, app: {} };
+            // realistic language list
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-GB', 'en-US', 'en']});
+            // realistic plugin list (Chrome PDF viewer etc.)
+            const _plugins = [
+                {name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format'},
+                {name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: ''},
+                {name: 'Native Client', filename: 'internal-nacl-plugin', description: ''},
+            ];
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => Object.assign(_plugins, {
+                    item: i => _plugins[i],
+                    namedItem: n => _plugins.find(p => p.name === n) || null,
+                    refresh: () => {},
+                    length: _plugins.length,
+                }),
+            });
+            // hardware concurrency & memory — realistic for a laptop
+            Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+            Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
+            // screen dimensions — must match viewport
+            Object.defineProperty(screen, 'width', {get: () => 1280});
+            Object.defineProperty(screen, 'height', {get: () => 900});
+            Object.defineProperty(screen, 'availWidth', {get: () => 1280});
+            Object.defineProperty(screen, 'availHeight', {get: () => 860});
+            Object.defineProperty(screen, 'colorDepth', {get: () => 24});
+            Object.defineProperty(screen, 'pixelDepth', {get: () => 24});
+            Object.defineProperty(window, 'outerWidth', {get: () => 1280});
+            Object.defineProperty(window, 'outerHeight', {get: () => 900});
+            // chrome runtime object expected by WhatsApp Web
+            window.chrome = {
+                runtime: {
+                    onMessage: {addListener: () => {}, removeListener: () => {}},
+                    onConnect: {addListener: () => {}, removeListener: () => {}},
+                },
+                loadTimes: function() { return {}; },
+                csi: function() { return {}; },
+                app: { isInstalled: false },
+            };
+            // notifications permission — avoid returning 'denied' which signals headless
+            const _origQuery = window.navigator.permissions.query.bind(navigator.permissions);
+            window.navigator.permissions.query = (params) => {
+                if (params && params.name === 'notifications') {
+                    return Promise.resolve({state: 'default', onchange: null});
+                }
+                return _origQuery(params);
+            };
         """)
         logger.info("WHATSAPP_WEB_BROWSER_LAUNCHED")
 
@@ -787,7 +833,7 @@ async def start_whatsapp_worker() -> None:
     worker = get_worker()
     # Auto-select a random static proxy on first boot only (not on reconnects).
     # Skipped if WHATSAPP_PROXY_ID is set in .env or user already chose one.
-    if not worker.proxy_id and not worker._proxy_user_cleared:
+    if not worker.proxy_id and not worker._proxy_user_cleared and settings.WHATSAPP_USE_PROXY:
         worker._auto_select_proxy()
     asyncio.create_task(worker.start(), name="wa-web-start")
     logger.info("WHATSAPP_WEB_WORKER_QUEUED")
