@@ -372,19 +372,27 @@ class WhatsAppWebWorker:
             await asyncio.sleep(0.5)
 
         if state == "loading":
-            # Take a screenshot so we can see what's on the page
+            # Dump what's actually on the page so we can diagnose without a screenshot
             try:
-                diag_path = "whatsapp-diag.png"
-                await page.screenshot(path=diag_path, full_page=True)
-                title = await page.title()
+                body_text = await page.evaluate(
+                    "() => (document.body && document.body.innerText || '').slice(0, 600)"
+                )
+                testids = await page.evaluate("""() => {
+                    const els = document.querySelectorAll('[data-testid]');
+                    return Array.from(els).map(e => e.getAttribute('data-testid')).slice(0, 40);
+                }""")
                 logger.error(
-                    f"WHATSAPP_WEB_LOAD_TIMEOUT title={title!r} "
-                    f"screenshot_saved={diag_path} "
-                    "reason=page did not reach a known state in 60s — "
-                    "check screenshot, may be blocked or JS not loading"
+                    f"WHATSAPP_WEB_LOAD_TIMEOUT "
+                    f"title={await page.title()!r} "
+                    f"body_text={body_text!r} "
+                    f"testids={testids}"
                 )
             except Exception as exc:
-                logger.error(f"WHATSAPP_WEB_LOAD_TIMEOUT screenshot_failed={exc}")
+                logger.error(f"WHATSAPP_WEB_LOAD_TIMEOUT diag_failed={exc}")
+            try:
+                await page.screenshot(path="whatsapp-diag.png", full_page=True, timeout=10000)
+            except Exception:
+                pass
             state = "loading"
 
         logger.info(f"WHATSAPP_WEB_INITIAL_STATE state={state}")
