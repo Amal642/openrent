@@ -282,7 +282,15 @@ class WhatsAppWebWorker:
         page = self._page
         my_gen = self._generation
         logger.info("WHATSAPP_WEB_NAVIGATING")
-        await page.goto(WA_URL, wait_until="domcontentloaded", timeout=45000)
+        try:
+            # wait_until="commit" fires on first byte received — fast even on slow proxies.
+            # _detect_state loop below handles waiting for the app to actually render.
+            await page.goto(WA_URL, wait_until="commit", timeout=60000)
+        except Exception as exc:
+            if self._generation != my_gen:
+                logger.info("WHATSAPP_WEB_NAVIGATE_SUPERSEDED — reconnect triggered during goto")
+                return
+            raise
 
         # Wait up to 60s — WhatsApp Web can be slow on first load
         state = "loading"
@@ -643,8 +651,8 @@ class WhatsAppWebWorker:
         # Open chat via direct URL — most reliable
         await page.goto(
             f"{WA_URL}/send?phone={clean_phone}",
-            wait_until="domcontentloaded",
-            timeout=20000,
+            wait_until="commit",
+            timeout=30000,
         )
         await asyncio.sleep(random.uniform(2.5, 4.5))
 
