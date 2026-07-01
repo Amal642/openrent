@@ -16,14 +16,18 @@ from sqlalchemy import text
 def main():
     db = SessionLocal()
     try:
-        # Check if column already exists
-        result = db.execute(text("PRAGMA table_info(whatsapp_contacts)"))
-        columns = [row[1] for row in result.fetchall()]
-        if "cancellation_sent_at" in columns:
+        # PostgreSQL: check information_schema for the column
+        result = db.execute(text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'whatsapp_contacts'
+              AND column_name = 'cancellation_sent_at'
+        """))
+        if result.fetchone():
             print("Column cancellation_sent_at already exists — nothing to do.")
             return
         db.execute(
-            text("ALTER TABLE whatsapp_contacts ADD COLUMN cancellation_sent_at DATETIME")
+            text("ALTER TABLE whatsapp_contacts ADD COLUMN cancellation_sent_at TIMESTAMP")
         )
         db.commit()
         print("Added cancellation_sent_at to whatsapp_contacts.")
