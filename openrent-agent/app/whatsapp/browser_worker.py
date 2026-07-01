@@ -205,10 +205,25 @@ class WhatsAppWebWorker:
         # On servers without display use Chrome's new headless (far less detectable
         # than old headless, no Xvfb needed). Set HEADLESS=false + run Xvfb for
         # a true visible window on a desktop.
+        import os as _os
         headless = settings.WHATSAPP_HEADLESS
         if not headless:
-            logger.info("WHATSAPP_WEB_BROWSER headless=False (visible window — needs display)")
-        else:
+            display = _os.environ.get("DISPLAY", "")
+            if not display:
+                # No display available — set :99 (Xvfb) or fall back to headless
+                if _os.path.exists("/tmp/.X11-unix/X99"):
+                    _os.environ["DISPLAY"] = ":99"
+                    display = ":99"
+                    logger.info("WHATSAPP_WEB_DISPLAY_AUTO_SET display=:99")
+                else:
+                    logger.warning(
+                        "WHATSAPP_WEB_NO_DISPLAY DISPLAY not set and Xvfb :99 not found — "
+                        "falling back to headless=new. Run: Xvfb :99 -screen 0 1280x900x24 &"
+                    )
+                    headless = True
+            if not headless:
+                logger.info(f"WHATSAPP_WEB_BROWSER headless=False display={display}")
+        if headless:
             launch_args.append("--headless=new")
             logger.info("WHATSAPP_WEB_BROWSER headless=new (server mode)")
 
