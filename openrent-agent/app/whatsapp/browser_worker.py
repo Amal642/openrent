@@ -83,7 +83,7 @@ class WhatsAppWebWorker:
             # intentionally omits the password (security). We need the decrypted
             # password, which EncryptedString provides transparently via the model.
             from app.db.models import Proxy as _Proxy
-            from app.db.session import session_scope
+            from app.db.repository import session_scope
             with session_scope() as db:
                 proxy = db.query(_Proxy).filter(_Proxy.id == self.proxy_id).first()
                 if not proxy:
