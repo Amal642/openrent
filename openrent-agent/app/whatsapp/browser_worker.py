@@ -192,6 +192,15 @@ class WhatsAppWebWorker:
             "--disable-dev-shm-usage",
             "--disable-blink-features=AutomationControlled",
             "--disable-infobars",
+            # Reduce memory footprint on VPS
+            "--disable-background-networking",
+            "--disable-default-apps",
+            "--disable-extensions",
+            "--disable-sync",
+            "--disable-translate",
+            "--metrics-recording-only",
+            "--no-first-run",
+            "--safebrowsing-disable-auto-update",
         ]
 
         # On servers without display use Chrome's new headless (far less detectable
