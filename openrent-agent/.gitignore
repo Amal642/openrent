@@ -152,6 +152,8 @@ frontend/openrent-command-center/dist/
 whatsapp-service/node_modules/
 whatsapp-service/auth_info_baileys/
 whatsapp-service/contacts_cache.json
+whatsapp-session/
+whatsapp-qr.png
 
 # -----------------------------
 
