@@ -46,6 +46,15 @@ SEL_CHAT_ITEM = '[data-testid="cell-frame-container"]'
 SEL_COMPOSE = '[data-testid="compose-box"]'
 SEL_CONV_TITLE = '[data-testid="conversation-info-header-chat-title"]'
 SEL_UNREAD_ANCHOR = '[data-testid="unread-messages-anchor"]'
+SEL_CONTACT_INFO_HEADER = '[data-testid="conversation-info-header"]'
+SEL_CONTACT_INFO_SUBTITLE = '[data-testid="contact-info-subtitle selectable-text"]'
+SEL_POPUP = 'div[data-animate-modal-popup="true"], div[role="dialog"]'
+
+# Preferred dismiss-button labels, checked in order (Cancel/Not now before OK,
+# so we default to declining nag popups rather than opting into anything).
+_POPUP_DISMISS_LABELS = (
+    "cancel", "not now", "no thanks", "later", "close", "dismiss", "got it", "ok",
+)
 
 # Max message IDs to keep in memory to prevent duplicates
 _MAX_SEEN_IDS = 2000
@@ -460,7 +469,87 @@ class WhatsAppWebWorker:
         # Clear stale QR
         QR_FILE.unlink(missing_ok=True)
         await self._save_session()
+        await self._dismiss_popups()
         logger.info("WHATSAPP_WEB_CONNECTED session_saved=True")
+
+    # ── Popup dismissal ──────────────────────────────────────────────────────────
+
+    async def _dismiss_popups(self, max_attempts: int = 3) -> None:
+        """Dismiss WhatsApp Web nag/confirmation popups (notification prompts,
+        new-feature cards, etc). These can overlay the chat list and intercept
+        clicks, which is a common cause of Locator.click timeouts. Prefers
+        Cancel/Not now over OK so we never opt into anything."""
+        page = self._page
+        if not page:
+            return
+
+        for _ in range(max_attempts):
+            try:
+                popup = page.locator(SEL_POPUP).first
+                if not await popup.is_visible(timeout=600):
+                    return
+            except Exception:
+                return
+
+            clicked = False
+            for label in _POPUP_DISMISS_LABELS:
+                try:
+                    btn = popup.get_by_role("button", name=re.compile(rf"^{label}$", re.I))
+                    if await btn.count() and await btn.first.is_visible(timeout=400):
+                        await btn.first.click(timeout=2000)
+                        logger.info(f"WHATSAPP_WEB_POPUP_DISMISSED label={label}")
+                        clicked = True
+                        break
+                except Exception:
+                    continue
+
+            if not clicked:
+                try:
+                    buttons = popup.locator('div[role="button"], button')
+                    count = await buttons.count()
+                    if count:
+                        await buttons.nth(count - 1).click(timeout=2000)
+                        logger.info("WHATSAPP_WEB_POPUP_DISMISSED_FALLBACK")
+                        clicked = True
+                except Exception:
+                    pass
+
+            if not clicked:
+                logger.warning("WHATSAPP_WEB_POPUP_DISMISS_FAILED — no clickable button found")
+                return
+
+            await asyncio.sleep(random.uniform(0.4, 0.8))
+
+    async def _click_chat_item(self, item) -> bool:
+        """Click a chat row robustly. The chat list is virtualized (rows can
+        reposition mid-click) and stray popups can intercept the click point,
+        so this retries with popup dismissal, a forced click, and finally a
+        raw coordinate click before giving up."""
+        try:
+            await item.scroll_into_view_if_needed(timeout=5000)
+            await item.click(timeout=8000)
+            return True
+        except Exception as exc:
+            logger.warning(f"WHATSAPP_WEB_CHAT_CLICK_RETRY reason={exc}")
+
+        await self._dismiss_popups()
+        try:
+            await item.click(timeout=5000, force=True)
+            return True
+        except Exception as exc:
+            logger.warning(f"WHATSAPP_WEB_CHAT_CLICK_FORCE_FAILED reason={exc}")
+
+        try:
+            box = await item.bounding_box()
+            if box:
+                x = box["x"] + box["width"] / 2
+                y = box["y"] + box["height"] / 2
+                await self._page.mouse.click(x, y)
+                return True
+        except Exception as exc:
+            logger.error(f"WHATSAPP_WEB_CHAT_CLICK_COORD_FAILED reason={exc}")
+
+        return False
 
     # ── QR capture ────────────────────────────────────────────────────────────
 
@@ -565,6 +654,7 @@ class WhatsAppWebWorker:
 
     async def _process_unread_chats(self) -> None:
         page = self._page
+        await self._dismiss_popups()
         try:
             unread_items = await page.locator(
                 f"{SEL_CHAT_ITEM}:has({SEL_UNREAD_BADGE})"
@@ -580,11 +670,18 @@ class WhatsAppWebWorker:
 
         for item in unread_items:
             try:
-                await item.click()
+                await self._dismiss_popups()
+                if not await self._click_chat_item(item):
+                    logger.error("WHATSAPP_WEB_CHAT_CLICK_FAILED — skipping chat")
+                    continue
                 await asyncio.sleep(random.uniform(0.8, 1.5))
 
                 phone = await self._extract_phone_from_current_chat()
                 sender_name = await self._extract_name_from_header()
+                if not sender_name:
+                    # Header only shows the phone for unsaved contacts — the
+                    # WhatsApp push name lives in the contact info panel.
+                    sender_name = await self._extract_name_from_contact_panel()
 
                 if not phone:
                     logger.warning(
@@ -669,6 +766,51 @@ class WhatsAppWebWorker:
                 return title
         except Exception:
             pass
+        return None
+
+    async def _extract_name_from_contact_panel(self) -> Optional[str]:
+        """Open the contact info panel and read the WhatsApp push name.
+        For unsaved contacts, the conversation header only shows the phone
+        number — the self-set display name (e.g. "~Jessy") only appears
+        here, next to the phone number in the profile section."""
+        page = self._page
+        try:
+            await self._dismiss_popups()
+            await page.locator(SEL_CONTACT_INFO_HEADER).click(timeout=3000)
+            await page.locator(SEL_CONTACT_INFO_SUBTITLE).wait_for(
+                state="visible", timeout=3000
+            )
+
+            name = await page.evaluate("""
+                () => {
+                    const subtitle = document.querySelector(
+                        '[data-testid="contact-info-subtitle selectable-text"]'
+                    );
+                    if (!subtitle) return null;
+                    const scope = subtitle.closest('section') || subtitle.parentElement;
+                    if (!scope) return null;
+                    const candidates = scope.querySelectorAll('[data-testid="selectable-text"]');
+                    for (const el of candidates) {
+                        const text = (el.innerText || '').trim();
+                        if (text) return text;
+                    }
+                    return null;
+                }
+            """)
+
+            await page.keyboard.press("Escape")
+            await asyncio.sleep(random.uniform(0.3, 0.6))
+
+            if name:
+                # WhatsApp prefixes a self-set (unsaved-contact) name with "~"
+                cleaned = name.lstrip("~").strip()
+                return cleaned or None
+        except Exception as exc:
+            logger.debug(f"WHATSAPP_WEB_CONTACT_PANEL_NAME_FAILED error={exc}")
+            try:
+                await page.keyboard.press("Escape")
+            except Exception:
+                pass
         return None
 
     async def _extract_unread_messages(self) -> list[tuple[str, str]]:
@@ -764,6 +906,7 @@ class WhatsAppWebWorker:
             timeout=30000,
         )
         await asyncio.sleep(random.uniform(2.5, 4.5))
+        await self._dismiss_popups()
 
         # Wait for compose box
         compose = page.locator(SEL_COMPOSE)
