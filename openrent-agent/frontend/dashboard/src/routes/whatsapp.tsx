@@ -113,7 +113,10 @@ function WorkerStatusCard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["whatsapp-worker-status"] }),
   });
 
-  const meta = WORKER_STATUS_META[workerStatus?.status ?? "disconnected"];
+  const meta = WORKER_STATUS_META[workerStatus?.status ?? "disconnected"] ?? {
+    label: workerStatus?.status ?? "Unknown",
+    cls: "bg-muted text-muted-foreground border-border",
+  };
 
   return (
     <div className="rounded-lg border bg-card p-4 mb-6">

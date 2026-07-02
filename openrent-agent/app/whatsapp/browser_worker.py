@@ -632,6 +632,19 @@ class WhatsAppWebWorker:
                     continue
 
                 state = await self._detect_state()
+                if state == "loading":
+                    # Inconclusive read (mid-reload, slow paint, etc.), not a
+                    # real disconnection. Do NOT overwrite self.status here:
+                    # "loading" has no recovery path and isn't a status the
+                    # dashboard/API know how to display, so setting it would
+                    # permanently wedge the poll loop (line ~631 skips every
+                    # future cycle once status != "connected"). Just retry
+                    # next cycle.
+                    logger.warning(
+                        "WHATSAPP_WEB_STATE_DRIFT_TRANSIENT detected=loading "
+                        "was=connected — leaving status unchanged, retrying next cycle"
+                    )
+                    continue
                 if state != "connected":
                     logger.warning(
                         f"WHATSAPP_WEB_STATE_DRIFT detected={state} was=connected"
