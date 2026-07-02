@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload
 from app.db.connection import SessionLocal
 from app.db.models import (
     Account,
+    AppSetting,
     Conversation,
     Landlord,
     LeadSheetExport,
@@ -46,6 +47,22 @@ def session_scope():
         raise
     finally:
         db.close()
+
+
+def get_app_setting(key: str) -> str | None:
+    with session_scope() as db:
+        row = db.query(AppSetting).filter(AppSetting.key == key).first()
+        return row.value if row else None
+
+
+def set_app_setting(key: str, value: str) -> None:
+    with session_scope() as db:
+        row = db.query(AppSetting).filter(AppSetting.key == key).first()
+        if row:
+            row.value = value
+        else:
+            db.add(AppSetting(key=key, value=value))
+        db.commit()
 
 
 # ---------------- PROXIES ----------------

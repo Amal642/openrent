@@ -56,6 +56,13 @@ _POPUP_DISMISS_LABELS = (
     "cancel", "not now", "no thanks", "later", "close", "dismiss", "got it", "ok",
 )
 
+def _phone_from_title(title: str) -> Optional[str]:
+    """If a chat-list row's title is itself a raw phone number (unsaved
+    contact), normalize it the same way an opened chat's header would."""
+    digits = re.sub(r"[\s\-\(\)\+]", "", title)
+    return digits if re.match(r"^\d{7,15}$", digits) else None
+
+
 # Max message IDs to keep in memory to prevent duplicates
 _MAX_SEEN_IDS = 2000
 
@@ -155,6 +162,11 @@ class WhatsAppWebWorker:
         try:
             await self._launch_browser()
             await self._navigate_and_wait()
+            if self.status == "connected":
+                # Sequential, not a background task: it shares self._page with
+                # the poll loop, so it must finish before that loop can start
+                # touching the page too.
+                await self._run_first_scan_if_needed()
             if self.status in ("connected", "needs_scan"):
                 self._poll_task = asyncio.create_task(
                     self._poll_loop(), name="wa-web-poll"
@@ -213,25 +225,31 @@ class WhatsAppWebWorker:
 
         # On servers without display use Chrome's new headless (far less detectable
         # than old headless, no Xvfb needed). Set HEADLESS=false + run Xvfb for
-        # a true visible window on a desktop.
+        # a true visible window on a Linux desktop.
         import os as _os
+        import sys as _sys
         headless = settings.WHATSAPP_HEADLESS
         if not headless:
-            display = _os.environ.get("DISPLAY", "")
-            if not display:
-                # No display available — set :99 (Xvfb) or fall back to headless
-                if _os.path.exists("/tmp/.X11-unix/X99"):
-                    _os.environ["DISPLAY"] = ":99"
-                    display = ":99"
-                    logger.info("WHATSAPP_WEB_DISPLAY_AUTO_SET display=:99")
-                else:
-                    logger.warning(
-                        "WHATSAPP_WEB_NO_DISPLAY DISPLAY not set and Xvfb :99 not found — "
-                        "falling back to headless=new. Run: Xvfb :99 -screen 0 1280x900x24 &"
-                    )
-                    headless = True
-            if not headless:
-                logger.info(f"WHATSAPP_WEB_BROWSER headless=False display={display}")
+            # macOS (and Windows) render native windows directly — the X11
+            # DISPLAY/Xvfb requirement below only applies to Linux.
+            if _sys.platform == "darwin":
+                logger.info("WHATSAPP_WEB_BROWSER headless=False platform=darwin")
+            else:
+                display = _os.environ.get("DISPLAY", "")
+                if not display:
+                    # No display available — set :99 (Xvfb) or fall back to headless
+                    if _os.path.exists("/tmp/.X11-unix/X99"):
+                        _os.environ["DISPLAY"] = ":99"
+                        display = ":99"
+                        logger.info("WHATSAPP_WEB_DISPLAY_AUTO_SET display=:99")
+                    else:
+                        logger.warning(
+                            "WHATSAPP_WEB_NO_DISPLAY DISPLAY not set and Xvfb :99 not found — "
+                            "falling back to headless=new. Run: Xvfb :99 -screen 0 1280x900x24 &"
+                        )
+                        headless = True
+                if not headless:
+                    logger.info(f"WHATSAPP_WEB_BROWSER headless=False display={display}")
         if headless:
             launch_args.append("--headless=new")
             logger.info("WHATSAPP_WEB_BROWSER headless=new (server mode)")
@@ -628,6 +646,7 @@ class WhatsAppWebWorker:
                 await self._process_unread_chats()
                 await self._dispatch_due_cancellations()
                 await self._dispatch_due_replies()
+                await self._scan_all_chats()
                 consecutive_errors = 0
 
             except asyncio.CancelledError:
@@ -652,23 +671,87 @@ class WhatsAppWebWorker:
 
     # ── Incoming message processing ───────────────────────────────────────────
 
-    async def _process_unread_chats(self) -> None:
-        page = self._page
-        await self._dismiss_popups()
+    async def _chat_item_key(self, item) -> Optional[str]:
+        """Stable identifier for a chat-list row (its title text), used to
+        dedupe across scrolls. Positional locators (.nth(N)) aren't stable
+        since the list is virtualized and rows remount at different indices
+        as it scrolls."""
         try:
-            unread_items = await page.locator(
+            title_el = item.locator('[data-testid="cell-frame-title"] span[title]').first
+            title = await title_el.get_attribute("title", timeout=1500)
+            if title:
+                return title.strip()
+        except Exception:
+            pass
+        try:
+            text = await item.inner_text(timeout=1500)
+            text = text.strip()
+            return text[:120] or None
+        except Exception:
+            return None
+
+    async def _scroll_chat_list(self) -> None:
+        try:
+            await self._page.locator(SEL_CHAT_LIST).evaluate(
+                "el => el.scrollBy(0, Math.max(el.clientHeight * 0.85, 300))"
+            )
+            await asyncio.sleep(random.uniform(0.6, 1.0))
+        except Exception as exc:
+            logger.debug(f"WHATSAPP_WEB_CHAT_LIST_SCROLL_FAILED error={exc}")
+
+    async def _extract_unread_messages_with_retry(
+        self, attempts: int = 3, delay: float = 0.8
+    ) -> list[tuple[str, str]]:
+        """Message bubbles can still be rendering right after opening a chat
+        (especially on a slow proxy), so retry briefly before giving up."""
+        for attempt in range(attempts):
+            messages = await self._extract_unread_messages()
+            if messages:
+                return messages
+            if attempt < attempts - 1:
+                await asyncio.sleep(delay)
+        return []
+
+    async def _next_unread_item(self, processed_keys: set[str]):
+        """Re-query the unread-chat selector fresh and return the first row
+        not yet processed. The selector match set shrinks as each chat's
+        badge clears on open, so any previously-fetched batch of locators
+        goes stale immediately — this must be queried fresh every time."""
+        try:
+            unread_items = await self._page.locator(
                 f"{SEL_CHAT_ITEM}:has({SEL_UNREAD_BADGE})"
             ).all()
         except Exception as exc:
             logger.warning(f"WHATSAPP_WEB_UNREAD_QUERY_FAILED error={exc}")
-            return
-
-        if not unread_items:
-            return
-
-        logger.info(f"WHATSAPP_WEB_UNREAD_CHATS count={len(unread_items)}")
+            return None, None
 
         for item in unread_items:
+            key = await self._chat_item_key(item)
+            if key and key not in processed_keys:
+                return key, item
+        return None, None
+
+    async def _process_unread_chats(self) -> None:
+        await self._dismiss_popups()
+
+        processed_keys: set[str] = set()
+        empty_rounds = 0
+        max_iterations = 60
+
+        for _ in range(max_iterations):
+            key, item = await self._next_unread_item(processed_keys)
+
+            if item is None:
+                empty_rounds += 1
+                if empty_rounds >= 2:
+                    # Two consecutive scrolls with nothing new -> end of list
+                    break
+                await self._scroll_chat_list()
+                continue
+
+            empty_rounds = 0
+            processed_keys.add(key)
+
             try:
                 await self._dismiss_popups()
                 if not await self._click_chat_item(item):
@@ -690,7 +773,7 @@ class WhatsAppWebWorker:
                     )
                     continue
 
-                messages = await self._extract_unread_messages()
+                messages = await self._extract_unread_messages_with_retry()
                 logger.info(
                     f"WHATSAPP_WEB_MESSAGES_FOUND phone={phone} count={len(messages)}"
                 )
@@ -723,6 +806,153 @@ class WhatsAppWebWorker:
                 logger.error(f"WHATSAPP_WEB_CHAT_PROCESS_ERROR error={exc}")
 
             await asyncio.sleep(random.uniform(0.5, 1.2))
+
+        if processed_keys:
+            logger.info(f"WHATSAPP_WEB_UNREAD_CHATS_TOTAL count={len(processed_keys)}")
+
+    async def _next_chat_item(self, processed_keys: set[str]):
+        """Like _next_unread_item but walks the ENTIRE chat list (no unread
+        filter) — used by the full backfill/re-match scan."""
+        try:
+            items = await self._page.locator(SEL_CHAT_ITEM).all()
+        except Exception as exc:
+            logger.warning(f"WHATSAPP_WEB_CHAT_LIST_QUERY_FAILED error={exc}")
+            return None, None
+
+        for item in items:
+            key = await self._chat_item_key(item)
+            if key and key not in processed_keys:
+                return key, item
+        return None, None
+
+    async def _scan_all_chats(self) -> None:
+        """Walk every chat (not just unread ones) to backfill phone/name and
+        attempt property matching for contacts we haven't resolved yet.
+
+        Skips any chat whose contact is already MATCHED or CANCELLED — for
+        unsaved contacts (row title is a raw phone number) this is checked
+        against the DB without even opening the chat. Used both for the
+        one-time first-run backfill and, on every poll cycle, to keep
+        re-trying contacts stuck without a property match (e.g. because they
+        never answered the "which property?" ask, or a new listing since
+        made them matchable).
+        """
+        from app.whatsapp.repository import get_contact_by_phone
+
+        await self._dismiss_popups()
+
+        processed_keys: set[str] = set()
+        empty_rounds = 0
+        max_iterations = 300
+        visited = 0
+        skipped = 0
+
+        for _ in range(max_iterations):
+            key, item = await self._next_chat_item(processed_keys)
+
+            if item is None:
+                empty_rounds += 1
+                if empty_rounds >= 2:
+                    # Two consecutive scrolls with nothing new -> end of list
+                    break
+                await self._scroll_chat_list()
+                continue
+
+            empty_rounds = 0
+            processed_keys.add(key)
+
+            title_phone = _phone_from_title(key)
+            if title_phone:
+                existing = await asyncio.to_thread(get_contact_by_phone, title_phone)
+                if existing and (
+                    existing.match_status == "MATCHED" or existing.status == "CANCELLED"
+                ):
+                    skipped += 1
+                    continue
+
+            try:
+                await self._dismiss_popups()
+                if not await self._click_chat_item(item):
+                    logger.error("WHATSAPP_WEB_CHAT_CLICK_FAILED — skipping chat")
+                    continue
+                await asyncio.sleep(random.uniform(0.8, 1.5))
+
+                phone = await self._extract_phone_from_current_chat()
+                if not phone:
+                    logger.warning(
+                        "WHATSAPP_WEB_PHONE_EXTRACT_FAILED — skipping chat, "
+                        "could not determine phone from header"
+                    )
+                    continue
+
+                existing = await asyncio.to_thread(get_contact_by_phone, phone)
+                if existing and (
+                    existing.match_status == "MATCHED" or existing.status == "CANCELLED"
+                ):
+                    skipped += 1
+                    continue
+
+                sender_name = await self._extract_name_from_header()
+                if not sender_name:
+                    sender_name = await self._extract_name_from_contact_panel()
+
+                messages = await self._extract_unread_messages_with_retry()
+                if not messages:
+                    logger.info(f"WHATSAPP_WEB_SCAN_NO_MESSAGES phone={phone}")
+                    continue
+
+                for msg_id, text in messages:
+                    if msg_id in self._seen_message_ids:
+                        continue
+                    self._seen_message_ids.add(msg_id)
+                    if len(self._seen_message_ids) > _MAX_SEEN_IDS:
+                        self._seen_message_ids = set(
+                            list(self._seen_message_ids)[-_MAX_SEEN_IDS // 2:]
+                        )
+
+                    logger.info(
+                        f"WHATSAPP_WEB_SCAN_INCOMING phone={phone} "
+                        f"name={sender_name!r} text={text[:80]!r}"
+                    )
+
+                    from app.whatsapp.handler import handle_incoming_message
+                    await handle_incoming_message(
+                        phone_number=phone,
+                        message=text,
+                        timestamp=int(time.time()),
+                        sender_name=sender_name,
+                    )
+
+                visited += 1
+                self.last_active = datetime.utcnow()
+
+            except Exception as exc:
+                logger.error(f"WHATSAPP_WEB_SCAN_CHAT_ERROR error={exc}")
+
+            await asyncio.sleep(random.uniform(0.5, 1.2))
+
+        logger.info(
+            f"WHATSAPP_WEB_FULL_SCAN_DONE processed={visited} skipped={skipped} "
+            f"total_seen={len(processed_keys)}"
+        )
+
+    async def _run_first_scan_if_needed(self) -> None:
+        from app.db.repository import get_app_setting, set_app_setting
+
+        try:
+            done = await asyncio.to_thread(
+                get_app_setting, "whatsapp_first_full_scan_done"
+            )
+            if done:
+                return
+            logger.info("WHATSAPP_WEB_FIRST_SCAN_STARTING")
+            await self._scan_all_chats()
+            await asyncio.to_thread(
+                set_app_setting, "whatsapp_first_full_scan_done", "true"
+            )
+            logger.info("WHATSAPP_WEB_FIRST_SCAN_COMPLETE")
+        except Exception as exc:
+            logger.error(f"WHATSAPP_WEB_FIRST_SCAN_FAILED error={exc}")
 
     async def _extract_phone_from_current_chat(self) -> Optional[str]:
         page = self._page
@@ -814,49 +1044,39 @@ class WhatsAppWebWorker:
         return None
 
     async def _extract_unread_messages(self) -> list[tuple[str, str]]:
-        """Return list of (unique_id, text) for unread messages in current chat."""
+        """Return list of (unique_id, text) for the most recent inbound
+        messages in the current chat.
+
+        Previously this looked for `[data-testid="unread-messages-anchor"]`
+        and only read messages after it. WhatsApp removes that anchor (marks
+        the chat read) almost immediately once the conversation view opens,
+        so by the time we read the DOM it's frequently already gone — this
+        was silently returning zero messages for chats that plainly had new
+        text. Instead, just read the last few inbound bubbles unconditionally
+        and rely on the caller's `_seen_message_ids` dedup (by data-id) to
+        skip anything already processed in a prior poll.
+        """
         page = self._page
         try:
             results: list[dict] = await page.evaluate("""
                 () => {
                     const results = [];
+                    const containers = document.querySelectorAll('[data-testid="msg-container"]');
+                    const recent = Array.from(containers).slice(-8);
 
-                    // Find unread anchor — messages after it are new
-                    const anchor = document.querySelector('[data-testid="unread-messages-anchor"]');
-                    let nodes = [];
-
-                    if (anchor) {
-                        let el = anchor.parentElement
-                            ? anchor.parentElement.nextElementSibling
-                            : anchor.nextElementSibling;
-                        while (el) {
-                            nodes.push(el);
-                            el = el.nextElementSibling;
-                        }
-                    } else {
-                        // No anchor: grab last message as fallback
-                        const all = document.querySelectorAll('[data-testid="msg-container"]');
-                        if (all.length > 0) nodes = [all[all.length - 1].parentElement];
-                    }
-
-                    for (const node of nodes) {
-                        const containers = node.querySelectorAll
-                            ? node.querySelectorAll('[data-testid="msg-container"]')
-                            : [];
-                        for (const c of containers) {
-                            // Skip outgoing messages (fromMe)
-                            if (c.closest('[data-id*="true"]')) continue;
-                            const textEl = c.querySelector('.copyable-text span[dir="ltr"]')
-                                || c.querySelector('span[dir="ltr"]')
-                                || c.querySelector('.selectable-text');
-                            const text = textEl ? textEl.innerText.trim() : '';
-                            if (!text) continue;
-                            const dataId = c.closest('[data-id]')
-                                ? c.closest('[data-id]').getAttribute('data-id')
-                                : null;
-                            const msgId = dataId || (Date.now() + Math.random()).toString();
-                            results.push({ id: msgId, text: text });
-                        }
+                    for (const c of recent) {
+                        // Skip outgoing messages (fromMe)
+                        if (c.closest('[data-id*="true"]')) continue;
+                        const textEl = c.querySelector('.copyable-text span[dir="ltr"]')
+                            || c.querySelector('span[dir="ltr"]')
+                            || c.querySelector('.selectable-text');
+                        const text = textEl ? textEl.innerText.trim() : '';
+                        if (!text) continue;
+                        const dataId = c.closest('[data-id]')
+                            ? c.closest('[data-id]').getAttribute('data-id')
+                            : null;
+                        const msgId = dataId || (Date.now() + Math.random()).toString();
+                        results.push({ id: msgId, text: text });
                     }
                     return results;
                 }
