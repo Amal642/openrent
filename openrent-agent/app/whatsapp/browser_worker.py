@@ -163,10 +163,12 @@ class WhatsAppWebWorker:
             await self._launch_browser()
             await self._navigate_and_wait()
             if self.status == "connected":
-                # Sequential, not a background task: it shares self._page with
-                # the poll loop, so it must finish before that loop can start
-                # touching the page too.
-                await self._run_first_scan_if_needed()
+                # Disabled 2026-07-02: _scan_all_chats() re-processed an
+                # already-handled contact, mis-extracted a message fragment,
+                # and caused an unreviewed reply to go out to a real landlord.
+                # Re-enable once that extraction bug is fixed.
+                # await self._run_first_scan_if_needed()
+                pass
             if self.status in ("connected", "needs_scan"):
                 self._poll_task = asyncio.create_task(
                     self._poll_loop(), name="wa-web-poll"
@@ -646,7 +648,13 @@ class WhatsAppWebWorker:
                 await self._process_unread_chats()
                 await self._dispatch_due_cancellations()
                 await self._dispatch_due_replies()
-                await self._scan_all_chats()
+                # Periodic re-scan disabled 2026-07-02: it re-processed a contact
+                # that _process_unread_chats() had just handled correctly in the
+                # same cycle, extracted a garbled message fragment, and sent an
+                # unreviewed reply to a real landlord. Do not re-enable until the
+                # extraction bug is fixed and re-processing is gated on the
+                # contact not having been touched moments earlier.
+                # await self._scan_all_chats()
                 consecutive_errors = 0
 
             except asyncio.CancelledError:
