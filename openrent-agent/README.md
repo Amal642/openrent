@@ -231,11 +231,26 @@ plain-text password in `.env`:
 python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('replace-with-password'))"
 ```
 
-Start it:
+Run it directly for a quick local test:
 
 ```powershell
 python scripts/run_alert_bot.py
 ```
+
+On a server, running it directly ties it to your SSH session — it dies the
+moment you disconnect. Install it as a systemd service instead so it survives
+disconnects, restarts on crash, and starts on boot:
+
+```bash
+# Adjust WorkingDirectory/ExecStart in the unit file first if your paths differ.
+sudo cp deploy/openrent-alert-bot.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now openrent-alert-bot
+sudo systemctl status openrent-alert-bot
+journalctl -u openrent-alert-bot -f   # tail logs
+```
+
+To pick up a code change or `.env` edit: `sudo systemctl restart openrent-alert-bot`.
 
 Anyone who messages the bot and sends the correct password becomes a
 subscriber (no group chat needed). Commands once authorized:

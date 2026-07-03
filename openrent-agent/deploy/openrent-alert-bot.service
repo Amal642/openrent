@@ -1,0 +1,20 @@
+[Unit]
+Description=OpenRent Telegram alert bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/openrent-agent/openrent-agent
+ExecStart=/opt/openrent-agent/openrent-agent/venv/bin/python scripts/run_alert_bot.py
+EnvironmentFile=/opt/openrent-agent/openrent-agent/.env
+Restart=always
+RestartSec=10
+# Belt-and-suspenders: if it somehow gets stuck instead of crashing, restart it daily.
+RuntimeMaxSec=86400
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openrent-alert-bot
+
+[Install]
+WantedBy=multi-user.target
