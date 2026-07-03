@@ -479,3 +479,56 @@ class AppSetting(Base):
     key = Column(String, primary_key=True)
     value = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ---------------- TELEGRAM ALERTING ----------------
+
+class AlertSubscriber(Base):
+    __tablename__ = "alert_subscribers"
+
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(String, unique=True, nullable=False, index=True)
+    username = Column(String, nullable=True)
+    first_name = Column(String, nullable=True)
+    authorized = Column(Boolean, default=False, nullable=False)
+    # False once delivery keeps failing (e.g. user blocked the bot) — stop retrying.
+    active = Column(Boolean, default=True, nullable=False)
+    failed_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
+    joined_at = Column(DateTime, default=datetime.utcnow)
+    authorized_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AlertSignature(Base):
+    __tablename__ = "alert_signatures"
+
+    signature = Column(String, primary_key=True)
+    source = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    # True while this incident is alerted and not yet reset (fire-once gate).
+    active = Column(Boolean, default=True, nullable=False)
+    # "auto" (proxy/whatsapp health checks, cleared on recovery) or
+    # "manual" (scraper/messaging code errors, cleared via /resolve).
+    resolution_mode = Column(String, default="manual", nullable=False)
+    ai_explanation = Column(Text, nullable=True)
+    first_seen_at = Column(DateTime, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, default=datetime.utcnow)
+    alert_count = Column(Integer, default=1, nullable=False)
+    resolved_at = Column(DateTime, nullable=True)
+
+
+class AlertEvent(Base):
+    __tablename__ = "alert_events"
+
+    id = Column(Integer, primary_key=True)
+    source = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    detail = Column(Text, nullable=True)
+    severity = Column(String, default="error", nullable=False)
+    context = Column(Text, nullable=True)
+    exception_type = Column(String, nullable=True)
+    signature = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    processed_at = Column(DateTime, nullable=True)
+    outcome = Column(String, nullable=True)

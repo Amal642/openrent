@@ -36,6 +36,7 @@ Pygments==2.20.0
 pytest==9.0.3
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
+python-telegram-bot==22.8
 redis==8.0.0
 rq==2.9.0
 six==1.17.0

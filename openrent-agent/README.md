@@ -210,6 +210,49 @@ restart the API. To immediately invalidate every active CRM session, rotate
 `CRM_AUTH_SECRET` and restart the API. If access is lost, update all three CRM
 environment variables directly in the API hosting provider and redeploy.
 
+## Telegram Alert Bot
+
+A standalone process (`scripts/run_alert_bot.py`) watches for proxy failures,
+WhatsApp session drops, scraper errors, and messaging failures, and pushes a
+Telegram message to every authorized subscriber. It runs independently of the
+scrapers/WhatsApp worker so it stays alive even if those crash.
+
+Set in `.env`:
+
+```env
+TELEGRAM_BOT_TOKEN=<token from @BotFather>
+TELEGRAM_ALERT_PASSWORD_HASH=<generated-password-hash>
+```
+
+Generate the password hash the same way as the CRM one, without storing the
+plain-text password in `.env`:
+
+```powershell
+python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('replace-with-password'))"
+```
+
+Start it:
+
+```powershell
+python scripts/run_alert_bot.py
+```
+
+Anyone who messages the bot and sends the correct password becomes a
+subscriber (no group chat needed). Commands once authorized:
+
+- `/resolve [keyword]` — clear a manually-resolved incident (scraper/messaging
+  errors) so the next occurrence alerts again; lists open ones if no keyword
+  is given. Proxy/WhatsApp health alerts clear themselves automatically once
+  the check passes again.
+- `/unsubscribe` — stop receiving alerts.
+- `/status` — current health snapshot on demand.
+
+Wrong passwords lock a chat out for `ALERT_LOCKOUT_SECONDS` after
+`ALERT_MAX_PASSWORD_ATTEMPTS` failures. To revoke everyone at once, rotate
+`TELEGRAM_ALERT_PASSWORD_HASH` and restart — existing subscribers stay
+authorized (only new sign-ups need the new password); to force everyone to
+re-authenticate, clear the `alert_subscribers` table instead.
+
 ## Run API
 
 From `openrent-agent/`:

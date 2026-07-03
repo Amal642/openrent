@@ -41,6 +41,7 @@ from app.utils.human import random_sleep
 from app.utils.scheduling import is_uk_outreach_window
 
 from app.utils.logger import logger
+from app.alerts.events import report_error
 
 from app.openrent.landlords import landlord_is_agent
 
@@ -256,6 +257,12 @@ async def process_account_listings(
                 f"(pk={listing_pk}): {e}"
             )
             mark_listing_failed(listing_pk, reason=f"{type(e).__name__}: {str(e)[:300]}")
+            report_error(
+                "scraper",
+                "Listing processing failed",
+                context={"listing_id": listing_pk, "listing_ext_id": listing_ext_id, "account_id": account.id},
+                exc=e,
+            )
 
         finally:
             release_listing_claim(

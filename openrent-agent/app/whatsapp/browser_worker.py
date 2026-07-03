@@ -12,6 +12,7 @@ State machine:
 from __future__ import annotations
 
 import asyncio
+import json
 import random
 import re
 import time
@@ -627,6 +628,13 @@ class WhatsAppWebWorker:
         while True:
             try:
                 await asyncio.sleep(random.randint(600, 900))
+
+                from app.db.repository import set_app_setting
+                await asyncio.to_thread(
+                    set_app_setting,
+                    "whatsapp_worker_heartbeat",
+                    json.dumps({"status": self.status, "at": datetime.utcnow().isoformat()}),
+                )
 
                 if self.status != "connected":
                     continue

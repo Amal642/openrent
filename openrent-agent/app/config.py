@@ -75,4 +75,14 @@ class Settings:
         os.getenv("GOOGLE_SHEETS_MAX_ATTEMPTS", "8")
     )
 
+    # Telegram alert bot. TELEGRAM_ALERT_PASSWORD_HASH is generated the same way
+    # as CRM_PASSWORD_HASH (see README) — never store the plain password.
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    TELEGRAM_ALERT_PASSWORD_HASH = os.getenv("TELEGRAM_ALERT_PASSWORD_HASH", "")
+    ALERT_POLL_SECONDS = int(os.getenv("ALERT_POLL_SECONDS", "20"))
+    ALERT_HEALTH_CHECK_SECONDS = int(os.getenv("ALERT_HEALTH_CHECK_SECONDS", "180"))
+    ALERT_MAX_PASSWORD_ATTEMPTS = int(os.getenv("ALERT_MAX_PASSWORD_ATTEMPTS", "3"))
+    ALERT_LOCKOUT_SECONDS = int(os.getenv("ALERT_LOCKOUT_SECONDS", "3600"))
+    ALERT_HEARTBEAT_HOURS = int(os.getenv("ALERT_HEARTBEAT_HOURS", "24"))
+
 settings = Settings()

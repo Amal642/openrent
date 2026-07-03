@@ -1,4 +1,5 @@
 
+from app.alerts.events import report_error
 from app.openrent.search import get_account_search_urls
 from app.openrent.listings import scrape_search_results
 from app.db.repository import mark_scraped_today
@@ -37,6 +38,12 @@ async def scrape_account_listings(account, page, new_limit: int = 25) -> int:
             logger.exception(
                 f"DISCOVERY_PROFILE_FAILED profile_id={item['profile_id']} "
                 f"account_id={account.id} error={exc}"
+            )
+            report_error(
+                "scraper",
+                f"Discovery failed for profile {item['profile_id']}",
+                context={"account_id": account.id, "profile_id": item["profile_id"]},
+                exc=exc,
             )
 
     mark_scraped_today(account.id)

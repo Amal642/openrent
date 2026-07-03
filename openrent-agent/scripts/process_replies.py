@@ -89,6 +89,7 @@ from app.utils.phone import (
     normalize_uk_phone
 )
 from app.utils.logger import logger
+from app.alerts.events import report_error
 
 from app.db.status import (
     SKIPPED,
@@ -1447,6 +1448,12 @@ async def process_account_replies(
             logger.exception(f"Failed processing thread {thread_id}: {e}")
             if thread_id:
                 update_conversation_status(thread_id, AI_FAILED)
+            report_error(
+                "messaging",
+                "Reply processing failed",
+                context={"thread_id": thread_id, "account_id": account.id},
+                exc=e,
+            )
         finally:
             if thread_id:
                 release_conversation_claim(
