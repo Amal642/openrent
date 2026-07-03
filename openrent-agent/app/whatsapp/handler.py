@@ -31,6 +31,7 @@ from app.whatsapp.reply import (
 )
 from app.whatsapp.repository import (
     apply_match_result,
+    append_outbound_message,
     capture_incoming_message,
     get_contact_by_phone,
     get_conversation_for_contact,
@@ -41,6 +42,33 @@ from app.whatsapp.repository import (
 PARTIAL_MATCH_THRESHOLD = 65.0
 AUTO_MATCH_THRESHOLD = 85.0
 AUTO_MATCH_MIN_GAP = 5.0
+
+# Goal on this channel is narrow: landlord's number (implicit, it's WhatsApp),
+# name, and property. Never chase property details past this many dedicated asks.
+MAX_PROPERTY_ASKS = 2
+
+_SUSPICIOUS_PATTERNS = (
+    r"\bwho are you\b",
+    r"\bwho is this\b",
+    r"\bprove\b",
+    r"\bscam\b",
+    r"\bfraud\b",
+    r"\bfake\b",
+    r"\bnot real\b",
+    r"\bbot\b",
+    r"\bautomat(ed|ic|ion)\b",
+    r"\bare you (a |an )?(ai|robot)\b",
+    r"\bis this (a |an )?(bot|ai|automated)\b",
+    r"\breport(ing|ed)?\b.{0,15}\b(you|this number)\b",
+    r"\bstop (messaging|texting|contacting) me\b",
+    r"\bharass",
+)
+_SUSPICIOUS_RE = re.compile("|".join(_SUSPICIOUS_PATTERNS), re.IGNORECASE)
+
+
+def _is_suspicious_message(message: str) -> bool:
+    return bool(_SUSPICIOUS_RE.search(message or ""))
+
 
 _VIEWING_KEYWORDS = (
     "viewing",
@@ -88,6 +116,7 @@ async def _send_viewing_cancellation(contact, conversation) -> None:
         )
         return
 
+    append_outbound_message(contact.id, msg)
     mark_contact_cancelled(contact.id)
     if conversation.thread_id:
         save_message(conversation.thread_id, "outbound", msg)
@@ -175,6 +204,27 @@ def _schedule_reply(contact_id: int, message: str, next_status: str, **extra_upd
     )
 
 
+def _save_unmatched_and_close(
+    contact,
+    display_name: Optional[str],
+    property_hint: Optional[str],
+    confidence: float,
+) -> None:
+    """No confident CRM match, and we're not going to keep asking or ask the
+    landlord to confirm — just persist whatever we extracted and close out."""
+    update_contact(
+        contact.id,
+        name=display_name or contact.name,
+        property_address=property_hint or contact.property_address,
+    )
+    _schedule_reply(
+        contact.id,
+        generate_closing_reply(display_name),
+        "SAVED_UNMATCHED",
+        confidence=confidence or None,
+    )
+
+
 def _match_status(candidates: list[dict], confidence: float) -> str:
     if not candidates:
         return "UNMATCHED"
@@ -215,11 +265,21 @@ async def handle_incoming_message(
         f"sender_name={sender_name!r} message_len={len(message)}"
     )
 
-    # Guard: never interact with cancelled contacts
+    # Guard: never interact with cancelled or suspicion-flagged contacts.
+    # Suspicion requires manual review to clear before automation resumes.
     _existing = get_contact_by_phone(phone)
     if _existing and getattr(_existing, "status", None) == "CANCELLED":
         logger.info(f"WHATSAPP_INCOMING_BLOCKED_CANCELLED phone={phone}")
         return
+    if _existing and getattr(_existing, "status", None) == "SUSPICIOUS_HOLD":
+        logger.info(f"WHATSAPP_INCOMING_BLOCKED_SUSPICIOUS phone={phone}")
+        return
+
+    # Guard: a retried/redelivered inbound message must never trigger a second
+    # reply — this is the root cause of a landlord getting the same message twice.
+    is_duplicate_delivery = bool(
+        message_id and _existing and _existing.last_message_id == message_id
+    )
 
     contact = capture_incoming_message(
         phone=phone,
@@ -230,6 +290,25 @@ async def handle_incoming_message(
         lid=lid_value,
         message_id=message_id,
     )
+
+    if is_duplicate_delivery:
+        logger.info(
+            f"WHATSAPP_DUPLICATE_MESSAGE_IGNORED phone={phone} message_id={message_id}"
+        )
+        return
+
+    if _is_suspicious_message(message):
+        update_contact(
+            contact.id,
+            status="SUSPICIOUS_HOLD",
+            reply_scheduled_at=None,
+            last_ai_reply=None,
+        )
+        logger.warning(
+            f"WHATSAPP_SUSPICION_DETECTED phone={phone} contact_id={contact.id} "
+            "reason=message matched suspicious pattern, halting automation"
+        )
+        return
 
     if _mentions_viewing(message):
         conversation = get_conversation_for_contact(contact)
@@ -316,13 +395,32 @@ async def handle_incoming_message(
 
     history = _json_list(contact.message_history)
 
+    if all_names and all_property_hints:
+        # We have both pieces of info already — don't chase a higher-confidence
+        # CRM match and don't ask the landlord to confirm, just save it and close.
+        _save_unmatched_and_close(contact, display_name, all_property_hints[0], confidence)
+        return
+
+    if contact.status == "SAVED_UNMATCHED":
+        # Already gave up asking and closed this contact out; don't reopen it.
+        return
+
     if all_names or all_property_hints:
+        if (contact.property_ask_count or 0) >= MAX_PROPERTY_ASKS:
+            # Asked twice for the property and the landlord hasn't given a
+            # usable one (e.g. deflects with "today is the viewing") — leave
+            # it rather than keep pushing. Save whatever we have and close.
+            property_hint = all_property_hints[0] if all_property_hints else None
+            _save_unmatched_and_close(contact, display_name, property_hint, confidence)
+            return
+
         _schedule_reply(
             contact.id,
             build_property_ask(display_name, history),
             "AWAITING_PROPERTY",
             name=display_name,
             confidence=confidence or None,
+            property_ask_count=(contact.property_ask_count or 0) + 1,
         )
         return
 

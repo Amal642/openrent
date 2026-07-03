@@ -148,18 +148,18 @@ class NodeLogPayload(BaseModel):
 
 @router.post("/incoming")
 async def whatsapp_incoming(payload: IncomingMessagePayload):
-    """Legacy Baileys webhook — still functional if Baileys is running alongside."""
-    from app.whatsapp.handler import handle_incoming_message
-    await handle_incoming_message(
-        phone_number=payload.phone,
-        message=payload.message,
-        timestamp=payload.timestamp,
-        sender_name=payload.sender_name,
-        jid=payload.jid,
-        lid=payload.lid,
-        message_id=payload.message_id,
+    """Disabled: the Playwright browser worker is the only active WhatsApp
+    ingestion path now. This legacy Baileys webhook used to call
+    handle_incoming_message() directly, which — if Baileys were ever run
+    alongside the browser worker again — would process the same inbound
+    message twice and send the landlord a duplicate reply. Kept as a 200 so
+    old server.js deployments don't start hard-failing, but it no longer
+    does anything."""
+    logger.warning(
+        f"WHATSAPP_LEGACY_INCOMING_IGNORED phone={payload.phone!r} "
+        "reason=legacy Baileys webhook is disabled, browser worker handles all messages"
     )
-    return {"status": "ok"}
+    return {"status": "ignored"}
 
 
 @router.post("/resolve")

@@ -401,7 +401,7 @@ def get_due_contacts() -> list[WhatsAppContact]:
             .filter(
                 WhatsAppContact.reply_scheduled_at <= now,
                 WhatsAppContact.reply_scheduled_at.isnot(None),
-                WhatsAppContact.status != "PHONE_ACQUIRED",
+                WhatsAppContact.status.notin_(["PHONE_ACQUIRED", "SUSPICIOUS_HOLD"]),
             )
             .all()
         )
@@ -413,12 +413,16 @@ def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
     """
     Return contacts linked to conversations whose viewing cancellation is due.
 
-    Matches via thread_id OR listing_id (union, deduplicated). If the linked
-    conversation is already VIEWING_CANCELLED (cancelled via the OpenRent
-    channel), the WhatsApp notice goes out immediately. Otherwise this follows
-    the same randomized timing window as the OpenRent automation: due once
-    now >= viewing_datetime - cancel_target_hours (see
-    app.db.repository.get_due_viewing_cancellations).
+    Matches via thread_id OR listing_id (union, deduplicated). Both the
+    "still booked, needs cancelling" case and the "already cancelled via the
+    OpenRent channel" case wait out the same randomized multi-hour window
+    (cancel_target_hours, 3.2-4.8h) before the WhatsApp notice goes out — the
+    OpenRent-side case measures from conversation.last_stage_change (when we
+    learned about the cancellation) rather than from viewing_datetime, since
+    the viewing may already be imminent or past by the time that's detected.
+    The reactive path (landlord brings up the viewing themselves over
+    WhatsApp) is handled separately in app.whatsapp.handler and is not
+    subject to this delay.
     """
     from sqlalchemy import or_, and_
     db = SessionLocal()
@@ -437,7 +441,7 @@ def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
             .filter(
                 cancellation_condition,
                 WhatsAppContact.cancellation_sent_at.is_(None),
-                WhatsAppContact.status != "CANCELLED",
+                WhatsAppContact.status.notin_(["CANCELLED", "SUSPICIOUS_HOLD"]),
                 WhatsAppContact.thread_id.isnot(None),
             )
             .all()
@@ -449,7 +453,7 @@ def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
             .filter(
                 cancellation_condition,
                 WhatsAppContact.cancellation_sent_at.is_(None),
-                WhatsAppContact.status != "CANCELLED",
+                WhatsAppContact.status.notin_(["CANCELLED", "SUSPICIOUS_HOLD"]),
                 WhatsAppContact.listing_id.isnot(None),
             )
             .all()
@@ -462,10 +466,11 @@ def get_contacts_due_for_cancellation() -> list[WhatsAppContact]:
             if contact.id in seen_ids:
                 continue
 
+            target_h = conversation.cancel_target_hours or 4.0
             if conversation.conversation_stage == "VIEWING_CANCELLED":
-                eligible = True
+                reference = conversation.last_stage_change or (now - timedelta(hours=target_h))
+                eligible = now >= reference + timedelta(hours=target_h)
             elif conversation.viewing_datetime:
-                target_h = conversation.cancel_target_hours or 4.0
                 cancel_at = conversation.viewing_datetime - timedelta(hours=target_h)
                 eligible = now >= cancel_at
             else:
@@ -521,6 +526,43 @@ def get_contact_messages_for_ai(contact: WhatsAppContact) -> list[dict]:
             "message": text,
         })
     return messages
+
+
+def append_outbound_message(contact_id: int, message: str) -> Optional[WhatsAppContact]:
+    """Record a message we actually sent into the contact's history so later
+    reply-gating and prompt-building can see what we already said."""
+    db = SessionLocal()
+    try:
+        contact = db.query(WhatsAppContact).filter(WhatsAppContact.id == contact_id).first()
+        if not contact:
+            return None
+
+        history = _json_list(contact.message_history)
+        history.append(
+            _message_event(
+                direction="outbound",
+                message=message,
+                received_at=datetime.utcnow(),
+            )
+        )
+        contact.message_history = _json_dumps(history)
+        contact.last_message = message
+        contact.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(contact)
+        return contact
+    finally:
+        db.close()
+
+
+def last_message_direction(contact: WhatsAppContact) -> Optional[str]:
+    """Direction ('inbound'/'outbound') of the most recent message in history,
+    used to gate against sending twice before the landlord has replied."""
+    history = _json_list(contact.message_history)
+    for item in reversed(history):
+        if isinstance(item, dict) and item.get("direction"):
+            return item.get("direction")
+    return None
 
 
 def mark_contact_cancelled(contact_id: int) -> None:

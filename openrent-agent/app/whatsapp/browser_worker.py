@@ -819,6 +819,7 @@ class WhatsAppWebWorker:
                         message=text,
                         timestamp=int(time.time()),
                         sender_name=sender_name,
+                        message_id=msg_id,
                     )
 
                 self.last_active = datetime.utcnow()
@@ -942,6 +943,7 @@ class WhatsAppWebWorker:
                         message=text,
                         timestamp=int(time.time()),
                         sender_name=sender_name,
+                        message_id=msg_id,
                     )
 
                 visited += 1
@@ -1238,6 +1240,8 @@ class WhatsAppWebWorker:
 
             ok = await self.send_message(contact.phone_number, msg)
             if ok:
+                from app.whatsapp.repository import append_outbound_message
+                await asyncio.to_thread(append_outbound_message, contact.id, msg)
                 await asyncio.to_thread(mark_contact_cancelled, contact.id)
                 if thread_id:
                     await asyncio.to_thread(save_message, thread_id, "outbound", msg)
@@ -1255,7 +1259,13 @@ class WhatsAppWebWorker:
     # ── Reply dispatch (replaces the old Baileys dispatcher) ──────────────────
 
     async def _dispatch_due_replies(self) -> None:
-        from app.whatsapp.repository import get_due_contacts, mark_reply_sent, update_contact
+        from app.whatsapp.repository import (
+            append_outbound_message,
+            get_due_contacts,
+            last_message_direction,
+            mark_reply_sent,
+            update_contact,
+        )
 
         contacts = await asyncio.to_thread(get_due_contacts)
         if not contacts:
@@ -1268,8 +1278,19 @@ class WhatsAppWebWorker:
                 await asyncio.to_thread(mark_reply_sent, contact.id)
                 continue
 
+            # Never send a second message in a row before the landlord has
+            # replied to the one we already sent.
+            if await asyncio.to_thread(last_message_direction, contact) == "outbound":
+                logger.info(
+                    f"WHATSAPP_WEB_REPLY_SKIPPED_AWAITING_LANDLORD phone={contact.phone_number} "
+                    "reason=already sent a message since their last reply"
+                )
+                await asyncio.to_thread(mark_reply_sent, contact.id)
+                continue
+
             ok = await self.send_message(contact.phone_number, reply)
             if ok:
+                await asyncio.to_thread(append_outbound_message, contact.id, reply)
                 await asyncio.to_thread(mark_reply_sent, contact.id)
                 logger.info(
                     f"WHATSAPP_WEB_REPLY_DISPATCHED phone={contact.phone_number} "
