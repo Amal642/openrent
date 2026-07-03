@@ -23,6 +23,7 @@ HEALTHY_PROXY_STATUSES = {"ok", "healthy"}
 # Browser worker heartbeats every ~10-15 min (see _poll_loop); allow slack
 # before treating a missing heartbeat as "the process is probably dead".
 WHATSAPP_HEARTBEAT_STALE_SECONDS = 40 * 60
+WHATSAPP_TRANSIENT_STATUSES = {"starting", "reconnecting"}
 
 
 def _proxy_is_healthy(account) -> bool:
@@ -87,6 +88,9 @@ async def _check_whatsapp(manager: AlertManager) -> None:
         cleared = await asyncio.to_thread(manager.clear_signature_if_active, signature)
         if cleared:
             await manager.send_recovery_notice("whatsapp", title)
+        return
+
+    if status in WHATSAPP_TRANSIENT_STATUSES and not stale:
         return
 
     events.report_error(

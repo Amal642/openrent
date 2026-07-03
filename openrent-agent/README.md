@@ -253,8 +253,10 @@ journalctl -u openrent-alert-bot -f   # tail logs
 To pick up a code change or `.env` edit: `sudo systemctl restart openrent-alert-bot`.
 
 Anyone who messages the bot and sends the correct password becomes a
-subscriber (no group chat needed). Commands once authorized:
+subscriber (no group chat needed). The bot also publishes these commands to
+Telegram's native command menu:
 
+- `/commands` — show the available bot commands and short descriptions.
 - `/resolve [keyword]` — clear a manually-resolved incident (scraper/messaging
   errors) so the next occurrence alerts again; lists open ones if no keyword
   is given. Proxy/WhatsApp health alerts clear themselves automatically once

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.error import BadRequest, Forbidden
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -22,13 +22,32 @@ def _chat_id(update: Update) -> str:
     return str(update.effective_chat.id)
 
 
+COMMANDS: tuple[tuple[str, str], ...] = (
+    ("start", "Subscribe to alerts with the access password."),
+    ("commands", "Show available bot commands."),
+    ("status", "Show alert bot health and active incidents."),
+    ("resolve", "List or clear manually resolved incidents."),
+    ("unsubscribe", "Stop receiving alerts."),
+)
+
+
+def _format_commands() -> str:
+    return "Commands:\n" + "\n".join(
+        f"/{command} - {description}" for command, description in COMMANDS
+    )
+
+
+async def _commands_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(_format_commands())
+
+
 async def _start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat = update.effective_chat
     subscriber = registry.get_or_create_pending(_chat_id(update), chat.username, chat.first_name)
     if subscriber.authorized:
-        await update.message.reply_text("You're already subscribed to alerts.")
+        await update.message.reply_text("You're already subscribed to alerts.\n\n" + _format_commands())
         return
-    await update.message.reply_text("Send the access password to subscribe to alerts.")
+    await update.message.reply_text("Send the access password to subscribe to alerts.\n\n" + _format_commands())
 
 
 async def _unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -87,8 +106,10 @@ def register_handlers(application: Application, manager: AlertManager) -> None:
         keyword = " ".join(context.args) if context.args else None
         result = manager.resolve(keyword)
         if not keyword:
-            text = "No open manual incidents." if not result else (
-                "Open incidents:\n" + "\n".join(f"- {r}" for r in result)
+            text = (
+                "No open manual incidents."
+                if not result
+                else "Open manual incidents:\n" + "\n".join(f"- {r}" for r in result)
             )
         elif not result:
             text = f"No open incident matched '{keyword}'."
@@ -104,6 +125,7 @@ def register_handlers(application: Application, manager: AlertManager) -> None:
         await update.message.reply_text(_format_status(manager))
 
     application.add_handler(CommandHandler("start", _start_command))
+    application.add_handler(CommandHandler("commands", _commands_command))
     application.add_handler(CommandHandler("unsubscribe", _unsubscribe_command))
     application.add_handler(CommandHandler("resolve", resolve_command))
     application.add_handler(CommandHandler("status", status_command))
@@ -139,6 +161,12 @@ def make_broadcaster(application: Application):
     return send_alert_to_all
 
 
+async def _set_native_commands(application: Application) -> None:
+    await application.bot.set_my_commands(
+        [BotCommand(command=command, description=description) for command, description in COMMANDS]
+    )
+
+
 async def _daily_heartbeat(manager: AlertManager, broadcast) -> None:
     interval_seconds = settings.ALERT_HEARTBEAT_HOURS * 3600
     while True:
@@ -162,6 +190,7 @@ async def run_alert_bot() -> None:
     register_handlers(application, manager)
 
     await application.initialize()
+    await _set_native_commands(application)
     await application.start()
     await application.updater.start_polling()
     logger.info("ALERT_BOT_POLLING_STARTED")

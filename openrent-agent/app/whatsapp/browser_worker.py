@@ -159,6 +159,7 @@ class WhatsAppWebWorker:
             logger.info(f"WHATSAPP_WEB_START_SKIPPED status={self.status}")
             return
         self.status = "starting"
+        await self._publish_status()
         logger.info("WHATSAPP_WEB_STARTING")
         try:
             await self._launch_browser()
@@ -183,6 +184,7 @@ class WhatsAppWebWorker:
             self.status = "error"
             self.last_error = str(exc)
             self.error_count += 1
+            await self._publish_status()
             logger.error(f"WHATSAPP_WEB_START_FAILED error={exc}")
 
     async def stop(self) -> None:
@@ -193,6 +195,7 @@ class WhatsAppWebWorker:
                 await self._poll_task
         await self._close_browser()
         self.status = "disconnected"
+        await self._publish_status()
         logger.info("WHATSAPP_WEB_STOPPED")
 
     async def force_reconnect(self) -> None:
@@ -453,17 +456,20 @@ class WhatsAppWebWorker:
         if state == "phone_disconnected":
             self.status = "error"
             self.last_error = "Phone not connected to internet"
+            await self._publish_status()
             logger.error("WHATSAPP_WEB_PHONE_DISCONNECTED — ensure phone has internet")
             return
 
         self.status = "error"
         self.last_error = f"Unexpected state after navigation: {state}"
+        await self._publish_status()
         logger.error(f"WHATSAPP_WEB_UNEXPECTED_STATE state={state}")
 
     async def _handle_qr_scan(self) -> None:
         self.status = "needs_scan"
         self.last_error = None
         await self._capture_qr()
+        await self._publish_status()
         logger.warning(
             "WHATSAPP_WEB_AWAITING_QR_SCAN — open dashboard and scan the QR code"
         )
@@ -481,6 +487,7 @@ class WhatsAppWebWorker:
 
         self.status = "error"
         self.last_error = "QR scan timeout (5 minutes)"
+        await self._publish_status()
         logger.error("WHATSAPP_WEB_QR_TIMEOUT")
 
     async def _on_connected(self) -> None:
@@ -491,6 +498,7 @@ class WhatsAppWebWorker:
         QR_FILE.unlink(missing_ok=True)
         await self._save_session()
         await self._dismiss_popups()
+        await self._publish_status()
         logger.info("WHATSAPP_WEB_CONNECTED session_saved=True")
 
     # ── Popup dismissal ──────────────────────────────────────────────────────────
@@ -661,6 +669,8 @@ class WhatsAppWebWorker:
                     self.last_error = f"Session drifted to: {state}"
                     if state == "needs_scan":
                         await self._capture_qr()
+                    await self._publish_status()
+                    if state == "needs_scan":
                         logger.error(
                             "WHATSAPP_WEB_SESSION_EXPIRED — QR saved, check dashboard"
                         )
@@ -1318,6 +1328,7 @@ class WhatsAppWebWorker:
 
     async def _reconnect(self) -> None:
         self.status = "reconnecting"
+        await self._publish_status()
         logger.info(
             f"WHATSAPP_WEB_RECONNECT_START backoff={_RECONNECT_BACKOFF_SECONDS}s"
         )
@@ -1331,9 +1342,32 @@ class WhatsAppWebWorker:
             self.status = "error"
             self.last_error = str(exc)
             self.error_count += 1
+            await self._publish_status()
             logger.error(f"WHATSAPP_WEB_RECONNECT_FAILED error={exc}")
 
     # ── Status ─────────────────────────────────────────────────────────────────
+
+    async def _publish_status(self) -> None:
+        """Persist the latest worker state for the external alert-bot process."""
+        try:
+            from app.db.repository import set_app_setting
+
+            await asyncio.to_thread(
+                set_app_setting,
+                "whatsapp_worker_heartbeat",
+                json.dumps(
+                    {
+                        "status": self.status,
+                        "at": datetime.utcnow().isoformat(),
+                        "last_active": self.last_active.isoformat() if self.last_active else None,
+                        "last_error": self.last_error,
+                        "error_count": self.error_count,
+                        "qr_available": QR_FILE.exists() and self.status == "needs_scan",
+                    }
+                ),
+            )
+        except Exception as exc:
+            logger.warning(f"WHATSAPP_WEB_STATUS_PUBLISH_FAILED error={exc}")
 
     def get_status_dict(self) -> dict:
         return {
