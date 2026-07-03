@@ -214,6 +214,21 @@ def generate_distant_location(property_location: str, retries=3, base_delay=2) -
     return fallback
 
 
+_NUMBER_ASK_KEYWORDS = (
+    "your number", "phone number", "mobile number", "your mobile",
+    "your contact", "contact number", "get your number", "share your number",
+    "could i get your number", "can i get your number",
+)
+
+
+def count_number_asks(messages):
+    return sum(
+        1 for m in (messages or [])
+        if str(m.get("direction") or m.get("sender") or "").lower() in {"outbound", "operator", "ai", "user"}
+        and any(kw in (m.get("message") or m.get("content") or m.get("text") or "").lower() for kw in _NUMBER_ASK_KEYWORDS)
+    )
+
+
 def generate_reply(
     messages,
     stage=None,
@@ -234,17 +249,7 @@ def generate_reply(
     landlord_hesitant = latest_landlord_hesitant_about_phone(messages)
     number_shared = phone_shared_state(messages, persona, conversation=conversation_state)
     sent_count = outbound_count(messages)
-
-    _number_ask_keywords = (
-        "your number", "phone number", "mobile number", "your mobile",
-        "your contact", "contact number", "get your number", "share your number",
-        "could i get your number", "can i get your number",
-    )
-    num_ask_count = sum(
-        1 for m in (messages or [])
-        if str(m.get("direction") or m.get("sender") or "").lower() in {"outbound", "operator", "ai", "user"}
-        and any(kw in (m.get("message") or m.get("content") or m.get("text") or "").lower() for kw in _number_ask_keywords)
-    )
+    num_ask_count = count_number_asks(messages)
 
     # Detect landlord screening questions in the latest message.
     # When present the AI must answer them first — skip the phone-reply shortcut
@@ -267,6 +272,7 @@ def generate_reply(
         and not landlord_already_gave_number
         and not number_shared
         and not screening_questions
+        and num_ask_count >= 1
         and conversation_design_id not in LANDLORD_NUMBER_CAPTURE_DESIGNS
         and (persona or {}).get("mobile_number")
     ):

@@ -317,11 +317,13 @@ def _phone_policy_lines(
         lines.insert(0, f"- Husband's/partner's WhatsApp number: {mobile}")
         lines.insert(
             5,
-            f"- Only share {mobile} as 'my husband's WhatsApp' (or 'my partner's WhatsApp') when BOTH of the following are true: "
-            "(1) the landlord has explicitly asked for our phone number or WhatsApp, AND "
-            "(2) the landlord has indicated they will not share their own number. "
+            f"- Phone/WhatsApp sharing is always the last resort, never the first move. Only share {mobile} as "
+            "'my husband's WhatsApp' (or 'my partner's WhatsApp') when ALL of the following are true: "
+            "(1) you have already asked for the landlord's own number earlier in this conversation, AND "
+            "(2) the landlord has explicitly asked for our phone number or WhatsApp, AND "
+            "(3) the landlord has indicated they will not share their own number (declined, or went quiet on the topic after you asked). "
             "If the landlord has already shared their phone number with us, do NOT share ours — there is no need. "
-            "If only one condition is met (e.g. they asked but haven't refused to share theirs, or they refused but haven't asked for ours), do not share our number yet. "
+            "If any one of these conditions is not met, do not share our number yet. "
             "When you do share it, tell them to reach out via WhatsApp only. Do NOT ask for their number in that same message.",
         )
     else:
@@ -338,7 +340,9 @@ def _phone_policy_lines(
         )
     elif phone_type in {"immediate", "whatsapp_first"}:
         lines.append(
-            "- This persona may share the mobile number in the first or second message when it sounds natural."
+            "- Never volunteer the mobile number in the first or second message, even though this persona's "
+            "configured strategy is normally quicker to move to phone coordination. Phone/WhatsApp sharing is "
+            "always a last resort — only follow the last-resort conditions above, regardless of persona strategy."
         )
     elif phone_type == "viewing_first":
         lines.append(
@@ -553,13 +557,13 @@ def build_initial_enquiry_prompt(property_data: dict, persona: dict) -> str:
         f"- Messaging style: {persona.get('conversation_style') or 'friendly_viewing'}"
     )
 
-    phone_type = persona.get("phone_fetching_type") or "delayed"
     if not persona.get("mobile_number"):
         phone_instruction = "No mobile number is assigned, so do not include any phone number."
-    elif phone_type in {"immediate", "whatsapp_first"}:
-        phone_instruction = "You may include the mobile number if asking for WhatsApp/video-call coordination feels natural."
     else:
-        phone_instruction = "Do not include the mobile number in this first enquiry unless the chosen style explicitly needs WhatsApp/video-call coordination."
+        phone_instruction = (
+            "Do not include the mobile number in this first enquiry under any circumstances. "
+            "Phone/WhatsApp sharing is always a last resort, never something you volunteer in the opening message."
+        )
 
     return f"""
 You are helping a tenant write a short and natural UK rental enquiry.

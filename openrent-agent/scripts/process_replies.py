@@ -67,6 +67,7 @@ from app.ai.replies import (
     generate_follow_up_message,
     detect_short_term_tenancy,
     generate_short_term_close_message,
+    count_number_asks,
 )
 
 import os  # OPEN-21D playbook A/B
@@ -1289,10 +1290,14 @@ async def process_account_replies(
             landlord_already_gave_number = bool(
                 conversation and getattr(conversation, "phone_found", False)
             )
+            # Last resort only: we must have already asked for the landlord's
+            # own number in this conversation before we ever volunteer ours.
+            we_already_asked_for_their_number = count_number_asks(messages) >= 1
             should_share_our_number = (
                 landlord_asked_number
                 and landlord_hesitant
                 and not landlord_already_gave_number
+                and we_already_asked_for_their_number
             )
             if should_share_our_number or landlord_asked_number or landlord_hesitant:
                 before_safeguard = reply
