@@ -1322,6 +1322,13 @@ def advisor_areas():
     return get_area_metrics()
 
 
+@app.post("/api/admin/allocate-sims")
+def admin_allocate_sims(dry_run: bool = False):
+    from app.services.sim_allocator import run_allocation
+
+    return run_allocation(dry_run=dry_run)
+
+
 @app.get("/")
 def dashboard_index():
     return _serve_frontend_asset()

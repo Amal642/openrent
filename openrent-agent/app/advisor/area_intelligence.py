@@ -51,6 +51,9 @@ SOUTH_LONDON_KEYWORDS = {
     "wandsworth",
     "wimbledon",
     "woolwich",
+    "mitcham",
+    "eltham",
+    "purley",
 }
 
 
@@ -79,6 +82,7 @@ class AreaMetrics:
     current_account_gap: int = 0
     status: str = "insufficient_data"
     evidence: str = ""
+    score: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -272,6 +276,18 @@ def _finalize_metric(metric: AreaMetrics) -> None:
     else:
         metric.status = "pause"
         metric.evidence = "Current allocation is at or above measured usable supply."
+
+    # Composite score used by the allocator to rank areas for SIM assignment.
+    # Higher phone rate * more supply per existing SIM = higher priority.
+    # Zero for areas the allocator should not assign to.
+    if metric.status in ("expand", "maintain"):
+        metric.score = round(
+            metric.phone_capture_rate_pct
+            * (metric.new_listings_7d / max(metric.active_accounts, 1)),
+            1,
+        )
+    else:
+        metric.score = 0.0
 
 
 def _sort_key(metric: AreaMetrics) -> tuple:
