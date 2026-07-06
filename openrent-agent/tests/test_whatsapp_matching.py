@@ -223,6 +223,42 @@ def test_incoming_message_does_not_match_ambiguous_landlord_name_only(
         assert all(conversation.phone_found is False for conversation in conversations)
 
 
+def test_incoming_message_with_no_name_or_property_asks_for_property_details(
+    whatsapp_db, monkeypatch
+):
+    monkeypatch.setattr(handler, "extract_name_from_message", lambda text: None)
+    monkeypatch.setattr(handler, "extract_property_from_message", lambda text: None)
+    monkeypatch.setattr(handler.settings, "WHATSAPP_AUTO_REPLY_ENABLED", True)
+    monkeypatch.setattr(
+        handler,
+        "build_property_ask",
+        lambda name=None, history=None: (
+            "My wife manages the properties on OpenRent, can you please share "
+            "the property details?"
+        ),
+    )
+    monkeypatch.setattr(handler, "next_reply_time", lambda: datetime.utcnow())
+
+    asyncio.run(
+        handler.handle_incoming_message(
+            phone_number="447534992402",
+            message="Hello",
+            sender_name=None,
+            jid="447534992402@s.whatsapp.net",
+            message_id="MSG-NO-EVIDENCE",
+        )
+    )
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+
+        assert contact.status == "AWAITING_PROPERTY"
+        assert contact.match_status == "UNMATCHED"
+        assert contact.property_ask_count == 1
+        assert "wife manages the properties on OpenRent" in contact.last_ai_reply
+        assert "property details" in contact.last_ai_reply
+
+
 def test_lid_resolution_updates_existing_contact(whatsapp_db):
     with whatsapp_db() as session:
         session.add(

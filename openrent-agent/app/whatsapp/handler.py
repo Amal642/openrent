@@ -424,4 +424,10 @@ async def handle_incoming_message(
         )
         return
 
-    _schedule_reply(contact.id, build_name_ask(history), "AWAITING_NAME")
+    _schedule_reply(
+        contact.id,
+        build_property_ask(display_name, history),
+        "AWAITING_PROPERTY",
+        name=display_name,
+        property_ask_count=(contact.property_ask_count or 0) + 1,
+    )
