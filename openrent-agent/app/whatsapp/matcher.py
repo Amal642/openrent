@@ -18,6 +18,7 @@ _client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=15.0)
 
 # Auto-link confidence threshold (%)
 AUTO_LINK_THRESHOLD = 65.0
+UNIQUE_NAME_ONLY_CONFIDENCE = 90.0
 
 # Greeting words to strip from extracted names
 _STRIP_WORDS = {
@@ -136,6 +137,17 @@ def _token_words(text: str | None) -> list[str]:
         for token in re.findall(r"[a-z0-9]+", _norm(text))
         if len(token) >= 3
     ]
+
+
+def _name_tokens_match(candidate: str | None, stored: str | None) -> bool:
+    """Strict name-token match for safe name-only auto-linking."""
+    candidate_tokens = _token_words(candidate)
+    stored_tokens = _token_words(stored)
+    if not candidate_tokens or not stored_tokens:
+        return False
+    if len(candidate_tokens) == 1:
+        return stored_tokens[0] == candidate_tokens[0]
+    return set(candidate_tokens).issubset(set(stored_tokens))
 
 
 def _name_score(candidate: str | None, stored: str | None) -> float:
@@ -309,6 +321,7 @@ def match_by_evidence(
     try:
         listings = db.query(Listing).all()
         candidates = []
+        strict_name_only_listing_ids: set[int] = set()
 
         for listing in listings:
             best_name = (None, 0.0)
@@ -338,6 +351,8 @@ def match_by_evidence(
                 # Name-only is useful but less safe because names are not unique.
                 confidence = min(name_score, 72.0)
                 reason = "name"
+                if _name_tokens_match(best_name[0], listing.landlord_name):
+                    strict_name_only_listing_ids.add(listing.id)
             else:
                 continue
 
@@ -358,6 +373,17 @@ def match_by_evidence(
                 "matched_property_hint": best_property[0],
                 "reason": reason,
             })
+
+        if names and not property_hints and len(strict_name_only_listing_ids) == 1:
+            unique_listing_id = next(iter(strict_name_only_listing_ids))
+            for candidate in candidates:
+                if candidate["listing_id"] == unique_listing_id:
+                    candidate["confidence"] = max(
+                        candidate["confidence"],
+                        UNIQUE_NAME_ONLY_CONFIDENCE,
+                    )
+                    candidate["reason"] = "unique_name"
+                    break
 
         candidates.sort(key=lambda x: x["confidence"], reverse=True)
         return candidates, candidates[0]["confidence"] if candidates else 0.0

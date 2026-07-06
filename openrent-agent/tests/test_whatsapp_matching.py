@@ -37,18 +37,26 @@ def whatsapp_db(tmp_path, monkeypatch):
     return TestingSessionLocal
 
 
-def _seed_listing(session, *, name="Natalie", address="12 Loring Road, London"):
+def _seed_listing(
+    session,
+    *,
+    name="Natalie",
+    address="12 Loring Road, London",
+    listing_id="LORING-1",
+    thread_id="THREAD-1",
+    landlord_id=123,
+):
     listing = Listing(
-        listing_id="LORING-1",
+        listing_id=listing_id,
         property_url="https://example.com/loring",
-        landlord_id=123,
+        landlord_id=landlord_id,
         landlord_name=name,
         property_address=address,
-        thread_id="THREAD-1",
+        thread_id=thread_id,
     )
     session.add(listing)
     session.flush()
-    conversation = Conversation(thread_id="THREAD-1", listing_id=listing.id)
+    conversation = Conversation(thread_id=thread_id, listing_id=listing.id)
     session.add(conversation)
     session.commit()
     return listing.id
@@ -130,6 +138,89 @@ def test_matching_accumulates_evidence_across_multiple_messages(whatsapp_db, mon
         assert contact.match_status == "MATCHED"
         assert conversation.phone_found is True
         assert conversation.extracted_phone == "lid:235918409633988"
+
+
+def test_incoming_message_matches_unique_landlord_by_whatsapp_name_only(
+    whatsapp_db, monkeypatch
+):
+    monkeypatch.setattr(handler, "extract_name_from_message", lambda text: None)
+    monkeypatch.setattr(handler, "extract_property_from_message", lambda text: None)
+
+    with whatsapp_db() as session:
+        listing_pk = _seed_listing(
+            session,
+            name="Daryna W",
+            address="44 Oak Street, London",
+            listing_id="DARYNA-1",
+            thread_id="THREAD-DARYNA",
+        )
+
+    asyncio.run(
+        handler.handle_incoming_message(
+            phone_number="447534992400",
+            message="Hello",
+            sender_name="Daryna",
+            jid="447534992400@s.whatsapp.net",
+            message_id="MSG-DARYNA",
+        )
+    )
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        conversation = session.query(Conversation).filter_by(thread_id="THREAD-DARYNA").one()
+
+        assert contact.status == "PHONE_ACQUIRED"
+        assert contact.match_status == "MATCHED"
+        assert contact.listing_id == listing_pk
+        assert contact.thread_id == "THREAD-DARYNA"
+        assert contact.confidence == 90.0
+        assert conversation.phone_found is True
+        assert conversation.extracted_phone == "447534992400"
+
+
+def test_incoming_message_does_not_match_ambiguous_landlord_name_only(
+    whatsapp_db, monkeypatch
+):
+    monkeypatch.setattr(handler, "extract_name_from_message", lambda text: None)
+    monkeypatch.setattr(handler, "extract_property_from_message", lambda text: None)
+
+    with whatsapp_db() as session:
+        _seed_listing(
+            session,
+            name="Daryna W",
+            address="44 Oak Street, London",
+            listing_id="DARYNA-1",
+            thread_id="THREAD-DARYNA-1",
+            landlord_id=123,
+        )
+        _seed_listing(
+            session,
+            name="Daryna K",
+            address="88 Pine Street, London",
+            listing_id="DARYNA-2",
+            thread_id="THREAD-DARYNA-2",
+            landlord_id=456,
+        )
+
+    asyncio.run(
+        handler.handle_incoming_message(
+            phone_number="447534992401",
+            message="Hello",
+            sender_name="Daryna",
+            jid="447534992401@s.whatsapp.net",
+            message_id="MSG-DARYNA-AMBIGUOUS",
+        )
+    )
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        conversations = session.query(Conversation).all()
+
+        assert contact.status == "AWAITING_PROPERTY"
+        assert contact.match_status == "PARTIAL_MATCH"
+        assert contact.listing_id is None
+        assert contact.thread_id is None
+        assert all(conversation.phone_found is False for conversation in conversations)
 
 
 def test_lid_resolution_updates_existing_contact(whatsapp_db):
