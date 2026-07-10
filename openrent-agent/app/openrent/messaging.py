@@ -382,9 +382,11 @@ async def fill_screening_form(page, metadata):
         if avail_date is None:
             avail_date = metadata.get("available_from") or datetime.utcnow()
 
-        # Move in a few days *after* availability so we are always on/after the
-        # landlord's available-from date (an equal or earlier date is rejected).
-        move_in = avail_date + timedelta(days=3)
+        # Use the property's real available-from date when it is later than our
+        # default; otherwise keep the original "today + 14 days" (sensible for
+        # move-in-now listings). max() guarantees move_in >= availability, so
+        # OpenRent never rejects it as "available after you need to move in".
+        move_in = max(avail_date, datetime.utcnow() + timedelta(days=14))
         formatted = move_in.strftime("%d %B %Y")
         logger.info(
             f"Setting move-in date: {formatted} "
