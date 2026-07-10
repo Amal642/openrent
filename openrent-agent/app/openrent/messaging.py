@@ -341,11 +341,55 @@ async def fill_screening_form(page, metadata):
         )
 
     # ── Move-in date ──────────────────────────────────────────
+    # OpenRent rejects the enquiry ("your application does not meet the
+    # requirements set by this landlord — this property only becomes available
+    # after you need to move in") whenever our move-in date is earlier than the
+    # property's available-from date. The listing-page metadata is unreliable
+    # here — its "Available From" regex silently defaults to *today* when it
+    # misses, so we would send "today + 14d" and lose every listing that
+    # becomes available further out. The message page itself is authoritative:
+    # the field label states the real date ("...available to move in from
+    # DD/MM/YYYY...") and the datepicker enforces it via data-mindate (days
+    # from today). Prefer those, fall back to metadata only as a last resort.
     if await page.query_selector("#ScreeningInfo_MustMoveInBy"):
-        base = metadata.get("available_from") or datetime.utcnow()
-        move_in = base + timedelta(days=14)
+        avail_date = None
+
+        # 1) Authoritative: the field label states the real availability date.
+        try:
+            label_text = await page.locator(
+                'label[for="ScreeningInfo_MustMoveInBy"]'
+            ).inner_text(timeout=2_000)
+            m = re.search(r"(\d{1,2}/\d{1,2}/\d{4})", label_text)
+            if m:
+                avail_date = datetime.strptime(m.group(1), "%d/%m/%Y")
+        except Exception as exc:
+            logger.warning(f"Could not read move-in date label: {exc}")
+
+        # 2) Fallback: datepicker minimum selectable date (days from today).
+        if avail_date is None:
+            try:
+                min_offset = await page.get_attribute(
+                    "#ScreeningInfo_MustMoveInBy", "data-mindate"
+                )
+                if min_offset is not None:
+                    avail_date = datetime.utcnow() + timedelta(
+                        days=int(min_offset)
+                    )
+            except Exception as exc:
+                logger.warning(f"Could not read datepicker min date: {exc}")
+
+        # 3) Last resort: listing-page metadata (may be inaccurate).
+        if avail_date is None:
+            avail_date = metadata.get("available_from") or datetime.utcnow()
+
+        # Move in a few days *after* availability so we are always on/after the
+        # landlord's available-from date (an equal or earlier date is rejected).
+        move_in = avail_date + timedelta(days=3)
         formatted = move_in.strftime("%d %B %Y")
-        logger.info(f"Setting move-in date: {formatted}")
+        logger.info(
+            f"Setting move-in date: {formatted} "
+            f"(property available from {avail_date:%d %B %Y})"
+        )
         await page.fill("#ScreeningInfo_MustMoveInBy", formatted)
 
     # ── Combined monthly income ───────────────────────────────
@@ -435,6 +479,7 @@ async def can_contact_landlord(page):
 async def _collect_validation_errors(page) -> list[str]:
     """Scrape OpenRent validation error messages from the current page."""
     selectors = [
+        ".alert-danger",  # landlord-requirements / eligibility rejection box
         ".text-danger",
         ".invalid-feedback",
         ".validation-summary-errors li",
@@ -445,6 +490,13 @@ async def _collect_validation_errors(page) -> list[str]:
     for sel in selectors:
         elements = await page.query_selector_all(sel)
         for el in elements:
+            # Skip hidden latent markup (OpenRent ships a display:none login
+            # modal on every page, e.g. "Email cannot be empty!").
+            try:
+                if not await el.is_visible():
+                    continue
+            except Exception:
+                pass
             text = (await el.inner_text()).strip()
             if text and text not in seen:
                 seen.add(text)
