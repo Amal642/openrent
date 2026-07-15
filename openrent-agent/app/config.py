@@ -19,7 +19,6 @@ class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL")
 
     HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
-    WHATSAPP_HEADLESS = os.getenv("WHATSAPP_HEADLESS", "true").lower() == "true"
     SLOW_MO = int(os.getenv("SLOW_MO", 500))
     PLAYWRIGHT_BLOCK_IMAGE_MEDIA = (
         os.getenv("PLAYWRIGHT_BLOCK_IMAGE_MEDIA", "true").lower()
@@ -37,13 +36,13 @@ class Settings:
         os.getenv("WHATSAPP_AUTO_REPLY_ENABLED", "false").lower()
         in {"1", "true", "yes", "on"}
     )
-    WHATSAPP_PROXY_ID: int | None = (
-        int(os.getenv("WHATSAPP_PROXY_ID")) if os.getenv("WHATSAPP_PROXY_ID") else None
+    KAPSO_BASE_URL = os.getenv(
+        "KAPSO_BASE_URL",
+        "https://api.kapso.ai/meta/whatsapp/v24.0",
     )
-    # Set to false to start WhatsApp worker without any proxy (e.g. for testing)
-    WHATSAPP_USE_PROXY: bool = (
-        os.getenv("WHATSAPP_USE_PROXY", "true").lower() in {"1", "true", "yes", "on"}
-    )
+    KAPSO_API_KEY = os.getenv("KAPSO_API_KEY", "")
+    KAPSO_PHONE_NUMBER_ID = os.getenv("KAPSO_PHONE_NUMBER_ID", "")
+    KAPSO_WEBHOOK_SECRET = os.getenv("KAPSO_WEBHOOK_SECRET", "")
     WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
     MAX_PARALLEL_WORKERS = int(os.getenv("MAX_PARALLEL_WORKERS", "2"))
     DISCOVERY_LIMIT_PER_RUN = int(os.getenv("DISCOVERY_LIMIT_PER_RUN", "25"))

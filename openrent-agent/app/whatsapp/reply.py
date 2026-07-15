@@ -1,6 +1,4 @@
-"""
-Business hours, reply scheduling, LLM-generated closings, and WhatsApp Web send.
-"""
+"""Business hours, reply scheduling, LLM-generated closings, and WhatsApp send."""
 from __future__ import annotations
 
 import random
@@ -151,7 +149,7 @@ def build_property_ask(name: Optional[str] = None, history: Optional[list[dict]]
 
 
 def send_whatsapp_message(phone: str, message: str) -> bool:
-    """Send via the Playwright browser worker (replaces Baileys HTTP call)."""
+    """Send via the active WhatsApp transport worker."""
     import asyncio
     from app.whatsapp.browser_worker import get_worker
     worker = get_worker()
