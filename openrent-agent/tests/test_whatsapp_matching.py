@@ -259,6 +259,115 @@ def test_incoming_message_with_no_name_or_property_asks_for_property_details(
         assert "property details" in contact.last_ai_reply
 
 
+def test_closed_whatsapp_contact_does_not_schedule_another_closing(
+    whatsapp_db, monkeypatch
+):
+    monkeypatch.setattr(handler.settings, "WHATSAPP_AUTO_REPLY_ENABLED", True)
+    monkeypatch.setattr(handler, "extract_name_from_message", lambda text: "Natalie")
+    monkeypatch.setattr(handler, "extract_property_from_message", lambda text: "Loring Road")
+    monkeypatch.setattr(handler, "generate_closing_reply", lambda name=None: "Thanks again")
+
+    with whatsapp_db() as session:
+        session.add(
+            WhatsAppContact(
+                phone_number="447534992499",
+                name="Natalie",
+                status="SAVED_UNMATCHED",
+                first_message="Property 123",
+                last_message="Thanks for reaching out",
+                message_history=json.dumps(
+                    [
+                        {
+                            "direction": "inbound",
+                            "message": "Property 123",
+                            "received_at": datetime.utcnow().isoformat(),
+                        },
+                        {
+                            "direction": "outbound",
+                            "message": "Thanks for reaching out",
+                            "received_at": datetime.utcnow().isoformat(),
+                        },
+                    ]
+                ),
+                last_received_at=datetime.utcnow(),
+            )
+        )
+        session.commit()
+
+    asyncio.run(
+        handler.handle_incoming_message(
+            phone_number="447534992499",
+            message="Ok bro no worries",
+            sender_name="Natalie",
+            message_id="MSG-CLOSED",
+        )
+    )
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        history = json.loads(contact.message_history)
+
+        assert contact.status == "SAVED_UNMATCHED"
+        assert contact.reply_scheduled_at is None
+        assert contact.last_ai_reply is None
+        assert [item["direction"] for item in history].count("outbound") == 1
+
+
+def test_whatsapp_contact_stops_after_three_regular_outbound_messages(
+    whatsapp_db, monkeypatch
+):
+    monkeypatch.setattr(handler.settings, "WHATSAPP_AUTO_REPLY_ENABLED", True)
+    monkeypatch.setattr(handler, "extract_name_from_message", lambda text: None)
+    monkeypatch.setattr(handler, "extract_property_from_message", lambda text: None)
+    monkeypatch.setattr(handler, "build_property_ask", lambda name=None, history=None: "Which property?")
+
+    with whatsapp_db() as session:
+        session.add(
+            WhatsAppContact(
+                phone_number="447534992500",
+                status="AWAITING_PROPERTY",
+                first_message="Hi",
+                last_message="Third reply",
+                message_history=json.dumps(
+                    [
+                        {
+                            "direction": "outbound",
+                            "message": "First reply",
+                            "received_at": datetime.utcnow().isoformat(),
+                        },
+                        {
+                            "direction": "outbound",
+                            "message": "Second reply",
+                            "received_at": datetime.utcnow().isoformat(),
+                        },
+                        {
+                            "direction": "outbound",
+                            "message": "Third reply",
+                            "received_at": datetime.utcnow().isoformat(),
+                        },
+                    ]
+                ),
+                last_received_at=datetime.utcnow(),
+            )
+        )
+        session.commit()
+
+    asyncio.run(
+        handler.handle_incoming_message(
+            phone_number="447534992500",
+            message="hmm",
+            message_id="MSG-MAX",
+        )
+    )
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+
+        assert contact.status == "MAX_REPLIES_REACHED"
+        assert contact.reply_scheduled_at is None
+        assert contact.last_ai_reply is None
+
+
 def test_lid_resolution_updates_existing_contact(whatsapp_db):
     with whatsapp_db() as session:
         session.add(

@@ -221,8 +221,11 @@ class KapsoWhatsAppWorker:
             get_due_contacts,
             last_message_direction,
             mark_reply_sent,
+            outbound_message_count,
+            outbound_message_exists,
             update_contact,
         )
+        from app.whatsapp.handler import MAX_AUTOMATED_REPLIES
 
         contacts = await asyncio.to_thread(get_due_contacts)
         if not contacts:
@@ -233,6 +236,36 @@ class KapsoWhatsAppWorker:
             reply = getattr(contact, "last_ai_reply", None)
             if not reply:
                 await asyncio.to_thread(mark_reply_sent, contact.id)
+                continue
+
+            sent_count = await asyncio.to_thread(outbound_message_count, contact.id)
+            if sent_count >= MAX_AUTOMATED_REPLIES:
+                await asyncio.to_thread(
+                    update_contact,
+                    contact.id,
+                    status="MAX_REPLIES_REACHED",
+                    reply_scheduled_at=None,
+                    last_ai_reply=None,
+                )
+                logger.info(
+                    f"WHATSAPP_KAPSO_REPLY_SUPPRESSED_MAX_REPLIES "
+                    f"phone={contact.phone_number} sent_count={sent_count} "
+                    f"max={MAX_AUTOMATED_REPLIES}"
+                )
+                continue
+
+            if await asyncio.to_thread(outbound_message_exists, contact.id, reply):
+                await asyncio.to_thread(
+                    update_contact,
+                    contact.id,
+                    status="MAX_REPLIES_REACHED",
+                    reply_scheduled_at=None,
+                    last_ai_reply=None,
+                )
+                logger.warning(
+                    f"WHATSAPP_KAPSO_REPLY_SUPPRESSED_DUPLICATE_TEXT "
+                    f"phone={contact.phone_number}"
+                )
                 continue
 
             if await asyncio.to_thread(last_message_direction, contact) == "outbound":

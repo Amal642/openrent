@@ -392,7 +392,7 @@ def update_contact(contact_id: int, **kwargs) -> Optional[WhatsAppContact]:
 
 
 def get_due_contacts() -> list[WhatsAppContact]:
-    """Return contacts with a pending reply due now (reply_scheduled_at <= NOW and not PHONE_ACQUIRED)."""
+    """Return contacts with a pending regular reply due now."""
     db = SessionLocal()
     try:
         now = datetime.utcnow()
@@ -401,7 +401,9 @@ def get_due_contacts() -> list[WhatsAppContact]:
             .filter(
                 WhatsAppContact.reply_scheduled_at <= now,
                 WhatsAppContact.reply_scheduled_at.isnot(None),
-                WhatsAppContact.status.notin_(["PHONE_ACQUIRED", "SUSPICIOUS_HOLD"]),
+                WhatsAppContact.status.notin_(
+                    ["CANCELLED", "SUSPICIOUS_HOLD", "MAX_REPLIES_REACHED"]
+                ),
             )
             .all()
         )
@@ -563,6 +565,44 @@ def last_message_direction(contact: WhatsAppContact) -> Optional[str]:
         if isinstance(item, dict) and item.get("direction"):
             return item.get("direction")
     return None
+
+
+def outbound_message_count(contact_id: int) -> int:
+    """Count WhatsApp messages already sent by us for this contact."""
+    db = SessionLocal()
+    try:
+        contact = db.query(WhatsAppContact).filter(WhatsAppContact.id == contact_id).first()
+        if not contact:
+            return 0
+        return sum(
+            1
+            for item in _json_list(contact.message_history)
+            if isinstance(item, dict) and item.get("direction") == "outbound"
+        )
+    finally:
+        db.close()
+
+
+def outbound_message_exists(contact_id: int, message: str) -> bool:
+    """Return True if the exact outbound text was already sent to this contact."""
+    normalized = " ".join((message or "").split()).casefold()
+    if not normalized:
+        return False
+
+    db = SessionLocal()
+    try:
+        contact = db.query(WhatsAppContact).filter(WhatsAppContact.id == contact_id).first()
+        if not contact:
+            return False
+        for item in _json_list(contact.message_history):
+            if not isinstance(item, dict) or item.get("direction") != "outbound":
+                continue
+            existing = " ".join((item.get("message") or "").split()).casefold()
+            if existing == normalized:
+                return True
+        return False
+    finally:
+        db.close()
 
 
 def mark_contact_cancelled(contact_id: int) -> None:

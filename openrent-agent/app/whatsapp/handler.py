@@ -35,6 +35,8 @@ from app.whatsapp.repository import (
     capture_incoming_message,
     get_contact_by_phone,
     get_conversation_for_contact,
+    outbound_message_count,
+    outbound_message_exists,
     update_contact,
     update_contact_evidence,
 )
@@ -46,6 +48,12 @@ AUTO_MATCH_MIN_GAP = 5.0
 # Goal on this channel is narrow: landlord's number (implicit, it's WhatsApp),
 # name, and property. Never chase property details past this many dedicated asks.
 MAX_PROPERTY_ASKS = 2
+MAX_AUTOMATED_REPLIES = 3
+TERMINAL_REGULAR_REPLY_STATUSES = {
+    "PHONE_ACQUIRED",
+    "SAVED_UNMATCHED",
+    "MAX_REPLIES_REACHED",
+}
 
 _SUSPICIOUS_PATTERNS = (
     r"\bwho are you\b",
@@ -181,6 +189,34 @@ def _received_at(timestamp: Optional[int]) -> datetime:
 
 def _schedule_reply(contact_id: int, message: str, next_status: str, **extra_updates) -> None:
     """Store or suppress the pending reply depending on the feature flag."""
+    if outbound_message_exists(contact_id, message):
+        update_contact(
+            contact_id,
+            status="MAX_REPLIES_REACHED",
+            reply_scheduled_at=None,
+            last_ai_reply=None,
+            **extra_updates,
+        )
+        logger.warning(
+            f"WHATSAPP_REPLY_SUPPRESSED_DUPLICATE_TEXT contact_id={contact_id}"
+        )
+        return
+
+    sent_count = outbound_message_count(contact_id)
+    if sent_count >= MAX_AUTOMATED_REPLIES:
+        update_contact(
+            contact_id,
+            status="MAX_REPLIES_REACHED",
+            reply_scheduled_at=None,
+            last_ai_reply=None,
+            **extra_updates,
+        )
+        logger.info(
+            f"WHATSAPP_REPLY_SUPPRESSED_MAX_REPLIES contact_id={contact_id} "
+            f"sent_count={sent_count} max={MAX_AUTOMATED_REPLIES}"
+        )
+        return
+
     if not settings.WHATSAPP_AUTO_REPLY_ENABLED:
         update_contact(
             contact_id,
@@ -327,6 +363,26 @@ async def handle_incoming_message(
             ):
                 await _send_viewing_cancellation(contact, conversation)
                 return
+
+    if contact.status in TERMINAL_REGULAR_REPLY_STATUSES:
+        logger.info(
+            f"WHATSAPP_INCOMING_NO_REGULAR_REPLY phone={phone} status={contact.status}"
+        )
+        return
+
+    sent_count = outbound_message_count(contact.id)
+    if sent_count >= MAX_AUTOMATED_REPLIES:
+        update_contact(
+            contact.id,
+            status="MAX_REPLIES_REACHED",
+            reply_scheduled_at=None,
+            last_ai_reply=None,
+        )
+        logger.info(
+            f"WHATSAPP_INCOMING_MAX_REPLIES_REACHED phone={phone} "
+            f"sent_count={sent_count} max={MAX_AUTOMATED_REPLIES}"
+        )
+        return
 
     new_names: list[str] = []
     if sender_name:
