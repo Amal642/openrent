@@ -970,6 +970,14 @@ async def process_account_replies(
                         continue
 
                     if stored_phone and stored_phone != phone:
+                        if phone_exists(phone):
+                            logger.info(
+                                f"PHONE_REPLACE_DUPLICATE thread_id={thread_id} "
+                                f"phone={phone} owned_by_other_conversation"
+                            )
+                            update_conversation_status(thread_id, DUPLICATE_LEAD)
+                            update_last_processed_message(thread_id, latest_landlord_message)
+                            continue
                         logger.info(
                             f"PHONE_REPLACED thread_id={thread_id} "
                             f"OLD_PHONE={stored_phone} NEW_PHONE={phone}"
