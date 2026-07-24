@@ -33,3 +33,10 @@ AREA_DEFAULTS: dict[str, dict] = {
     "Wandsworth, London":                            {**_BASE, "area": 5},
     "Woolwich, Greater London":                      {**_BASE, "area": 10},
 }
+
+# Every configured area belongs to a region. All existing areas are South
+# London; when onboarding North London, add the new areas above with an
+# explicit "region": "North" (e.g. "Camden, London": {**_BASE, "area": 5,
+# "region": "North"}). Areas without an explicit region default to "South".
+for _config in AREA_DEFAULTS.values():
+    _config.setdefault("region", "South")

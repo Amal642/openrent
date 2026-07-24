@@ -44,7 +44,7 @@ def rules_summary_for_prompt() -> str:
         f"- At most {RULES['max_accounts_per_proxy']} accounts should share one connection service (proxy)\n"
         f"- Safe daily message limit: {RULES['safe_daily_limit_low']}–{RULES['safe_daily_limit_high']} per account\n"
         f"- Target reply rate: at least {RULES['reply_rate_target_pct']}%\n"
-        f"- South London boroughs: ~{RULES['listings_per_week_london_borough']} new rental listings per week each\n"
-        f"- Recommended accounts per South London borough: {RULES['accounts_london_borough']}\n"
+        f"- London boroughs: ~{RULES['listings_per_week_london_borough']} new rental listings per week each\n"
+        f"- Recommended accounts per London borough: {RULES['accounts_london_borough']}\n"
         f"- Allow ~{RULES['listing_attrition_pct']}% extra capacity for skipped/old listings\n"
     )
