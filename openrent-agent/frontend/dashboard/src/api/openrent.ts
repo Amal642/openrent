@@ -859,6 +859,7 @@ export async function postAdvisorChat(message: string): Promise<AdvisorResponse>
 
 export interface AreaIntelligenceMetric {
   location: string;
+  region: "South" | "North";
   active_profiles: number;
   active_accounts: number;
   total_listings: number;

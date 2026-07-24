@@ -20,8 +20,8 @@ import { useQuery } from "@tanstack/react-query";
 export const Route = createFileRoute("/area-intelligence")({
   head: () => ({
     meta: [
-      { title: "South London Area Intelligence - Land Royal" },
-      { name: "description", content: "Measured South London supply, conversion, and account capacity." },
+      { title: "Area Intelligence - Land Royal" },
+      { name: "description", content: "Measured supply, conversion, and account capacity by area." },
     ],
   }),
   component: AreaIntelligencePage,
@@ -29,6 +29,7 @@ export const Route = createFileRoute("/area-intelligence")({
 
 type AreaStatus = AreaIntelligenceMetric["status"];
 type FilterValue = "all" | AreaStatus;
+type RegionFilter = "all" | AreaIntelligenceMetric["region"];
 
 const FILTERS: Array<{ label: string; value: FilterValue }> = [
   { label: "All", value: "all" },
@@ -36,6 +37,12 @@ const FILTERS: Array<{ label: string; value: FilterValue }> = [
   { label: "Maintain", value: "maintain" },
   { label: "Pause", value: "pause" },
   { label: "Insufficient", value: "insufficient_data" },
+];
+
+const REGION_FILTERS: Array<{ label: string; value: RegionFilter }> = [
+  { label: "All regions", value: "all" },
+  { label: "South", value: "South" },
+  { label: "North", value: "North" },
 ];
 
 const STATUS_LABEL: Record<AreaStatus, string> = {
@@ -54,6 +61,7 @@ const STATUS_CLASS: Record<AreaStatus, string> = {
 
 function AreaIntelligencePage() {
   const [filter, setFilter] = useState<FilterValue>("all");
+  const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
   const {
     data: areas = [],
     isLoading,
@@ -65,8 +73,13 @@ function AreaIntelligencePage() {
   });
 
   const filtered = useMemo(
-    () => areas.filter((area) => filter === "all" || area.status === filter),
-    [areas, filter],
+    () =>
+      areas.filter(
+        (area) =>
+          (filter === "all" || area.status === filter) &&
+          (regionFilter === "all" || area.region === regionFilter),
+      ),
+    [areas, filter, regionFilter],
   );
 
   const totals = useMemo(() => {
@@ -98,13 +111,13 @@ function AreaIntelligencePage() {
     : 0;
 
   if (isLoading) {
-    return <PageHeader title="South London Area Intelligence" description="Loading measured area data..." />;
+    return <PageHeader title="Area Intelligence" description="Loading measured area data..." />;
   }
 
   if (error) {
     return (
       <PageHeader
-        title="South London Area Intelligence"
+        title="Area Intelligence"
         description="Could not load area intelligence data from the API."
       />
     );
@@ -113,8 +126,8 @@ function AreaIntelligencePage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="South London Area Intelligence"
-        description="Measured South London supply, conversion, and account capacity from existing OpenRent data."
+        title="Area Intelligence"
+        description="Measured supply, conversion, and account capacity by area from existing OpenRent data."
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -136,15 +149,26 @@ function AreaIntelligencePage() {
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterValue)}>
-          <TabsList className="flex h-auto flex-wrap justify-start">
-            {FILTERS.map((item) => (
-              <TabsTrigger key={item.value} value={item.value}>
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterValue)}>
+            <TabsList className="flex h-auto flex-wrap justify-start">
+              {FILTERS.map((item) => (
+                <TabsTrigger key={item.value} value={item.value}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <Tabs value={regionFilter} onValueChange={(value) => setRegionFilter(value as RegionFilter)}>
+            <TabsList className="flex h-auto flex-wrap justify-start">
+              {REGION_FILTERS.map((item) => (
+                <TabsTrigger key={item.value} value={item.value}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
         <div className="text-sm text-muted-foreground">
           Showing {filtered.length} of {areas.length} area(s)
         </div>
@@ -155,6 +179,7 @@ function AreaIntelligencePage() {
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead className="min-w-[220px]">Area</TableHead>
+              <TableHead>Region</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Accounts</TableHead>
               <TableHead className="text-right">Usable</TableHead>
@@ -171,7 +196,7 @@ function AreaIntelligencePage() {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={13} className="py-10 text-center text-muted-foreground">
                   No areas match this filter.
                 </TableCell>
               </TableRow>
@@ -183,6 +208,11 @@ function AreaIntelligencePage() {
                     <div className="text-xs text-muted-foreground">
                       {area.total_listings} total listings, {area.processing_failures} failure(s)
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="whitespace-nowrap">
+                      {area.region}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge className={cn("whitespace-nowrap", STATUS_CLASS[area.status])}>
