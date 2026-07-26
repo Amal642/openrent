@@ -9,6 +9,7 @@ Phase 1 behavior:
 
 Automatic replies are still controlled by WHATSAPP_AUTO_REPLY_ENABLED.
 """
+
 from __future__ import annotations
 
 import json
@@ -80,6 +81,9 @@ def _is_suspicious_message(message: str) -> bool:
 
 _VIEWING_KEYWORDS = (
     "viewing",
+    "attending",
+    "attend",
+    "are you nearby",
     "view the property",
     "view the flat",
     "view the house",
@@ -100,13 +104,74 @@ def _mentions_viewing(message: str) -> bool:
     return any(keyword in text for keyword in _VIEWING_KEYWORDS)
 
 
+def _conversation_needs_cancellation(conversation) -> bool:
+    return conversation.conversation_stage == "VIEWING_CANCELLED" or (
+        conversation.conversation_stage == "VIEWING_BOOKED"
+        and conversation.cancel_required
+    )
+
+
+def _sync_linked_inbound_message(
+    contact, conversation, message: str, received_at: datetime
+) -> None:
+    """Mirror linked WhatsApp landlord replies into the CRM message log.
+
+    Cancellation guards use Conversation/Message rows, while Kapso stores the
+    webhook history on WhatsAppContact. Once a contact is linked, keep those two
+    sources in step so a WhatsApp reply can unblock cancellation.
+    """
+    if not conversation or not conversation.thread_id:
+        return
+
+    from app.db.repository import save_message_once
+
+    save_message_once(
+        conversation.thread_id, "inbound", message, created_at=received_at
+    )
+
+
+async def _maybe_send_viewing_cancellation(
+    contact,
+    conversation,
+    message: str,
+    received_at: datetime,
+) -> bool:
+    if (
+        not _mentions_viewing(message)
+        or not conversation
+        or not _conversation_needs_cancellation(conversation)
+        or contact.cancellation_sent_at
+        or contact.status == "CANCELLED"
+    ):
+        return False
+
+    _sync_linked_inbound_message(contact, conversation, message, received_at)
+    await _send_viewing_cancellation(contact, conversation)
+    return True
+
+
 async def _send_viewing_cancellation(contact, conversation) -> None:
     """Reactively cancel when the landlord brings up the viewing themselves,
     on top of the existing scheduled (time-based) cancellation dispatch."""
     from app.ai.replies import generate_cancellation_message
-    from app.db.repository import mark_viewing_cancelled, save_message
+    from app.db.repository import (
+        get_automatic_cancellation_block_reason,
+        mark_viewing_cancelled,
+        save_message,
+    )
     from app.whatsapp.browser_worker import get_worker
-    from app.whatsapp.repository import get_contact_messages_for_ai, mark_contact_cancelled
+    from app.whatsapp.repository import (
+        get_contact_messages_for_ai,
+        mark_contact_cancelled,
+    )
+
+    block_reason = get_automatic_cancellation_block_reason(conversation.thread_id)
+    if block_reason:
+        logger.info(
+            f"WHATSAPP_REACTIVE_CANCEL_BLOCKED phone={contact.phone_number} "
+            f"reason={block_reason}"
+        )
+        return
 
     history = get_contact_messages_for_ai(contact)
     msg, error = generate_cancellation_message(history)
@@ -187,7 +252,9 @@ def _received_at(timestamp: Optional[int]) -> datetime:
         return datetime.utcnow()
 
 
-def _schedule_reply(contact_id: int, message: str, next_status: str, **extra_updates) -> None:
+def _schedule_reply(
+    contact_id: int, message: str, next_status: str, **extra_updates
+) -> None:
     """Store or suppress the pending reply depending on the feature flag."""
     if outbound_message_exists(contact_id, message):
         update_contact(
@@ -266,11 +333,11 @@ def _match_status(candidates: list[dict], confidence: float) -> str:
         return "UNMATCHED"
 
     second_confidence = (
-        float(candidates[1].get("confidence") or 0)
-        if len(candidates) > 1
-        else 0.0
+        float(candidates[1].get("confidence") or 0) if len(candidates) > 1 else 0.0
     )
-    has_clear_gap = len(candidates) == 1 or confidence - second_confidence >= AUTO_MATCH_MIN_GAP
+    has_clear_gap = (
+        len(candidates) == 1 or confidence - second_confidence >= AUTO_MATCH_MIN_GAP
+    )
 
     if confidence >= AUTO_MATCH_THRESHOLD and has_clear_gap:
         return "MATCHED"
@@ -346,23 +413,16 @@ async def handle_incoming_message(
         )
         return
 
-    if _mentions_viewing(message):
-        conversation = get_conversation_for_contact(contact)
-        if conversation:
-            cancellation_due = (
-                conversation.conversation_stage == "VIEWING_CANCELLED"
-                or (
-                    conversation.conversation_stage == "VIEWING_BOOKED"
-                    and conversation.cancel_required
-                )
-            )
-            if (
-                cancellation_due
-                and not contact.cancellation_sent_at
-                and contact.status != "CANCELLED"
-            ):
-                await _send_viewing_cancellation(contact, conversation)
-                return
+    conversation = get_conversation_for_contact(contact)
+    if conversation:
+        _sync_linked_inbound_message(contact, conversation, message, received_at)
+        if await _maybe_send_viewing_cancellation(
+            contact,
+            conversation,
+            message,
+            received_at,
+        ):
+            return
 
     if contact.status in TERMINAL_REGULAR_REPLY_STATUSES:
         logger.info(
@@ -408,7 +468,11 @@ async def handle_incoming_message(
 
     all_names = _dedupe(
         [contact.name]
-        + [item for item in _json_list(contact.extracted_names) if isinstance(item, str)]
+        + [
+            item
+            for item in _json_list(contact.extracted_names)
+            if isinstance(item, str)
+        ]
         + new_names
     )
     all_property_hints = _dedupe(
@@ -430,6 +494,16 @@ async def handle_incoming_message(
         )
         or contact
     )
+    conversation = get_conversation_for_contact(contact)
+    if conversation:
+        _sync_linked_inbound_message(contact, conversation, message, received_at)
+        if await _maybe_send_viewing_cancellation(
+            contact,
+            conversation,
+            message,
+            received_at,
+        ):
+            return
 
     logger.info(
         f"WHATSAPP_MATCH_EVALUATED phone={phone} status={match_status} "
@@ -454,7 +528,9 @@ async def handle_incoming_message(
     if all_names and all_property_hints:
         # We have both pieces of info already — don't chase a higher-confidence
         # CRM match and don't ask the landlord to confirm, just save it and close.
-        _save_unmatched_and_close(contact, display_name, all_property_hints[0], confidence)
+        _save_unmatched_and_close(
+            contact, display_name, all_property_hints[0], confidence
+        )
         return
 
     if contact.status == "SAVED_UNMATCHED":
