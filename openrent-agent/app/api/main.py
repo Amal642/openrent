@@ -894,7 +894,7 @@ def api_skip_lead(thread_id: str):
 
 @app.get("/api/metrics")
 def api_metrics():
-    leads = get_dashboard_leads()
+    leads = get_dashboard_leads(with_persona=False)
     accounts = get_dashboard_accounts()
     today = datetime.utcnow().date()
     new_outreach_today = count_new_outreach_on_day(today)

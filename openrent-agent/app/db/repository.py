@@ -410,10 +410,17 @@ def _parse_generated_names(names_text):
     return names
 
 
-def ensure_account_persona(account_or_id):
+def ensure_account_persona(account_or_id, db=None):
+    if db is not None:
+        return _ensure_account_persona(db, account_or_id)
+    with session_scope() as db:
+        return _ensure_account_persona(db, account_or_id)
+
+
+def _ensure_account_persona(db, account_or_id):
     account_id = getattr(account_or_id, "id", account_or_id)
 
-    with session_scope() as db:
+    if True:
         account = db.query(Account).filter(Account.id == account_id).first()
         if not account:
             return None
@@ -647,30 +654,31 @@ def get_capacity_stats():
 
     in_flight_statuses = {"running", "queued", "stopping", "retrying"}
     with session_scope() as db:
-        all_accounts = db.query(Account).filter(Account.deleted_at == None).all()
-        all_proxies = db.query(_Proxy).filter(_Proxy.is_active == True).all()
+        account_counts = dict(
+            db.query(func.lower(Account.worker_status), func.count(Account.id))
+            .filter(Account.deleted_at == None)
+            .group_by(func.lower(Account.worker_status))
+            .all()
+        )
+        proxy_counts = dict(
+            db.query(func.lower(_Proxy.health_status), func.count(_Proxy.id))
+            .filter(_Proxy.is_active == True)
+            .group_by(func.lower(_Proxy.health_status))
+            .all()
+        )
 
-        running = sum(1 for a in all_accounts if (a.worker_status or "").lower() == "running")
-        queued = sum(1 for a in all_accounts if (a.worker_status or "").lower() == "queued")
-        in_flight = sum(
-            1 for a in all_accounts
-            if (a.worker_status or "").lower() in in_flight_statuses
-        )
-        healthy_proxies = sum(
-            1 for p in all_proxies
-            if (p.health_status or "").lower() in {"ok", "healthy"}
-        )
-        failed_proxies = sum(
-            1 for p in all_proxies
-            if (p.health_status or "").lower() in {"down", "failed"}
-        )
+        running = account_counts.get("running", 0)
+        queued = account_counts.get("queued", 0)
+        in_flight = sum(account_counts.get(status, 0) for status in in_flight_statuses)
+        healthy_proxies = sum(proxy_counts.get(status, 0) for status in ("ok", "healthy"))
+        failed_proxies = sum(proxy_counts.get(status, 0) for status in ("down", "failed"))
         return {
             "accounts_running": running,
             "accounts_queued": queued,
             "accounts_in_flight": in_flight,
             "healthy_proxies": healthy_proxies,
             "failed_proxies": failed_proxies,
-            "total_proxies": len(all_proxies),
+            "total_proxies": sum(proxy_counts.values()),
         }
 
 
@@ -2767,7 +2775,7 @@ def save_travel_city(thread_id: str, city: str) -> None:
             db.commit()
 
 
-def get_dashboard_leads(status=None):
+def get_dashboard_leads(status=None, with_persona=True):
     with session_scope() as db:
         query = (
             db.query(Conversation, Listing, SearchProfile, Account)
@@ -2780,9 +2788,16 @@ def get_dashboard_leads(status=None):
             query = query.filter(Conversation.status == status)
 
         rows = []
+        persona_cache = {}
 
         for conversation, listing, search_profile, account in query.order_by(Conversation.created_at.desc()).all():
-            persona = ensure_account_persona(account.id)
+            if not with_persona:
+                persona = None
+            elif account.id in persona_cache:
+                persona = persona_cache[account.id]
+            else:
+                persona = ensure_account_persona(account, db=db)
+                persona_cache[account.id] = persona
             rows.append({
                 "conversation_id": conversation.id,
                 "thread_id": conversation.thread_id,
