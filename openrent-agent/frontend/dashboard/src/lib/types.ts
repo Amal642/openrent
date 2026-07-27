@@ -292,6 +292,13 @@ export interface Location {
   termValue: string;
   active: boolean;
   createdAt?: string;
+  region: "South" | "North";
+  radiusKm: number;
+  priceMin: number;
+  priceMax: number;
+  bedroomsMin: number;
+  bedroomsMax: number;
+  allocatable: boolean;
 }
 
 export interface FailedAccount {

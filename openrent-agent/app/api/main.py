@@ -201,28 +201,14 @@ class LocationPayload(BaseModel):
     name: str
     term_value: str
     active: bool = True
-
-
-class AreaConfigPayload(BaseModel):
-    location: str
-    region: str = "South"
-    area: int = 5
-    price_min: int = 1000
-    price_max: int = 4000
-    bedrooms_min: int = 0
-    bedrooms_max: int = 4
-    active: bool = True
-
-
-class AreaConfigUpdatePayload(BaseModel):
-    location: str | None = None
+    # Area intelligence / allocator fields (optional; sensible defaults applied)
     region: str | None = None
-    area: int | None = None
+    radius_km: int | None = None
     price_min: int | None = None
     price_max: int | None = None
     bedrooms_min: int | None = None
     bedrooms_max: int | None = None
-    active: bool | None = None
+    allocatable: bool | None = None
 
 
 class SettingsPayload(BaseModel):
@@ -1118,6 +1104,13 @@ def api_create_location(payload: LocationPayload):
         name=payload.name,
         term_value=payload.term_value,
         active=payload.active,
+        region=payload.region,
+        radius_km=payload.radius_km,
+        price_min=payload.price_min,
+        price_max=payload.price_max,
+        bedrooms_min=payload.bedrooms_min,
+        bedrooms_max=payload.bedrooms_max,
+        allocatable=payload.allocatable,
     )
 
 
@@ -1128,6 +1121,13 @@ def api_update_location(location_id: int, payload: LocationPayload):
         name=payload.name,
         term_value=payload.term_value,
         active=payload.active,
+        region=payload.region,
+        radius_km=payload.radius_km,
+        price_min=payload.price_min,
+        price_max=payload.price_max,
+        bedrooms_min=payload.bedrooms_min,
+        bedrooms_max=payload.bedrooms_max,
+        allocatable=payload.allocatable,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -1344,59 +1344,6 @@ def advisor_areas():
     from app.advisor.area_intelligence import get_area_metrics
 
     return get_area_metrics()
-
-
-@app.get("/api/advisor/areas/config")
-def advisor_area_configs(active_only: bool = False):
-    from app.db.repository import get_area_configs
-
-    return get_area_configs(active_only=active_only)
-
-
-@app.post("/api/advisor/areas/config")
-def advisor_create_area_config(payload: AreaConfigPayload):
-    from app.db.repository import create_area_config, location_has_search_profiles
-
-    created, error = create_area_config(
-        location=payload.location,
-        region=payload.region,
-        area=payload.area,
-        price_min=payload.price_min,
-        price_max=payload.price_max,
-        bedrooms_min=payload.bedrooms_min,
-        bedrooms_max=payload.bedrooms_max,
-        active=payload.active,
-    )
-    if error == "duplicate":
-        raise HTTPException(status_code=409, detail="An area with this location already exists")
-
-    warning = None
-    if not location_has_search_profiles(payload.location):
-        warning = (
-            "No search profiles use this location string yet — listings will "
-            "not map to this area until a search profile targets it exactly."
-        )
-    return {**created, "warning": warning}
-
-
-@app.patch("/api/advisor/areas/config/{area_config_id}")
-def advisor_update_area_config(area_config_id: int, payload: AreaConfigUpdatePayload):
-    from app.db.repository import update_area_config
-
-    updated = update_area_config(area_config_id, **payload.model_dump(exclude_unset=True))
-    if not updated:
-        raise HTTPException(status_code=404, detail="Area config not found")
-    return updated
-
-
-@app.delete("/api/advisor/areas/config/{area_config_id}")
-def advisor_delete_area_config(area_config_id: int):
-    from app.db.repository import delete_area_config
-
-    result, error = delete_area_config(area_config_id)
-    if error == "not_found":
-        raise HTTPException(status_code=404, detail="Area config not found")
-    return result
 
 
 @app.post("/api/admin/allocate-sims")

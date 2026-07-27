@@ -157,6 +157,16 @@ REQUIRED_COLUMNS = {
         "follow_up_count": "INTEGER DEFAULT 0",
         "our_number_shared_at": "TIMESTAMP",
     },
+
+    "locations": {
+        "region": "VARCHAR DEFAULT 'South'",
+        "radius_km": "INTEGER DEFAULT 5",
+        "price_min": "INTEGER DEFAULT 1000",
+        "price_max": "INTEGER DEFAULT 4000",
+        "bedrooms_min": "INTEGER DEFAULT 0",
+        "bedrooms_max": "INTEGER DEFAULT 4",
+        "allocatable": "BOOLEAN DEFAULT FALSE",
+    },
 }
 
 
@@ -296,19 +306,96 @@ def init_db():
     apply_schema_updates()
     _migrate_account_proxies()
     _migrate_daily_limit_to_8()
-    _seed_area_configs()
+    _migrate_area_configs_into_locations()
+    _seed_allocatable_locations()
     validate_schema_or_die()
 
 
-def _seed_area_configs():
-    """Seed area_configs from the static AREA_DEFAULTS dict on first run."""
-    from app.db.repository import seed_area_configs_if_empty
+def _migrate_area_configs_into_locations():
+    """One-time migration: fold the legacy area_configs table into locations.
 
+    Each area_configs row is matched to a location by term_value == location
+    (created if absent), its area fields are copied over, and it is marked
+    allocatable (legacy area_configs rows were all allocation targets). The
+    area_configs table is then dropped. No-op once the table is gone.
+    """
+    from app.db.connection import SessionLocal
+    from app.db.models import Location
+
+    inspector = inspect(engine)
+    if not inspector.has_table("area_configs"):
+        return
+
+    db = SessionLocal()
     try:
-        seeded = seed_area_configs_if_empty()
-        if seeded:
-            print(f"Seeded {seeded} area config(s) from AREA_DEFAULTS")
+        rows = db.execute(text(
+            "SELECT location, region, area, price_min, price_max, "
+            "bedrooms_min, bedrooms_max FROM area_configs"
+        )).fetchall()
+
+        migrated = 0
+        for row in rows:
+            location, region, area, price_min, price_max, bmin, bmax = row
+            loc = db.query(Location).filter(Location.term_value == location).first()
+            if loc is None:
+                loc = Location(name=location, term_value=location, active=True)
+                db.add(loc)
+            loc.region = region or "South"
+            loc.radius_km = area or 5
+            loc.price_min = price_min
+            loc.price_max = price_max
+            loc.bedrooms_min = bmin
+            loc.bedrooms_max = bmax
+            loc.allocatable = True
+            migrated += 1
+
+        db.commit()
+        db.execute(text("DROP TABLE area_configs"))
+        db.commit()
+        print(f"Migrated {migrated} area_config(s) into locations and dropped area_configs")
     except Exception as exc:
-        print(f"area_configs seed skipped: {exc}")
+        db.rollback()
+        print(f"area_configs → locations migration skipped: {exc}")
+    finally:
+        db.close()
+
+
+def _seed_allocatable_locations():
+    """Ensure the known South London areas exist as allocatable locations.
+
+    Fallback for a fresh install with no legacy area_configs: seeds locations
+    from the static AREA_DEFAULTS so the allocator has targets out of the box.
+    Only runs when no allocatable location exists yet.
+    """
+    from app.db.connection import SessionLocal
+    from app.db.models import Location
+    from app.advisor.area_defaults import AREA_DEFAULTS
+
+    db = SessionLocal()
+    try:
+        if db.query(Location).filter(Location.allocatable == True).first() is not None:
+            return
+        seeded = 0
+        for location, cfg in AREA_DEFAULTS.items():
+            loc = db.query(Location).filter(Location.term_value == location).first()
+            if loc is None:
+                loc = Location(name=location, term_value=location, active=True)
+                db.add(loc)
+            loc.region = cfg.get("region", "South")
+            loc.radius_km = cfg["area"]
+            loc.price_min = cfg["price_min"]
+            loc.price_max = cfg["price_max"]
+            loc.bedrooms_min = cfg["bedrooms_min"]
+            loc.bedrooms_max = cfg["bedrooms_max"]
+            loc.allocatable = True
+            seeded += 1
+        db.commit()
+        if seeded:
+            print(f"Seeded {seeded} allocatable location(s) from AREA_DEFAULTS")
+    except Exception as exc:
+        db.rollback()
+        print(f"allocatable location seed skipped: {exc}")
+    finally:
+        db.close()
 
     print("Database initialized successfully")

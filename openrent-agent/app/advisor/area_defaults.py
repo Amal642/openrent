@@ -39,40 +39,52 @@ AREA_DEFAULTS: dict[str, dict] = {
 # explicit "region": "North" (e.g. "Camden, London": {**_BASE, "area": 5,
 # "region": "North"}). Areas without an explicit region default to "South".
 #
-# NOTE: this static dict is now only the SEED for the area_configs table.
-# Runtime consumers must read areas via get_area_defaults() (DB-backed and
-# editable from the Area Intelligence dashboard), not import AREA_DEFAULTS
-# directly. On first run init_db seeds area_configs from this dict.
+# NOTE: this static dict is now only the SEED / fallback. Areas live in the
+# locations table (region + radius + price defaults + allocatable flag), and
+# runtime consumers must read them via get_area_defaults(), not import
+# AREA_DEFAULTS directly. On first run init_db seeds allocatable locations from
+# this dict.
 for _config in AREA_DEFAULTS.values():
     _config.setdefault("region", "South")
 
 
-def get_area_defaults() -> dict[str, dict]:
-    """Return the live area config dict, keyed by location.
+def get_area_defaults(allocatable_only: bool = False) -> dict[str, dict]:
+    """Return the live area config dict, keyed by location (term_value).
 
-    Reads active rows from the area_configs table so areas added/removed from
-    the dashboard take effect without a redeploy. Falls back to the static
-    AREA_DEFAULTS seed if the DB is unavailable (e.g. very early startup) so
-    the system degrades to today's behavior rather than an empty area list.
+    Areas are derived directly from the locations table: every active location
+    is an area for intelligence/metrics purposes. Pass allocatable_only=True to
+    restrict to locations flagged for SIM assignment (the allocator's spend
+    guardrail). The key is Location.term_value, which is exactly what is stored
+    on search_profiles.location — so listings map to areas by construction.
+
+    Falls back to the static AREA_DEFAULTS seed if the DB is unavailable (e.g.
+    very early startup) so the system degrades to a known baseline rather than
+    an empty area list.
     """
     try:
-        from app.db.repository import get_area_configs
+        from app.db.repository import get_locations
 
-        rows = get_area_configs(active_only=True)
+        rows = get_locations(active_only=True, allocatable_only=allocatable_only)
     except Exception:
-        return {loc: dict(cfg) for loc, cfg in AREA_DEFAULTS.items()}
+        return _static_defaults(allocatable_only)
 
     if not rows:
-        return {loc: dict(cfg) for loc, cfg in AREA_DEFAULTS.items()}
+        return _static_defaults(allocatable_only)
 
     result: dict[str, dict] = {}
     for row in rows:
-        result[row["location"]] = {
+        result[row["term_value"]] = {
             "price_min": row["price_min"],
             "price_max": row["price_max"],
             "bedrooms_min": row["bedrooms_min"],
             "bedrooms_max": row["bedrooms_max"],
-            "area": row["area"],
+            "area": row["radius_km"],
             "region": row.get("region") or "South",
         }
     return result
+
+
+def _static_defaults(allocatable_only: bool) -> dict[str, dict]:
+    # The static seed is entirely South London and all-allocatable, so the
+    # allocatable_only flag does not filter it further.
+    return {loc: dict(cfg) for loc, cfg in AREA_DEFAULTS.items()}

@@ -27,7 +27,9 @@ def run_allocation(dry_run: bool = False) -> dict:
     Returns a summary dict safe to return as JSON.
     """
     metrics = _load_area_metrics()
-    area_defaults = get_area_defaults()
+    # Only allocatable locations are valid SIM targets (spend guardrail); the
+    # metrics list still contains every active area for reporting.
+    area_defaults = get_area_defaults(allocatable_only=True)
     paused_locations = {m.location for m in metrics if m.status == "pause"}
 
     assigned: list[dict] = []
@@ -41,7 +43,7 @@ def run_allocation(dry_run: bool = False) -> dict:
 
     # --- assign pool accounts ---
     for acc_id, email in pool_accounts:
-        ranked = _ranked_areas(metrics)
+        ranked = _ranked_areas(metrics, area_defaults)
         if not ranked:
             msg = "SIM pool has accounts waiting but no South London area currently has supply."
             if msg not in warnings:
@@ -90,7 +92,7 @@ def run_allocation(dry_run: bool = False) -> dict:
         old_locations = [p["location"] for p in candidate["profiles"]]
         old_profile_ids = [p["profile_id"] for p in candidate["profiles"]]
 
-        ranked = _ranked_areas(metrics)
+        ranked = _ranked_areas(metrics, area_defaults)
         if not ranked:
             skipped.append({"account": email, "reason": "All areas paused, cannot rebalance"})
             continue
@@ -182,10 +184,10 @@ def _get_rebalance_candidates(db, paused_locations: set[str]) -> list[dict]:
     return candidates
 
 
-def _ranked_areas(metrics: list[AreaMetrics]) -> list[AreaMetrics]:
-    """Areas eligible for assignment, sorted by score descending."""
+def _ranked_areas(metrics: list[AreaMetrics], allocatable: dict) -> list[AreaMetrics]:
+    """Allocatable areas eligible for assignment, sorted by score descending."""
     return sorted(
-        (m for m in metrics if m.score > 0),
+        (m for m in metrics if m.score > 0 and m.location in allocatable),
         key=lambda m: m.score,
         reverse=True,
     )

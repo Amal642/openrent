@@ -706,6 +706,26 @@ type BackendLocation = {
   term_value: string;
   active: boolean;
   created_at?: string;
+  region?: "South" | "North";
+  radius_km?: number;
+  price_min?: number;
+  price_max?: number;
+  bedrooms_min?: number;
+  bedrooms_max?: number;
+  allocatable?: boolean;
+};
+
+export type LocationInput = {
+  name: string;
+  termValue: string;
+  active?: boolean;
+  region?: "South" | "North";
+  radiusKm?: number;
+  priceMin?: number;
+  priceMax?: number;
+  bedroomsMin?: number;
+  bedroomsMax?: number;
+  allocatable?: boolean;
 };
 
 function mapLocation(l: BackendLocation): Location {
@@ -715,7 +735,29 @@ function mapLocation(l: BackendLocation): Location {
     termValue: l.term_value,
     active: l.active,
     createdAt: l.created_at,
+    region: l.region ?? "South",
+    radiusKm: l.radius_km ?? 5,
+    priceMin: l.price_min ?? 1000,
+    priceMax: l.price_max ?? 4000,
+    bedroomsMin: l.bedrooms_min ?? 0,
+    bedroomsMax: l.bedrooms_max ?? 4,
+    allocatable: l.allocatable ?? false,
   };
+}
+
+function locationPayload(data: Partial<LocationInput>) {
+  const payload: Record<string, unknown> = {};
+  if (data.name !== undefined) payload.name = data.name;
+  if (data.termValue !== undefined) payload.term_value = data.termValue;
+  if (data.active !== undefined) payload.active = data.active;
+  if (data.region !== undefined) payload.region = data.region;
+  if (data.radiusKm !== undefined) payload.radius_km = data.radiusKm;
+  if (data.priceMin !== undefined) payload.price_min = data.priceMin;
+  if (data.priceMax !== undefined) payload.price_max = data.priceMax;
+  if (data.bedroomsMin !== undefined) payload.bedrooms_min = data.bedroomsMin;
+  if (data.bedroomsMax !== undefined) payload.bedrooms_max = data.bedroomsMax;
+  if (data.allocatable !== undefined) payload.allocatable = data.allocatable;
+  return payload;
 }
 
 export async function getLocations(activeOnly = false): Promise<Location[]> {
@@ -723,8 +765,9 @@ export async function getLocations(activeOnly = false): Promise<Location[]> {
   return rows.map(mapLocation);
 }
 
-export async function createLocation(data: { name: string; termValue: string; active?: boolean }): Promise<Location> {
+export async function createLocation(data: LocationInput): Promise<Location> {
   const created = await post<BackendLocation>("/locations", {
+    ...locationPayload(data),
     name: data.name,
     term_value: data.termValue,
     active: data.active ?? true,
@@ -734,13 +777,9 @@ export async function createLocation(data: { name: string; termValue: string; ac
 
 export async function updateLocation(
   id: number,
-  data: { name: string; termValue: string; active: boolean },
+  data: Partial<LocationInput>,
 ): Promise<Location> {
-  const updated = await patch<BackendLocation>(`/locations/${id}`, {
-    name: data.name,
-    term_value: data.termValue,
-    active: data.active,
-  });
+  const updated = await patch<BackendLocation>(`/locations/${id}`, locationPayload(data));
   return mapLocation(updated);
 }
 
@@ -886,51 +925,6 @@ export interface AreaIntelligenceMetric {
 
 export function getAreaIntelligence(): Promise<AreaIntelligenceMetric[]> {
   return get<AreaIntelligenceMetric[]>("/advisor/areas");
-}
-
-export interface AreaConfig {
-  id: number;
-  location: string;
-  region: "South" | "North";
-  area: number;
-  price_min: number;
-  price_max: number;
-  bedrooms_min: number;
-  bedrooms_max: number;
-  active: boolean;
-  created_at?: string;
-}
-
-export interface AreaConfigInput {
-  location: string;
-  region?: "South" | "North";
-  area?: number;
-  price_min?: number;
-  price_max?: number;
-  bedrooms_min?: number;
-  bedrooms_max?: number;
-  active?: boolean;
-}
-
-export function getAreaConfigs(activeOnly = false): Promise<AreaConfig[]> {
-  return get<AreaConfig[]>(`/advisor/areas/config?active_only=${activeOnly}`);
-}
-
-export function createAreaConfig(
-  data: AreaConfigInput,
-): Promise<AreaConfig & { warning: string | null }> {
-  return post<AreaConfig & { warning: string | null }>("/advisor/areas/config", data);
-}
-
-export function updateAreaConfig(
-  id: number,
-  data: Partial<AreaConfigInput>,
-): Promise<AreaConfig> {
-  return patch<AreaConfig>(`/advisor/areas/config/${id}`, data);
-}
-
-export function deleteAreaConfig(id: number): Promise<{ deleted: boolean; id: number }> {
-  return del(`/advisor/areas/config/${id}`);
 }
 
 // ---------------- WHATSAPP WORKER ----------------

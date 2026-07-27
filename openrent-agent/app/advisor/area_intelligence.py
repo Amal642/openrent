@@ -106,7 +106,7 @@ def _load_area_metrics(now: datetime | None = None) -> list[AreaMetrics]:
     now = now or datetime.utcnow()
     day_ago = now - timedelta(days=1)
     week_ago = now - timedelta(days=7)
-    # Configured areas (get_area_defaults(), backed by the area_configs table)
+    # Configured areas (get_area_defaults(), backed by the locations table)
     # are the single source of truth for which areas the system operates in —
     # the allocator already refuses to assign to any area not returned here.
     # Every configured area is seeded so a newly-added region (e.g. North

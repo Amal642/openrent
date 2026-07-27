@@ -2983,6 +2983,12 @@ def deactivate_search_profile(profile_id):
 
 # ---------------- LOCATIONS ----------------
 
+_LOCATION_AREA_FIELDS = (
+    "region", "radius_km", "price_min", "price_max",
+    "bedrooms_min", "bedrooms_max", "allocatable",
+)
+
+
 def _serialize_location(loc) -> dict:
     return {
         "id": loc.id,
@@ -2990,29 +2996,47 @@ def _serialize_location(loc) -> dict:
         "term_value": loc.term_value,
         "active": loc.active,
         "created_at": loc.created_at,
+        "region": loc.region,
+        "radius_km": loc.radius_km,
+        "price_min": loc.price_min,
+        "price_max": loc.price_max,
+        "bedrooms_min": loc.bedrooms_min,
+        "bedrooms_max": loc.bedrooms_max,
+        "allocatable": loc.allocatable,
     }
 
 
-def get_locations(active_only: bool = False):
+def get_locations(active_only: bool = False, allocatable_only: bool = False):
     from app.db.models import Location
     with session_scope() as db:
         q = db.query(Location)
         if active_only:
             q = q.filter(Location.active == True)
+        if allocatable_only:
+            q = q.filter(Location.allocatable == True)
         return [_serialize_location(loc) for loc in q.order_by(Location.name.asc()).all()]
 
 
-def create_location(name: str, term_value: str, active: bool = True):
+def create_location(name: str, term_value: str, active: bool = True, **area_fields):
     from app.db.models import Location
     with session_scope() as db:
         loc = Location(name=name, term_value=term_value, active=active)
+        for key in _LOCATION_AREA_FIELDS:
+            if area_fields.get(key) is not None:
+                setattr(loc, key, area_fields[key])
         db.add(loc)
         db.commit()
         db.refresh(loc)
         return _serialize_location(loc)
 
 
-def update_location(location_id: int, name: str | None = None, term_value: str | None = None, active: bool | None = None):
+def update_location(
+    location_id: int,
+    name: str | None = None,
+    term_value: str | None = None,
+    active: bool | None = None,
+    **area_fields,
+):
     from app.db.models import Location
     with session_scope() as db:
         loc = db.query(Location).filter(Location.id == location_id).first()
@@ -3024,6 +3048,9 @@ def update_location(location_id: int, name: str | None = None, term_value: str |
             loc.term_value = term_value
         if active is not None:
             loc.active = active
+        for key in _LOCATION_AREA_FIELDS:
+            if area_fields.get(key) is not None:
+                setattr(loc, key, area_fields[key])
         db.commit()
         db.refresh(loc)
         return _serialize_location(loc)
@@ -3038,133 +3065,6 @@ def delete_location(location_id: int):
         db.delete(loc)
         db.commit()
         return {"deleted": True, "id": location_id}, None
-
-
-# ---------------- AREA CONFIGS ----------------
-
-def _serialize_area_config(cfg) -> dict:
-    return {
-        "id": cfg.id,
-        "location": cfg.location,
-        "region": cfg.region,
-        "area": cfg.area,
-        "price_min": cfg.price_min,
-        "price_max": cfg.price_max,
-        "bedrooms_min": cfg.bedrooms_min,
-        "bedrooms_max": cfg.bedrooms_max,
-        "active": cfg.active,
-        "created_at": cfg.created_at,
-    }
-
-
-def get_area_configs(active_only: bool = False):
-    from app.db.models import AreaConfig
-    with session_scope() as db:
-        q = db.query(AreaConfig)
-        if active_only:
-            q = q.filter(AreaConfig.active == True)
-        return [
-            _serialize_area_config(cfg)
-            for cfg in q.order_by(AreaConfig.location.asc()).all()
-        ]
-
-
-def location_has_search_profiles(location: str) -> bool:
-    """Whether any search profile already targets this exact location string."""
-    with session_scope() as db:
-        return (
-            db.query(SearchProfile)
-            .filter(SearchProfile.location == location)
-            .first()
-            is not None
-        )
-
-
-def create_area_config(
-    location: str,
-    region: str = "South",
-    area: int = 5,
-    price_min: int = 1000,
-    price_max: int = 4000,
-    bedrooms_min: int = 0,
-    bedrooms_max: int = 4,
-    active: bool = True,
-):
-    from app.db.models import AreaConfig
-    with session_scope() as db:
-        existing = (
-            db.query(AreaConfig).filter(AreaConfig.location == location).first()
-        )
-        if existing:
-            return None, "duplicate"
-        cfg = AreaConfig(
-            location=location,
-            region=region,
-            area=area,
-            price_min=price_min,
-            price_max=price_max,
-            bedrooms_min=bedrooms_min,
-            bedrooms_max=bedrooms_max,
-            active=active,
-        )
-        db.add(cfg)
-        db.commit()
-        db.refresh(cfg)
-        return _serialize_area_config(cfg), None
-
-
-def update_area_config(area_config_id: int, **fields):
-    from app.db.models import AreaConfig
-    allowed = {
-        "location", "region", "area", "price_min", "price_max",
-        "bedrooms_min", "bedrooms_max", "active",
-    }
-    with session_scope() as db:
-        cfg = db.query(AreaConfig).filter(AreaConfig.id == area_config_id).first()
-        if not cfg:
-            return None
-        for key, value in fields.items():
-            if key in allowed and value is not None:
-                setattr(cfg, key, value)
-        db.commit()
-        db.refresh(cfg)
-        return _serialize_area_config(cfg)
-
-
-def delete_area_config(area_config_id: int):
-    from app.db.models import AreaConfig
-    with session_scope() as db:
-        cfg = db.query(AreaConfig).filter(AreaConfig.id == area_config_id).first()
-        if not cfg:
-            return None, "not_found"
-        db.delete(cfg)
-        db.commit()
-        return {"deleted": True, "id": area_config_id}, None
-
-
-def seed_area_configs_if_empty():
-    """One-time seed of area_configs from the static AREA_DEFAULTS dict."""
-    from app.db.models import AreaConfig
-    from app.advisor.area_defaults import AREA_DEFAULTS
-
-    with session_scope() as db:
-        if db.query(AreaConfig).first() is not None:
-            return 0
-        count = 0
-        for location, cfg in AREA_DEFAULTS.items():
-            db.add(AreaConfig(
-                location=location,
-                region=cfg.get("region", "South"),
-                area=cfg["area"],
-                price_min=cfg["price_min"],
-                price_max=cfg["price_max"],
-                bedrooms_min=cfg["bedrooms_min"],
-                bedrooms_max=cfg["bedrooms_max"],
-                active=True,
-            ))
-            count += 1
-        db.commit()
-        return count
 
 
 # ---------------- FAILED ACCOUNTS ----------------

@@ -41,6 +41,15 @@ Base = declarative_base()
 # ---------------- LOCATIONS ----------------
 
 class Location(Base):
+    """A place the system operates in.
+
+    `term_value` is the exact string submitted to OpenRent's search and stored
+    on search_profiles.location — so it is also the key Area Intelligence uses
+    to map listings to an area. The area fields below (region, radius, price /
+    bedroom defaults) drive the Area Intelligence dashboard and the SIM
+    allocator; `allocatable` gates whether the allocator may assign SIMs here.
+    """
+
     __tablename__ = "locations"
 
     id = Column(Integer, primary_key=True)
@@ -49,29 +58,14 @@ class Location(Base):
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
-# ---------------- AREA CONFIGS ----------------
-
-class AreaConfig(Base):
-    """Runtime-editable area definitions that back AREA_DEFAULTS.
-
-    `location` must exactly match the string stored in search_profiles.location
-    for listings to map to the area. Seeded from the static AREA_DEFAULTS dict
-    on first run; thereafter managed from the Area Intelligence dashboard.
-    """
-
-    __tablename__ = "area_configs"
-
-    id = Column(Integer, primary_key=True)
-    location = Column(String, nullable=False, unique=True)
+    # Area intelligence / allocator fields
     region = Column(String, nullable=False, default="South")
-    area = Column(Integer, nullable=False, default=5)  # search radius in km
+    radius_km = Column(Integer, nullable=False, default=5)
     price_min = Column(Integer, nullable=False, default=1000)
     price_max = Column(Integer, nullable=False, default=4000)
     bedrooms_min = Column(Integer, nullable=False, default=0)
     bedrooms_max = Column(Integer, nullable=False, default=4)
-    active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    allocatable = Column(Boolean, nullable=False, default=False)
 
 
 # ---------------- PROXIES ----------------

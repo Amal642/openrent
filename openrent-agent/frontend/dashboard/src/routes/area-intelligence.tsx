@@ -1,27 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { BarChart3, Boxes, CircleGauge, MapPinned, Phone, Plus, Trash2, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { BarChart3, Boxes, CircleGauge, MapPinned, Phone, Settings2, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -31,19 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  createAreaConfig,
-  deleteAreaConfig,
-  getAreaConfigs,
-  getAreaIntelligence,
-  type AreaConfig,
-  type AreaConfigInput,
-  type AreaIntelligenceMetric,
-} from "@/lib/api";
-import { useApiMutation } from "@/hooks/useApiMutation";
+import { getAreaIntelligence, type AreaIntelligenceMetric } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/area-intelligence")({
   head: () => ({
@@ -90,7 +63,6 @@ const STATUS_CLASS: Record<AreaStatus, string> = {
 function AreaIntelligencePage() {
   const [filter, setFilter] = useState<FilterValue>("all");
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
   const {
     data: areas = [],
     isLoading,
@@ -100,53 +72,6 @@ function AreaIntelligencePage() {
     queryFn: getAreaIntelligence,
     refetchInterval: 60000,
   });
-
-  const { data: configs = [] } = useQuery({
-    queryKey: ["area-configs"],
-    queryFn: () => getAreaConfigs(false),
-  });
-
-  // Map location → config id so table rows can offer a delete action.
-  const configByLocation = useMemo(() => {
-    const map: Record<string, AreaConfig> = {};
-    for (const cfg of configs) map[cfg.location] = cfg;
-    return map;
-  }, [configs]);
-
-  const createMutation = useApiMutation({
-    mutationFn: (input: AreaConfigInput) => createAreaConfig(input),
-    success: "Area added",
-    error: "Could not add area",
-    invalidate: [["area-intelligence"], ["area-configs"]],
-  });
-
-  const deleteMutation = useApiMutation({
-    mutationFn: (id: number) => deleteAreaConfig(id),
-    success: "Area removed",
-    error: "Could not remove area",
-    invalidate: [["area-intelligence"], ["area-configs"]],
-  });
-
-  const handleCreate = (input: AreaConfigInput) => {
-    createMutation.mutate(input, {
-      onSuccess: (result) => {
-        if (result.warning) toast.warning(result.warning, { duration: 8000 });
-        setDialogOpen(false);
-      },
-    });
-  };
-
-  const handleDelete = (location: string) => {
-    const cfg = configByLocation[location];
-    if (!cfg) {
-      toast.error("This area is not editable (seeded before it was DB-backed).");
-      return;
-    }
-    if (!window.confirm(`Remove "${location}"? The SIM allocator will stop assigning to it.`)) {
-      return;
-    }
-    deleteMutation.mutate(cfg.id);
-  };
 
   const filtered = useMemo(
     () =>
@@ -206,18 +131,13 @@ function AreaIntelligencePage() {
           title="Area Intelligence"
           description="Measured supply, conversion, and account capacity by area from existing OpenRent data."
         />
-        <Button onClick={() => setDialogOpen(true)} className="shrink-0">
-          <Plus className="size-4" />
-          Add area
+        <Button asChild variant="outline" className="shrink-0">
+          <Link to="/locations">
+            <Settings2 className="size-4" />
+            Manage areas
+          </Link>
         </Button>
       </div>
-
-      <AddAreaDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSave={handleCreate}
-        saving={createMutation.isPending}
-      />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <StatCard label="Areas" value={areas.length} icon={MapPinned} />
@@ -280,13 +200,12 @@ function AreaIntelligencePage() {
               <TableHead className="text-right">Phone</TableHead>
               <TableHead className="text-right">Supported</TableHead>
               <TableHead className="min-w-[280px]">Evidence</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={13} className="py-10 text-center text-muted-foreground">
                   No areas match this filter.
                 </TableCell>
               </TableRow>
@@ -337,22 +256,6 @@ function AreaIntelligencePage() {
                   <TableCell className="text-sm text-muted-foreground">
                     {area.evidence}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      disabled={!configByLocation[area.location] || deleteMutation.isPending}
-                      title={
-                        configByLocation[area.location]
-                          ? "Remove area"
-                          : "Not editable"
-                      }
-                      onClick={() => handleDelete(area.location)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -364,6 +267,11 @@ function AreaIntelligencePage() {
         <CircleGauge className="mt-0.5 size-4 shrink-0" />
         <p>
           Status and capacity are calculated from measured listings and conversations.
+          Areas are the active locations on the{" "}
+          <Link to="/locations" className="underline hover:no-underline">
+            Locations
+          </Link>{" "}
+          page — set a location's region, radius, and allocatable flag there.
         </p>
       </div>
     </div>
@@ -395,122 +303,4 @@ function PercentCell({ value }: { value: number }) {
 function formatSigned(value: number) {
   if (value > 0) return `+${value}`;
   return String(value);
-}
-
-const EMPTY_AREA: AreaConfigInput = {
-  location: "",
-  region: "South",
-  area: 5,
-  price_min: 1000,
-  price_max: 4000,
-  bedrooms_min: 0,
-  bedrooms_max: 4,
-  active: true,
-};
-
-function AddAreaDialog({
-  open,
-  onOpenChange,
-  onSave,
-  saving,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (input: AreaConfigInput) => void;
-  saving: boolean;
-}) {
-  const [data, setData] = useState<AreaConfigInput>(EMPTY_AREA);
-
-  useEffect(() => {
-    if (open) setData(EMPTY_AREA);
-  }, [open]);
-
-  const canSave = data.location.trim().length > 0 && !saving;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add area</DialogTitle>
-          <DialogDescription>
-            The location must exactly match the string used in search profiles
-            (e.g. "Camden, London") for listings to map to this area.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3 py-2">
-          <div className="col-span-2 space-y-1.5">
-            <Label>Location</Label>
-            <Input
-              value={data.location}
-              onChange={(e) => setData({ ...data, location: e.target.value })}
-              placeholder="Camden, London"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Region</Label>
-            <Select
-              value={data.region}
-              onValueChange={(v) => setData({ ...data, region: v as "South" | "North" })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="South">South</SelectItem>
-                <SelectItem value="North">North</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Search radius (km)</Label>
-            <Input
-              type="number"
-              value={data.area ?? ""}
-              onChange={(e) => setData({ ...data, area: Number(e.target.value) })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Price min</Label>
-            <Input
-              type="number"
-              value={data.price_min ?? ""}
-              onChange={(e) => setData({ ...data, price_min: Number(e.target.value) })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Price max</Label>
-            <Input
-              type="number"
-              value={data.price_max ?? ""}
-              onChange={(e) => setData({ ...data, price_max: Number(e.target.value) })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Bedrooms min</Label>
-            <Input
-              type="number"
-              value={data.bedrooms_min ?? ""}
-              onChange={(e) => setData({ ...data, bedrooms_min: Number(e.target.value) })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Bedrooms max</Label>
-            <Input
-              type="number"
-              value={data.bedrooms_max ?? ""}
-              onChange={(e) => setData({ ...data, bedrooms_max: Number(e.target.value) })}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={!canSave} onClick={() => onSave({ ...data, location: data.location.trim() })}>
-            {saving ? "Adding..." : "Add area"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
 }

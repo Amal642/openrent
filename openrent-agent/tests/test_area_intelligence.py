@@ -247,13 +247,25 @@ def test_recommendation_engine_uses_area_intelligence_before_llm(monkeypatch):
     )
 
 
-# ---------------- DB-backed area configs ----------------
+# ---------------- Locations-backed area defaults ----------------
 
 from app.advisor.area_defaults import AREA_DEFAULTS, get_area_defaults
 
 
-def test_get_area_defaults_falls_back_to_static_when_table_empty(db_session):
-    # Empty area_configs table → the static AREA_DEFAULTS seed is returned so
+def _add_location(term_value, *, region="South", radius_km=5, allocatable=True, active=True, **kw):
+    return repository.create_location(
+        name=term_value,
+        term_value=term_value,
+        active=active,
+        region=region,
+        radius_km=radius_km,
+        allocatable=allocatable,
+        **kw,
+    )
+
+
+def test_get_area_defaults_falls_back_to_static_when_no_locations(db_session):
+    # Empty locations table → the static AREA_DEFAULTS seed is returned so
     # behavior degrades to the pre-DB baseline rather than an empty area list.
     defaults = get_area_defaults()
 
@@ -261,22 +273,11 @@ def test_get_area_defaults_falls_back_to_static_when_table_empty(db_session):
     assert defaults["Croydon, Greater London"]["region"] == "South"
 
 
-def test_seed_area_configs_populates_table_once(db_session):
-    seeded = repository.seed_area_configs_if_empty()
-    assert seeded == len(AREA_DEFAULTS)
-
-    # Idempotent: a second call is a no-op.
-    assert repository.seed_area_configs_if_empty() == 0
-
-    configs = repository.get_area_configs()
-    assert len(configs) == len(AREA_DEFAULTS)
-
-
-def test_get_area_defaults_reflects_db_rows(db_session):
-    repository.create_area_config(
-        location="Camden, London",
+def test_get_area_defaults_reads_from_locations(db_session):
+    _add_location(
+        "Camden, London",
         region="North",
-        area=6,
+        radius_km=6,
         price_min=1200,
         price_max=3500,
         bedrooms_min=1,
@@ -285,65 +286,50 @@ def test_get_area_defaults_reflects_db_rows(db_session):
 
     defaults = get_area_defaults()
 
-    # Once the table has rows it becomes authoritative (no static merge).
+    # Once a location exists the table is authoritative (no static merge).
     assert set(defaults) == {"Camden, London"}
     camden = defaults["Camden, London"]
     assert camden["region"] == "North"
-    assert camden["area"] == 6
+    assert camden["area"] == 6  # radius_km surfaces as "area"
     assert camden["price_min"] == 1200
     assert camden["bedrooms_max"] == 3
 
 
-def test_created_area_appears_in_metrics_with_region(db_session):
-    repository.create_area_config(location="Camden, London", region="North", area=5)
+def test_allocatable_only_filters_defaults(db_session):
+    _add_location("Camden, London", allocatable=True)
+    _add_location("Islington, London", allocatable=False)
+
+    all_areas = get_area_defaults()
+    allocatable = get_area_defaults(allocatable_only=True)
+
+    assert set(all_areas) == {"Camden, London", "Islington, London"}
+    assert set(allocatable) == {"Camden, London"}
+
+
+def test_created_location_appears_in_metrics_with_region(db_session):
+    _add_location("Camden, London", region="North")
 
     metrics = area_intelligence.get_area_metrics()
     camden = _metric_for(metrics, "Camden, London")
 
     assert camden["region"] == "North"
-    assert camden["status"] == "insufficient_data"  # seeded, no listings yet
+    assert camden["status"] == "insufficient_data"  # no listings yet
 
 
-def test_create_area_config_rejects_duplicate(db_session):
-    created, error = repository.create_area_config(location="Camden, London")
-    assert error is None and created is not None
+def test_inactive_location_excluded_from_defaults(db_session):
+    created = _add_location("Camden, London", active=True)
+    _add_location("Islington, London", active=True)
 
-    dup, error = repository.create_area_config(location="Camden, London")
-    assert dup is None
-    assert error == "duplicate"
-
-
-def test_delete_area_config_removes_it_from_defaults(db_session):
-    created, _ = repository.create_area_config(location="Camden, London", region="North")
-    assert "Camden, London" in get_area_defaults()
-
-    result, error = repository.delete_area_config(created["id"])
-    assert error is None
-    assert result["deleted"] is True
-
-    # Table is empty again → falls back to static seed.
-    assert "Camden, London" not in get_area_defaults()
-
-
-def test_inactive_area_config_excluded_from_defaults(db_session):
-    created, _ = repository.create_area_config(location="Camden, London", active=True)
-    repository.create_area_config(location="Islington, London", active=True)
-
-    repository.update_area_config(created["id"], active=False)
+    repository.update_location(created["id"], active=False)
 
     defaults = get_area_defaults()
     assert "Camden, London" not in defaults
     assert "Islington, London" in defaults
 
 
-def test_location_has_search_profiles(db_session):
-    assert repository.location_has_search_profiles("Camden, London") is False
+def test_non_allocatable_location_not_assigned_by_allocator(db_session):
+    # A non-allocatable area is visible in metrics but must not be a SIM target.
+    _add_location("Camden, London", allocatable=False)
 
-    with db_session() as db:
-        account = Account(email="camden@example.com", password="", active=True)
-        db.add(account)
-        db.flush()
-        db.add(SearchProfile(account_id=account.id, location="Camden, London", active=True))
-        db.commit()
-
-    assert repository.location_has_search_profiles("Camden, London") is True
+    allocatable = get_area_defaults(allocatable_only=True)
+    assert "Camden, London" not in allocatable
