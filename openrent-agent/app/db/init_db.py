@@ -361,11 +361,12 @@ def _migrate_area_configs_into_locations():
 
 
 def _seed_allocatable_locations():
-    """Ensure the known South London areas exist as allocatable locations.
+    """Seed the known South London areas on a brand-new install only.
 
-    Fallback for a fresh install with no legacy area_configs: seeds locations
-    from the static AREA_DEFAULTS so the allocator has targets out of the box.
-    Only runs when no allocatable location exists yet.
+    Runs ONLY when the locations table is completely empty, so a fresh install
+    gets allocator targets out of the box. On any existing install (which
+    already has its own curated locations) this is a no-op — we must not inject
+    the static AREA_DEFAULTS set into a populated table.
     """
     from app.db.connection import SessionLocal
     from app.db.models import Location
@@ -373,7 +374,7 @@ def _seed_allocatable_locations():
 
     db = SessionLocal()
     try:
-        if db.query(Location).filter(Location.allocatable == True).first() is not None:
+        if db.query(Location).first() is not None:
             return
         seeded = 0
         for location, cfg in AREA_DEFAULTS.items():
