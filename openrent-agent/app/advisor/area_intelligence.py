@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import joinedload
 
-from app.advisor.area_defaults import AREA_DEFAULTS
+from app.advisor.area_defaults import get_area_defaults
 from app.advisor.rules import RULES
 from app.db.connection import SessionLocal
 from app.db.models import Account, Conversation, Landlord, Listing, SearchProfile
@@ -106,15 +106,16 @@ def _load_area_metrics(now: datetime | None = None) -> list[AreaMetrics]:
     now = now or datetime.utcnow()
     day_ago = now - timedelta(days=1)
     week_ago = now - timedelta(days=7)
-    # Configured areas (AREA_DEFAULTS) are the single source of truth for which
-    # areas the system operates in — the allocator already refuses to assign to
-    # any area not in AREA_DEFAULTS. Every configured area is seeded here so a
-    # newly-added region (e.g. North London) shows up immediately, even before
-    # any listings are discovered there. Onboarding a new area = add it to
-    # AREA_DEFAULTS; no change to this module is required.
+    # Configured areas (get_area_defaults(), backed by the area_configs table)
+    # are the single source of truth for which areas the system operates in —
+    # the allocator already refuses to assign to any area not returned here.
+    # Every configured area is seeded so a newly-added region (e.g. North
+    # London) shows up immediately, even before any listings are discovered
+    # there. Onboarding a new area = add it via the Area Intelligence dashboard
+    # (or seed AREA_DEFAULTS); no change to this module is required.
     areas: dict[str, AreaMetrics] = {
         location: AreaMetrics(location, region=config.get("region", "South"))
-        for location, config in AREA_DEFAULTS.items()
+        for location, config in get_area_defaults().items()
     }
     active_account_ids_by_area: dict[str, set[int]] = {}
 

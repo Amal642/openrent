@@ -3025,6 +3025,133 @@ def delete_location(location_id: int):
         return {"deleted": True, "id": location_id}, None
 
 
+# ---------------- AREA CONFIGS ----------------
+
+def _serialize_area_config(cfg) -> dict:
+    return {
+        "id": cfg.id,
+        "location": cfg.location,
+        "region": cfg.region,
+        "area": cfg.area,
+        "price_min": cfg.price_min,
+        "price_max": cfg.price_max,
+        "bedrooms_min": cfg.bedrooms_min,
+        "bedrooms_max": cfg.bedrooms_max,
+        "active": cfg.active,
+        "created_at": cfg.created_at,
+    }
+
+
+def get_area_configs(active_only: bool = False):
+    from app.db.models import AreaConfig
+    with session_scope() as db:
+        q = db.query(AreaConfig)
+        if active_only:
+            q = q.filter(AreaConfig.active == True)
+        return [
+            _serialize_area_config(cfg)
+            for cfg in q.order_by(AreaConfig.location.asc()).all()
+        ]
+
+
+def location_has_search_profiles(location: str) -> bool:
+    """Whether any search profile already targets this exact location string."""
+    with session_scope() as db:
+        return (
+            db.query(SearchProfile)
+            .filter(SearchProfile.location == location)
+            .first()
+            is not None
+        )
+
+
+def create_area_config(
+    location: str,
+    region: str = "South",
+    area: int = 5,
+    price_min: int = 1000,
+    price_max: int = 4000,
+    bedrooms_min: int = 0,
+    bedrooms_max: int = 4,
+    active: bool = True,
+):
+    from app.db.models import AreaConfig
+    with session_scope() as db:
+        existing = (
+            db.query(AreaConfig).filter(AreaConfig.location == location).first()
+        )
+        if existing:
+            return None, "duplicate"
+        cfg = AreaConfig(
+            location=location,
+            region=region,
+            area=area,
+            price_min=price_min,
+            price_max=price_max,
+            bedrooms_min=bedrooms_min,
+            bedrooms_max=bedrooms_max,
+            active=active,
+        )
+        db.add(cfg)
+        db.commit()
+        db.refresh(cfg)
+        return _serialize_area_config(cfg), None
+
+
+def update_area_config(area_config_id: int, **fields):
+    from app.db.models import AreaConfig
+    allowed = {
+        "location", "region", "area", "price_min", "price_max",
+        "bedrooms_min", "bedrooms_max", "active",
+    }
+    with session_scope() as db:
+        cfg = db.query(AreaConfig).filter(AreaConfig.id == area_config_id).first()
+        if not cfg:
+            return None
+        for key, value in fields.items():
+            if key in allowed and value is not None:
+                setattr(cfg, key, value)
+        db.commit()
+        db.refresh(cfg)
+        return _serialize_area_config(cfg)
+
+
+def delete_area_config(area_config_id: int):
+    from app.db.models import AreaConfig
+    with session_scope() as db:
+        cfg = db.query(AreaConfig).filter(AreaConfig.id == area_config_id).first()
+        if not cfg:
+            return None, "not_found"
+        db.delete(cfg)
+        db.commit()
+        return {"deleted": True, "id": area_config_id}, None
+
+
+def seed_area_configs_if_empty():
+    """One-time seed of area_configs from the static AREA_DEFAULTS dict."""
+    from app.db.models import AreaConfig
+    from app.advisor.area_defaults import AREA_DEFAULTS
+
+    with session_scope() as db:
+        if db.query(AreaConfig).first() is not None:
+            return 0
+        count = 0
+        for location, cfg in AREA_DEFAULTS.items():
+            db.add(AreaConfig(
+                location=location,
+                region=cfg.get("region", "South"),
+                area=cfg["area"],
+                price_min=cfg["price_min"],
+                price_max=cfg["price_max"],
+                bedrooms_min=cfg["bedrooms_min"],
+                bedrooms_max=cfg["bedrooms_max"],
+                active=True,
+            ))
+            count += 1
+        db.commit()
+        return count
+
+
 # ---------------- FAILED ACCOUNTS ----------------
 
 def get_failed_accounts():

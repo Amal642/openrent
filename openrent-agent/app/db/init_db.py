@@ -296,6 +296,19 @@ def init_db():
     apply_schema_updates()
     _migrate_account_proxies()
     _migrate_daily_limit_to_8()
+    _seed_area_configs()
     validate_schema_or_die()
+
+
+def _seed_area_configs():
+    """Seed area_configs from the static AREA_DEFAULTS dict on first run."""
+    from app.db.repository import seed_area_configs_if_empty
+
+    try:
+        seeded = seed_area_configs_if_empty()
+        if seeded:
+            print(f"Seeded {seeded} area config(s) from AREA_DEFAULTS")
+    except Exception as exc:
+        print(f"area_configs seed skipped: {exc}")
 
     print("Database initialized successfully")

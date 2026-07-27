@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.advisor import area_intelligence
 from app.advisor import recommendation_engine
+from app.db import repository
 from app.db.models import Account, Base, Conversation, Landlord, Listing, SearchProfile
 
 
@@ -22,7 +23,16 @@ def db_session(tmp_path, monkeypatch):
     )
     Base.metadata.create_all(bind=engine)
     monkeypatch.setattr(area_intelligence, "SessionLocal", TestingSessionLocal)
+    # Repository CRUD (used by get_area_defaults / area_configs) resolves its
+    # own module-level SessionLocal, so point it at the test DB too. This keeps
+    # get_area_defaults deterministic: an empty area_configs table falls back to
+    # the static AREA_DEFAULTS seed rather than hitting the real database.
+    monkeypatch.setattr(repository, "SessionLocal", TestingSessionLocal)
     return TestingSessionLocal
+
+
+def _metric_for(metrics, location):
+    return next(m for m in metrics if m["location"] == location)
 
 
 def _seed_area(
@@ -126,8 +136,8 @@ def test_area_metrics_calculate_supply_and_conversion(db_session):
 
     metrics = area_intelligence.get_area_metrics()
 
-    assert len(metrics) == 1
-    croydon = metrics[0]
+    # All configured areas are seeded; select the one under test by location.
+    croydon = _metric_for(metrics, "Croydon, Greater London")
     assert croydon["location"] == "Croydon, Greater London"
     assert croydon["active_profiles"] == 1
     assert croydon["active_accounts"] == 1
@@ -146,8 +156,12 @@ def test_area_metrics_excludes_non_south_london_locations(db_session):
     _seed_area(db_session, location="Greater Manchester")
 
     metrics = area_intelligence.get_area_metrics()
+    locations = [metric["location"] for metric in metrics]
 
-    assert [metric["location"] for metric in metrics] == ["Croydon, Greater London"]
+    # Configured areas appear; unconfigured locations (not in AREA_DEFAULTS)
+    # are excluded even though they have listings.
+    assert "Croydon, Greater London" in locations
+    assert "Greater Manchester" not in locations
 
 
 def test_area_metrics_counts_unique_active_accounts(db_session):
@@ -172,9 +186,10 @@ def test_area_metrics_counts_unique_active_accounts(db_session):
         db.commit()
 
     metrics = area_intelligence.get_area_metrics()
+    bexleyheath = _metric_for(metrics, "Bexleyheath, Greater London")
 
-    assert metrics[0]["active_profiles"] == 2
-    assert metrics[0]["active_accounts"] == 1
+    assert bexleyheath["active_profiles"] == 2
+    assert bexleyheath["active_accounts"] == 1
 
 
 def test_area_capacity_answer_uses_measured_area_metrics(db_session):
@@ -230,3 +245,105 @@ def test_recommendation_engine_uses_area_intelligence_before_llm(monkeypatch):
         recommendation_engine.generate_recommendation("Which area should we target next?")
         == "deterministic area answer"
     )
+
+
+# ---------------- DB-backed area configs ----------------
+
+from app.advisor.area_defaults import AREA_DEFAULTS, get_area_defaults
+
+
+def test_get_area_defaults_falls_back_to_static_when_table_empty(db_session):
+    # Empty area_configs table → the static AREA_DEFAULTS seed is returned so
+    # behavior degrades to the pre-DB baseline rather than an empty area list.
+    defaults = get_area_defaults()
+
+    assert set(defaults) == set(AREA_DEFAULTS)
+    assert defaults["Croydon, Greater London"]["region"] == "South"
+
+
+def test_seed_area_configs_populates_table_once(db_session):
+    seeded = repository.seed_area_configs_if_empty()
+    assert seeded == len(AREA_DEFAULTS)
+
+    # Idempotent: a second call is a no-op.
+    assert repository.seed_area_configs_if_empty() == 0
+
+    configs = repository.get_area_configs()
+    assert len(configs) == len(AREA_DEFAULTS)
+
+
+def test_get_area_defaults_reflects_db_rows(db_session):
+    repository.create_area_config(
+        location="Camden, London",
+        region="North",
+        area=6,
+        price_min=1200,
+        price_max=3500,
+        bedrooms_min=1,
+        bedrooms_max=3,
+    )
+
+    defaults = get_area_defaults()
+
+    # Once the table has rows it becomes authoritative (no static merge).
+    assert set(defaults) == {"Camden, London"}
+    camden = defaults["Camden, London"]
+    assert camden["region"] == "North"
+    assert camden["area"] == 6
+    assert camden["price_min"] == 1200
+    assert camden["bedrooms_max"] == 3
+
+
+def test_created_area_appears_in_metrics_with_region(db_session):
+    repository.create_area_config(location="Camden, London", region="North", area=5)
+
+    metrics = area_intelligence.get_area_metrics()
+    camden = _metric_for(metrics, "Camden, London")
+
+    assert camden["region"] == "North"
+    assert camden["status"] == "insufficient_data"  # seeded, no listings yet
+
+
+def test_create_area_config_rejects_duplicate(db_session):
+    created, error = repository.create_area_config(location="Camden, London")
+    assert error is None and created is not None
+
+    dup, error = repository.create_area_config(location="Camden, London")
+    assert dup is None
+    assert error == "duplicate"
+
+
+def test_delete_area_config_removes_it_from_defaults(db_session):
+    created, _ = repository.create_area_config(location="Camden, London", region="North")
+    assert "Camden, London" in get_area_defaults()
+
+    result, error = repository.delete_area_config(created["id"])
+    assert error is None
+    assert result["deleted"] is True
+
+    # Table is empty again → falls back to static seed.
+    assert "Camden, London" not in get_area_defaults()
+
+
+def test_inactive_area_config_excluded_from_defaults(db_session):
+    created, _ = repository.create_area_config(location="Camden, London", active=True)
+    repository.create_area_config(location="Islington, London", active=True)
+
+    repository.update_area_config(created["id"], active=False)
+
+    defaults = get_area_defaults()
+    assert "Camden, London" not in defaults
+    assert "Islington, London" in defaults
+
+
+def test_location_has_search_profiles(db_session):
+    assert repository.location_has_search_profiles("Camden, London") is False
+
+    with db_session() as db:
+        account = Account(email="camden@example.com", password="", active=True)
+        db.add(account)
+        db.flush()
+        db.add(SearchProfile(account_id=account.id, location="Camden, London", active=True))
+        db.commit()
+
+    assert repository.location_has_search_profiles("Camden, London") is True

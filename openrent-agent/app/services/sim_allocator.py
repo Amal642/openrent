@@ -14,7 +14,7 @@ from collections import defaultdict
 
 from sqlalchemy import text
 
-from app.advisor.area_defaults import AREA_DEFAULTS
+from app.advisor.area_defaults import get_area_defaults
 from app.advisor.area_intelligence import AreaMetrics, _load_area_metrics
 from app.db.connection import SessionLocal
 from app.db.repository import create_search_profile
@@ -27,6 +27,7 @@ def run_allocation(dry_run: bool = False) -> dict:
     Returns a summary dict safe to return as JSON.
     """
     metrics = _load_area_metrics()
+    area_defaults = get_area_defaults()
     paused_locations = {m.location for m in metrics if m.status == "pause"}
 
     assigned: list[dict] = []
@@ -49,13 +50,13 @@ def run_allocation(dry_run: bool = False) -> dict:
             continue
 
         best = ranked[0]
-        if best.location not in AREA_DEFAULTS:
+        if best.location not in area_defaults:
             skipped.append({"account": email, "reason": f"No defaults config for {best.location}"})
             logger.warning(f"SIM_ALLOCATOR no defaults for area={best.location}")
             continue
 
         if not dry_run:
-            defaults = AREA_DEFAULTS[best.location]
+            defaults = area_defaults[best.location]
             create_search_profile(
                 account_id=acc_id,
                 location=best.location,
@@ -95,13 +96,13 @@ def run_allocation(dry_run: bool = False) -> dict:
             continue
 
         best = ranked[0]
-        if best.location not in AREA_DEFAULTS:
+        if best.location not in area_defaults:
             skipped.append({"account": email, "reason": f"No defaults config for {best.location}"})
             continue
 
         if not dry_run:
             _deactivate_profiles(old_profile_ids)
-            defaults = AREA_DEFAULTS[best.location]
+            defaults = area_defaults[best.location]
             create_search_profile(
                 account_id=acc_id,
                 location=best.location,

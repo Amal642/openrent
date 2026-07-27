@@ -888,6 +888,51 @@ export function getAreaIntelligence(): Promise<AreaIntelligenceMetric[]> {
   return get<AreaIntelligenceMetric[]>("/advisor/areas");
 }
 
+export interface AreaConfig {
+  id: number;
+  location: string;
+  region: "South" | "North";
+  area: number;
+  price_min: number;
+  price_max: number;
+  bedrooms_min: number;
+  bedrooms_max: number;
+  active: boolean;
+  created_at?: string;
+}
+
+export interface AreaConfigInput {
+  location: string;
+  region?: "South" | "North";
+  area?: number;
+  price_min?: number;
+  price_max?: number;
+  bedrooms_min?: number;
+  bedrooms_max?: number;
+  active?: boolean;
+}
+
+export function getAreaConfigs(activeOnly = false): Promise<AreaConfig[]> {
+  return get<AreaConfig[]>(`/advisor/areas/config?active_only=${activeOnly}`);
+}
+
+export function createAreaConfig(
+  data: AreaConfigInput,
+): Promise<AreaConfig & { warning: string | null }> {
+  return post<AreaConfig & { warning: string | null }>("/advisor/areas/config", data);
+}
+
+export function updateAreaConfig(
+  id: number,
+  data: Partial<AreaConfigInput>,
+): Promise<AreaConfig> {
+  return patch<AreaConfig>(`/advisor/areas/config/${id}`, data);
+}
+
+export function deleteAreaConfig(id: number): Promise<{ deleted: boolean; id: number }> {
+  return del(`/advisor/areas/config/${id}`);
+}
+
 // ---------------- WHATSAPP WORKER ----------------
 
 export interface WhatsAppWorkerStatus {
