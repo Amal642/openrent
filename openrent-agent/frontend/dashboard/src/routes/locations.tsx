@@ -138,6 +138,7 @@ function LocationsPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40">
+              <TableHead className="w-12">#</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>OpenRent Term</TableHead>
               <TableHead>Region</TableHead>
@@ -150,13 +151,16 @@ function LocationsPage() {
           <TableBody>
             {locations.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                   No locations yet. Add one to use in Search Profiles.
                 </TableCell>
               </TableRow>
             )}
-            {locations.map((loc) => (
+            {locations.map((loc, i) => (
               <TableRow key={loc.id}>
+                <TableCell className="text-sm tabular-nums text-muted-foreground">
+                  {i + 1}
+                </TableCell>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
                     <MapPin className="size-4 text-muted-foreground" />

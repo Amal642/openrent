@@ -279,6 +279,7 @@ function AccountsPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40">
+              <TableHead className="w-12">#</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Daily usage</TableHead>
@@ -291,12 +292,15 @@ function AccountsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((a) => {
+            {filtered.map((a, i) => {
               const pct = a.dailyMessageLimit
                 ? (a.messagesSentToday / a.dailyMessageLimit) * 100
                 : 0;
               return (
                 <TableRow key={a.id}>
+                  <TableCell className="text-sm tabular-nums text-muted-foreground">
+                    {i + 1}
+                  </TableCell>
                   <TableCell className="font-medium">
                     <div>{a.email}</div>
                     <div className="text-xs text-muted-foreground">
