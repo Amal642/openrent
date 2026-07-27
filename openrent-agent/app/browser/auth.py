@@ -182,7 +182,20 @@ async def login(page, context, account):
         await page.locator('input[name="password"]').fill(account.password, timeout=10000)
 
         await page.get_by_role("button", name="Log in").click()
-        await page.wait_for_timeout(3000)
+        # OpenRent's modal login runs an async OpenID redirect that takes
+        # ~3-4s to complete and set the session cookie. A fixed 3s wait races
+        # that redirect: if we check auth too early, the cookie isn't set yet
+        # and the login is falsely seen as failed. Wait for the actual
+        # post-login navigation instead, falling back to a fixed delay.
+        try:
+            await page.wait_for_url("**/my-dashboard**", timeout=15000)
+            logger.info(f"LOGIN_REDIRECT_OK email={account.email} url={page.url}")
+        except Exception:
+            logger.info(
+                f"LOGIN_REDIRECT_TIMEOUT email={account.email} url={page.url} "
+                "— falling back to fixed wait"
+            )
+            await page.wait_for_timeout(3000)
 
     except Exception as exc:
         reason = str(exc)
