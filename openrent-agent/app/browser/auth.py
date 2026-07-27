@@ -48,16 +48,57 @@ async def _capture_page_diagnostics(page, email: str, reason: str):
         logger.warning(f"Could not save login failure screenshot for {email}: {exc}")
 
 
+async def _dismiss_cookie_banner(page):
+    """Best-effort dismissal of a cookie-consent overlay so it cannot cover the
+    login form. Never raises — a missing banner is the normal case."""
+    for name in ("Accept all", "Accept All", "Accept", "I Agree", "Allow all", "Got it"):
+        try:
+            btn = page.get_by_role("button", name=name)
+            if await btn.count() > 0 and await btn.first.is_visible():
+                await btn.first.click(timeout=3000)
+                logger.info(f"COOKIE_BANNER_DISMISSED via '{name}'")
+                return
+        except Exception:
+            continue
+
+
 async def _find_email_field(page):
-    """Try the primary Playwright role selector then Microsoft login fallbacks."""
-    primary = page.get_by_role("textbox", name="Enter email address")
-    if await primary.count() > 0:
-        return primary
-    for selector in ['input[name="loginfmt"]', 'input[type="email"]', "#i0116"]:
-        fallback = page.locator(selector)
-        if await fallback.count() > 0:
-            logger.info(f"LOGIN_EMAIL_FIELD_FALLBACK selector={selector}")
-            return fallback
+    """Return the first VISIBLE email input, trying the primary Playwright role
+    selector then Microsoft/OpenID fallbacks.
+
+    Visibility matters: OpenRent's login page can hold a present-but-hidden email
+    field (cookie overlay, mid-render, or a hidden responsive duplicate). Filling
+    a present-but-hidden field blocks for the full 30s fill timeout, so we resolve
+    to a visible element up front — waiting briefly for one to appear if needed.
+    """
+    candidates = [
+        ("role:Enter email address", page.get_by_role("textbox", name="Enter email address")),
+        ('input[name="loginfmt"]', page.locator('input[name="loginfmt"]')),
+        ('input[name="openid-email"]', page.locator('input[name="openid-email"]')),
+        ('input[type="email"]', page.locator('input[type="email"]')),
+        ("#i0116", page.locator("#i0116")),
+    ]
+
+    # First pass: a candidate that is already visible.
+    for label, loc in candidates:
+        try:
+            if await loc.count() > 0 and await loc.first.is_visible():
+                logger.info(f"LOGIN_EMAIL_FIELD selector={label} state=visible")
+                return loc.first
+        except Exception:
+            continue
+
+    # Second pass: a present candidate — wait briefly for it to become visible
+    # (fails fast at 10s instead of the 30s fill timeout if it never shows).
+    for label, loc in candidates:
+        try:
+            if await loc.count() > 0:
+                await loc.first.wait_for(state="visible", timeout=10000)
+                logger.info(f"LOGIN_EMAIL_FIELD selector={label} state=waited_visible")
+                return loc.first
+        except Exception:
+            continue
+
     return None
 
 
@@ -112,6 +153,10 @@ async def login(page, context, account):
     sign_in_btn = page.get_by_role("link", name="Sign In")
     await sign_in_btn.click()
 
+    # A cookie-consent overlay can cover the login form and leave the email
+    # field present-but-hidden — dismiss it before locating the field.
+    await _dismiss_cookie_banner(page)
+
     email_field = await _find_email_field(page)
     if email_field is None:
         reason = "Email field not found — no matching selector after all fallbacks"
@@ -120,7 +165,9 @@ async def login(page, context, account):
         raise RuntimeError(reason)
 
     try:
-        await email_field.fill(account.email)
+        # 10s cap (not the default 30s): the field is already resolved-visible,
+        # so a hidden state here is transient — fail fast and retry next cycle.
+        await email_field.fill(account.email, timeout=10000)
 
         await page.get_by_role("button", name="Continue with email").click()
         slug = account.email.split("@")[0].replace(".", "_")
@@ -132,7 +179,7 @@ async def login(page, context, account):
             f"url={page.url} title={await page.title()!r}"
         )
 
-        await page.locator('input[name="password"]').fill(account.password)
+        await page.locator('input[name="password"]').fill(account.password, timeout=10000)
 
         await page.get_by_role("button", name="Log in").click()
         await page.wait_for_timeout(3000)
