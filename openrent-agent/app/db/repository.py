@@ -2782,6 +2782,7 @@ def get_dashboard_leads(status=None, with_persona=True):
             .join(Listing, Conversation.listing_id == Listing.id)
             .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
             .join(Account, SearchProfile.account_id == Account.id)
+            .filter(Account.deleted_at == None)
         )
 
         if status and status != "ALL":
@@ -2875,6 +2876,7 @@ def get_dashboard_search_profiles():
         profiles = (
             db.query(SearchProfile, Account)
             .join(Account, SearchProfile.account_id == Account.id)
+            .filter(Account.deleted_at == None)
             .order_by(SearchProfile.created_at.desc())
             .all()
         )
