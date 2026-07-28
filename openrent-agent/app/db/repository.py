@@ -1863,6 +1863,18 @@ def save_phone_number(
     from app.config import settings
     from app.utils.logger import logger
 
+    # Guard against marking a lead as captured when no real number is present.
+    # OpenRent redacts numbers in-platform to "(Number Removed)"; if extraction
+    # runs against the redacted copy we would set phone_found=True with an empty
+    # extracted_phone, which then dooms the sheet export to PERMANENT_FAILURE.
+    normalized_phone = str(phone or "").strip()
+    if not any(ch.isdigit() for ch in normalized_phone):
+        logger.warning(
+            "SAVE_PHONE_NUMBER_SKIPPED_NO_DIGITS "
+            f"thread_id={thread_id} phone={phone!r}"
+        )
+        return
+
     with session_scope() as db:
         row = (
             db.query(Conversation, SearchProfile)
@@ -1875,7 +1887,7 @@ def save_phone_number(
         if row:
             conversation, search_profile = row
             now = datetime.utcnow()
-            conversation.extracted_phone = phone
+            conversation.extracted_phone = normalized_phone
             conversation.phone_found = True
             conversation.phone_found_at = now
             conversation.status = "PHONE_ACQUIRED"
@@ -1908,6 +1920,7 @@ def save_phone_number(
                 export_action = "created"
             else:
                 export.status = "PENDING"
+                export.attempt_count = 0
                 export.next_attempt_at = now
                 export.processing_started_at = None
                 export.last_error = None
@@ -2090,6 +2103,7 @@ def reset_sheet_export_to_pending(export_id):
         if not export:
             return False
         export.status = "PENDING"
+        export.attempt_count = 0
         export.next_attempt_at = now
         export.processing_started_at = None
         export.last_error = None
@@ -2114,6 +2128,7 @@ def reset_sheet_export_by_listing_id(listing_id):
         if not export:
             return None
         export.status = "PENDING"
+        export.attempt_count = 0
         export.next_attempt_at = now
         export.processing_started_at = None
         export.last_error = None
