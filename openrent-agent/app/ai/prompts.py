@@ -149,7 +149,7 @@ def build_reply_prompt(
         phone_number_shared=phone_number_shared,
         landlord_asked_for_number=landlord_asked_for_number,
         drive_distance=(
-            f"High: tenant is around 4-5 hours away, from {place}."
+            f"Tenant is travelling in from {place}, not local to the property."
             if place else "Unknown"
         ),
         origin_place=place,
@@ -670,7 +670,7 @@ Primary goals:
 - Ask for the landlord's phone number politely and naturally.
 - Keep the message realistic, concise, casual, and human.
 - Explain that having a phone number helps coordinate arrival in case of delays or missed messages.
-- Tell them that you are from {place}, and would take 4-5 hours to reach {viewing_location}, so would require a contact number.
+- You are travelling in from {place} to reach {viewing_location}, so a contact number helps in case of delays or missed messages on the day. Do NOT state a specific journey length or number of hours.
 - IMPORTANT: The origin city is {place}. This is fixed for this conversation. Never mention any other city.
 
 Hard rules:
@@ -772,7 +772,8 @@ Conversation:
 
 def build_pre_cancel_number_ask_prompt(conversation: str, place: str | None = None) -> str:
     travel_line = (
-        f"You are travelling from {place} to the viewing, which is a 4-5 hour journey."
+        f"You are travelling in from {place} to reach the viewing, so it is not a short local trip. "
+        f"Do not state a specific journey length or number of hours."
         if place else ""
     )
     return f"""
