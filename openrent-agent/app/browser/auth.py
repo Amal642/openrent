@@ -165,9 +165,9 @@ async def login(page, context, account):
         raise RuntimeError(reason)
 
     try:
-        # 10s cap (not the default 30s): the field is already resolved-visible,
-        # so a hidden state here is transient — fail fast and retry next cycle.
-        await email_field.fill(account.email, timeout=10000)
+        # Generous fill timeout: under concurrent load on a small box the field
+        # can take several seconds to become actionable even once visible.
+        await email_field.fill(account.email, timeout=25000)
 
         await page.get_by_role("button", name="Continue with email").click()
         slug = account.email.split("@")[0].replace(".", "_")
@@ -179,7 +179,12 @@ async def login(page, context, account):
             f"url={page.url} title={await page.title()!r}"
         )
 
-        await page.locator('input[name="password"]').fill(account.password, timeout=10000)
+        # Wait for the password step to render after "Continue with email"
+        # before filling — the transition can lag under load, and filling too
+        # early raced it into a timeout.
+        password_field = page.locator('input[name="password"]')
+        await password_field.wait_for(state="visible", timeout=25000)
+        await password_field.fill(account.password, timeout=25000)
 
         await page.get_by_role("button", name="Log in").click()
         # OpenRent's modal login runs an async OpenID redirect that takes
