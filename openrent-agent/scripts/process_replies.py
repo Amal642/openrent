@@ -269,6 +269,16 @@ def _has_active_viewing(conversation) -> bool:
 FOLLOW_UP_MAX = 2
 FOLLOW_UP_INTERVAL_DAYS = 1.0
 
+# Warm-lead nudge: the landlord replied and engaged (e.g. we asked for their
+# number) but then went silent. Unlike cold leads, these threads are still open
+# and recoverable, so send a gentle follow-up on a slower cadence rather than
+# letting the lead decay. WARM_FOLLOW_UP_STALE_DAYS caps the first nudge so
+# long-dormant threads (existing backlog) are left untouched — the cadence only
+# picks up leads that go quiet going forward.
+WARM_FOLLOW_UP_MAX = 2
+WARM_FOLLOW_UP_INTERVAL_DAYS = 2.0
+WARM_FOLLOW_UP_STALE_DAYS = 5.0
+
 
 def _cancel_window_passed(viewing_dt) -> bool:
     """True if the viewing is within the 3–5h cancel window.
@@ -874,6 +884,68 @@ async def process_account_replies(
                         logger.info(
                             f"CONVERSATION_MARKED_INACTIVE thread_id={thread_id} "
                             f"reason=no_reply_after_{follow_up_count}_followups "
+                            f"days_silent={days_silent:.1f}"
+                        )
+                    continue
+
+                # Warm lead: landlord engaged then went quiet (e.g. after we
+                # asked for their number) and there's nothing new to answer.
+                # Nudge on a slower cadence instead of leaving it to decay.
+                if (
+                    latest_landlord_message
+                    and not conversation.phone_found
+                    and conversation.status != INACTIVE_NO_REPLY
+                ):
+                    last_activity = (
+                        conversation.last_outbound_at
+                        or conversation.last_message_at
+                        or conversation.created_at
+                    )
+                    days_silent = (
+                        (datetime.utcnow() - last_activity).total_seconds() / 86400
+                        if last_activity else 0
+                    )
+                    warm_count = conversation.follow_up_count or 0
+
+                    if days_silent < WARM_FOLLOW_UP_INTERVAL_DAYS:
+                        update_conversation_status(thread_id, SKIPPED)
+                    elif warm_count == 0 and days_silent > WARM_FOLLOW_UP_STALE_DAYS:
+                        # Long-dormant thread we never nudged (existing backlog).
+                        # Leave it untouched rather than cold-poking a stale lead.
+                        logger.info(
+                            f"WARM_FOLLOW_UP_SKIPPED_STALE thread_id={thread_id} "
+                            f"days_silent={days_silent:.1f}"
+                        )
+                        update_conversation_status(thread_id, SKIPPED)
+                    elif warm_count < WARM_FOLLOW_UP_MAX:
+                        follow_up_msg, err = generate_follow_up_message(
+                            messages, follow_up_number=warm_count + 1
+                        )
+                        if follow_up_msg:
+                            sent = await send_reply(page, follow_up_msg)
+                            if sent:
+                                save_message(thread_id, "outbound", follow_up_msg)
+                                new_count = increment_follow_up_count(thread_id)
+                                logger.info(
+                                    f"WARM_FOLLOW_UP_SENT thread_id={thread_id} "
+                                    f"number={new_count} days_silent={days_silent:.1f}"
+                                )
+                            else:
+                                still_open = await can_reply(page)
+                                if not still_open:
+                                    update_conversation_status(thread_id, REPLY_DISABLED)
+                                logger.warning(
+                                    f"WARM_FOLLOW_UP_SEND_FAILED thread_id={thread_id}"
+                                )
+                        else:
+                            logger.warning(
+                                f"WARM_FOLLOW_UP_GENERATION_FAILED thread_id={thread_id} error={err}"
+                            )
+                    else:
+                        mark_conversation_inactive(thread_id)
+                        logger.info(
+                            f"WARM_CONVERSATION_MARKED_INACTIVE thread_id={thread_id} "
+                            f"reason=no_reply_after_{warm_count}_warm_followups "
                             f"days_silent={days_silent:.1f}"
                         )
                     continue
