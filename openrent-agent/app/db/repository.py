@@ -14,6 +14,7 @@ from app.db.models import (
     Landlord,
     LeadSheetExport,
     Listing,
+    Location,
     Message,
     SearchProfile,
 )
@@ -1990,13 +1991,15 @@ def get_sheet_export_payload(export_id):
             .join(Listing, Conversation.listing_id == Listing.id)
             .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
             .join(Account, SearchProfile.account_id == Account.id)
+            .outerjoin(Location, Location.term_value == SearchProfile.location)
+            .add_entity(Location)
             .filter(LeadSheetExport.id == export_id)
             .first()
         )
         if not row:
             return None
 
-        export, conversation, listing, search_profile, account = row
+        export, conversation, listing, search_profile, account, location = row
         from app.proxy.url import build_account_proxy_url
 
         return {
@@ -2014,6 +2017,7 @@ def get_sheet_export_payload(export_id):
             "bathrooms": listing.bathrooms,
             "rent_pcm": listing.rent_pcm,
             "search_location": search_profile.location,
+            "region": location.region if location else None,
             "account_id": account.id,
             "account_email": account.email,
             "proxy_url": build_account_proxy_url(account),

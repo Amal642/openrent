@@ -173,6 +173,34 @@ def test_export_writes_configured_direction():
     assert cells[2]["userEnteredValue"]["stringValue"] == "South"
 
 
+def test_export_uses_per_lead_region_over_configured_direction():
+    state = {
+        "sheets": [
+            {
+                "sheetId": 10,
+                "title": "Becky",
+                "index": 0,
+                "gridProperties": {"rowCount": 1000, "columnCount": 12},
+            }
+        ],
+        "values": {"Becky": [HEADERS]},
+        "requests": [],
+    }
+    exporter = GoogleSheetsLeadExporter(
+        FakeService(state),
+        "sheet-1",
+        person="Becky",
+        direction="South",
+    )
+
+    payload = make_payload()
+    payload["region"] = "North"
+    exporter.export(payload)
+
+    cells = state["requests"][-1]["requests"][-1]["updateCells"]["rows"][0]["values"]
+    assert cells[2]["userEnteredValue"]["stringValue"] == "North"
+
+
 def test_export_updates_existing_listing_row():
     payload = make_payload()
     state = {

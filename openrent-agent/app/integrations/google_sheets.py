@@ -262,10 +262,11 @@ class GoogleSheetsLeadExporter:
             f"{bathrooms if bathrooms is not None else 'N/A'} bath"
         )
         url = canonicalize_url(payload["property_url"])
+        direction = payload.get("region") or self.direction
         values = [
             self.person,
             event_date.strftime("%d/%m/%Y"),
-            self.direction,
+            direction,
             payload.get("landlord_name") or "",
             payload.get("phone_number") or "",
             payload.get("address") or "",
