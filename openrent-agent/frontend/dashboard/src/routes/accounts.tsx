@@ -142,6 +142,48 @@ function fmtSchedule(value?: string, fallback = "-") {
   return value ? fmtDateTime(value) : fallback;
 }
 
+type Staleness = "fresh" | "stale" | "very_stale" | "inactive";
+type SortKey = "default" | "lastRun_desc" | "lastRun_asc" | "staleness";
+
+function staleness(a: Account): Staleness {
+  if (!a.active) return "inactive";
+  if (a.workerStatus === "running" || a.workerStatus === "queued") return "fresh";
+  const lastRun = a.lastRunAt || a.workerLastCompletedAt;
+  if (!lastRun) return "very_stale";
+  const hoursAgo = (Date.now() - new Date(lastRun).getTime()) / 3_600_000;
+  if (hoursAgo < 8) return "fresh";
+  if (hoursAgo < 30) return "stale";
+  return "very_stale";
+}
+
+const ROW_BG: Record<Staleness, string> = {
+  fresh: "",
+  stale: "bg-amber-50/60 dark:bg-amber-950/25",
+  very_stale: "bg-red-50/60 dark:bg-red-950/25",
+  inactive: "bg-muted/25",
+};
+
+const STALE_LABEL: Record<Staleness, string | null> = {
+  fresh: null,
+  stale: "idle >8 h",
+  very_stale: "idle >30 h",
+  inactive: null,
+};
+
+function sortAccounts(accounts: Account[], key: SortKey): Account[] {
+  const lastRunMs = (a: Account) => {
+    const t = a.lastRunAt || a.workerLastCompletedAt;
+    return t ? new Date(t).getTime() : 0;
+  };
+  if (key === "lastRun_desc") return [...accounts].sort((a, b) => lastRunMs(b) - lastRunMs(a));
+  if (key === "lastRun_asc") return [...accounts].sort((a, b) => lastRunMs(a) - lastRunMs(b));
+  if (key === "staleness") {
+    const order: Record<Staleness, number> = { very_stale: 0, stale: 1, inactive: 2, fresh: 3 };
+    return [...accounts].sort((a, b) => order[staleness(a)] - order[staleness(b)]);
+  }
+  return accounts;
+}
+
 function AccountsPage() {
   const {
     data: list = [],
@@ -154,6 +196,7 @@ function AccountsPage() {
   });
 
   const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortKey>("default");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
@@ -222,8 +265,9 @@ function AccountsPage() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Session action failed"),
   });
 
-  const filtered = list.filter((a) =>
-    a.email.toLowerCase().includes(query.toLowerCase())
+  const filtered = sortAccounts(
+    list.filter((a) => a.email.toLowerCase().includes(query.toLowerCase())),
+    sortBy,
   );
   const save = (data: Partial<Account> & { password?: string }) => {
     saveMutation.mutate({ ...editing, ...data });
@@ -255,6 +299,17 @@ function AccountsPage() {
               onChange={(e) => setQuery(e.target.value)}
               className="h-9 w-full sm:w-56"
             />
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
+              <SelectTrigger className="h-9 w-44">
+                <SelectValue placeholder="Sort by…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default order</SelectItem>
+                <SelectItem value="lastRun_desc">Last run — newest first</SelectItem>
+                <SelectItem value="lastRun_asc">Last run — oldest first</SelectItem>
+                <SelectItem value="staleness">Staleness — worst first</SelectItem>
+              </SelectContent>
+            </Select>
             <Button
               onClick={() => {
                 setEditing(null);
@@ -296,8 +351,10 @@ function AccountsPage() {
               const pct = a.dailyMessageLimit
                 ? (a.messagesSentToday / a.dailyMessageLimit) * 100
                 : 0;
+              const stale = staleness(a);
+              const staleLabel = STALE_LABEL[stale];
               return (
-                <TableRow key={a.id}>
+                <TableRow key={a.id} className={ROW_BG[stale]}>
                   <TableCell className="text-sm tabular-nums text-muted-foreground">
                     {i + 1}
                   </TableCell>
@@ -343,6 +400,11 @@ function AccountsPage() {
                     {a.workerLastHeartbeat ? <div>{fmtRelative(a.workerLastHeartbeat)}</div> : null}
                     {a.workerJobId ? (
                       <div className="max-w-[120px] truncate">job {a.workerJobId}</div>
+                    ) : null}
+                    {staleLabel ? (
+                      <div className={`mt-0.5 font-medium ${stale === "very_stale" ? "text-destructive" : "text-amber-600 dark:text-amber-400"}`}>
+                        {staleLabel}
+                      </div>
                     ) : null}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
