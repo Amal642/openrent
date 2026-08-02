@@ -23,6 +23,12 @@ from app.db.models import Account, Conversation, Landlord, Listing, SearchProfil
 MIN_CONTACTED_FOR_RATE = 5
 MIN_TOTAL_LISTINGS_FOR_DECISION = 10
 
+# Score divides new_listings_7d by active_accounts, so a brand-new area with
+# 0-2 accounts gets an artificially inflated score purely from a tiny
+# denominator, letting it structurally outrank mature areas before it has
+# any track record. Flooring the denominator caps that inflation.
+MIN_ACCOUNTS_FOR_SCORING = 3
+
 
 @dataclass
 class AreaMetrics:
@@ -251,7 +257,7 @@ def _finalize_metric(metric: AreaMetrics) -> None:
     if metric.status in ("expand", "maintain"):
         metric.score = round(
             metric.phone_capture_rate_pct
-            * (metric.new_listings_7d / max(metric.active_accounts, 1)),
+            * (metric.new_listings_7d / max(metric.active_accounts, MIN_ACCOUNTS_FOR_SCORING)),
             1,
         )
     else:

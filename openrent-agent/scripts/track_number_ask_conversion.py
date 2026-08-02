@@ -5,7 +5,9 @@ is set), how often do we actually capture it (conversation.phone_found)?
 
 This isolates the persuasiveness of the ask itself, independent of message
 wording, so we can see whether dropping the canned "4-5 hours from Bristol"
-distance claim (deployed 2026-07-28) moved the share rate.
+distance claim (deployed 2026-07-28) moved the share rate. Broken out by
+region (South/North, via search_profiles.location -> locations.region) since
+South carries pre-fix conversation history and North doesn't.
 
 Usage:
     venv/bin/python scripts/track_number_ask_conversion.py [CUTOFF_ISO]
@@ -59,19 +61,41 @@ def main():
         rate = 100 * g / n if n else 0
         print(f"  {wk}  asked={n:4}  captured={g:4}  {rate:4.0f}%")
 
+    region_join = """
+        from conversations c
+        join listings li on li.id = c.listing_id
+        join search_profiles sp on sp.id = li.search_profile_id
+        left join locations loc on loc.term_value = sp.location
+    """
+
     print()
-    print("=== BEFORE vs AFTER wording change ===")
+    print("=== ask -> capture by week, by region ===")
+    for wk, region, n, g in q(
+        f"""
+        select date_trunc('week', c.phone_requested_at)::date wk,
+               coalesce(loc.region, 'Unmapped') region,
+               count(*), sum(case when c.phone_found then 1 else 0 end)
+        {region_join}
+        where c.phone_requested_at is not null
+        group by 1, 2 order by 1, 2
+        """
+    ):
+        rate = 100 * g / n if n else 0
+        print(f"  {wk}  {region:8}  asked={n:4}  captured={g:4}  {rate:4.0f}%")
+
+    print()
+    print("=== BEFORE vs AFTER wording change, overall and by region ===")
     for label, cond in [
-        ("BEFORE", "phone_requested_at < %(cutoff)s"),
-        ("AFTER ", "phone_requested_at >= %(cutoff)s"),
+        ("BEFORE", "c.phone_requested_at < %(cutoff)s"),
+        ("AFTER ", "c.phone_requested_at >= %(cutoff)s"),
     ]:
         row = q(
             f"""
             select count(*) asked,
-                   sum(case when phone_found then 1 else 0 end) captured,
-                   sum(case when viewing_cancelled then 1 else 0 end) cancelled
-            from conversations
-            where phone_requested_at is not null and {cond}
+                   sum(case when c.phone_found then 1 else 0 end) captured,
+                   sum(case when c.viewing_cancelled then 1 else 0 end) cancelled
+            {region_join}
+            where c.phone_requested_at is not null and {cond}
             """,
             {"cutoff": cutoff},
         )[0]
@@ -83,8 +107,22 @@ def main():
             f"   viewing_cancelled={cancelled} ({crate:.0f}%)"
         )
 
+        for region, n, g in q(
+            f"""
+            select coalesce(loc.region, 'Unmapped') region,
+                   count(*), sum(case when c.phone_found then 1 else 0 end)
+            {region_join}
+            where c.phone_requested_at is not null and {cond}
+            group by 1 order by 1
+            """,
+            {"cutoff": cutoff},
+        ):
+            rrate = 100 * g / n if n else 0
+            print(f"          {region:8}  asked={n:4}  captured={g:4}  {rrate:4.0f}%")
+
     print()
     print("Note: AFTER matures over time; recent asks may not have converted yet.")
+    print("Note: North has no BEFORE data — it launched after the cutoff.")
     conn.close()
 
 

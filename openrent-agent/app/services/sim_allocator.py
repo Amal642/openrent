@@ -2,8 +2,8 @@
 Automated SIM allocation engine.
 
 Assigns unallocated accounts (active, no active search profiles) to the
-highest-scoring South London area, and rebalances accounts stuck in
-exhausted (pause) areas.
+highest-scoring allocatable area (any region), and rebalances accounts stuck
+in exhausted (pause) areas.
 
 Entry point: run_allocation(dry_run=False)
 """
@@ -15,7 +15,11 @@ from collections import defaultdict
 from sqlalchemy import text
 
 from app.advisor.area_defaults import get_area_defaults
-from app.advisor.area_intelligence import AreaMetrics, _load_area_metrics
+from app.advisor.area_intelligence import (
+    MIN_ACCOUNTS_FOR_SCORING,
+    AreaMetrics,
+    _load_area_metrics,
+)
 from app.db.connection import SessionLocal
 from app.db.repository import create_search_profile
 from app.utils.logger import logger
@@ -45,7 +49,7 @@ def run_allocation(dry_run: bool = False) -> dict:
     for acc_id, email in pool_accounts:
         ranked = _ranked_areas(metrics, area_defaults)
         if not ranked:
-            msg = "SIM pool has accounts waiting but no South London area currently has supply."
+            msg = "SIM pool has accounts waiting but no allocatable area currently has supply."
             if msg not in warnings:
                 warnings.append(msg)
             skipped.append({"account": email, "reason": "No area qualifies for assignment"})
@@ -196,7 +200,7 @@ def _ranked_areas(metrics: list[AreaMetrics], allocatable: dict) -> list[AreaMet
 def _recompute_score(metric: AreaMetrics) -> float:
     return round(
         metric.phone_capture_rate_pct
-        * (metric.new_listings_7d / max(metric.active_accounts, 1)),
+        * (metric.new_listings_7d / max(metric.active_accounts, MIN_ACCOUNTS_FOR_SCORING)),
         1,
     )
 
