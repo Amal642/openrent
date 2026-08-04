@@ -394,9 +394,9 @@ class GoogleSheetsLeadExporter:
             source_format_row = existing_row
             action = "update"
         else:
-            target_row = first_data_row
-            last_occupied = max(occupied_rows) if occupied_rows else 0
-            while target_row <= last_occupied or target_row in occupied_rows:
+            last_occupied = max(occupied_rows) if occupied_rows else first_data_row - cadence
+            target_row = last_occupied + cadence
+            while target_row in occupied_rows:
                 target_row += cadence
             format_rows = [
                 row
