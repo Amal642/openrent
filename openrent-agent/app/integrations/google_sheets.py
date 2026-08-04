@@ -3,7 +3,10 @@ import json
 import os
 import re
 from collections import Counter
-from datetime import timezone
+from datetime import date as date_type, timezone
+
+# Google Sheets counts days from this anchor (Dec 30 1899)
+_SHEETS_EPOCH = date_type(1899, 12, 30)
 
 from app.config import settings
 from app.utils.logger import logger
@@ -263,9 +266,10 @@ class GoogleSheetsLeadExporter:
         )
         url = canonicalize_url(payload["property_url"])
         direction = payload.get("region") or self.direction
+        date_serial = (event_date.date() - _SHEETS_EPOCH).days
         values = [
             self.person,
-            event_date.strftime("%d/%m/%Y"),
+            date_serial,
             direction,
             payload.get("landlord_name") or "",
             payload.get("phone_number") or "",
@@ -355,6 +359,37 @@ class GoogleSheetsLeadExporter:
                     },
                     "rows": [{"values": cells}],
                     "fields": "userEnteredValue,textFormatRuns",
+                }
+            }
+        )
+
+        # Set DD/MM/YYYY format on the date cell (column B, index 1) so the
+        # serial number renders as a proper date rather than a plain number.
+        requests.append(
+            {
+                "updateCells": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": target_row - 1,
+                        "endRowIndex": target_row,
+                        "startColumnIndex": 1,
+                        "endColumnIndex": 2,
+                    },
+                    "rows": [
+                        {
+                            "values": [
+                                {
+                                    "userEnteredFormat": {
+                                        "numberFormat": {
+                                            "type": "DATE",
+                                            "pattern": "dd/mm/yyyy",
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "fields": "userEnteredFormat.numberFormat",
                 }
             }
         )

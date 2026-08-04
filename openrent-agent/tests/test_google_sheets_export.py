@@ -139,12 +139,25 @@ def test_export_uses_next_formatted_lead_row():
     copy_format = requests[0]["copyPaste"]
     assert copy_format["destination"]["startRowIndex"] == 6
     assert copy_format["destination"]["endRowIndex"] == 7
-    update = requests[-1]["updateCells"]
-    assert update["range"]["startRowIndex"] == 6
-    cells = update["rows"][0]["values"]
+
+    # Second-to-last request: cell values
+    value_update = requests[-2]["updateCells"]
+    assert value_update["range"]["startRowIndex"] == 6
+    cells = value_update["rows"][0]["values"]
     assert cells[0]["userEnteredValue"]["stringValue"] == "Becky"
+    # Date cell must be a serial number (int), not a text string
+    assert "numberValue" in cells[1]["userEnteredValue"]
+    assert isinstance(cells[1]["userEnteredValue"]["numberValue"], int)
     assert cells[2]["userEnteredValue"]["stringValue"] == ""
     assert cells[4]["userEnteredValue"]["stringValue"] == "07123456789"
+
+    # Last request: date format applied to column B only
+    fmt_update = requests[-1]["updateCells"]
+    assert fmt_update["range"]["startColumnIndex"] == 1
+    assert fmt_update["range"]["endColumnIndex"] == 2
+    assert fmt_update["fields"] == "userEnteredFormat.numberFormat"
+    assert fmt_update["rows"][0]["values"][0]["userEnteredFormat"]["numberFormat"]["type"] == "DATE"
+    assert fmt_update["rows"][0]["values"][0]["userEnteredFormat"]["numberFormat"]["pattern"] == "dd/mm/yyyy"
 
 
 def test_export_writes_configured_direction():
@@ -169,7 +182,7 @@ def test_export_writes_configured_direction():
 
     exporter.export(make_payload())
 
-    cells = state["requests"][-1]["requests"][-1]["updateCells"]["rows"][0]["values"]
+    cells = state["requests"][-1]["requests"][-2]["updateCells"]["rows"][0]["values"]
     assert cells[2]["userEnteredValue"]["stringValue"] == "South"
 
 
@@ -197,7 +210,7 @@ def test_export_uses_per_lead_region_over_configured_direction():
     payload["region"] = "North"
     exporter.export(payload)
 
-    cells = state["requests"][-1]["requests"][-1]["updateCells"]["rows"][0]["values"]
+    cells = state["requests"][-1]["requests"][-2]["updateCells"]["rows"][0]["values"]
     assert cells[2]["userEnteredValue"]["stringValue"] == "North"
 
 
