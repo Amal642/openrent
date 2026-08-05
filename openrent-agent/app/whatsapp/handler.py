@@ -103,6 +103,45 @@ def _mentions_viewing(message: str) -> bool:
     return any(keyword in text for keyword in _VIEWING_KEYWORDS)
 
 
+# Distinct from _VIEWING_KEYWORDS above: that list is a loose "this message is
+# about a viewing at all" topic filter (includes neutral phrasing like "still
+# on for"), used only to gate the CRM-mirrored cancellation path below. These
+# patterns are specific problem/frustration signals — access issues, no-shows,
+# fed-up landlords, explicit cancel requests — strong enough on their own to
+# act on directly, without needing the CRM to have already flagged the
+# conversation (which never happens for viewings only ever arranged over
+# WhatsApp, since that flag is only set by scraping the OpenRent thread).
+# `.{0,N}` gaps and `\w*` suffixes tolerate typos/inflection ("waititng").
+_CANCELLATION_SIGNAL_PATTERNS = (
+    r"\bcan'?t\b.{0,20}\baccess\w*\b",
+    r"\bno\b.{0,10}\baccess\w*\b",
+    r"\bcan'?t get in\b",
+    r"\bwon'?t (let|allow)\b.{0,15}\bin\b",
+    r"\bbeen\b.{0,10}\bwait\w*\b",
+    r"\bwait\w*\b.{0,10}\bsince\b",
+    r"\bcan'?t\b.{0,10}\bwait\w*\b",
+    r"\bno show\b",
+    r"\bno[- ]?one\b.{0,10}\bshow\w*\b",
+    r"\bnobody\b.{0,10}\bshow\w*\b",
+    r"\bdidn'?t\b.{0,10}\bshow\w*\b",
+    r"\bwast\w*\b.{0,15}\btime\b",
+    r"\bwaste of\b.{0,10}\btime\b",
+    r"\bnot interested\b.{0,15}\b(any\s?more|further)\b",
+    r"\bdon'?t contact me\b",
+    r"\bcancel\w*\b.{0,15}\bviewing\b",
+    r"\bneed to cancel\b",
+    r"\bhave to cancel\b",
+    r"\bcan'?t make it\b",
+    r"\bwon'?t be able to\b.{0,15}\b(make it|attend)\b",
+    r"\bunable to attend\b",
+)
+_CANCELLATION_SIGNAL_RE = re.compile("|".join(_CANCELLATION_SIGNAL_PATTERNS), re.IGNORECASE)
+
+
+def _indicates_cancellation_signal(message: str) -> bool:
+    return bool(_CANCELLATION_SIGNAL_RE.search(message or ""))
+
+
 def _conversation_needs_cancellation(conversation) -> bool:
     return conversation.conversation_stage == "VIEWING_CANCELLED" or (
         conversation.conversation_stage == "VIEWING_BOOKED"
@@ -135,13 +174,19 @@ async def _maybe_send_viewing_cancellation(
     message: str,
     received_at: datetime,
 ) -> bool:
-    if (
-        not _mentions_viewing(message)
-        or not conversation
-        or not _conversation_needs_cancellation(conversation)
-        or contact.cancellation_sent_at
-        or contact.status == "CANCELLED"
-    ):
+    if not conversation or contact.cancellation_sent_at or contact.status == "CANCELLED":
+        return False
+
+    # Two independent triggers: the CRM already knows this viewing needs
+    # cancelling (set via the OpenRent thread) and the landlord happens to
+    # bring it up, OR the landlord's own words describe a real problem
+    # (access issue, no-show, fed up) regardless of what the CRM knows —
+    # the latter is what covers viewings only ever arranged over WhatsApp.
+    crm_confirmed = _mentions_viewing(message) and _conversation_needs_cancellation(
+        conversation
+    )
+    landlord_signals_problem = _indicates_cancellation_signal(message)
+    if not (crm_confirmed or landlord_signals_problem):
         return False
 
     _sync_linked_inbound_message(contact, conversation, message, received_at)
@@ -327,6 +372,64 @@ def _save_unmatched_and_close(
     )
 
 
+def _gather_evidence(contact, message: str, sender_name: Optional[str]):
+    """Extract name/property evidence from this message and merge with whatever
+    the contact has already accumulated across prior messages."""
+    new_names: list[str] = []
+    if sender_name:
+        new_names.append(sender_name)
+
+    extracted_name = extract_name_from_message(message)
+    if extracted_name:
+        new_names.append(extracted_name)
+
+    new_property_hints: list[str] = []
+    property_hint = extract_property_from_message(message)
+    if property_hint:
+        new_property_hints.append(property_hint)
+
+    contact = (
+        update_contact_evidence(
+            contact.id,
+            names=_dedupe(new_names),
+            property_hints=_dedupe(new_property_hints),
+        )
+        or contact
+    )
+
+    all_names = _dedupe(
+        [contact.name]
+        + [
+            item
+            for item in _json_list(contact.extracted_names)
+            if isinstance(item, str)
+        ]
+        + new_names
+    )
+    all_property_hints = _dedupe(
+        [item for item in _json_list(contact.property_hints) if isinstance(item, str)]
+        + new_property_hints
+    )
+    return contact, all_names, all_property_hints
+
+
+def _match_and_link(contact, all_names: list[str], all_property_hints: list[str]):
+    candidates, confidence = match_by_evidence(all_names, all_property_hints)
+    best = candidates[0] if candidates else None
+    match_status = _match_status(candidates, confidence)
+    contact = (
+        apply_match_result(
+            contact.id,
+            candidates=candidates,
+            best=best,
+            confidence=confidence,
+            match_status=match_status,
+        )
+        or contact
+    )
+    return contact, candidates, confidence, best, match_status
+
+
 def _match_status(candidates: list[dict], confidence: float) -> str:
     if not candidates:
         return "UNMATCHED"
@@ -420,6 +523,27 @@ async def handle_incoming_message(
             received_at,
         ):
             return
+    elif (
+        contact.status in TERMINAL_REGULAR_REPLY_STATUSES
+        and _indicates_cancellation_signal(message)
+    ):
+        # A landlord we'd already given up on (SAVED_UNMATCHED / hit the
+        # reply cap) is now describing a real problem — try to (re)match
+        # right now using this message's evidence instead of staying silent.
+        contact, retry_names, retry_property_hints = _gather_evidence(
+            contact, message, sender_name
+        )
+        contact, _, _, _, _ = _match_and_link(contact, retry_names, retry_property_hints)
+        conversation = get_conversation_for_contact(contact)
+        if conversation:
+            _sync_linked_inbound_message(contact, conversation, message, received_at)
+            if await _maybe_send_viewing_cancellation(
+                contact,
+                conversation,
+                message,
+                received_at,
+            ):
+                return
 
     if contact.status in TERMINAL_REGULAR_REPLY_STATUSES:
         logger.info(
@@ -441,55 +565,11 @@ async def handle_incoming_message(
         )
         return
 
-    new_names: list[str] = []
-    if sender_name:
-        new_names.append(sender_name)
-
-    extracted_name = extract_name_from_message(message)
-    if extracted_name:
-        new_names.append(extracted_name)
-
-    new_property_hints: list[str] = []
-    property_hint = extract_property_from_message(message)
-    if property_hint:
-        new_property_hints.append(property_hint)
-
-    contact = (
-        update_contact_evidence(
-            contact.id,
-            names=_dedupe(new_names),
-            property_hints=_dedupe(new_property_hints),
-        )
-        or contact
+    contact, all_names, all_property_hints = _gather_evidence(
+        contact, message, sender_name
     )
-
-    all_names = _dedupe(
-        [contact.name]
-        + [
-            item
-            for item in _json_list(contact.extracted_names)
-            if isinstance(item, str)
-        ]
-        + new_names
-    )
-    all_property_hints = _dedupe(
-        [item for item in _json_list(contact.property_hints) if isinstance(item, str)]
-        + new_property_hints
-    )
-
-    candidates, confidence = match_by_evidence(all_names, all_property_hints)
-    best = candidates[0] if candidates else None
-    match_status = _match_status(candidates, confidence)
-
-    contact = (
-        apply_match_result(
-            contact.id,
-            candidates=candidates,
-            best=best,
-            confidence=confidence,
-            match_status=match_status,
-        )
-        or contact
+    contact, candidates, confidence, best, match_status = _match_and_link(
+        contact, all_names, all_property_hints
     )
     conversation = get_conversation_for_contact(contact)
     if conversation:

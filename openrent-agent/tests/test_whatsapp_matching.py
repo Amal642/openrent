@@ -560,3 +560,77 @@ def test_linked_whatsapp_reply_unblocks_reactive_cancellation(
         assert contact.status == "CANCELLED"
         assert conversation.viewing_cancelled is True
         assert inbound.created_at > requested_at
+
+
+def test_saved_unmatched_contact_rematches_and_cancels_on_frustrated_followup(
+    whatsapp_db, monkeypatch
+):
+    """A contact we'd already closed out as SAVED_UNMATCHED sends a follow-up
+    with the actual property address plus clear access/no-show frustration.
+    Even though the CRM never flagged this conversation as VIEWING_BOOKED
+    (the viewing was only ever arranged over WhatsApp), the landlord's own
+    words should be enough to re-match and send a reactive cancellation."""
+    sent = []
+
+    class FakeWorker:
+        async def send_message(self, phone, message):
+            sent.append((phone, message))
+            return True
+
+    monkeypatch.setattr(handler, "extract_name_from_message", lambda text: None)
+    monkeypatch.setattr(
+        handler,
+        "extract_property_from_message",
+        lambda text: "24 Burnham Gardens, TW4 6LR",
+    )
+    monkeypatch.setattr(
+        "app.ai.replies.generate_cancellation_message",
+        lambda history: ("Sorry, we need to cancel — thanks for your patience.", None),
+    )
+    monkeypatch.setattr(
+        "app.whatsapp.browser_worker.get_worker",
+        lambda: FakeWorker(),
+    )
+
+    with whatsapp_db() as session:
+        _seed_listing(
+            session,
+            name="Priya",
+            address="24 Burnham Gardens, TW4 6LR",
+            listing_id="BURNHAM-1",
+            thread_id="THREAD-BURNHAM",
+            landlord_id=999,
+        )
+        session.add(
+            WhatsAppContact(
+                phone_number="447534992460",
+                status="SAVED_UNMATCHED",
+                message_history=json.dumps([]),
+            )
+        )
+        session.commit()
+
+    asyncio.run(
+        handler.handle_incoming_message(
+            phone_number="447534992460",
+            message=(
+                "24 Burnham gardens tw46lr, been waititng since 1pm, "
+                "can't wait any further, call me asap"
+            ),
+            sender_name=None,
+            message_id="MSG-BURNHAM-FOLLOWUP",
+        )
+    )
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        conversation = (
+            session.query(Conversation).filter_by(thread_id="THREAD-BURNHAM").one()
+        )
+
+        assert sent == [
+            ("447534992460", "Sorry, we need to cancel — thanks for your patience.")
+        ]
+        assert contact.status == "CANCELLED"
+        assert contact.thread_id == "THREAD-BURNHAM"
+        assert conversation.viewing_cancelled is True
