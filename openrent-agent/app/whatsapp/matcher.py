@@ -178,9 +178,22 @@ def _property_score(candidate: str | None, stored: str | None) -> float:
     if candidate_tokens and candidate_tokens.issubset(stored_tokens):
         score = max(score, 88.0)
 
-    postcode = re.search(r"\b[a-z]{1,2}\d[a-z\d]?\s*\d[a-z]{2}\b", candidate_norm)
-    if postcode and postcode.group(0).replace(" ", "") in stored_norm.replace(" ", ""):
-        score = max(score, 96.0)
+    full_postcode = re.search(r"\b([a-z]{1,2}\d[a-z\d]?)\s*(\d[a-z]{2})\b", candidate_norm)
+    if full_postcode:
+        full_code = (full_postcode.group(1) + full_postcode.group(2)).replace(" ", "")
+        if full_code in stored_norm.replace(" ", ""):
+            score = max(score, 96.0)
+        outward = full_postcode.group(1)
+    else:
+        outward_match = re.search(r"\b([a-z]{1,2}\d[a-z\d]?)\b", candidate_norm)
+        outward = outward_match.group(1) if outward_match else None
+
+    # Stored listing addresses often only carry the outward code (e.g. "Canning
+    # Town, E16" with no inward code), so a full-postcode candidate would never
+    # match on `full_code` alone above — fall back to matching just the district.
+    if outward and re.search(rf"\b{re.escape(outward)}\b", stored_norm):
+        score = max(score, 90.0)
+
     return score
 
 

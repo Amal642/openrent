@@ -11,6 +11,7 @@ from datetime import datetime
 
 from app.db.connection import SessionLocal
 from app.db.models import WhatsAppContact
+from app.whatsapp.handler import _match_status
 from app.whatsapp.matcher import (
     extract_name_from_message,
     extract_property_from_message,
@@ -20,10 +21,6 @@ from app.whatsapp.repository import (
     apply_match_result,
     update_contact,
 )
-
-PARTIAL_MATCH_THRESHOLD = 65.0
-AUTO_MATCH_THRESHOLD = 85.0
-AUTO_MATCH_MIN_GAP = 5.0
 
 
 def _json_list(value: str | None) -> list:
@@ -58,18 +55,6 @@ def _messages_for(contact: WhatsAppContact) -> list[str]:
     if contact.last_message:
         messages.append(contact.last_message)
     return _dedupe(messages)
-
-
-def _match_status(candidates: list[dict], confidence: float) -> str:
-    if not candidates:
-        return "UNMATCHED"
-    second = float(candidates[1].get("confidence") or 0) if len(candidates) > 1 else 0.0
-    has_clear_gap = len(candidates) == 1 or confidence - second >= AUTO_MATCH_MIN_GAP
-    if confidence >= AUTO_MATCH_THRESHOLD and has_clear_gap:
-        return "MATCHED"
-    if confidence >= PARTIAL_MATCH_THRESHOLD:
-        return "PARTIAL_MATCH"
-    return "UNMATCHED"
 
 
 def main() -> None:

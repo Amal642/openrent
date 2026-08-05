@@ -42,8 +42,7 @@ from app.whatsapp.repository import (
     update_contact_evidence,
 )
 
-PARTIAL_MATCH_THRESHOLD = 65.0
-AUTO_MATCH_THRESHOLD = 85.0
+MATCH_THRESHOLD = 60.0
 AUTO_MATCH_MIN_GAP = 5.0
 
 # Goal on this channel is narrow: landlord's number (implicit, it's WhatsApp),
@@ -339,10 +338,8 @@ def _match_status(candidates: list[dict], confidence: float) -> str:
         len(candidates) == 1 or confidence - second_confidence >= AUTO_MATCH_MIN_GAP
     )
 
-    if confidence >= AUTO_MATCH_THRESHOLD and has_clear_gap:
+    if confidence >= MATCH_THRESHOLD and has_clear_gap:
         return "MATCHED"
-    if confidence >= PARTIAL_MATCH_THRESHOLD:
-        return "PARTIAL_MATCH"
     return "UNMATCHED"
 
 

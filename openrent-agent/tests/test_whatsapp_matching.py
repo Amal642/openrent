@@ -225,7 +225,7 @@ def test_incoming_message_does_not_match_ambiguous_landlord_name_only(
         conversations = session.query(Conversation).all()
 
         assert contact.status == "AWAITING_PROPERTY"
-        assert contact.match_status == "PARTIAL_MATCH"
+        assert contact.match_status == "UNMATCHED"
         assert contact.listing_id is None
         assert contact.thread_id is None
         assert all(conversation.phone_found is False for conversation in conversations)
