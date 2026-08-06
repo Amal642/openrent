@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from app.ai.personas import (
     get_conversation_style,
+    income_band_for,
     normalize_conversation_style,
     persona_summary,
 )
@@ -21,13 +22,15 @@ def current_uk_datetime_line() -> str:
 def estimate_household_income(persona: dict | None) -> dict:
     """Deterministic, job-plausible household income for the persona.
 
-    The combined figure sits in a believable band for the persona's
-    occupations (roughly GBP 95k-105k for the current professional couples),
-    NOT derived from the property's rent. Deriving income from rent produced
-    two failures we saw in prod: (1) a fixed GBP 65k floor that fell below
-    landlords' 2.5-3x affordability checks, and (2) a chat figure that
-    disagreed with the screening-form figure. A per-persona jitter keeps every
-    account's number stable across a thread but not identical between accounts.
+    The combined figure sits in a believable band for the persona's OCCUPATIONS
+    (see INCOME_BANDS in personas.py), NOT derived from the property's rent.
+    Deriving income from rent produced two failures we saw in prod: (1) a fixed
+    GBP 65k floor that fell below landlords' 2.5-3x affordability checks, and
+    (2) a chat figure that disagreed with the screening-form figure. The band is
+    tiered by persona type so a senior-tech or law/finance couple can credibly
+    show the income a high-rent property needs, while mid-tier and single-earner
+    personas stay realistic. A per-persona jitter keeps every account's number
+    stable across a thread but not identical between accounts.
 
     Both the chat replies and the OpenRent screening form call this helper, so
     the two figures can never diverge.
@@ -38,10 +41,15 @@ def estimate_household_income(persona: dict | None) -> dict:
         for k in ("persona_name", "persona_partner_name", "mobile_number", "persona_type")
     )
     seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest(), 16)
-    # Combined annual income in [95000, 105000], stepped to the nearest GBP 500.
-    combined_annual = 95000 + (seed % 21) * 500
+    low, high, dual_income = income_band_for(persona.get("persona_type"))
+    # Combined annual income within the persona's band, stepped to GBP 500.
+    steps = (high - low) // 500 + 1
+    combined_annual = low + (seed % steps) * 500
     combined_monthly = round(combined_annual / 12 / 100) * 100
-    has_partner = bool(persona.get("persona_partner_name"))
+    # Only show a per-person split for genuine dual-income households. A
+    # single-income couple (partner at home) or single applicant keeps one
+    # combined figure.
+    has_partner = dual_income and bool(persona.get("persona_partner_name"))
     if has_partner:
         # Slightly unequal 48/52 split so per-person amounts feel realistic.
         primary_monthly = round(combined_monthly * 0.48 / 100) * 100

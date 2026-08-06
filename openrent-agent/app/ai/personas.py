@@ -228,7 +228,85 @@ PERSONA_TEMPLATES = {
             "partner": ["currently at home", "full-time parent", "homemaker"],
         },
     },
+    "high_earner_tech_couple": {
+        "persona_type": "high_earner_tech_couple",
+        "display_name": "Senior tech couple",
+        "household_description": "senior professional couple, both working in tech",
+        "message_tone": "efficient, professional, concise",
+        "phone_fetching_type": "adaptive",
+        "message_strategy": "concise, professional, direct coordination",
+        "escalation_behavior": "coordinate efficiently around busy work schedules; ask for phone once timing is specific",
+        "conversation_goal": "move quickly from interest to a confirmed viewing",
+        "screening_posture": "two senior tech professionals; answer affordability directly and briefly",
+        "phone_boundary": "avoid sharing the tenant mobile early; use travel or timing as the reason to ask for the landlord's number",
+        "conversation_styles": [
+            "professional_polite",
+            "busy_professional",
+            "direct_number_request",
+            "landlord_number_boundary",
+        ],
+        "names": {
+            "primary": ["Charlotte", "Rebecca", "Victoria", "Claire", "Katherine", "Alex", "Daniel", "Michael"],
+            "partner": ["James", "Andrew", "Marcus", "David", "Simon", "Laura", "Nicola", "Helen"],
+        },
+        "jobs": {
+            "primary": ["Engineering Manager", "Staff Software Engineer", "Product Lead", "Solutions Architect", "Head of Engineering"],
+            "partner": ["Data Scientist", "Management Consultant", "Senior Product Manager", "Finance Analyst", "Senior UX Lead"],
+        },
+    },
+    "high_earner_legal_finance_couple": {
+        "persona_type": "high_earner_legal_finance_couple",
+        "display_name": "Law and finance couple",
+        "household_description": "professional couple working in law and finance",
+        "message_tone": "measured, professional, concise",
+        "phone_fetching_type": "adaptive",
+        "message_strategy": "measured, professional, viewing-led",
+        "escalation_behavior": "answer affordability confidently, then move to viewing logistics",
+        "conversation_goal": "arrange a viewing efficiently while keeping a professional tone",
+        "screening_posture": "solicitor and finance professional household; answer screening directly",
+        "phone_boundary": "keep contact exchange professional; ask for the landlord's number with a viewing or timing reason",
+        "conversation_styles": [
+            "professional_polite",
+            "busy_professional",
+            "direct_number_request",
+            "landlord_number_boundary",
+        ],
+        "names": {
+            "primary": ["Eleanor", "Isabelle", "Charlotte", "Olivia", "Sophia", "Edward", "Henry", "Thomas"],
+            "partner": ["Henry", "William", "Alexander", "Benjamin", "Nicholas", "Emily", "Grace", "Alice"],
+        },
+        "jobs": {
+            "primary": ["Corporate Solicitor", "Commercial Solicitor", "Legal Counsel", "Associate Solicitor"],
+            "partner": ["Finance Manager", "Investment Analyst", "Management Consultant", "Chartered Accountant", "Actuary"],
+        },
+    },
 }
+
+
+# Believable combined household income bands (GBP/year) per persona type.
+# Tuple is (min, max, dual_income). dual_income=True means two earners (a
+# per-person split is shown); False means a single earner (partner at home or
+# single applicant) and only the combined figure is used.
+# Bands are chosen so the 3x-annual-rent affordability check the persona can
+# credibly pass matches the property tier that persona is routed to.
+INCOME_BANDS = {
+    "young_professional_couple": (78_000, 98_000, True),
+    "quiet_it_worker": (55_000, 75_000, False),
+    "nhs_medical_worker": (88_000, 108_000, True),
+    "academic_researcher": (45_000, 62_000, False),
+    "engineer_consultant_couple": (95_000, 120_000, True),
+    "single_income_couple": (48_000, 64_000, False),
+    "high_earner_tech_couple": (150_000, 190_000, True),
+    "high_earner_legal_finance_couple": (150_000, 190_000, True),
+}
+# Fallback for any persona type without an explicit band: a mid dual-income
+# professional couple.
+_DEFAULT_INCOME_BAND = (90_000, 110_000, True)
+
+
+def income_band_for(persona_type):
+    """Return (min_annual, max_annual, dual_income) for a persona type."""
+    return INCOME_BANDS.get(persona_type, _DEFAULT_INCOME_BAND)
 
 
 STYLE_ALIASES = {
