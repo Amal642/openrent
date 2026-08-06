@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -15,6 +16,45 @@ def current_uk_datetime_line() -> str:
     references ("tomorrow", "next Tuesday") in prompts. Auto-handles BST/GMT."""
     now = datetime.now(_UK_TZ)
     return f"{now:%A} {now.day} {now:%B %Y}, {now:%H:%M} {now:%Z}"
+
+
+def estimate_household_income(persona: dict | None) -> dict:
+    """Deterministic, job-plausible household income for the persona.
+
+    The combined figure sits in a believable band for the persona's
+    occupations (roughly GBP 95k-105k for the current professional couples),
+    NOT derived from the property's rent. Deriving income from rent produced
+    two failures we saw in prod: (1) a fixed GBP 65k floor that fell below
+    landlords' 2.5-3x affordability checks, and (2) a chat figure that
+    disagreed with the screening-form figure. A per-persona jitter keeps every
+    account's number stable across a thread but not identical between accounts.
+
+    Both the chat replies and the OpenRent screening form call this helper, so
+    the two figures can never diverge.
+    """
+    persona = persona or {}
+    seed_src = "|".join(
+        str(persona.get(k) or "")
+        for k in ("persona_name", "persona_partner_name", "mobile_number", "persona_type")
+    )
+    seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest(), 16)
+    # Combined annual income in [95000, 105000], stepped to the nearest GBP 500.
+    combined_annual = 95000 + (seed % 21) * 500
+    combined_monthly = round(combined_annual / 12 / 100) * 100
+    has_partner = bool(persona.get("persona_partner_name"))
+    if has_partner:
+        # Slightly unequal 48/52 split so per-person amounts feel realistic.
+        primary_monthly = round(combined_monthly * 0.48 / 100) * 100
+        partner_monthly = combined_monthly - primary_monthly
+    else:
+        primary_monthly, partner_monthly = combined_monthly, 0
+    return {
+        "combined_annual": combined_annual,
+        "combined_monthly": combined_monthly,
+        "primary_monthly": primary_monthly,
+        "partner_monthly": partner_monthly,
+        "has_partner": has_partner,
+    }
 
 
 _DESIGN_RULES: dict[str, list[str]] = {
@@ -189,26 +229,19 @@ def _persona_context_lines(
         f"- Message strategy: {persona.get('message_strategy') or 'viewing first, then contact details'}",
         f"- Conversation goal: {persona.get('conversation_goal') or 'arrange a viewing and coordinate contact details naturally'}",
     ]
-    # Income estimates — derived from rent affordability formula even when
-    # rent_pcm is not in the persona (replies don't have listing metadata).
-    # Using a default of 1500 gives realistic Greater Manchester figures.
-    rent_pcm = persona.get("rent_pcm") or 1500
-    annual_income = (rent_pcm * 30) + 20000
-    # Round to nearest £100 so answers sound human, not machine-generated.
-    monthly_income = round(annual_income / 12 / 100) * 100
+    # Income is a job-plausible household figure (see estimate_household_income),
+    # NOT derived from the property's rent. The same helper feeds the screening
+    # form so the chat and form figures always match.
+    income = estimate_household_income(persona)
     lines.append(
-        f"- Estimated combined monthly income: approximately GBP {monthly_income:,}/month "
-        f"(annual proxy: GBP {annual_income:,})"
+        f"- Estimated combined monthly income: approximately GBP {income['combined_monthly']:,}/month "
+        f"(annual proxy: GBP {income['combined_annual']:,})"
     )
-    has_partner = bool(persona.get("persona_partner_name"))
-    if has_partner:
-        # Slightly unequal 48/52 split so per-person amounts feel realistic.
-        primary_monthly = round(monthly_income * 0.48 / 100) * 100
-        partner_monthly = monthly_income - primary_monthly
+    if income["has_partner"]:
         lines.append(
             f"- Per-person income (approximate, rounded): "
-            f"GBP {primary_monthly:,}/month (primary tenant), "
-            f"GBP {partner_monthly:,}/month (partner)"
+            f"GBP {income['primary_monthly']:,}/month (primary tenant), "
+            f"GBP {income['partner_monthly']:,}/month (partner)"
         )
 
     if persona.get("screening_posture"):
@@ -512,7 +545,7 @@ How to write your reply:
 - Never use em dashes (—) or en dashes (–). Use a comma or split into two sentences instead.
 - Avoid overly polished or corporate punctuation chains.
 - Write as a real UK tenant would type on their phone, not as a drafted email. Slightly imperfect phrasing is fine.
-- Income and affordability: ONLY share income, salary, or financial figures if the landlord has explicitly asked about them in their most recent message. Do not volunteer financial details proactively — not even briefly or in passing. When the landlord does ask, answer directly using the income figures from the persona context above. Use "around" or "roughly" before the amounts (e.g. "around £5,400 a month combined"). Never say something vague like "our income comfortably covers the rent" without giving a number. Never leave an income question unanswered. Never make up oddly precise figures like £2,741; use rounded £100 amounts from the context.
+- Income and affordability: ONLY share income, salary, or financial figures if the landlord has explicitly asked about them in their most recent message. Do not volunteer financial details proactively — not even briefly or in passing. When the landlord does ask, answer directly using the income figures from the persona context above. Use "around" or "roughly" before the amounts (e.g. "around £8,000 a month combined"). Never say something vague like "our income comfortably covers the rent" without giving a number. Never leave an income question unanswered. Never make up oddly precise figures like £2,741; use rounded £100 amounts from the context.
 
 Hard rules:
 - NEVER volunteer income, salary, affordability, or financial figures unless the landlord explicitly asked about them in their last message. If they did not ask, leave these details out entirely.
@@ -531,7 +564,7 @@ Hard rules:
 - Output only the final reply text and nothing else.
 - NEVER use square brackets [ ], curly brackets {{ }}, or any bracket notation as placeholders anywhere in your reply. A real person does not write [Company Name], [approximate amount], [insert anything], or any similar pattern. If a specific detail is unknown, omit it or rephrase naturally — never write a placeholder.
 - NEVER mention or invent a company name or employer name. If asked where you work, state only your job title (e.g. "I work as a software engineer" or "I'm in marketing"). Do not add "at [Company Name]" or any company reference of any kind.
-- NEVER write a placeholder for an income figure. The actual income amounts are provided above in the persona context — use them directly (e.g. "around £5,400 a month combined"). If for any reason the figure is unclear, say "comfortably covers the rent" — never write [approximate amount] or similar.
+- NEVER write a placeholder for an income figure. The actual income amounts are provided above in the persona context — use them directly (e.g. "around £8,000 a month combined"). If for any reason the figure is unclear, say "comfortably covers the rent" — never write [approximate amount] or similar.
 - NEVER say "thanks for sharing your number", "thanks for your number", "got your number", or any phrase that implies you received the landlord's number UNLESS a sequence of actual digits (a phone number) is visibly present in the landlord's messages above. The landlord ASKING for the tenant's number is completely different from the landlord SHARING their own number — do not confuse them.
 {f"- Your home is in {origin_place} — you are travelling FROM there TO view this property. If the landlord asks where you live or where you are from, say {origin_place}. NEVER say you live in or near the property area." if origin_place else ""}
 

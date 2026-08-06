@@ -215,6 +215,7 @@ async def process_account_listings(
                 message_url=full_url,
                 message_text=message_text,
                 metadata=metadata,
+                persona=persona,
             )
 
             thread_id = extract_thread_id(final_url)

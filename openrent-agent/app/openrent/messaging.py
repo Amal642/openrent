@@ -286,7 +286,7 @@ def _desired_radio_value(field_key: str, question_text: str) -> str | None:
     return None
 
 
-async def fill_screening_form(page, metadata):
+async def fill_screening_form(page, metadata, persona=None):
     """
     Fill OpenRent Form Type 2 screening questions dynamically.
 
@@ -396,14 +396,14 @@ async def fill_screening_form(page, metadata):
 
     # ── Combined monthly income ───────────────────────────────
     if await page.query_selector("#ScreeningInfo_CombinedMonthlyIncome"):
-        rent = metadata.get("rent_pcm") or 1000
-        # Field expects MONTHLY income.
-        # Derive from annual affordability proxy, then divide to monthly.
-        annual_proxy = (rent * 30) + 20000
-        monthly_income = round(annual_proxy / 12)
+        # Field expects MONTHLY income. Use the same persona-derived,
+        # job-plausible figure the chat replies use so the form and chat can
+        # never disagree (they used to: chat quoted a fixed GBP 65k while this
+        # form scaled with rent).
+        from app.ai.prompts import estimate_household_income
+        monthly_income = estimate_household_income(persona)["combined_monthly"]
         logger.info(
-            f"Setting combined monthly income: {monthly_income} "
-            f"(annual proxy {annual_proxy} / 12)"
+            f"Setting combined monthly income: {monthly_income} (persona-derived)"
         )
         await page.fill("#ScreeningInfo_CombinedMonthlyIncome", str(monthly_income))
 
@@ -511,6 +511,7 @@ async def send_initial_message(
     message_url,
     message_text,
     metadata,
+    persona=None,
 ):
     logger.info(f"Opening message page: {message_url}")
     await page.goto(message_url, wait_until="domcontentloaded", timeout=30_000)
@@ -539,7 +540,7 @@ async def send_initial_message(
     form_type = await detect_form_type(page)
     logger.info(f"Form type detected: {form_type}")
     if form_type == 2:
-        await fill_screening_form(page, metadata)
+        await fill_screening_form(page, metadata, persona=persona)
 
     # ── Availability ──────────────────────────────────────────
     logger.info("Filling availability field")
