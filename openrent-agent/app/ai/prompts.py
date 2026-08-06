@@ -1,8 +1,20 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from app.ai.personas import (
     get_conversation_style,
     normalize_conversation_style,
     persona_summary,
 )
+
+_UK_TZ = ZoneInfo("Europe/London")
+
+
+def current_uk_datetime_line() -> str:
+    """Current UK date/time, weekday spelled out, for grounding relative date
+    references ("tomorrow", "next Tuesday") in prompts. Auto-handles BST/GMT."""
+    now = datetime.now(_UK_TZ)
+    return f"{now:%A} {now.day} {now:%B %Y}, {now:%H:%M} {now:%Z}"
 
 
 _DESIGN_RULES: dict[str, list[str]] = {
@@ -447,6 +459,7 @@ Conversation design rules:
 {chr(10).join(f"- {rule}" for rule in rules)}
 
 Current conversation controls:
+- Current date/time (UK): {current_uk_datetime_line()}
 - Stage: {stage or "NEW_REPLY"}
 - Selected messaging style: {selected_style} ({style_config["label"]})
 - Style strategy: {style_config["strategy"]}
@@ -611,6 +624,7 @@ def build_viewing_prompt(conversation: str, persona: dict | None = None) -> str:
 You are assisting a tenant searching for rental properties in the UK.
 
 Current stage:
+- Current date/time (UK): {current_uk_datetime_line()}
 - The current objective is to fix a viewing appointment.
 
 Primary goals:
@@ -741,6 +755,8 @@ Generate the next reply ONLY.
 
 def build_viewing_detection_prompt(conversation: str) -> str:
     return f"""
+Current date/time (UK): {current_uk_datetime_line()}
+
 Analyze this OpenRent conversation between a tenant (operator/us) and a landlord.
 
 Determine whether a specific viewing appointment has been mutually agreed.
@@ -762,6 +778,8 @@ Reply with ONLY this exact JSON and nothing else:
   "viewing_datetime": "YYYY-MM-DD HH:MM" or null,
   "reason": "one sentence"
 }}
+
+Use the current date/time above to resolve relative references (e.g. "tomorrow", "next Tuesday", "Friday at 6") into an absolute date for viewing_datetime.
 
 If viewing_arranged is true but no specific datetime can be extracted, set viewing_datetime to null.
 
@@ -813,6 +831,7 @@ def build_cancel_viewing_prompt(conversation: str) -> str:
 You are assisting a tenant searching for rental properties in the UK.
 
 Current stage:
+- Current date/time (UK): {current_uk_datetime_line()}
 - A viewing had previously been arranged.
 - The tenant now needs to cancel the viewing politely.
 
