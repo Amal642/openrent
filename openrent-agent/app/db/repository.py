@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import os
 import random
 import re
 from datetime import datetime, timedelta, timezone
@@ -1083,23 +1084,60 @@ def set_account_cooldown(account_id: int) -> None:
 # Separate from the account worker cooldown above: this gates only NEW
 # initial-message sending so outreach spreads across the whole operating
 # day, while reply-checking keeps running on the fast 20-40 min cooldown.
-
-OUTREACH_GAP_MIN_HOURS = 1
-OUTREACH_GAP_MAX_HOURS = 3
+#
+# Adaptive pacing: instead of a fixed 1-3h gap (which left accounts finishing
+# well short of daily_limit), spread the REMAINING daily quota evenly across
+# the REMAINING operating window. An account that is behind automatically
+# shortens its gap to catch up, so scarce worker slots go to whoever is
+# furthest from their target. MIN_MINUTES is a hard burst floor (anti-ban);
+# MAX_MINUTES stops early-day gaps dragging. Both env-tunable.
+OUTREACH_GAP_MIN_MINUTES = int(os.getenv("OUTREACH_GAP_MIN_MIN", "30"))
+OUTREACH_GAP_MAX_MINUTES = int(os.getenv("OUTREACH_GAP_MAX_MIN", "150"))
 
 
 def set_next_outreach_at(account_id: int) -> None:
+    from app.utils.scheduling import uk_now, OUTREACH_START, OUTREACH_END
+    from app.utils.logger import logger
+
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
-        if account:
-            hours = random.uniform(OUTREACH_GAP_MIN_HOURS, OUTREACH_GAP_MAX_HOURS)
-            account.next_outreach_at = datetime.utcnow() + timedelta(hours=hours)
-            db.commit()
-            from app.utils.logger import logger
-            logger.info(
-                f"NEXT_OUTREACH_SCHEDULED account_id={account_id} "
-                f"next_outreach_at={account.next_outreach_at.strftime('%Y-%m-%d %H:%M')}"
+        if not account:
+            return
+
+        now_uk = uk_now()
+        remaining_quota = max(
+            (account.daily_limit or 0) - (account.messages_sent_today or 0), 0
+        )
+        end_uk = now_uk.replace(
+            hour=OUTREACH_END.hour, minute=OUTREACH_END.minute,
+            second=0, microsecond=0,
+        )
+        remaining_minutes = (end_uk - now_uk).total_seconds() / 60.0
+
+        if remaining_quota <= 0 or remaining_minutes <= 0:
+            # Quota done for today, or past the outreach window: resume at
+            # tomorrow's window start (small jitter so it isn't clockwork).
+            next_uk = (now_uk + timedelta(days=1)).replace(
+                hour=OUTREACH_START.hour, minute=OUTREACH_START.minute,
+                second=0, microsecond=0,
+            ) + timedelta(minutes=random.uniform(0, 20))
+        else:
+            gap = remaining_minutes / remaining_quota          # even spread
+            gap *= random.uniform(0.85, 1.15)                  # +/-15% jitter
+            gap = max(                                         # clamp last so
+                OUTREACH_GAP_MIN_MINUTES,                      # the burst floor
+                min(gap, OUTREACH_GAP_MAX_MINUTES),            # is hard
             )
+            next_uk = now_uk + timedelta(minutes=gap)
+
+        # Store naive UTC to match datetime.utcnow() comparisons in is_outreach_due.
+        account.next_outreach_at = next_uk.astimezone(timezone.utc).replace(tzinfo=None)
+        db.commit()
+        logger.info(
+            f"NEXT_OUTREACH_SCHEDULED account_id={account_id} "
+            f"remaining_quota={remaining_quota} "
+            f"next_outreach_at={account.next_outreach_at.strftime('%Y-%m-%d %H:%M')} UTC"
+        )
 
 
 def is_outreach_due(account_id: int) -> bool:
