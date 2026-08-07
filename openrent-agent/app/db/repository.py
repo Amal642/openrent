@@ -3185,9 +3185,16 @@ def _count_account_outbound_on_day(db, account_id: int, day_start: datetime, day
     )
 
 
+# An account is only judged on engagement once it has sent a meaningful volume.
+# Below this per-day floor, "0 replies" is statistically meaningless (a starved
+# account sending 1-2 messages/day should not be marked failed).
+MIN_DAILY_OUTBOUND_FOR_FAILURE = 5
+
+
 def detect_and_mark_failed_accounts():
     """
-    Mark accounts as failed if they sent messages for 2 consecutive calendar days
+    Mark accounts as failed if they sent a meaningful volume of messages
+    (>= MIN_DAILY_OUTBOUND_FOR_FAILURE) on each of 2 consecutive calendar days
     with no inbound (landlord) replies in that window.
     """
     from app.utils.scheduling import uk_now
@@ -3211,7 +3218,10 @@ def detect_and_mark_failed_accounts():
             sent_day0 = _count_account_outbound_on_day(db, account.id, day0_start, day0_end)
             sent_day1 = _count_account_outbound_on_day(db, account.id, day1_start, day1_end)
 
-            if sent_day0 == 0 or sent_day1 == 0:
+            if (
+                sent_day0 < MIN_DAILY_OUTBOUND_FOR_FAILURE
+                or sent_day1 < MIN_DAILY_OUTBOUND_FOR_FAILURE
+            ):
                 continue
 
             replies = _count_account_inbound_messages(db, account.id, days=2)
