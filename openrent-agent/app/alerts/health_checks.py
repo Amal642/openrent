@@ -19,7 +19,7 @@ from app.config import settings
 from app.db.repository import get_active_accounts, get_app_setting
 from app.utils.logger import logger
 
-HEALTHY_PROXY_STATUSES = {"ok", "healthy"}
+HEALTHY_PROXY_STATUSES = {"ok", "healthy", "degraded", "slow"}
 # Browser worker heartbeats every ~10-15 min (see _poll_loop); allow slack
 # before treating a missing heartbeat as "the process is probably dead".
 WHATSAPP_HEARTBEAT_STALE_SECONDS = 40 * 60
