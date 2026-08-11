@@ -166,10 +166,11 @@ Rules:
 - Only extract the landlord's phone number.
 - Ignore any phone numbers sent by the tenant/user.
 - Reconstruct fragmented numbers only if they clearly belong to the landlord.
-- Return ONLY the phone number.
+- Return ONLY the phone number, with no extra words, symbols, or explanation.
 - If no landlord phone number exists, return EXACTLY: NONE.
-- Do not add any extra words, symbols, or explanation.
-- IMPORTANT: If the landlord is ASKING FOR a phone number (e.g. "send me your number", "what is your number", "could you share your number", "please send your contact") without providing their own number, return EXACTLY: NONE. Asking for a number is not the same as sharing one.
+- IMPORTANT: If the landlord is ASKING FOR a phone number without providing their own, return EXACTLY: NONE.
+- IMPORTANT: Only return a complete, dialable phone number. It must have at least 7 digits.
+  If what you find is a fragment, a single digit, a short code, or otherwise incomplete, return EXACTLY: NONE.
 """.strip()
 
 

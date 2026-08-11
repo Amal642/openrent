@@ -1906,13 +1906,16 @@ def save_phone_number(
     # OpenRent redacts numbers in-platform to "(Number Removed)"; if extraction
     # runs against the redacted copy we would set phone_found=True with an empty
     # extracted_phone, which then dooms the sheet export to PERMANENT_FAILURE.
-    normalized_phone = str(phone or "").strip()
-    if not any(ch.isdigit() for ch in normalized_phone):
+    # Phone sanity check: 7-15 digits (ITU-T E.164 range).
+    # Rejects single digits/fragments; accepts any country number.
+    digits_only = re.sub(r"\D", "", str(phone or ""))
+    if not (7 <= len(digits_only) <= 15):
         logger.warning(
-            "SAVE_PHONE_NUMBER_SKIPPED_NO_DIGITS "
-            f"thread_id={thread_id} phone={phone!r}"
+            "SAVE_PHONE_NUMBER_INVALID_LENGTH "
+            f"thread_id={thread_id} phone={phone!r} digit_count={len(digits_only)}"
         )
         return
+    normalized_phone = str(phone or "").strip()
 
     with session_scope() as db:
         row = (
