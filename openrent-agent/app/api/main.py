@@ -83,6 +83,10 @@ from app.api.whatsapp_router import (
 )
 from app.whatsapp.browser_worker import start_whatsapp_worker, stop_whatsapp_worker
 from app.services.listing_cleanup import start_listing_cleanup, stop_listing_cleanup
+from app.services.screenshot_cleanup import (
+    start_screenshot_cleanup,
+    stop_screenshot_cleanup,
+)
 
 
 class SearchProfilePayload(BaseModel):
@@ -251,6 +255,7 @@ async def lifespan(app_instance):
     )
     await start_whatsapp_worker()
     app_instance.state.listing_cleanup_task = start_listing_cleanup()
+    app_instance.state.screenshot_cleanup_task = start_screenshot_cleanup()
     try:
         yield
     finally:
@@ -276,6 +281,9 @@ async def lifespan(app_instance):
         await stop_whatsapp_worker()
         await stop_listing_cleanup(
             getattr(app_instance.state, "listing_cleanup_task", None)
+        )
+        await stop_screenshot_cleanup(
+            getattr(app_instance.state, "screenshot_cleanup_task", None)
         )
 
 
