@@ -3223,6 +3223,21 @@ def _count_account_outbound_on_day(db, account_id: int, day_start: datetime, day
     )
 
 
+def _count_account_inbound_since(db, account_id: int, since: datetime) -> int:
+    return (
+        db.query(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .join(Listing, Conversation.listing_id == Listing.id)
+        .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+        .filter(
+            SearchProfile.account_id == account_id,
+            Message.direction == "inbound",
+            Message.created_at >= since,
+        )
+        .count()
+    )
+
+
 # An account is only judged on engagement once it has sent a meaningful volume.
 # Below this per-day floor, "0 replies" is statistically meaningless (a starved
 # account sending 1-2 messages/day should not be marked failed).
@@ -3262,7 +3277,11 @@ def detect_and_mark_failed_accounts():
             ):
                 continue
 
-            replies = _count_account_inbound_messages(db, account.id, days=2)
+            # Count replies over the SAME window we measured outbound on (from the
+            # start of the two calendar days through now), not a rolling 48h ending
+            # "now". A rolling window can open AFTER a reply that arrived during the
+            # outreach days, missing it and false-flagging a healthy account.
+            replies = _count_account_inbound_since(db, account.id, day1_start)
 
             if replies == 0:
                 account.failed = True

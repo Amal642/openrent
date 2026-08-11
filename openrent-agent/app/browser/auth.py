@@ -62,6 +62,34 @@ async def _dismiss_cookie_banner(page):
             continue
 
 
+async def _dismiss_account_picker(page):
+    """Best-effort handling of the OpenID account-picker modal. When residual
+    OpenID cookies survive into a fresh login, the provider renders a "Log in"
+    modal listing a remembered account with a "Sign in to another account"
+    option instead of the email form — which leaves the email field absent and
+    breaks login with "Email field not found". Click that option so the email
+    field renders. Never raises — an absent modal is the normal case."""
+    for name in (
+        "Sign in to another account",
+        "Sign in with another account",
+        "Use another account",
+    ):
+        try:
+            getters = (
+                page.get_by_role("button", name=name),
+                page.get_by_role("link", name=name),
+                page.get_by_text(name, exact=False),
+            )
+            for getter in getters:
+                if await getter.count() > 0 and await getter.first.is_visible():
+                    await getter.first.click(timeout=5000)
+                    logger.info(f"LOGIN_ACCOUNT_PICKER_DISMISSED via '{name}'")
+                    await page.wait_for_timeout(1000)
+                    return
+        except Exception:
+            continue
+
+
 async def _find_email_field(page):
     """Return the first VISIBLE email input, trying the primary Playwright role
     selector then Microsoft/OpenID fallbacks.
@@ -150,12 +178,29 @@ async def login(page, context, account):
 
     update_session_health(account.id, "logging_in")
 
+    # The stale session's cookies remain live in this context even after the
+    # session file is deleted above. Those residual OpenID cookies make the
+    # provider render an account-picker modal ("Sign in to another account")
+    # instead of the email form, breaking fresh login with "Email field not
+    # found". Clear cookies and reload so we get a clean login form.
+    try:
+        await context.clear_cookies()
+        await page.goto("https://www.openrent.co.uk/", wait_until="domcontentloaded")
+    except Exception as exc:
+        logger.warning(
+            f"Could not reset cookies before fresh login for {account.email}: {exc}"
+        )
+
     sign_in_btn = page.get_by_role("link", name="Sign In")
     await sign_in_btn.click()
 
     # A cookie-consent overlay can cover the login form and leave the email
     # field present-but-hidden — dismiss it before locating the field.
     await _dismiss_cookie_banner(page)
+
+    # If an OpenID account-picker modal still appears, choose "Sign in to another
+    # account" so the email field renders instead of a remembered-account tile.
+    await _dismiss_account_picker(page)
 
     email_field = await _find_email_field(page)
     if email_field is None:
