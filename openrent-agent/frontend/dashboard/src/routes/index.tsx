@@ -6,6 +6,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock3,
+  Download,
+  MapPin,
   MessageCircle,
   MessageSquareShare,
   Phone,
@@ -26,11 +28,22 @@ import {
   Tooltip,
   AreaChart,
   Area,
+  Bar,
+  BarChart,
+  Legend,
 } from "recharts";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { getAccounts, getCapacity, getFailedAccountsCount, getLeads, getMetrics } from "@/lib/api";
+import {
+  downloadRegionalBreakdownCsv,
+  getAccounts,
+  getCapacity,
+  getFailedAccountsCount,
+  getLeads,
+  getMetrics,
+  getRegionalBreakdown,
+} from "@/lib/api";
 import { fmtMoney, fmtRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -438,6 +451,8 @@ function Dashboard() {
         </div>
       </section>
 
+      <RegionalBreakdownCard />
+
       <section className="rounded-lg border bg-card shadow-sm">
         <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -501,6 +516,149 @@ function Dashboard() {
         </ul>
       </section>
     </div>
+  );
+}
+
+const breakdownRanges = [
+  { label: "14 days", days: 14 },
+  { label: "30 days", days: 30 },
+  { label: "90 days", days: 90 },
+];
+
+function formatUkDate(iso: string): string {
+  const [year, month, day] = iso.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function RegionalBreakdownCard() {
+  const [days, setDays] = useState(30);
+  const [downloading, setDownloading] = useState(false);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["regional-breakdown", days],
+    queryFn: () => getRegionalBreakdown(days),
+    refetchInterval: 30000,
+  });
+
+  const series = data?.series ?? [];
+  const totals = data?.totals ?? { south: 0, north: 0, total: 0 };
+  const rowsNewestFirst = useMemo(() => [...series].reverse(), [series]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await downloadRegionalBreakdownCsv(days);
+    } catch {
+      // Surfaced via the button state; download errors are non-fatal here.
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <section className="rounded-lg border bg-card shadow-sm">
+      <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <MapPin className="size-4" />
+          </div>
+          <div>
+            <h2 className="font-semibold">London leads — South vs North</h2>
+            <p className="text-sm text-muted-foreground">
+              Delivered (phone-acquired) leads per day, split by region. Download for reporting.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            options={breakdownRanges.map((range) => range.label)}
+            active={`${days} days`}
+            onChange={(label) =>
+              setDays(breakdownRanges.find((range) => range.label === label)?.days ?? 30)
+            }
+          />
+          <Button onClick={handleDownload} disabled={downloading || !series.length} size="sm">
+            <Download className="size-4" />
+            {downloading ? "Preparing…" : "Download CSV"}
+          </Button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="p-6 text-center text-sm text-muted-foreground">
+          Could not load the regional breakdown. Refresh to try again.
+        </div>
+      ) : isLoading ? (
+        <div className="p-6 text-center text-sm text-muted-foreground">Loading breakdown…</div>
+      ) : (
+        <div className="grid gap-4 p-4 lg:grid-cols-[1.4fr_1fr]">
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <MiniMetric label="South leads" value={`${totals.south}`} helper={`last ${days} days`} />
+              <MiniMetric label="North leads" value={`${totals.north}`} helper={`last ${days} days`} />
+              <MiniMetric label="Total" value={`${totals.total}`} helper="South + North" />
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={series}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickFormatter={(value: string) => value.slice(5)}
+                  />
+                  <YAxis stroke="var(--muted-foreground)" fontSize={11} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--popover)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      boxShadow: "0 10px 30px rgb(15 23 42 / 0.12)",
+                    }}
+                    labelFormatter={(value: string) => formatUkDate(value)}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="south" name="South" stackId="region" fill="var(--primary)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="north" name="North" stackId="region" fill="var(--success)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="max-h-80 overflow-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-secondary/80 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Date</th>
+                  <th className="px-3 py-2 text-right font-medium">South</th>
+                  <th className="px-3 py-2 text-right font-medium">North</th>
+                  <th className="px-3 py-2 text-right font-medium">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rowsNewestFirst.map((row) => (
+                  <tr key={row.date} className="hover:bg-secondary/40">
+                    <td className="px-3 py-2 whitespace-nowrap tabular-nums">{formatUkDate(row.date)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{row.south}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{row.north}</td>
+                    <td className="px-3 py-2 text-right font-medium tabular-nums">{row.total}</td>
+                  </tr>
+                ))}
+                {rowsNewestFirst.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                      No leads in this range yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

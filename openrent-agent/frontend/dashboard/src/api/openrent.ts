@@ -1,4 +1,4 @@
-import { del, get, patch, post } from "./client";
+import { del, downloadFile, get, patch, post } from "./client";
 import type {
   Account,
   AutomationMetrics,
@@ -546,6 +546,31 @@ export async function deleteSearchProfile(profileId: string): Promise<SearchProf
 
 export function getMetrics(): Promise<AutomationMetrics> {
   return get<AutomationMetrics>("/metrics");
+}
+
+// ---------------- REGIONAL LEAD BREAKDOWN (South vs North London) ----------------
+
+export interface RegionalBreakdownRow {
+  date: string;
+  south: number;
+  north: number;
+  total: number;
+}
+
+export interface RegionalBreakdown {
+  series: RegionalBreakdownRow[];
+  totals: { south: number; north: number; total: number };
+}
+
+export function getRegionalBreakdown(days = 30): Promise<RegionalBreakdown> {
+  return get<RegionalBreakdown>(`/leads/regional-breakdown?days=${days}`);
+}
+
+export function downloadRegionalBreakdownCsv(days = 30): Promise<void> {
+  return downloadFile(
+    `/leads/regional-breakdown.csv?days=${days}`,
+    "ai-leads-south-vs-north.csv",
+  );
 }
 
 export async function getLogs(limit = 250): Promise<LogEntry[]> {

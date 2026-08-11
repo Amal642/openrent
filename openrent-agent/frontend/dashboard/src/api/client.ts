@@ -82,3 +82,27 @@ export function patch<T>(path: string, body: unknown): Promise<T> {
 export function del<T>(path: string): Promise<T> {
   return apiRequest<T>(path, { method: "DELETE" });
 }
+
+// Fetches an authenticated endpoint and saves the response as a file download.
+// Needed because the API is Bearer-token protected, so a plain <a href> link
+// (which cannot set the Authorization header) would be rejected with 401.
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const token = localStorage.getItem("land-royal-crm-token");
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Download failed with ${response.status}`, response.status);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}

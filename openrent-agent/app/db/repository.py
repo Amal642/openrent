@@ -20,7 +20,7 @@ from app.db.models import (
     SearchProfile,
 )
 from app.db.status import HANDOFF_COMPLETE, VIEWING_CANCELLED, VIEWING_BOOKED, VIEWING_DISCUSSION
-from app.utils.scheduling import uk_now
+from app.utils.scheduling import UK_TZ, uk_now
 from app.ai.personas import (
     get_conversation_style,
     get_persona_template,
@@ -2508,6 +2508,64 @@ def count_new_outreach_on_day(day=None):
             )
             .count()
         )
+
+
+def get_regional_lead_breakdown(days=30):
+    """Daily count of delivered (phone-acquired) leads split by London region.
+
+    A "lead" here is a conversation where the AI captured a landlord phone
+    number (``phone_found_at`` set) — the same event that feeds the Google
+    Sheet. Region is resolved from the search profile's location via
+    ``Location.region`` (North/South). Days are bucketed by ``phone_found_at``
+    in UK local time, matching the sheet's ``Date`` column, and the returned
+    range is zero-filled so every day appears.
+    """
+    days = max(1, min(int(days), 366))
+    today = uk_now().date()
+    start_day = today - timedelta(days=days - 1)
+    # Widen the UTC filter by a day so tz conversion never drops boundary rows.
+    utc_cutoff = datetime.combine(start_day, datetime.min.time()) - timedelta(days=1)
+
+    with session_scope() as db:
+        rows = (
+            db.query(Conversation.phone_found_at, Location.region)
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .outerjoin(Location, Location.term_value == SearchProfile.location)
+            .filter(Conversation.phone_found_at != None)  # noqa: E711
+            .filter(Conversation.phone_found_at >= utc_cutoff)
+            .all()
+        )
+
+    buckets = {}
+
+    def _bucket(day_iso):
+        return buckets.setdefault(
+            day_iso, {"date": day_iso, "south": 0, "north": 0, "total": 0}
+        )
+
+    for offset in range(days):
+        _bucket((start_day + timedelta(days=offset)).isoformat())
+
+    for phone_found_at, region in rows:
+        if phone_found_at is None:
+            continue
+        aware = (
+            phone_found_at
+            if phone_found_at.tzinfo
+            else phone_found_at.replace(tzinfo=timezone.utc)
+        )
+        local_day = aware.astimezone(UK_TZ).date()
+        if local_day < start_day or local_day > today:
+            continue
+        bucket = _bucket(local_day.isoformat())
+        if str(region or "South").strip().lower() == "north":
+            bucket["north"] += 1
+        else:
+            bucket["south"] += 1
+        bucket["total"] += 1
+
+    return [buckets[key] for key in sorted(buckets)]
 
 
 def mark_listing_skipped(listing_id, reason="SKIPPED"):

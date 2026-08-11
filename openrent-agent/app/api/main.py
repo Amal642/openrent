@@ -8,7 +8,7 @@ import socket
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -510,6 +510,46 @@ def api_auth_me(request: Request):
 @app.get("/api/leads")
 def api_leads(status: str = None):
     return get_dashboard_leads(status=status)
+
+
+@app.get("/api/leads/regional-breakdown")
+def api_leads_regional_breakdown(days: int = 30):
+    from app.db.repository import get_regional_lead_breakdown
+
+    series = get_regional_lead_breakdown(days=days)
+    return {
+        "series": series,
+        "totals": {
+            "south": sum(row["south"] for row in series),
+            "north": sum(row["north"] for row in series),
+            "total": sum(row["total"] for row in series),
+        },
+    }
+
+
+@app.get("/api/leads/regional-breakdown.csv")
+def api_leads_regional_breakdown_csv(days: int = 30):
+    import csv
+    import io
+
+    from app.db.repository import get_regional_lead_breakdown
+
+    series = get_regional_lead_breakdown(days=days)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Date", "AI Leads South", "AI Leads North", "Total"])
+    for row in series:
+        year, month, day = row["date"].split("-")
+        writer.writerow([f"{day}/{month}/{year}", row["south"], row["north"], row["total"]])
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="ai-leads-south-vs-north.csv"'
+        },
+    )
 
 
 @app.get("/api/google-sheet/exports")
