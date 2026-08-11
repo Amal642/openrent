@@ -70,6 +70,16 @@ def reset_stale_workers():
 
 
 def _select_accounts(accounts):
+    # Fairness: process least-recently-active accounts first. With only a couple
+    # of worker slots and shared proxies, get_active_accounts() returns a fixed
+    # order, so accounts at the back never win a slot / always lose the proxy
+    # race and get perpetually starved. Sorting by last heartbeat (last time the
+    # account ran AT ALL, success or failure) gives true round-robin rotation and
+    # prevents a fast-failing account from monopolising a slot.
+    accounts = sorted(
+        accounts,
+        key=lambda a: getattr(a, "worker_last_heartbeat", None) or datetime.min,
+    )
     selected = []
     busy_proxy_ids = {
         account.proxy_id
