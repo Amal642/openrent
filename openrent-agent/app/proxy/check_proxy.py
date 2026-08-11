@@ -9,7 +9,7 @@ from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 IP_CHECK_URL = "https://api.ipify.org"
 OPENRENT_URL = "https://www.openrent.co.uk"
-DEFAULT_TIMEOUT_SECONDS = 5
+DEFAULT_TIMEOUT_SECONDS = 10
 DEGRADED_LATENCY_SECONDS = 2
 SLOW_LATENCY_SECONDS = 4
 

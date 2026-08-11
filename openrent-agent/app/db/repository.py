@@ -607,7 +607,8 @@ def serialize_account(account):
         "session_last_error": account.session_last_error,
         "session_auth_failures": account.session_auth_failures or 0,
         "session_captcha_triggers": account.session_captcha_triggers or 0,
-        "proxy_status": account.proxy_status or "unknown",
+        "proxy_status": account.proxy_status
+        or ("not_configured" if not account.proxy_id and not account.proxy_server else "unknown"),
         "proxy_ip": account.proxy_ip,
         "proxy_latency": account.proxy_latency,
         "proxy_last_checked": _utc(account.proxy_last_checked),
