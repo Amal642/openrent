@@ -26,6 +26,17 @@ def test_landline_kept():
     assert normalize_uk_phone("02012345678") == "02012345678"
 
 
+def test_foreign_number_kept():
+    # A landlord may be based abroad — keep the international form.
+    assert normalize_uk_phone("+33649546062") == "+33649546062"
+    assert normalize_uk_phone("0033649546062") == "+33649546062"
+
+
+def test_bare_non_uk_number_rejected():
+    # No +/country code and not a valid UK number — ambiguous with garbage.
+    assert normalize_uk_phone("14168350892") is None
+
+
 def test_over_long_rejected():
     assert normalize_uk_phone("079048373252") is None       # 12 digits
     assert normalize_uk_phone("+4479048373252") is None     # 11 digits after +44
