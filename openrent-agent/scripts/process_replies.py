@@ -618,6 +618,34 @@ async def process_account_replies(
                 )
             )
 
+            # CAPTURE-FIRST (root-cause fix): a landlord's number can arrive at
+            # any stage, but phone extraction used to run only in the reply path
+            # far below, which the viewing-cancel / follow-up / skip gates skip.
+            # 16/17 recent number-losses were confirmed viewings whose number was
+            # saved here but never extracted before the cancel gate fired. Extract
+            # up front (regex + split-message stitching) so the number is secured
+            # before any gate; the fuller reveal + AI extraction still runs later
+            # in the reply path as a backstop for hidden/masked numbers.
+            if conversation and not conversation.extracted_phone:
+                _early_phone = regex_extract_phone(get_landlord_messages(messages))
+                if _early_phone:
+                    _early_phone = normalize_uk_phone(_early_phone)
+                if _early_phone:
+                    if phone_exists(_early_phone):
+                        logger.info(
+                            f"PHONE_CAPTURED_EARLY_DUPLICATE thread_id={thread_id} phone={_early_phone}"
+                        )
+                        update_conversation_status(thread_id, DUPLICATE_LEAD)
+                    else:
+                        save_phone_number(thread_id, _early_phone)
+                        _log_playbook_ab_phone_capture(thread_id)
+                        logger.info(
+                            f"PHONE_CAPTURED_EARLY thread_id={thread_id} phone={_early_phone}"
+                        )
+                        # Refresh so the gates below (P1 stop, viewing-cancel) see
+                        # the captured number and handle handoff/cancellation.
+                        conversation = get_conversation_by_thread_id(thread_id)
+
             (
                 has_unanswered_landlord_message,
                 latest_landlord_entry,

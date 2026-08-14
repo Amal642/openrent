@@ -29,15 +29,35 @@ def regex_extract_phone(messages):
         r"(07\d{9})",
         r"(447\d{9})",
     ]
+
+    # Pass 1: per-message. Handles single-message numbers and lets a later
+    # landlord correction override an earlier one (why we do not concatenate
+    # everything up front — that fuses adjacent numbers and returns the first).
     last_found = None
     for msg in messages:
-        cleaned = re.sub(r"[^\d+]", "", msg)
+        cleaned = re.sub(r"[^\d+]", "", msg or "")
         for pattern in patterns:
             match = re.search(pattern, cleaned)
             if match:
                 last_found = match.group(1)
                 break  # one phone per message; move to the next message
-    return last_found
+    if last_found:
+        return last_found
+
+    # Pass 2: stitch consecutive messages, to recover a number a landlord split
+    # across adjacent messages ("077144" then "36232"). Runs only when no single
+    # message held a valid number, so it cannot fuse an already-complete number
+    # with a stray digit run.
+    msgs = list(messages or [])
+    for i in range(len(msgs)):
+        window = ""
+        for j in range(i, min(i + 3, len(msgs))):
+            window += re.sub(r"[^\d+]", "", msgs[j] or "")
+            for pattern in patterns:
+                match = re.search(pattern, window)
+                if match:
+                    return match.group(1)
+    return None
 
 
 def ai_extract_phone(messages, retries=3, base_delay=2):
