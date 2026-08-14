@@ -27,4 +27,10 @@ def normalize_uk_phone(phone):
             "0" + phone[2:]
         )
 
+    # A valid UK number is exactly 11 digits starting 0 (07 mobiles, 01/02/03
+    # landlines). Reject anything else — too short, over-long, or garbage stitched
+    # from unrelated digits — so a malformed extraction is never saved as a lead.
+    if not re.fullmatch(r"0\d{10}", phone):
+        return None
+
     return phone
