@@ -32,9 +32,21 @@ def test_foreign_number_kept():
     assert normalize_uk_phone("0033649546062") == "+33649546062"
 
 
-def test_bare_non_uk_number_rejected():
-    # No +/country code and not a valid UK number — ambiguous with garbage.
-    assert normalize_uk_phone("14168350892") is None
+def test_bare_foreign_number_kept():
+    # No "+" but a plausible foreign number (e.g. US/Canada) — save it; we keep
+    # numbers from any country.
+    assert normalize_uk_phone("14168350892") == "14168350892"
+    assert normalize_uk_phone("7961592222") == "7961592222"
+
+
+def test_malformed_uk_number_rejected():
+    # Starts 0 (UK-shaped) but wrong length — a typo/truncation, not a usable lead.
+    assert normalize_uk_phone("0797335323") is None    # 10 digits
+    assert normalize_uk_phone("079048373252") is None  # 12 (stitch garbage)
+
+
+def test_too_short_to_be_a_phone_number():
+    assert normalize_uk_phone("12345") is None
 
 
 def test_over_long_rejected():

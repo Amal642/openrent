@@ -19,9 +19,9 @@ def normalize_uk_phone(phone):
 
     # Foreign number (a landlord may be based abroad): keep the international
     # E.164 form as-is when it carries a non-UK country code and a plausible
-    # length. Only clearly-malformed values are rejected.
+    # length. We save numbers from any country, not just the UK.
     if phone.startswith("+") and not phone.startswith("+44"):
-        return phone if re.fullmatch(r"\+\d{8,15}", phone) else None
+        return phone if re.fullmatch(r"\+\d{7,15}", phone) else None
 
     # Convert +44 → 0
     if phone.startswith("+44"):
@@ -37,10 +37,16 @@ def normalize_uk_phone(phone):
             "0" + phone[2:]
         )
 
-    # A valid UK number is exactly 11 digits starting 0 (07 mobiles, 01/02/03
-    # landlines). Reject wrong-length values (typos, truncations, or digits
-    # stitched from unrelated messages) so a malformed capture isn't saved.
-    if re.fullmatch(r"0\d{10}", phone):
+    # UK number (0-prefixed): must be exactly 11 digits. Reject wrong-length
+    # values (typos, truncations, or digits stitched from unrelated messages) —
+    # a malformed UK number is not a usable lead.
+    if phone.startswith("0"):
+        return phone if re.fullmatch(r"0\d{10}", phone) else None
+
+    # Bare number, no "+" and not UK-shaped: treat as a foreign number that
+    # arrived without its country prefix, and keep it if it is a plausible
+    # phone-number length. Save numbers from any country, not just the UK.
+    if re.fullmatch(r"\d{7,15}", phone):
         return phone
 
     return None
