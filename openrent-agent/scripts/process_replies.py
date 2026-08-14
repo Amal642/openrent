@@ -77,6 +77,7 @@ from app.ai.validators import (
     remove_unapproved_phone_numbers
 )
 from app.ai.personas import tenant_shared_phone
+from app.ai.reply_gate import post_capture_decision
 
 from app.ai.conversation_memory import (
     detect_landlord_attitude,
@@ -403,6 +404,17 @@ async def _cancel_viewing_and_handoff(
                 "textarea disabled — marking reply_disabled"
             )
             update_conversation_status(thread_id, REPLY_DISABLED)
+            # If we already have the lead's number this thread is done: the
+            # reply box is gone so it can never be cancelled or replied to.
+            # Terminalize so P2 does not re-attempt it every run (CON-2). Gated
+            # on phone-captured to avoid permanently killing a thread on a
+            # transient page failure where we still want the number.
+            _dead_conv = get_conversation_by_thread_id(thread_id)
+            if _dead_conv and _dead_conv.extracted_phone:
+                mark_handoff_complete(thread_id)
+                logger.info(
+                    f"VIEWING_CANCEL_DEADTHREAD_TERMINALIZED thread_id={thread_id}"
+                )
         else:
             logger.warning(f"VIEWING_CANCEL_SEND_FAILED thread_id={thread_id}")
         return False
@@ -776,12 +788,19 @@ async def process_account_replies(
                     or (phone_already_requested and _phone_ask_age_h >= 4)
                 )
 
-                # Only enter the cancel window when we know WHEN the viewing is.
-                in_cancel_window = viewing_dt is not None and _cancel_window_passed(viewing_dt)
+                # Enter the cancel window when a known viewing time is within the
+                # window, OR when a confirmed viewing has no extractable datetime —
+                # that can never hit a timed window, so treat it as due now (the
+                # no-datetime no-show source, P2). safe_to_cancel still gates the
+                # actual cancel, so the number is captured or requested first.
+                in_cancel_window = viewing_dt is None or _cancel_window_passed(viewing_dt)
 
                 if in_cancel_window:
                     if safe_to_cancel:
-                        hours_label = f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
+                        hours_label = (
+                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
+                            if viewing_dt else "no_datetime"
+                        )
                         logger.info(
                             f"VIEWING_CANCEL_NOW thread_id={thread_id} reason={hours_label}"
                         )
@@ -793,7 +812,10 @@ async def process_account_replies(
                         continue
                     elif not phone_already_requested:
                         # Haven't asked yet — send number ask, cancel on next run
-                        hours_label = f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h"
+                        hours_label = (
+                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h"
+                            if viewing_dt else "no_datetime"
+                        )
                         logger.info(
                             f"PRE_CANCEL_NUMBER_ASK thread_id={thread_id} hours_until={hours_label}"
                         )
@@ -955,6 +977,28 @@ async def process_account_replies(
                     "reason=no_unanswered_landlord_message"
                 )
                 update_conversation_status(thread_id, SKIPPED)
+                continue
+
+            decision = post_capture_decision(conversation)
+            if decision is not None:
+                # P1: objective already met (landlord number captured). Stop the
+                # post-capture reply spiral that triggers "you keep messaging /
+                # are you a bot" reports. Any due viewing cancellation is handled
+                # above; a booked viewing still awaiting its cancel window stays
+                # non-terminal so that cancellation can still fire on a later run.
+                update_last_processed_message(thread_id, latest_landlord_message)
+                if decision == "terminal":
+                    mark_handoff_complete(thread_id)
+                    update_conversation_status(thread_id, HANDOFF_COMPLETE)
+                    logger.info(
+                        f"THREAD_SKIPPED_REASON thread_id={thread_id} "
+                        "reason=phone_already_captured action=handoff_complete"
+                    )
+                else:
+                    logger.info(
+                        f"THREAD_SKIPPED_REASON thread_id={thread_id} "
+                        "reason=phone_captured_awaiting_cancellation"
+                    )
                 continue
 
             logger.info(f"THREAD_PROCESSING thread_id={thread_id}")

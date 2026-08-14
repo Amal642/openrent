@@ -32,7 +32,7 @@ BOOKED_PATTERNS = [
 DISCUSSION_PATTERNS = [
     r"\bwhat time\b",
     r"\bavailable\b",
-    r"\bviewing\b",
+    r"\bviewings?\b",
     r"\bwhen can you\b",
     r"\bwhat day\b",
     r"\brearrange\b",
@@ -49,7 +49,7 @@ NEGATING_PATTERNS = [
 ]
 
 TIME_PATTERN = re.compile(
-    r"\b([01]?\d|2[0-3])(?::([0-5]\d))?\s*(am|pm)?\b",
+    r"\b([01]?\d|2[0-3])(?:[:.]([0-5]\d))?\s*(am|pm)?\b",
     re.I,
 )
 WEEKDAY_PATTERN = re.compile(
@@ -59,6 +59,9 @@ WEEKDAY_PATTERN = re.compile(
 NUMERIC_DATE_PATTERN = re.compile(
     r"\b([0-3]?\d)[/-]([01]?\d)(?:[/-](\d{2,4}))?\b"
 )
+# Default hour for a viewing given only a part-of-day (no clock time), e.g.
+# "Thursday evening" — used so such viewings still get a timed datetime (P3).
+PART_OF_DAY_HOURS = {"morning": 10, "afternoon": 14, "evening": 18, "night": 19}
 
 
 def _message_text(message):
@@ -206,6 +209,28 @@ def detect_stage(messages):
     return None
 
 
+def _part_of_day_datetime(messages, now):
+    """Fallback datetime for "Thursday evening"-style times with no clock time.
+
+    Requires a day anchor (weekday/today/tomorrow) plus a part-of-day word, and
+    maps the part-of-day to a default hour. Returns None if either is missing.
+    """
+    for message in reversed(list(messages or [])):
+        text = _message_text(message).lower()
+        if not WEEKDAY_PATTERN.search(text):
+            continue
+        for word, hour in PART_OF_DAY_HOURS.items():
+            if word in text:
+                target_date = _target_date_from_text(text, now)
+                candidate = datetime.combine(
+                    target_date, datetime.min.time()
+                ).replace(hour=hour)
+                if candidate < now:
+                    candidate += timedelta(days=1)
+                return candidate
+    return None
+
+
 def extract_viewing_datetime(messages, now=None):
     now = now or datetime.utcnow()
     recent = _recent_messages(messages, limit=8)
@@ -213,22 +238,33 @@ def extract_viewing_datetime(messages, now=None):
     candidates = []
     for message in recent:
         text = _message_text(message).lower()
-        # Only consider messages that explicitly discuss a viewing — never pick up
-        # arbitrary numbers (e.g. "contact you in 1 day") as phantom datetimes.
+        # Consider a message with an explicit time that is either about a viewing
+        # OR references a specific day (today/tomorrow/weekday). The day clause
+        # catches "6-6:30pm today" / "3pm I am here" that state a scheduled time
+        # without a viewing keyword (P3), while still ignoring bare numbers like
+        # "contact you in 1 day" (which carry no explicit time — see below).
         if not (
             TIME_PATTERN.search(text)
-            and _matches_any(text, BOOKED_PATTERNS + DISCUSSION_PATTERNS)
+            and (
+                _matches_any(text, BOOKED_PATTERNS + DISCUSSION_PATTERNS)
+                or WEEKDAY_PATTERN.search(text)
+            )
         ):
             continue
-        date_spans = _date_spans(text)
         for match in TIME_PATTERN.finditer(text):
-            if _overlaps_any(match.span(), date_spans):
-                continue
+            # Require an explicit time (:MM / .MM or am/pm). That alone excludes
+            # bare date components like "05"/"06" in "05/06", so no date-overlap
+            # check is needed — and dropping it lets "6-6:30pm" keep the 6:30pm
+            # time that a greedy "6-6" numeric-date match would otherwise swallow.
             if not _is_explicit_time_match(match):
                 continue
             candidates.append((text, match))
 
     if not candidates:
+        fallback = _part_of_day_datetime(recent, now)
+        if fallback is not None:
+            _stage_log("VIEWING_DATETIME_EXTRACTED", f"part-of-day default datetime={fallback}")
+            return fallback
         _stage_log("VIEWING_DATETIME_EXTRACTED", "no candidates — no time found in booking/discussion messages")
         return None
 

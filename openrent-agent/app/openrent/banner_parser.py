@@ -28,7 +28,9 @@ _CONFIRMED_RE = re.compile(
     r"(\d{1,2})(?:st|nd|rd|th)?\s+"     # day number
     r"(\w+)"                             # month name
     r"(?:\s+(\d{4}))?"                   # optional year
-    r"\s+at\s+"
+    r"\s+(?:at\s+)?"                     # optional "at" — OpenRent emits both
+                                         # "...August at 3:00 PM" and
+                                         # "...August 3:00 PM at <address>"
     r"(\d{1,2}):(\d{2})"                 # HH:MM
     r"(?:\s*(am|pm))?",                  # optional am/pm
     re.I,

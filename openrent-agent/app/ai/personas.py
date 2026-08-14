@@ -121,7 +121,7 @@ PERSONA_TEMPLATES = {
             "partner": [],
         },
         "jobs": {
-            "primary": ["Systems Administrator", "Cloud Engineer", "IT Support Lead", "Network Engineer", "DevOps Engineer"],
+            "primary": ["Cloud Engineer", "DevOps Engineer", "Network Engineer", "Infrastructure Engineer", "Systems Engineer"],
             "partner": [],
         },
     },
@@ -173,7 +173,7 @@ PERSONA_TEMPLATES = {
             "partner": [],
         },
         "jobs": {
-            "primary": ["University Lecturer", "Research Fellow", "Policy Researcher", "Postdoctoral Researcher", "Data Scientist"],
+            "primary": ["University Lecturer", "Senior Lecturer", "Research Fellow", "Policy Researcher", "Data Scientist"],
             "partner": [],
         },
     },
@@ -224,7 +224,7 @@ PERSONA_TEMPLATES = {
             "partner": ["James", "Omar", "Daniel", "Sam", "Robert", "Kevin", "Patrick", "Marcus"],
         },
         "jobs": {
-            "primary": ["IT Support Lead", "Product Manager", "Accountant", "Office Manager", "Teaching Assistant"],
+            "primary": ["IT Support Lead", "Product Manager", "Accountant", "Operations Manager", "Software Developer"],
             "partner": ["currently at home", "full-time parent", "homemaker"],
         },
     },
@@ -250,8 +250,8 @@ PERSONA_TEMPLATES = {
             "partner": ["James", "Andrew", "Marcus", "David", "Simon", "Laura", "Nicola", "Helen"],
         },
         "jobs": {
-            "primary": ["Engineering Manager", "Staff Software Engineer", "Product Lead", "Solutions Architect", "Head of Engineering"],
-            "partner": ["Data Scientist", "Management Consultant", "Senior Product Manager", "Finance Analyst", "Senior UX Lead"],
+            "primary": ["Software Engineer", "Senior Software Engineer", "Product Manager", "Solutions Architect", "Data Scientist"],
+            "partner": ["Data Scientist", "Management Consultant", "Senior Product Manager", "Finance Manager", "Senior UX Lead"],
         },
     },
     "high_earner_legal_finance_couple": {
@@ -296,8 +296,8 @@ INCOME_BANDS = {
     "academic_researcher": (45_000, 62_000, False),
     "engineer_consultant_couple": (95_000, 120_000, True),
     "single_income_couple": (48_000, 64_000, False),
-    "high_earner_tech_couple": (150_000, 190_000, True),
-    "high_earner_legal_finance_couple": (150_000, 190_000, True),
+    "high_earner_tech_couple": (120_000, 145_000, True),
+    "high_earner_legal_finance_couple": (120_000, 145_000, True),
 }
 # Fallback for any persona type without an explicit band: a mid dual-income
 # professional couple.
@@ -307,6 +307,95 @@ _DEFAULT_INCOME_BAND = (90_000, 110_000, True)
 def income_band_for(persona_type):
     """Return (min_annual, max_annual, dual_income) for a persona type."""
     return INCOME_BANDS.get(persona_type, _DEFAULT_INCOME_BAND)
+
+
+# Approximate London-weighted annual gross salary (min, max) per job title.
+# Source of truth for what a job plausibly pays, so a persona's stated income
+# can never contradict its stated occupation (the "Teaching Assistant earning
+# GBP4,700/month" failure). Every job used in PERSONA_TEMPLATES must appear here;
+# test_persona_income_consistency.py enforces that each type's earner jobs can
+# actually reach that type's income band.
+JOB_SALARY_BANDS = {
+    # general professional
+    "Marketing Manager": (42_000, 60_000),
+    "Project Coordinator": (32_000, 44_000),
+    "UX Designer": (42_000, 62_000),
+    "HR Business Partner": (45_000, 62_000),
+    "Brand Manager": (42_000, 60_000),
+    "Product Manager": (55_000, 80_000),
+    "Business Analyst": (42_000, 62_000),
+    "Software Engineer": (50_000, 85_000),
+    "Senior Software Engineer": (65_000, 95_000),
+    "Software Developer": (45_000, 70_000),
+    "Data Analyst": (38_000, 55_000),
+    "DevOps Engineer": (55_000, 82_000),
+    # IT / infrastructure
+    "Cloud Engineer": (55_000, 82_000),
+    "Network Engineer": (42_000, 60_000),
+    "Infrastructure Engineer": (52_000, 74_000),
+    "Systems Engineer": (50_000, 72_000),
+    "IT Support Lead": (42_000, 56_000),
+    "Systems Administrator": (32_000, 48_000),
+    # NHS / medical
+    "NHS Nurse": (32_000, 48_000),
+    "Radiographer": (35_000, 52_000),
+    "Clinical Pharmacist": (45_000, 64_000),
+    "Midwife": (35_000, 52_000),
+    "Physiotherapist": (35_000, 50_000),
+    # engineering / consulting / ops
+    "Mechanical Engineer": (40_000, 60_000),
+    "Civil Engineer": (40_000, 62_000),
+    "Structural Engineer": (42_000, 64_000),
+    "Management Consultant": (55_000, 90_000),
+    "Business Consultant": (50_000, 78_000),
+    "Solutions Architect": (70_000, 105_000),
+    "Financial Consultant": (50_000, 78_000),
+    "Account Manager": (38_000, 58_000),
+    "Commercial Manager": (50_000, 72_000),
+    "IT Consultant": (50_000, 75_000),
+    "Operations Manager": (42_000, 62_000),
+    "Project Manager": (45_000, 68_000),
+    "Logistics Manager": (40_000, 58_000),
+    # academic
+    "University Lecturer": (45_000, 62_000),
+    "Senior Lecturer": (52_000, 72_000),
+    "Research Fellow": (38_000, 50_000),
+    "Policy Researcher": (38_000, 52_000),
+    "Postdoctoral Researcher": (36_000, 44_000),
+    "Data Scientist": (55_000, 88_000),
+    # finance / legal
+    "Accountant": (42_000, 62_000),
+    "Chartered Accountant": (52_000, 82_000),
+    "Finance Manager": (52_000, 80_000),
+    "Finance Analyst": (42_000, 65_000),
+    "Investment Analyst": (52_000, 90_000),
+    "Actuary": (55_000, 95_000),
+    "Corporate Solicitor": (65_000, 120_000),
+    "Commercial Solicitor": (60_000, 105_000),
+    "Legal Counsel": (70_000, 120_000),
+    "Associate Solicitor": (52_000, 90_000),
+    # senior tech leadership
+    "Engineering Manager": (85_000, 125_000),
+    "Staff Software Engineer": (90_000, 135_000),
+    "Product Lead": (80_000, 120_000),
+    "Head of Engineering": (100_000, 155_000),
+    "Senior Product Manager": (72_000, 105_000),
+    "Senior UX Lead": (68_000, 95_000),
+    # low-wage (kept for reference / back-compat; excluded from earner pools)
+    "Office Manager": (30_000, 44_000),
+    "Teaching Assistant": (18_000, 26_000),
+}
+
+# Partner "job" values that denote a non-earning household member.
+NON_EARNING_ROLES = {"currently at home", "full-time parent", "homemaker"}
+
+
+def job_salary_band(job):
+    """Approx (min, max) annual GBP for a job title. Non-earning partner
+    statuses return (0, 0); unknown jobs fall back to a mid professional band."""
+    if not job or job in NON_EARNING_ROLES:
+        return (0, 0)
+    return JOB_SALARY_BANDS.get(job, (40_000, 60_000))
 
 
 STYLE_ALIASES = {
