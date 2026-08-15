@@ -728,20 +728,63 @@ Return only the message text.""".strip()
     return None, last_error or "short_term_close_failed"
 
 
+# A pre-cancel number-ask must ONLY request the landlord's number — it must never
+# contain a phone number of our own. The model occasionally slips (e.g. answering a
+# landlord's "the number you gave doesn't work" by inventing one like "07123 456789"),
+# which hands the landlord a dead number and reads as a scam. Reject any output with a
+# phone-number-shaped run of digits and fall back to a plain, human ask.
+_PHONE_LIKE_RE = re.compile(r"\d(?:[\s().+-]*\d){8,}")
+
+_PRE_CANCEL_NUMBER_ASK_FALLBACKS = (
+    "Could I grab your number for the day, just in case I get held up on the way?",
+    "Would you mind sending your number over? Handy to have in case I have trouble finding the place.",
+    "Could you pop your number here? Easier to reach you if anything comes up on the day.",
+)
+
+
+def _contains_phone_number(text: str) -> bool:
+    return bool(text and _PHONE_LIKE_RE.search(text))
+
+
+def _pre_cancel_number_ask_fallback(conversation: str) -> str:
+    idx = len(conversation or "") % len(_PRE_CANCEL_NUMBER_ASK_FALLBACKS)
+    return _PRE_CANCEL_NUMBER_ASK_FALLBACKS[idx]
+
+
 def generate_pre_cancel_number_ask(messages, place=None, retries=3, base_delay=2):
-    """Generate a natural phone-ask message to send one run before cancelling a viewing."""
+    """Generate a natural phone-ask message to send one run before cancelling a viewing.
+
+    The message must only ASK for the landlord's number; it must never contain a
+    phone number of our own. If the model slips one in, regenerate once, then fall
+    back to a safe canned ask rather than sending a fabricated (dead) number.
+    """
     conversation = format_conversation(messages or [])
-    result = generate_reply_result(
-        conversation,
-        model=settings.OPENAI_REPLY_MODEL,
-        temperature=0.7,
-        prompt_builder=lambda _: build_pre_cancel_number_ask_prompt(conversation, place=place),
-        retries=retries,
-        base_delay=base_delay,
-    )
-    if result.is_valid:
+    saw_valid_but_bad = False
+    last_error = None
+    for _ in range(2):
+        result = generate_reply_result(
+            conversation,
+            model=settings.OPENAI_REPLY_MODEL,
+            temperature=0.7,
+            prompt_builder=lambda _: build_pre_cancel_number_ask_prompt(conversation, place=place),
+            retries=retries,
+            base_delay=base_delay,
+        )
+        if not result.is_valid:
+            last_error = result.error or "pre_cancel_number_ask_failed"
+            break
+        if _contains_phone_number(result.reply):
+            saw_valid_but_bad = True
+            last_error = "contained_phone_number"
+            logger.warning("PRE_CANCEL_NUMBER_ASK_REJECTED_PHONE — regenerating")
+            continue
         return result.reply, None
-    return None, result.error or "pre_cancel_number_ask_failed"
+    if saw_valid_but_bad:
+        logger.warning(
+            "PRE_CANCEL_NUMBER_ASK_FALLBACK — model kept emitting a number, using safe ask"
+        )
+        return _pre_cancel_number_ask_fallback(conversation), None
+    return None, last_error or "pre_cancel_number_ask_failed"
 
 
 def generate_initial_property_message(

@@ -838,7 +838,7 @@ def build_pre_cancel_number_ask_prompt(conversation: str, place: str | None = No
     )
     return f"""
 You are a tenant who has arranged a viewing for a rental property.
-You want to ask the landlord for their phone number ahead of the viewing, for practical coordination.
+The ONLY purpose of this message is to ask the landlord for THEIR phone number ahead of the viewing, for practical coordination.
 
 {travel_line}
 
@@ -848,6 +848,9 @@ Primary goal:
 - Sound casual and human — like a real person texting.
 
 Hard rules:
+- You are ASKING for the landlord's number. You are NOT giving one out. Never provide, offer, promise, read back, or invent a phone number of your own or anyone else's, and never write any digits that look like a phone number.
+- Even if the landlord asked for your number, said they tried to call you, or said the number they have does not work, do NOT give a number. Instead, ask them to share theirs so you can reach them.
+- Do not discuss your journey or arrival. Never say you are "on the way", "leaving now", "running late", "nearly there", or give any arrival status or time. Do not answer other questions. This message only asks for their number.
 - One short message only (1-2 sentences maximum).
 - Do not hint that you are considering cancelling.
 - Do not mention AI, automation, or internal systems.
@@ -860,6 +863,7 @@ Example styles:
 - "Just wanted to grab your number before the viewing in case I get delayed on the way."
 - "Could I get your number for the viewing? Just in case I have trouble finding the place."
 - "Would you mind sending your number over? Handy to have for the day."
+- "Ah sorry the number didn't work, could you send yours over instead so I can reach you on the day?"
 
 Conversation:
 {conversation}
