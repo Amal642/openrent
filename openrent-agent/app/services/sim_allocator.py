@@ -17,6 +17,7 @@ from sqlalchemy import text
 from app.advisor.area_defaults import get_area_defaults
 from app.advisor.area_intelligence import (
     MIN_ACCOUNTS_FOR_SCORING,
+    MIN_TOTAL_LISTINGS_FOR_DECISION,
     AreaMetrics,
     _load_area_metrics,
 )
@@ -87,6 +88,7 @@ def run_allocation(dry_run: bool = False) -> dict:
 
         # Update in-memory count so the next SIM redistributes correctly
         best.active_accounts += 1
+        best.current_account_gap -= 1
         best.score = _recompute_score(best)
 
     # --- rebalance exhausted accounts ---
@@ -132,6 +134,7 @@ def run_allocation(dry_run: bool = False) -> dict:
         )
 
         best.active_accounts += 1
+        best.current_account_gap -= 1
         best.score = _recompute_score(best)
 
     return {
@@ -189,11 +192,40 @@ def _get_rebalance_candidates(db, paused_locations: set[str]) -> list[dict]:
 
 
 def _ranked_areas(metrics: list[AreaMetrics], allocatable: dict) -> list[AreaMetrics]:
-    """Allocatable areas eligible for assignment, sorted by score descending."""
+    """Allocatable areas eligible for a new SIM, best target first.
+
+    Contention-aware placement. Two facts drive this:
+
+    1. Listing IDs are globally unique, so an area already worked by other
+       accounts yields ~nothing to a newcomer — incumbents scrape new supply
+       first. So we place into the LEAST-contested area with spare capacity,
+       not the one with the highest raw supply.
+    2. A fresh, uncontested area has no conversations yet, so its
+       area-intelligence `status` is `insufficient_data` and its `score` is 0.
+       Ranking by `score` (the old behaviour) therefore excluded every
+       uncontested area and could only recycle accounts back into the
+       saturated, already-established ones. We must not gate on `score` here.
+
+    Eligibility instead requires real, discovered supply
+    (`total_listings >= MIN_TOTAL_LISTINGS_FOR_DECISION`) with room for one
+    more account (`current_account_gap > 0`, i.e. measured supply supports
+    more accounts than are currently assigned). Ranking prefers the fewest
+    existing accounts, then the largest spare capacity, then proven phone
+    rate as a tie-break.
+    """
+    eligible = [
+        m for m in metrics
+        if m.location in allocatable
+        and m.total_listings >= MIN_TOTAL_LISTINGS_FOR_DECISION
+        and m.current_account_gap > 0
+    ]
     return sorted(
-        (m for m in metrics if m.score > 0 and m.location in allocatable),
-        key=lambda m: m.score,
-        reverse=True,
+        eligible,
+        key=lambda m: (
+            m.active_accounts,
+            -m.current_account_gap,
+            -m.phone_capture_rate_pct,
+        ),
     )
 
 
