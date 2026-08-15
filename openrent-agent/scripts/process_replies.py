@@ -303,6 +303,20 @@ def _parse_ai_viewing_datetime(dt_str):
     return None
 
 
+def _should_run_viewing_detection(banners) -> bool:
+    """Run AI viewing-detection whenever the viewing is not already confirmed.
+
+    This deliberately runs even when a "Request Viewing" banner is present.
+    Landlords usually confirm a viewing in free-text chat, not via OpenRent's
+    button, so gating on the request banner left those bookings undetected
+    (viewing_confirmed stayed False -> the 3-5h cancellation strategy never
+    fired -> no-shows). The detector requires MUTUAL agreement AND a specific
+    datetime before promoting, so a one-sided tenant request cannot
+    false-positive.
+    """
+    return not banners["viewing_confirmed"]
+
+
 def _assign_playbook_ab_if_enabled(thread_id, persona):
     """Assign only a fresh thread, immediately before its first controlled reply."""
     if os.getenv("PLAYBOOK_AB_ENABLED") != "1":
@@ -563,17 +577,19 @@ async def process_account_replies(
             elif banners["viewing_requested"]:
                 save_banner_state(thread_id, viewing_requested=True)
 
-            # AI viewing detection — fallback when the banner found nothing.
-            # Reads the full conversation to determine if a viewing is genuinely
-            # arranged. Result is merged into `banners` so the cancel block and
+            # AI viewing detection — determines if a viewing is genuinely arranged
+            # from the chat. Result is merged into `banners` so the cancel block and
             # all downstream logic use one consistent dict.
             #
-            # IMPORTANT: "Viewing Requested" means someone clicked the request
-            # button — it does NOT mean the viewing is confirmed. Never run AI
-            # detection when only a request banner is present, as the AI would
-            # likely false-positive on the tenant's own "can we arrange a viewing?"
-            # question and incorrectly promote the thread to viewing_confirmed.
-            if not banners["viewing_confirmed"] and not banners["viewing_requested"]:
+            # Runs whenever the viewing is not already confirmed — INCLUDING when a
+            # "Request Viewing" banner is present. Landlords usually confirm in
+            # free-text chat, not via OpenRent's button, so gating on the request
+            # banner left those bookings undetected (viewing_confirmed stayed False
+            # -> the cancellation strategy never fired -> no-shows). The detector
+            # requires MUTUAL agreement AND a specific datetime before promoting
+            # (see _should_run_viewing_detection), so a one-sided tenant request
+            # cannot false-positive.
+            if _should_run_viewing_detection(banners):
                 ai_viewing = ai_detect_viewing_arranged(messages)
                 if ai_viewing.get("viewing_arranged"):
                     ai_dt = _parse_ai_viewing_datetime(ai_viewing.get("viewing_datetime"))
@@ -604,11 +620,6 @@ async def process_account_replies(
                         f"AI_VIEWING_NOT_DETECTED thread_id={thread_id} "
                         f"reason={ai_viewing.get('reason')!r}"
                     )
-            elif banners["viewing_requested"] and not banners["viewing_confirmed"]:
-                logger.info(
-                    f"AI_VIEWING_DETECTION_SKIPPED thread_id={thread_id} "
-                    "reason=viewing_requested_only — awaiting landlord confirmation"
-                )
 
             save_inbound_messages(thread_id, messages)
 
