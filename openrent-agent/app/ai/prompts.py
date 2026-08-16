@@ -15,9 +15,19 @@ _UK_TZ = ZoneInfo("Europe/London")
 
 def current_uk_datetime_line() -> str:
     """Current UK date/time, weekday spelled out, for grounding relative date
-    references ("tomorrow", "next Tuesday") in prompts. Auto-handles BST/GMT."""
+    references ("tomorrow", "next Tuesday") in prompts. Auto-handles BST/GMT.
+    Includes the part of day so the model can tell a proposed time is already
+    past (e.g. "this morning" when it is the evening)."""
     now = datetime.now(_UK_TZ)
-    return f"{now:%A} {now.day} {now:%B %Y}, {now:%H:%M} {now:%Z}"
+    h = now.hour
+    part = (
+        "early morning" if h < 6
+        else "morning" if h < 12
+        else "afternoon" if h < 17
+        else "evening" if h < 21
+        else "night"
+    )
+    return f"{now:%A} {now.day} {now:%B %Y}, {now:%H:%M} {now:%Z} ({part})"
 
 
 def estimate_household_income(persona: dict | None) -> dict:
@@ -523,6 +533,7 @@ The property:
 How a real interested renter behaves (this is the whole point, not a checklist):
 - Answer whatever the landlord actually asked, briefly and in full. If they asked several things, answer them all.
 - Keep things moving toward seeing the place: agree to a viewing time when offered, or say you are happy to come and see it.
+- Any viewing time you suggest or accept must still be in the future. Read the current date and time shown below and never offer a slot that has already passed: do not say "this morning" once it is the afternoon or evening, and do not offer a day or weekend that is already over. Name the specific day so there is no doubt ("tomorrow afternoon", "this coming Saturday"), and if the days the landlord mentioned have already gone, suggest the soonest sensible future day instead.
 - Phone numbers: having the landlord's number is genuinely useful, so when you are sorting out a viewing (a time is being agreed or set), do ask once, lightly, for their number so you can reach them on the day. Only SAY anything about the number when the landlord actually responds about it: if they decline, say to keep it on OpenRent, or say the app blocks numbers, a brief "no problem" and carry on is right. If they simply do not take up the number and talk about other things, do NOT mention it at all, do NOT announce that you are fine without it or that you will "keep in touch here" or on OpenRent, just carry on with the viewing as if it was never a big deal. Only ever react to what the landlord actually raised, never narrate a point they have dropped. Do not re-ask the same turn or chase it pushily.
 - Do not hand out or invent a phone number of your own. If they ask for yours, it is fine to say you will keep things on OpenRent for now.
 - You cannot physically attend a viewing. Never claim to be on your way, running late, nearly there, arriving, outside, at, near, or "here" at the property, and never say you have arrived. Do not narrate a journey or a location. If the landlord says they are waiting, asks if you are coming, or says you are expected or late right now, do NOT pretend to be there or on your way. Apologise briefly and withdraw: say something ordinary has come up so you cannot make it after all (keep the reason low-key and mundane, never urgent, dramatic, or an emergency), and do NOT offer to reschedule or arrange another time. Bow out cleanly rather than claim you are somewhere you are not.
