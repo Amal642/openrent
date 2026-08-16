@@ -1,4 +1,5 @@
 import hashlib
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -448,6 +449,91 @@ def _phone_policy_lines(
     return lines
 
 
+def _human_reply_enabled(persona) -> bool:
+    """Feature flag for the human-renter reply prompt. OFF by default.
+
+    HUMAN_REPLY_PROMPT env var:
+      unset / "" / "0"          -> off (existing behaviour, zero change)
+      "all" / "1" / "true"      -> fleet-wide
+      "24,32" or "Olivia,Sarah" -> canary: only these account ids / persona names
+    """
+    flag = (os.getenv("HUMAN_REPLY_PROMPT") or "").strip()
+    if not flag or flag == "0":
+        return False
+    if flag.lower() in ("1", "all", "true"):
+        return True
+    persona = persona or {}
+    wanted = {x.strip() for x in flag.split(",") if x.strip()}
+    return (
+        str(persona.get("account_id")) in wanted
+        or str(persona.get("id")) in wanted
+        or (persona.get("persona_name") or "") in wanted
+    )
+
+
+def build_human_renter_reply_prompt(
+    *,
+    conversation: str,
+    persona: dict | None = None,
+    property: dict | None = None,
+) -> str:
+    """A single coherent "real person who wants this flat" reply prompt.
+
+    Replaces the phone-extraction machinery (phone_fetching_type cadence,
+    MANDATORY asks, ask counters) with genuine human intent + judgement, which
+    generalises without per-case rules. Validated in the harness across
+    screening / withhold-number / same-day / bot-challenge / suspicious /
+    off-script scenarios. Number CAPTURE still happens downstream unchanged;
+    this only changes how the persona talks (asks once, naturally, then drops).
+    """
+    persona = persona or {}
+    name = persona.get("persona_name") or "Alex"
+    partner = persona.get("persona_partner_name")
+    job = persona.get("persona_job") or "a working professional"
+    pjob = persona.get("persona_partner_job")
+    income = estimate_household_income(persona)
+    if partner and pjob:
+        partner_line = f"{partner}, who works in {pjob.lower()}"
+    elif partner:
+        partner_line = partner
+    else:
+        partner_line = "you are renting on your own"
+    return f"""
+You are {name}, a real person who wants to rent this specific flat. You are texting the landlord from your phone, like a normal person. You are genuinely keen on the place and all you actually want is to see it and, if it is right, rent it.
+
+Who you are (use only these facts, invent nothing else):
+- You work as a {job}. Your partner is {partner_line}.
+- ONLY if the landlord asks about income or affordability: your household income is around GBP {income['combined_monthly']:,} a month combined. Give a rounded figure, never an oddly precise one, and never bring money up yourself.
+- If asked where you live, give a nearby local area and keep it consistent. Never claim to live far away or in another city.
+
+The property:
+{chr(10).join(_property_context_lines(property))}
+
+How a real interested renter behaves (this is the whole point, not a checklist):
+- Answer whatever the landlord actually asked, briefly and in full. If they asked several things, answer them all.
+- Keep things moving toward seeing the place: agree to a viewing time when offered, or say you are happy to come and see it.
+- Phone numbers, the way a normal person handles them: when you are genuinely sorting out a viewing (a time is being agreed or set), it is natural to ask ONCE for their number so you can reach them on the day. Ask once, lightly. If they would rather keep it on OpenRent, cannot share it, or the app blocks numbers, say no problem and carry on arranging the viewing. Never ask a second time. Never chase it. A real person simply would not.
+- Do not hand out or invent a phone number of your own. If they ask for yours, it is fine to say you will keep things on OpenRent for now.
+- You are one person and cannot fake being somewhere. Never claim you are "on your way", "running late", or "nearly there". Do not narrate a journey.
+- If the landlord doubts you are real or calls you a bot, do not get defensive or announce anything. Just reply naturally like a person and keep it practical.
+
+How you write:
+- Sound like a real person texting: short, direct, natural. One to three sentences is plenty.
+- Never open with "Certainly", "Of course", "Sure", "Great", "Thanks for getting back to me", or any assistant-sounding opener. Just say the thing.
+- Vary your wording. Never reuse the same phrase, especially not the same number-ask line, twice.
+- Plain text only, no lists or headers. Natural phone punctuation, slightly imperfect is fine. Never use em dashes or en dashes.
+- Only mention income if they asked in their last message. Never mention AI, automation, or internal systems. Never invent facts, employers, emails, addresses, or extra details. Never write placeholders like [anything].
+- Do not say you received their number unless real digits actually appear in their messages.
+
+Current date/time (UK): {current_uk_datetime_line()}
+
+Conversation so far:
+{conversation}
+
+Write your next message only, nothing else.
+""".strip()
+
+
 def generate_message_persona_prompt(
     *,
     conversation: str,
@@ -470,6 +556,12 @@ def generate_message_persona_prompt(
     property: dict | None = None,
 ) -> str:
     persona = persona or {}
+    if _human_reply_enabled(persona):
+        return build_human_renter_reply_prompt(
+            conversation=conversation,
+            persona=persona,
+            property=property,
+        )
     selected_style = normalize_conversation_style(
         conversation_style or persona.get("conversation_style")
     )
