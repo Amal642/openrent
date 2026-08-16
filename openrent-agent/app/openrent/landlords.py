@@ -103,7 +103,7 @@ async def get_landlord_property_count(page, landlord_id):
     return count
 
 
-async def landlord_is_agent(page, property_url, threshold=3):
+async def landlord_is_agent(page, property_url, threshold=3, listing_id=None):
     landlord_id = await extract_landlord_id(page, property_url)
 
     if not landlord_id:
@@ -113,7 +113,26 @@ async def landlord_is_agent(page, property_url, threshold=3):
     profile_url = f"/account/view/{landlord_id}"
 
     # Check DB cache — skip the second browser page load if result is fresh
-    from app.db.repository import get_landlord_by_profile_url, update_landlord_scan
+    from app.db.repository import (
+        get_landlord_by_profile_url,
+        update_landlord_scan,
+        attach_landlord_to_listing,
+    )
+
+    def _link_landlord(landlord):
+        # Persist the listing -> landlord link so a persona's threads can be
+        # grouped by landlord (prevents same-landlord contradictions across a
+        # landlord's listings). Purely additive — nothing reads
+        # Listing.landlord_id today — and a link failure must never break
+        # discovery, so it is best-effort.
+        if listing_id is None or landlord is None:
+            return
+        try:
+            attach_landlord_to_listing(listing_id, landlord.id)
+        except Exception as exc:
+            logger.warning(
+                f"attach_landlord_to_listing failed listing={listing_id}: {exc}"
+            )
 
     cached = get_landlord_by_profile_url(profile_url)
     if cached and cached.last_checked_at:
@@ -123,6 +142,7 @@ async def landlord_is_agent(page, property_url, threshold=3):
                 f"AGENT_CACHE_HIT landlord_id={landlord_id} "
                 f"is_agent={cached.is_agent} age_days={age_days}"
             )
+            _link_landlord(cached)
             return cached.is_agent
 
     logger.info(f"AGENT_CACHE_MISS landlord_id={landlord_id}")
@@ -130,7 +150,9 @@ async def landlord_is_agent(page, property_url, threshold=3):
     count = await get_landlord_property_count(page, landlord_id)
     is_agent = count > threshold
 
-    update_landlord_scan(profile_url, count, is_agent)
+    landlord = update_landlord_scan(profile_url, count, is_agent)
+
+    _link_landlord(landlord)
 
     logger.info(f"Agent check result: {is_agent}")
     return is_agent

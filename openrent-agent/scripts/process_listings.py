@@ -149,6 +149,7 @@ async def process_account_listings(
             is_agent = await landlord_is_agent(
                 page,
                 property_url,
+                listing_id=listing_pk,
             )
 
             if is_agent is None:
