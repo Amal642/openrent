@@ -133,6 +133,39 @@ def test_booked_reply_prompt_uses_dynamic_place():
     assert "phone number" in prompt
 
 
+def test_booked_reply_routes_to_reframe_when_human_prompt_enabled(monkeypatch):
+    """A booked viewing must go through the human reframe (which asks once,
+    accepts refusal, never claims to be travelling, and withdraws cleanly), NOT
+    the single-purpose phone-request prompt that spams asks + seeds fake-travel
+    no-show spirals. Regression guard for the Claude Road / E10 audit."""
+    monkeypatch.setenv("HUMAN_REPLY_PROMPT", "all")
+    prompt = build_reply_prompt(
+        "LANDLORD: Are you coming? You're late, it's 4pm. Where are you?",
+        stage="VIEWING_BOOKED",
+        persona=PERSONA,
+        place="Leicester",
+        landlord_asked_for_number=False,
+    )
+
+    assert "real person who wants to rent" in prompt  # reframe marker
+    assert "A viewing has already been arranged" not in prompt  # phone-request marker
+
+
+def test_booked_reply_falls_back_to_phone_request_when_reframe_disabled(monkeypatch):
+    """Flag off -> the old phone-request prompt is preserved (fully reversible)."""
+    monkeypatch.setenv("HUMAN_REPLY_PROMPT", "0")
+    prompt = build_reply_prompt(
+        "LANDLORD: Tomorrow at 7pm works.",
+        stage="VIEWING_BOOKED",
+        persona=PERSONA,
+        place="Leicester",
+        landlord_asked_for_number=False,
+    )
+
+    assert "A viewing has already been arranged" in prompt
+    assert "Leicester" in prompt
+
+
 def test_phone_request_prompt_mentions_coordination():
     prompt = build_phone_request_prompt(
         "LANDLORD: See you tomorrow.",

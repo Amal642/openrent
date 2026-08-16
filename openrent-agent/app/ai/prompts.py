@@ -193,7 +193,18 @@ def build_reply_prompt(
     if stage == "VIEWING_CANCELLED":
         return build_cancel_viewing_prompt(conversation)
 
-    if stage == "VIEWING_BOOKED" and not landlord_asked_for_number:
+    # A booked viewing must NOT be routed to the single-purpose phone-request
+    # prompt when the human reframe is active: that prompt re-asks for the number
+    # every turn (ignoring refusals) and seeds fake-travel claims ("on my way"),
+    # the exact no-show spiral seen on real threads. The reframe already handles a
+    # booked viewing correctly — ask once, accept a refusal, never claim to be
+    # travelling, and withdraw cleanly when it cannot attend — so let it. The
+    # old prompt stays as the fallback only when the reframe is disabled.
+    if (
+        stage == "VIEWING_BOOKED"
+        and not landlord_asked_for_number
+        and not _human_reply_enabled(persona)
+    ):
         return build_phone_request_prompt(
             conversation,
             place=place,
