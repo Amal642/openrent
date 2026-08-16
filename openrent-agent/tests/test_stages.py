@@ -41,6 +41,52 @@ def test_extract_viewing_datetime_ignores_old_time_after_reschedule():
     assert viewing == datetime(2026, 5, 21, 20, 0)
 
 
+def test_extract_viewing_datetime_anchors_to_message_time_not_processing_time():
+    """A day-less time ("6:15pm") must resolve against WHEN the landlord sent it,
+    not when the worker processes the thread. Regression for the Wardour/Tane
+    thread that stored a viewing 2 days late because of processing lag."""
+    messages = [
+        {
+            "sender": "landlord",
+            "message": "Yes lets do the viewing, 6:15pm would be great if that works?",
+            "timestamp": "2026-08-13T11:41:00+00:00",  # Thursday
+        },
+    ]
+
+    # Worker runs two days later — must still be the 13th, not the 15th.
+    viewing = extract_viewing_datetime(messages, now=datetime(2026, 8, 15, 14, 0))
+
+    assert viewing == datetime(2026, 8, 13, 18, 15)
+
+
+def test_extract_viewing_datetime_weekday_anchored_to_message_time():
+    """A weekday ("Tuesday") must resolve to the Tuesday following the MESSAGE,
+    not the next Tuesday after processing (which drifts a full week)."""
+    messages = [
+        {
+            "sender": "landlord",
+            "message": "See you Tuesday at 12:00 for the viewing.",
+            "timestamp": "2026-08-08T13:00:00+00:00",  # Saturday
+        },
+    ]
+
+    # Processed the following Wednesday — must be 08-11, not 08-18.
+    viewing = extract_viewing_datetime(messages, now=datetime(2026, 8, 12, 9, 0))
+
+    assert viewing == datetime(2026, 8, 11, 12, 0)
+
+
+def test_extract_viewing_datetime_falls_back_to_now_without_timestamp():
+    """No message timestamp -> anchor to `now` (prior behaviour preserved)."""
+    messages = [
+        {"sender": "landlord", "message": "See you Tuesday at 12:00 for the viewing."},
+    ]
+
+    viewing = extract_viewing_datetime(messages, now=datetime(2026, 8, 8, 13, 0))
+
+    assert viewing == datetime(2026, 8, 11, 12, 0)
+
+
 def test_extract_viewing_datetime_treats_bare_afternoon_hour_as_pm():
     now = datetime(2026, 6, 4, 17, 0)
     messages = [

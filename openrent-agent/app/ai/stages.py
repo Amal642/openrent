@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.db.status import (
     VIEWING_DISCUSSION,
@@ -91,6 +91,48 @@ def _is_explicit_time_match(match) -> bool:
     has_minutes = match.group(2) is not None
     has_ampm = bool((match.group(3) or "").strip())
     return has_minutes or has_ampm
+
+
+def _message_time(message):
+    """Best-effort naive-UTC datetime for WHEN a message was sent.
+
+    Relative/underspecified dates ("6:15pm", "Tuesday") must resolve against the
+    moment the landlord spoke, not when the worker happens to process the thread
+    (a processing lag pushed one real viewing 2 days into the future). Returns
+    None when no timestamp is present, so callers fall back to `now`.
+    """
+    if not isinstance(message, dict):
+        return None
+    for key in ("timestamp", "received_at", "created_at"):
+        value = message.get(key)
+        if value in (None, ""):
+            continue
+        dt = value if isinstance(value, datetime) else _parse_message_ts(str(value))
+        if dt is not None:
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
+    return None
+
+
+def _parse_message_ts(value):
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        if value.isdigit():
+            numeric = int(value)
+            if numeric > 10_000_000_000:  # milliseconds
+                numeric = numeric / 1000
+            return datetime.fromtimestamp(numeric, tz=timezone.utc)
+    except Exception:
+        pass
+    for candidate in (value, value.replace("Z", "+00:00")):
+        try:
+            return datetime.fromisoformat(candidate)
+        except Exception:
+            pass
+    return None
 
 
 def _target_date_from_text(text, now):
@@ -219,13 +261,14 @@ def _part_of_day_datetime(messages, now):
         text = _message_text(message).lower()
         if not WEEKDAY_PATTERN.search(text):
             continue
+        ref = _message_time(message) or now
         for word, hour in PART_OF_DAY_HOURS.items():
             if word in text:
-                target_date = _target_date_from_text(text, now)
+                target_date = _target_date_from_text(text, ref)
                 candidate = datetime.combine(
                     target_date, datetime.min.time()
                 ).replace(hour=hour)
-                if candidate < now:
+                if candidate < ref:
                     candidate += timedelta(days=1)
                 return candidate
     return None
@@ -251,6 +294,10 @@ def extract_viewing_datetime(messages, now=None):
             )
         ):
             continue
+        # Anchor date resolution to WHEN this message was sent, not to the
+        # worker's processing time. Falls back to `now` if the message carries
+        # no timestamp (preserves prior behaviour and the explicit-now tests).
+        ref = _message_time(message) or now
         for match in TIME_PATTERN.finditer(text):
             # Require an explicit time (:MM / .MM or am/pm). That alone excludes
             # bare date components like "05"/"06" in "05/06", so no date-overlap
@@ -258,7 +305,7 @@ def extract_viewing_datetime(messages, now=None):
             # time that a greedy "6-6" numeric-date match would otherwise swallow.
             if not _is_explicit_time_match(match):
                 continue
-            candidates.append((text, match))
+            candidates.append((text, match, ref))
 
     if not candidates:
         fallback = _part_of_day_datetime(recent, now)
@@ -268,7 +315,7 @@ def extract_viewing_datetime(messages, now=None):
         _stage_log("VIEWING_DATETIME_EXTRACTED", "no candidates — no time found in booking/discussion messages")
         return None
 
-    combined, time_match = candidates[-1]
+    combined, time_match, ref = candidates[-1]
 
     if not time_match:
         return None
@@ -284,14 +331,14 @@ def extract_viewing_datetime(messages, now=None):
     elif not suffix and 1 <= hour <= 7:
         hour += 12
 
-    target_date = _target_date_from_text(combined, now)
+    target_date = _target_date_from_text(combined, ref)
 
     candidate = datetime.combine(target_date, datetime.min.time()).replace(
         hour=hour,
         minute=minute,
     )
 
-    if candidate < now:
+    if candidate < ref:
         candidate += timedelta(days=1)
 
     _stage_log("VIEWING_DATETIME_EXTRACTED", f"extracted datetime={candidate}")
