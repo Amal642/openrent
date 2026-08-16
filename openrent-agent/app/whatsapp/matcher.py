@@ -398,7 +398,75 @@ def match_by_evidence(
                     candidate["reason"] = "unique_name"
                     break
 
+        # Handoff-intent prior: boost/add candidates for threads we recently gave
+        # the WhatsApp number to (a landlord just handed the number almost
+        # certainly belongs to that thread). Feeds well-founded candidates to the
+        # caller's threshold+gap logic WITHOUT changing it; no intents -> unchanged.
+        _apply_handoff_prior(db, candidates, names, property_hints)
+
         candidates.sort(key=lambda x: x["confidence"], reverse=True)
         return candidates, candidates[0]["confidence"] if candidates else 0.0
     finally:
         db.close()
+
+
+def _apply_handoff_prior(db, candidates, names, property_hints):
+    """Boost/add candidates from recent, unconsumed WhatsApp handoff intents.
+
+    A landlord we handed the number to in the last 7 days is a strong prior for
+    that thread, so a name-only match here outweighs the generic name-only cap
+    (72). Confidences stay below certainty so the caller's threshold+gap logic
+    still resolves ambiguity (two similar recent handoffs -> stays UNMATCHED ->
+    asks "which property?"). Fail-safe: any error degrades to normal matching.
+    """
+    from datetime import datetime, timedelta
+    from app.db.models import WhatsAppHandoffIntent
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=7)
+        intents = (
+            db.query(WhatsAppHandoffIntent)
+            .filter(
+                WhatsAppHandoffIntent.created_at >= cutoff,
+                WhatsAppHandoffIntent.matched_contact_id.is_(None),
+            )
+            .all()
+        )
+    except Exception as exc:
+        logger.warning(f"WHATSAPP_HANDOFF_PRIOR_SKIPPED error={exc}")
+        return
+    if not intents:
+        return
+    by_listing = {c["listing_id"]: c for c in candidates}
+    for intent in intents:
+        nm = max((_name_score(n, intent.landlord_name) for n in names), default=0.0)
+        pm = max((_property_score(h, intent.property_address) for h in property_hints), default=0.0)
+        if nm < 50 and pm < 50:
+            continue
+        if pm >= 50 and nm >= 50:
+            conf = min(97.0, 82.0 + pm * 0.12)
+        elif pm >= 50:
+            conf = min(95.0, 80.0 + pm * 0.12)
+        else:
+            conf = min(88.0, 70.0 + nm * 0.18)
+        existing = by_listing.get(intent.listing_id)
+        if existing:
+            if conf > existing["confidence"]:
+                existing["confidence"] = conf
+                existing["reason"] = "handoff"
+        else:
+            cand = {
+                "listing_id": intent.listing_id,
+                "listing_listing_id": None,
+                "thread_id": intent.thread_id,
+                "landlord_name": intent.landlord_name,
+                "landlord_id": None,
+                "property_address": intent.property_address,
+                "confidence": conf,
+                "name_score": nm,
+                "property_score": pm,
+                "matched_name": None,
+                "matched_property_hint": None,
+                "reason": "handoff",
+            }
+            candidates.append(cand)
+            by_listing[intent.listing_id] = cand

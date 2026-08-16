@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from app.db.connection import SessionLocal
-from app.db.models import Conversation, Listing, WhatsAppContact
+from app.db.models import Conversation, Listing, WhatsAppContact, WhatsAppHandoffIntent
 
 
 def _json_list(value: str | None) -> list:
@@ -508,6 +508,53 @@ def get_conversation_for_contact(contact: WhatsAppContact) -> Optional[Conversat
                 .first()
             )
         return None
+    finally:
+        db.close()
+
+
+def record_handoff_intent(thread_id: str) -> Optional[WhatsAppHandoffIntent]:
+    """Record that we just shared the WhatsApp number on an OpenRent thread.
+
+    Called when the reply prompt hands out the husband's WhatsApp number so a
+    later inbound WhatsApp from that landlord can be matched back to the correct
+    property/thread (see matcher._apply_handoff_prior). Best-effort: resolves the
+    thread's Conversation -> Listing to snapshot the landlord name + address.
+    Idempotent-ish: skips if an unconsumed intent for this thread already exists.
+    """
+    if not thread_id:
+        return None
+    db = SessionLocal()
+    try:
+        conv = (
+            db.query(Conversation)
+            .filter(Conversation.thread_id == thread_id)
+            .first()
+        )
+        listing = None
+        if conv and conv.listing_id:
+            listing = db.query(Listing).filter(Listing.id == conv.listing_id).first()
+
+        existing = (
+            db.query(WhatsAppHandoffIntent)
+            .filter(
+                WhatsAppHandoffIntent.thread_id == thread_id,
+                WhatsAppHandoffIntent.matched_contact_id.is_(None),
+            )
+            .first()
+        )
+        if existing:
+            return existing
+
+        intent = WhatsAppHandoffIntent(
+            thread_id=thread_id,
+            listing_id=(listing.id if listing else (conv.listing_id if conv else None)),
+            landlord_name=(listing.landlord_name if listing else None),
+            property_address=(listing.property_address if listing else None),
+        )
+        db.add(intent)
+        db.commit()
+        db.refresh(intent)
+        return intent
     finally:
         db.close()
 

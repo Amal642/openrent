@@ -489,6 +489,25 @@ class WhatsAppContact(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class WhatsAppHandoffIntent(Base):
+    """Recorded when the AI shares the WhatsApp number on an OpenRent thread.
+
+    Gives the WhatsApp matcher a strong, narrow prior: an inbound from a landlord
+    we just handed the number to almost certainly belongs to that thread — far
+    more reliable than fuzzy-matching against all listings. Consumed
+    (matched_contact_id set) once linked to an inbound contact.
+    """
+    __tablename__ = "whatsapp_handoff_intents"
+
+    id = Column(Integer, primary_key=True)
+    thread_id = Column(String, nullable=True, index=True)
+    listing_id = Column(Integer, nullable=True)
+    landlord_name = Column(String, nullable=True)
+    property_address = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    matched_contact_id = Column(Integer, nullable=True)
+
+
 # ---------------- APP SETTINGS (generic persisted key/value flags) ----------------
 
 class AppSetting(Base):
