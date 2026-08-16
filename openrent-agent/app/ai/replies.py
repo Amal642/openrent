@@ -229,6 +229,31 @@ def count_number_asks(messages):
     )
 
 
+def _record_handoff_if_shared(thread_id, reply, mobile_number):
+    """If we just shared the give-out WhatsApp number on a real OpenRent thread,
+    record a handoff intent so a later inbound WhatsApp maps back to this
+    property/thread (see whatsapp.matcher._apply_handoff_prior).
+
+    Detection is digit-normalised so number formatting never matters. Guarded on
+    thread_id, so sim-lab / non-thread callers never record. Best-effort: a
+    bookkeeping failure must never break sending the actual reply.
+    """
+    if not thread_id or not reply or not mobile_number:
+        return
+    digits = re.sub(r"\D", "", mobile_number)
+    if not digits or digits not in re.sub(r"\D", "", reply):
+        return
+    try:
+        from app.whatsapp.repository import record_handoff_intent
+
+        record_handoff_intent(str(thread_id))
+        logger.info(f"WHATSAPP_HANDOFF_INTENT_RECORDED thread_id={thread_id}")
+    except Exception as exc:
+        logger.warning(
+            f"WHATSAPP_HANDOFF_INTENT_SKIPPED thread_id={thread_id} error={exc}"
+        )
+
+
 def generate_reply(
     messages,
     stage=None,
@@ -281,13 +306,19 @@ def generate_reply(
             landlord_attitude=landlord_attitude or "responsive",
         )
         if phone_reply:
-            return (
-                remove_unapproved_phone_numbers(
-                    phone_reply,
-                    (persona or {}).get("mobile_number"),
-                ),
-                None,
+            # Sanitize dashes BEFORE the phone cleanup so the template's em dash
+            # ("Of course — my husband's...") becomes a comma and the trailing
+            # space is collapsed by remove_unapproved_phone_numbers. Without this
+            # the shortcut reply keeps an em dash, an AI-polished tell the reframe
+            # path strips everywhere else.
+            shared = remove_unapproved_phone_numbers(
+                _sanitize_dashes(phone_reply),
+                (persona or {}).get("mobile_number"),
             )
+            _record_handoff_if_shared(
+                thread_id, shared, (persona or {}).get("mobile_number")
+            )
+            return shared, None
 
     def build_prompt(conversation_text: str) -> str:
         # travel_city is pre-resolved for all stages by the caller; use it
@@ -350,6 +381,7 @@ def generate_reply(
                 if is_valid_reply(candidate):
                     reply = candidate
 
+    _record_handoff_if_shared(thread_id, reply, (persona or {}).get("mobile_number"))
     return reply, None
 
 
