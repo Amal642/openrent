@@ -18,6 +18,7 @@ from app.db.repository import (
     save_message_once,
     is_outreach_due,
     set_next_outreach_at,
+    landlord_already_contacted,
 )
 
 from app.openrent.popups import (close_popups, handle_confirmation_popups)
@@ -165,6 +166,26 @@ async def process_account_listings(
                 mark_listing_skipped(listing_pk, reason="agent")
                 agent_skipped += 1
                 continue
+
+            # Fleet-wide landlord dedup: landlord_is_agent above just linked this
+            # listing to its landlord. If we've already messaged that landlord via
+            # another listing, skip this one — one landlord = one persona = one
+            # thread, so a landlord never sees contradictory enquiries across their
+            # listings (the "are you a scammer?" case). Best-effort: any failure
+            # falls through to normal contact, never blocking discovery.
+            try:
+                if landlord_already_contacted(listing_pk):
+                    logger.info(
+                        f"LANDLORD_DEDUP_SKIP listing={listing_ext_id} "
+                        "— landlord already contacted via another listing"
+                    )
+                    mark_listing_skipped(listing_pk, reason="landlord_already_contacted")
+                    skipped_other += 1
+                    continue
+            except Exception as exc:
+                logger.warning(
+                    f"landlord dedup check failed listing={listing_pk}: {exc}"
+                )
 
             await open_listing(page, property_url)
 

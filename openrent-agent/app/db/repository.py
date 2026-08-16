@@ -2701,6 +2701,31 @@ def attach_landlord_to_listing(listing_id, landlord_id):
             db.commit()
 
 
+def landlord_already_contacted(listing_id) -> bool:
+    """True if this listing's landlord has already been messaged via ANOTHER
+    listing (fleet-wide). Used to avoid contacting one landlord about multiple
+    listings — the source of cross-listing "are you a scammer?" contradictions
+    (one persona withdrawing on one flat while booking the landlord's other).
+
+    Fail-open: returns False when the landlord is unknown (landlord_id not yet
+    linked), so discovery is never blocked by missing identity.
+    """
+    with session_scope() as db:
+        listing = db.query(Listing).filter(Listing.id == listing_id).first()
+        if not listing or listing.landlord_id is None:
+            return False
+        other = (
+            db.query(Listing.id)
+            .filter(
+                Listing.landlord_id == listing.landlord_id,
+                Listing.id != listing_id,
+                Listing.message_sent == True,
+            )
+            .first()
+        )
+        return other is not None
+
+
 def delete_stale_uncontacted_listings(days: int = 30) -> int:
     """Delete fetched listings that were never messaged and are older than `days` days.
     Only touches message_sent=False rows — never deletes listings with sent messages."""
@@ -3351,6 +3376,90 @@ def detect_and_mark_failed_accounts():
                 account.failure_reason = (
                     f"No landlord replies received after 2 consecutive days of outreach "
                     f"({sent_day1} messages on day 1, {sent_day0} messages on day 2)."
+                )
+
+        db.commit()
+
+
+# Degradation / soft-ban detection.
+#
+# The zero-reply detector above only catches a TOTAL collapse (0 inbound over
+# two days). OpenRent soft-bans present earlier and subtler: the account still
+# logs in, still sends, and still receives SOME replies — but its landlord
+# reply rate falls far below the healthy fleet (which sits at 60-90%) and phone
+# capture drops to ~0. Such accounts keep consuming listing inventory while
+# converting almost nothing, dragging a whole region's numbers down (this is
+# exactly what happened to the older South-London cohort in Jul-Aug 2026).
+#
+# Because a flagged account is now benched by the scheduler, the thresholds are
+# deliberately conservative to avoid benching a merely-slow account: judged only
+# over a rolling window, only above a minimum conversation volume, and only when
+# BOTH reply rate and phone capture are low (an account that gets replies but
+# doesn't close is a prompt problem, not a dead account — leave it running).
+DEGRADED_WINDOW_DAYS = 7
+DEGRADED_MIN_CONVERSATIONS = 20
+DEGRADED_MAX_REPLY_RATE = 0.35
+DEGRADED_MAX_PHONE_RATE = 0.05
+
+
+def detect_and_mark_degraded_accounts():
+    """Bench active accounts whose landlord engagement has collapsed.
+
+    An account is flagged failed (which the scheduler treats as a bench) when,
+    over the last ``DEGRADED_WINDOW_DAYS`` days, it held at least
+    ``DEGRADED_MIN_CONVERSATIONS`` conversations yet its reply rate is at or
+    below ``DEGRADED_MAX_REPLY_RATE`` AND its phone-capture rate is at or below
+    ``DEGRADED_MAX_PHONE_RATE`` — the signature of an OpenRent soft-ban.
+    """
+    from app.utils.logger import logger
+
+    since = datetime.utcnow() - timedelta(days=DEGRADED_WINDOW_DAYS)
+
+    with session_scope() as db:
+        accounts = (
+            db.query(Account)
+            .filter(Account.active == True, Account.deleted_at == None)  # noqa: E711,E712
+            .all()
+        )
+
+        for account in accounts:
+            if account.failed:
+                continue
+
+            convos, replied, phones = (
+                db.query(
+                    func.count(Conversation.id),
+                    func.count(Conversation.last_processed_message),
+                    func.count(Conversation.extracted_phone),
+                )
+                .join(Listing, Conversation.listing_id == Listing.id)
+                .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+                .filter(
+                    SearchProfile.account_id == account.id,
+                    Conversation.created_at >= since,
+                )
+                .one()
+            )
+            convos = convos or 0
+            if convos < DEGRADED_MIN_CONVERSATIONS:
+                continue
+
+            reply_rate = (replied or 0) / convos
+            phone_rate = (phones or 0) / convos
+
+            if reply_rate <= DEGRADED_MAX_REPLY_RATE and phone_rate <= DEGRADED_MAX_PHONE_RATE:
+                account.failed = True
+                account.failed_at = datetime.utcnow()
+                account.failure_reason = (
+                    f"Degraded/soft-banned: over the last {DEGRADED_WINDOW_DAYS}d had "
+                    f"{convos} conversations but only {round(reply_rate * 100)}% landlord "
+                    f"reply rate and {round(phone_rate * 100)}% phone capture "
+                    f"(healthy fleet is 60-90% reply). Benched pending review."
+                )
+                logger.warning(
+                    "DEGRADED_ACCOUNT_BENCHED "
+                    f"account_id={account.id} email={account.email} "
+                    f"convos={convos} reply_rate={reply_rate:.2f} phone_rate={phone_rate:.2f}"
                 )
 
         db.commit()
