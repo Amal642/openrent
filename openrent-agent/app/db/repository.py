@@ -2707,23 +2707,58 @@ def landlord_already_contacted(listing_id) -> bool:
     listings — the source of cross-listing "are you a scammer?" contradictions
     (one persona withdrawing on one flat while booking the landlord's other).
 
-    Fail-open: returns False when the landlord is unknown (landlord_id not yet
-    linked), so discovery is never blocked by missing identity.
+    Hybrid identity, layered by confidence:
+      1. landlord_id (true OpenRent identity) — catches the same landlord across
+         ANY of their listings (same flat OR different flats). Only ~1.5% of
+         already-messaged listings are linked today (linking shipped recently and
+         legacy rows are never re-processed), so this alone almost never matches.
+      2. Fallback: same landlord_name + property_address — catches the same flat
+         double-posted as two listings, using data already on the row (no
+         landlord_id needed). This is what actually protects the ~98.5% unlinked
+         legacy fleet right now. Exact (case-insensitive, trimmed) match keeps it
+         high-precision; it deliberately does NOT dedup on name alone (OpenRent
+         names are "First L." and collide).
+
+    Fail-open on both paths: returns False when neither identity is available, so
+    discovery is never blocked by missing data.
     """
     with session_scope() as db:
         listing = db.query(Listing).filter(Listing.id == listing_id).first()
-        if not listing or listing.landlord_id is None:
+        if not listing:
             return False
-        other = (
-            db.query(Listing.id)
-            .filter(
-                Listing.landlord_id == listing.landlord_id,
-                Listing.id != listing_id,
-                Listing.message_sent == True,
+
+        # 1) True landlord identity (any of their listings).
+        if listing.landlord_id is not None:
+            other = (
+                db.query(Listing.id)
+                .filter(
+                    Listing.landlord_id == listing.landlord_id,
+                    Listing.id != listing_id,
+                    Listing.message_sent == True,
+                )
+                .first()
             )
-            .first()
-        )
-        return other is not None
+            if other is not None:
+                return True
+
+        # 2) Same-flat double-post fallback (works on unlinked legacy rows).
+        name = (listing.landlord_name or "").strip()
+        addr = (listing.property_address or "").strip()
+        if name and addr:
+            other = (
+                db.query(Listing.id)
+                .filter(
+                    func.lower(func.trim(Listing.landlord_name)) == name.lower(),
+                    func.lower(func.trim(Listing.property_address)) == addr.lower(),
+                    Listing.id != listing_id,
+                    Listing.message_sent == True,
+                )
+                .first()
+            )
+            if other is not None:
+                return True
+
+        return False
 
 
 def delete_stale_uncontacted_listings(days: int = 30) -> int:

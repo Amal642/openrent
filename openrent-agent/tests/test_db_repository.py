@@ -503,6 +503,87 @@ def test_backfill_can_requeue_existing_location_exports(db_session):
         assert export.exported_at is None
 
 
+def _mk_listing(session, *, listing_id, landlord_id=None, landlord_name=None,
+                property_address=None, message_sent=False, url=None):
+    listing = Listing(
+        listing_id=listing_id,
+        property_url=url or f"https://example.com/{listing_id}",
+        landlord_id=landlord_id,
+        landlord_name=landlord_name,
+        property_address=property_address,
+        message_sent=message_sent,
+    )
+    session.add(listing)
+    session.flush()
+    return listing.id
+
+
+def test_landlord_dedup_fallback_matches_same_flat_double_post(db_session):
+    """The Tane B. case: same landlord double-posts the same flat as two
+    listings, neither linked to a landlord_id. The already-messaged sibling must
+    still be found via landlord_name + property_address."""
+    with db_session() as session:
+        _mk_listing(session, listing_id="A", landlord_name="Tane B.",
+                    property_address="Wardour Place, SL1", message_sent=True)
+        new_id = _mk_listing(session, listing_id="B", landlord_name="tane b. ",
+                             property_address=" wardour place, sl1", message_sent=False)
+        session.commit()
+
+    assert repository.landlord_already_contacted(new_id) is True
+
+
+def test_landlord_dedup_fallback_ignores_different_address(db_session):
+    """Same landlord name but a DIFFERENT flat must NOT dedup on name alone
+    (OpenRent names are 'First L.' and collide)."""
+    with db_session() as session:
+        _mk_listing(session, listing_id="A", landlord_name="James S.",
+                    property_address="1 Oak Road, E1", message_sent=True)
+        new_id = _mk_listing(session, listing_id="B", landlord_name="James S.",
+                             property_address="9 Pine Ave, W2", message_sent=False)
+        session.commit()
+
+    assert repository.landlord_already_contacted(new_id) is False
+
+
+def test_landlord_dedup_primary_matches_by_landlord_id_across_flats(db_session):
+    """When landlord_id IS linked, the same landlord is deduped across DIFFERENT
+    flats — the case name+address cannot catch."""
+    with db_session() as session:
+        _mk_listing(session, listing_id="A", landlord_id=42,
+                    landlord_name="Priya K.", property_address="1 Oak Road, E1",
+                    message_sent=True)
+        new_id = _mk_listing(session, listing_id="B", landlord_id=42,
+                             landlord_name="Priya K.", property_address="9 Pine Ave, W2",
+                             message_sent=False)
+        session.commit()
+
+    assert repository.landlord_already_contacted(new_id) is True
+
+
+def test_landlord_dedup_only_counts_contacted_siblings(db_session):
+    """A duplicate flat whose sibling was never messaged is not a dedup hit."""
+    with db_session() as session:
+        _mk_listing(session, listing_id="A", landlord_name="Sam W.",
+                    property_address="5 Elm St, N1", message_sent=False)
+        new_id = _mk_listing(session, listing_id="B", landlord_name="Sam W.",
+                             property_address="5 Elm St, N1", message_sent=False)
+        session.commit()
+
+    assert repository.landlord_already_contacted(new_id) is False
+
+
+def test_landlord_dedup_fails_open_without_identity(db_session):
+    """No landlord_id and missing name/address -> never blocks discovery."""
+    with db_session() as session:
+        _mk_listing(session, listing_id="A", property_address="5 Elm St, N1",
+                    message_sent=True)  # no landlord_name
+        new_id = _mk_listing(session, listing_id="B", property_address="5 Elm St, N1",
+                             message_sent=False)
+        session.commit()
+
+    assert repository.landlord_already_contacted(new_id) is False
+
+
 def test_mark_listing_skipped_is_not_processing_failure(db_session):
     with db_session() as session:
         listing = Listing(
