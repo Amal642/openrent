@@ -166,6 +166,36 @@ def test_booked_reply_falls_back_to_phone_request_when_reframe_disabled(monkeypa
     assert "Leicester" in prompt
 
 
+def test_reframe_uses_single_plausible_origin_when_place_given(monkeypatch):
+    """Geography reconciliation: with a travel origin, the reframe states ONE
+    consistent place (relocating from it) instead of "claim a local area", so it
+    no longer contradicts the pre-cancel ask's "travelling in from {place}"."""
+    from app.ai.prompts import build_human_renter_reply_prompt
+
+    p = build_human_renter_reply_prompt(
+        conversation="Landlord: Where do you live?", persona=PERSONA, place="Oxford"
+    )
+    assert "relocating to this area from Oxford" in p
+    assert "give a nearby local area" not in p
+    # The anti-presence rule must survive (origin is not a licence to narrate a journey).
+    assert "Never claim to be on your way" in p
+
+
+def test_reframe_falls_back_to_local_without_place():
+    from app.ai.prompts import build_human_renter_reply_prompt
+
+    p = build_human_renter_reply_prompt(conversation="x", persona=PERSONA)
+    assert "give a nearby local area" in p
+
+
+def test_drive_distance_targets_short_journey_not_far_city():
+    from app.ai.prompts import build_drive_distance
+
+    prompt = build_drive_distance("Bourne End SL8")
+    assert "1 to 2 hour" in prompt
+    assert "4 to 5 hours" not in prompt
+
+
 def test_phone_request_prompt_mentions_coordination():
     prompt = build_phone_request_prompt(
         "LANDLORD: See you tomorrow.",

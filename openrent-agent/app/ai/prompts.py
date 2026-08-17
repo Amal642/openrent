@@ -497,6 +497,7 @@ def build_human_renter_reply_prompt(
     conversation: str,
     persona: dict | None = None,
     property: dict | None = None,
+    place: str | None = None,
 ) -> str:
     """A single coherent "real person who wants this flat" reply prompt.
 
@@ -519,13 +520,31 @@ def build_human_renter_reply_prompt(
         partner_line = partner
     else:
         partner_line = "you are renting on your own"
+    origin = (place or "").strip()
+    if origin:
+        # One consistent, plausible origin (~1-2h away, set upstream) used both
+        # here and in the pre-cancel number-ask, so the story never contradicts.
+        # It only anchors "where do you live" + gives the number-ask a reason; it
+        # is NEVER a licence to narrate a live journey (the withdraw rule below
+        # still forbids "on my way").
+        where_you_live = (
+            f"- You are relocating to this area from {origin}, an hour or two away, "
+            f"a normal distance to move for the right place. If the landlord asks where "
+            f"you live or where you are coming from, say {origin} and keep it consistent. "
+            f"Never name a different town, and never make the journey sound long, far, or dramatic."
+        )
+    else:
+        where_you_live = (
+            "- If asked where you live, give a nearby local area and keep it consistent. "
+            "Never claim to live far away or in another city."
+        )
     return f"""
 You are {name}, a real person who wants to rent this specific flat. You are texting the landlord from your phone, like a normal person. You are genuinely keen on the place and all you actually want is to see it and, if it is right, rent it.
 
 Who you are (use only these facts, invent nothing else):
 - You work as a {job}. Your partner is {partner_line}.
 - ONLY if the landlord asks about income or affordability: your household income is around GBP {income['combined_monthly']:,} a month combined. Give a rounded figure, never an oddly precise one, and never bring money up yourself.
-- If asked where you live, give a nearby local area and keep it consistent. Never claim to live far away or in another city.
+{where_you_live}
 
 The property:
 {chr(10).join(_property_context_lines(property))}
@@ -584,6 +603,7 @@ def generate_message_persona_prompt(
             conversation=conversation,
             persona=persona,
             property=property,
+            place=origin_place,
         )
     selected_style = normalize_conversation_style(
         conversation_style or persona.get("conversation_style")
@@ -947,8 +967,8 @@ Conversation:
 
 def build_pre_cancel_number_ask_prompt(conversation: str, place: str | None = None) -> str:
     travel_line = (
-        f"You are travelling in from {place} to reach the viewing, so it is not a short local trip. "
-        f"Do not state a specific journey length or number of hours."
+        f"You are travelling in from {place} for the viewing, so having a number helps in case you are held up on the way. "
+        f"Keep {place} consistent and do not state a specific journey length or number of hours."
         if place else ""
     )
     return f"""
@@ -1030,26 +1050,19 @@ def build_drive_distance(origin_place: str) -> str:
     return f"""
 You are a travel assistant in the UK.
 
-Find one real town or city that is approximately
-4 to 5 hours driving distance from:
+Find one real town or city that is roughly a 1 to 2 hour drive from the
+location below, and NEVER more than 2 hours away. It should be a believable
+place someone might reasonably relocate from, not far across the country.
 
-Origin Location: "{origin_place}"
+Location: "{origin_place}"
 
 Requirements:
 - Only suggest real places reachable by road.
+- Keep it within about 2 hours' drive of the location above.
 - Prefer populated towns or cities over tiny villages.
-- Avoid ferries unless necessary.
+- Avoid ferries.
 - Return ONLY one place name.
 - No explanation, punctuation, or extra text.
-
-Valid example outputs:
-Manchester
-Derby
-Birmingham
-Leicester
-Nottingham
-Liverpool
-Sheffield
 """.strip()
 
 
