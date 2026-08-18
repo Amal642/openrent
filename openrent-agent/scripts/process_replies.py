@@ -76,8 +76,9 @@ from app.experiments import playbook_ab  # OPEN-21D playbook A/B
 from app.ai.validators import (
     remove_unapproved_phone_numbers
 )
-from app.ai.personas import tenant_shared_phone
+from app.ai.personas import tenant_shared_phone, generate_phone_share_reply
 from app.ai.reply_gate import post_capture_decision
+from app.whatsapp.repository import record_handoff_intent
 
 from app.ai.conversation_memory import (
     detect_landlord_attitude,
@@ -466,6 +467,60 @@ async def _send_pre_cancel_number_ask(
     return True
 
 
+async def _try_giveout_salvage(
+    thread_id, conversation, account, messages, latest_landlord_message, page,
+    require_landlord_asked: bool = True,
+) -> bool:
+    """Share our WhatsApp give-out number before abandoning a no-phone viewing.
+
+    A landlord who is willing to hand over their number but is blocked by
+    OpenRent's in-platform redaction ("(Number Removed)") otherwise ends as a
+    silent cancellation — a lost lead. Instead, hand them our give-out WhatsApp
+    once so they still have a channel to reach us (and record a handoff intent
+    so any later WhatsApp maps back to this property).
+
+    Returns True when the give-out was sent so the caller can defer the cancel
+    one run. Guarded on ``our_number_shared_at`` so it fires at most once; the
+    next run then cancels normally if no lead arrived. ``require_landlord_asked``
+    is True in the pre-cancel path (only salvage when the landlord engaged on
+    contact details) and False in the post-cancel path (they already replied).
+    """
+    if getattr(conversation, "extracted_phone", None):
+        return False
+    if getattr(conversation, "our_number_shared_at", None):
+        return False
+    if require_landlord_asked and not getattr(conversation, "landlord_asked_phone_at", None):
+        return False
+    persona = ensure_account_persona(account.id)
+    mobile = (persona or {}).get("mobile_number")
+    if not mobile:
+        return False
+    reply = generate_phone_share_reply(
+        persona,
+        landlord_attitude=getattr(conversation, "landlord_attitude", "responsive") or "responsive",
+    )
+    if not reply:
+        return False
+    sent = await send_reply(page, reply)
+    if not sent:
+        still_open = await can_reply(page)
+        if not still_open:
+            update_conversation_status(thread_id, REPLY_DISABLED)
+        logger.warning(f"GIVEOUT_SALVAGE_SEND_FAILED thread_id={thread_id}")
+        return False
+    save_message(thread_id, "outbound", reply)
+    mark_our_number_shared(thread_id)
+    try:
+        record_handoff_intent(thread_id)
+    except Exception as exc:
+        logger.warning(
+            f"GIVEOUT_SALVAGE_HANDOFF_INTENT_SKIPPED thread_id={thread_id} error={exc}"
+        )
+    update_last_processed_message(thread_id, latest_landlord_message)
+    logger.info(f"GIVEOUT_SALVAGE_SENT thread_id={thread_id}")
+    return True
+
+
 async def _try_save_viewing_datetime(thread_id, messages) -> bool:
     """
     Extract a viewing datetime from messages and save it to DB.
@@ -763,10 +818,23 @@ async def process_account_replies(
                     update_last_processed_message(thread_id, latest_landlord_message)
                     continue
 
-                logger.info(
-                    f"REPLY_AFTER_CANCEL thread_id={thread_id} "
-                    "reason=no_phone_landlord_replied — resuming reply flow"
+                # We cancelled on the landlord — do NOT fall through to the
+                # generic reply prompt. It has no idea we withdrew and emits a
+                # backwards closer ("if anything changes on your end, keep me in
+                # mind") as if THEY lost interest in us. Share our WhatsApp
+                # give-out once (a willing-but-redacted landlord can still reach
+                # us), then go quiet rather than re-asking for a number they
+                # already told us OpenRent blocks.
+                await _try_giveout_salvage(
+                    thread_id, conversation, account, messages,
+                    latest_landlord_message, page, require_landlord_asked=False,
                 )
+                update_last_processed_message(thread_id, latest_landlord_message)
+                logger.info(
+                    f"POST_CANCEL_QUIET thread_id={thread_id} "
+                    "reason=we_withdrew — no generic re-engage"
+                )
+                continue
 
             # Viewing confirmed — 2-step cancel flow:
             #   Step 1: ask for landlord's number (pre-cancel ask)
@@ -836,6 +904,16 @@ async def process_account_replies(
 
                 if in_cancel_window:
                     if safe_to_cancel:
+                        # Salvage before withdrawing: if we never captured the
+                        # landlord's number (e.g. OpenRent redacted it) but they
+                        # engaged on contact details, hand over our WhatsApp
+                        # give-out once and defer the cancel one run so a reply
+                        # can convert this into a lead instead of a dead thread.
+                        if await _try_giveout_salvage(
+                            thread_id, conversation, account, messages,
+                            latest_landlord_message, page,
+                        ):
+                            continue
                         hours_label = (
                             f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
                             if viewing_dt else "no_datetime"
