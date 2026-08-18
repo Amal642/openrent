@@ -7,9 +7,13 @@ DETECTOR_INTERVAL_SECONDS = 3600  # run once per hour
 
 
 async def _run_detector_cycle():
-    from app.db.repository import detect_and_mark_failed_accounts
+    from app.db.repository import (
+        detect_and_mark_degraded_accounts,
+        detect_and_mark_failed_accounts,
+    )
 
     await asyncio.to_thread(detect_and_mark_failed_accounts)
+    await asyncio.to_thread(detect_and_mark_degraded_accounts)
     logger.info("Failed account detection cycle complete")
 
 

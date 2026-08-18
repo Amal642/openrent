@@ -94,6 +94,7 @@ def _select_accounts(accounts):
         proxy_assigned = proxy is not None
         proxy_healthy = _proxy_is_healthy(account)
         permanently_failed_val = bool(getattr(account, "permanently_failed", False))
+        failed_val = bool(getattr(account, "failed", False))
         cooldown_until = getattr(account, "cooldown_until", None)
         on_cooldown = is_account_on_cooldown(account.id)
 
@@ -110,6 +111,11 @@ def _select_accounts(accounts):
         skip_reason = None
         if permanently_failed_val:
             skip_reason = "PERMANENT_FAILURE"
+        elif failed_val:
+            # A failed flag (set by the outcome-based detectors, or manually)
+            # benches the account: keep it out of rotation so it stops
+            # consuming listing inventory until an operator clears it.
+            skip_reason = "MARKED_FAILED"
         elif session_status_val == "login_failed" and login_failures >= 5:
             skip_reason = "LOGIN_FAILED"
         elif worker_status_val in IN_FLIGHT_STATUSES:
@@ -139,6 +145,7 @@ def _select_accounts(accounts):
             f"proxy_assigned={proxy_assigned} "
             f"proxy_healthy={proxy_healthy} "
             f"permanently_failed={permanently_failed_val} "
+            f"failed={failed_val} "
             f"eligible={eligible} "
             f"skip_reason={skip_reason or 'none'}"
         )
