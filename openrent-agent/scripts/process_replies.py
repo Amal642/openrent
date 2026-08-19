@@ -748,6 +748,34 @@ async def process_account_replies(
                 )
                 continue
 
+            # Dead stale viewing: a confirmed viewing well in the past, no phone
+            # captured, and no activity for a day, is a no-show we can no longer
+            # act on. Skip it SILENTLY (no message, no LLM, no status change) so it
+            # stops churning through the early-phone / cancel / salvage / send-fail
+            # machinery every run. Deliberately does NOT reply: the only pending
+            # messages on these are stale "you didn't show up" / rejections, and a
+            # late generic reply would read as a bot. If the landlord ever messages
+            # again, last_message_at becomes recent and this stops matching, so the
+            # thread reactivates on its own.
+            _now_sv = datetime.utcnow()
+            if (
+                conversation
+                and conversation.viewing_datetime
+                and conversation.viewing_datetime < _now_sv - timedelta(hours=48)
+                and not conversation.extracted_phone
+                and not getattr(conversation, "viewing_cancelled", False)
+                and conversation.last_message_at
+                and conversation.last_message_at < _now_sv - timedelta(hours=24)
+                and conversation.conversation_stage not in (
+                    HANDOFF_COMPLETE, VIEWING_CANCELLED, SHORT_TERM_PROPERTY
+                )
+            ):
+                logger.info(
+                    f"THREAD_SKIPPED_REASON thread_id={thread_id} "
+                    f"reason=stale_viewing viewing_dt={conversation.viewing_datetime}"
+                )
+                continue
+
             # CAPTURE-FIRST (root-cause fix): a landlord's number can arrive at
             # any stage, but phone extraction used to run only in the reply path
             # far below, which the viewing-cancel / follow-up / skip gates skip.
