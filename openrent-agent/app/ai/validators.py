@@ -61,16 +61,18 @@ def remove_unapproved_phone_numbers(reply, allowed_mobile_number=None):
     if not reply:
         return reply
 
-    allowed_exact = (allowed_mobile_number or "").strip()
+    allowed_digits = normalize_phone(allowed_mobile_number)
 
     def replace(match):
 
         candidate = match.group(0).strip()
 
-        # Keep ONLY approved number
+        # Keep ONLY the approved number, comparing on digits so the model may
+        # write it however it likes ("07599 390 221" or "07599390221") and it
+        # still survives. Any other number is stripped.
         if (
-            allowed_exact
-            and candidate == allowed_exact
+            allowed_digits
+            and normalize_phone(candidate) == allowed_digits
         ):
             return candidate
 
