@@ -580,12 +580,17 @@ def build_human_renter_reply_prompt(
     _mobile = (persona or {}).get("mobile_number")
     if _mobile:
         _give_ours = (
-            f"- If the landlord asks for YOUR number, says you should go first, or makes clear "
-            f"they will not or cannot share theirs here (for example \"you send me yours\", "
-            f"\"I can't share my number on here\", or that OpenRent blocks numbers), give them "
-            f"your WhatsApp number: {_mobile}. Write it plainly as your WhatsApp, once. Do NOT "
-            f"deflect with \"let's keep it on OpenRent\" or \"I'll keep things here\" once they "
-            f"have asked for your number, that reads as evasive."
+            f"- Give them your WhatsApp number: {_mobile} (written plainly as your WhatsApp, "
+            f"once) in ANY of these cases: they ask for YOUR number; they say you should go "
+            f"first; they decline or say they cannot share theirs here; OR earlier in the "
+            f"conversation they tried to give their own number but it came through blocked "
+            f"(shown as \"(Number Removed)\", a run of asterisks, \"number hidden\", or similar) "
+            f"and you still do not have their number. In that blocked case their number never "
+            f"actually reached you, so offer yours on your next reply so they can reach you, even "
+            f"if their latest message is about something else. Do NOT deflect with \"let's keep "
+            f"it on OpenRent\" or \"I'll keep things here\" when a number is wanted, that reads as "
+            f"evasive. Skip all of this if you already have the landlord's number, or if you have "
+            f"already given yours earlier in the conversation."
         )
     else:
         _give_ours = (
@@ -607,6 +612,32 @@ def build_human_renter_reply_prompt(
         "will \"keep in touch here\"; just carry on. Only ever react to what the landlord actually "
         "raised, and do not re-ask the same turn or chase it pushily.",
     ])
+    # Deterministic reliability boost for the blocked-number case: the model tends
+    # to just answer the latest message, so a landlord whose number was redacted a
+    # few turns ago (shown as "(Number Removed)") otherwise gets no give-out unless
+    # pushed (the Gouldman case). Detect the exact marker in a landlord line, and
+    # only if we have not already put a number of our own into the thread.
+    _lines = (conversation or "").splitlines()
+    _mobile_digits = "".join(ch for ch in (_mobile or "") if ch.isdigit())
+    _landlord_blocked = any(
+        "number removed" in ln.lower()
+        for ln in _lines
+        if ln.strip().upper().startswith(("LANDLORD", "OWNER"))
+    )
+    _we_offered = any(
+        ("number removed" in ln.lower())
+        or (_mobile_digits and _mobile_digits in "".join(c for c in ln if c.isdigit()))
+        for ln in _lines
+        if ln.strip().upper().startswith(("US", "TENANT", "YOU"))
+    )
+    if _mobile and _landlord_blocked and not _we_offered:
+        number_policy += (
+            f"\n- RIGHT NOW: the landlord already tried to give you their number but OpenRent "
+            f"blocked it (it shows as \"(Number Removed)\") and you still do not have it, so their "
+            f"number never actually reached you. Give them your WhatsApp number {_mobile} in this "
+            f"reply so they can reach you, then answer anything else they asked. This is not "
+            f"volunteering, they raised numbers first."
+        )
     origin = (place or "").strip()
     if origin:
         # One consistent, plausible origin (~1-2h away, set upstream) used both
