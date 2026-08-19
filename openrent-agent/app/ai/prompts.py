@@ -76,6 +76,42 @@ def estimate_household_income(persona: dict | None) -> dict:
     }
 
 
+# Plausible British surnames. Personas only carry first names; when a landlord
+# asks for full names (an increasingly common anti-bot screening step) the reply
+# needs a real surname to give, otherwise the model emits an unsubstituted
+# "[surname]" placeholder that fails validation and the thread loops on
+# invalid_ai_reply. Kept generic and unremarkable so they never draw attention.
+_SURNAME_POOL = [
+    "Whitfield", "Harrington", "Ellison", "Prescott", "Marsden", "Ashworth",
+    "Kingsley", "Redmond", "Sinclair", "Fairbanks", "Ludlow", "Pembroke",
+    "Aldridge", "Hollis", "Radcliffe", "Thornton", "Merrick", "Calloway",
+    "Winslow", "Rutherford", "Hawthorne", "Beaumont", "Chadwick", "Fenwick",
+    "Grantham", "Larkin", "Middleton", "Norbury", "Ollerton", "Peverell",
+]
+
+
+def persona_surnames(persona: dict | None) -> dict:
+    """Deterministic, stable surnames for the persona and partner.
+
+    Seeded exactly like ``estimate_household_income`` (persona identity, not
+    randomness) so the names never change within a thread or between surfaces.
+    The partner gets a distinct surname (an unmarried professional couple),
+    matching how the personas already present as "partner", not "spouse".
+    """
+    persona = persona or {}
+    seed_src = "|".join(
+        str(persona.get(k) or "")
+        for k in ("persona_name", "persona_partner_name", "mobile_number", "persona_type")
+    )
+    seed = int(hashlib.sha256(("surname|" + seed_src).encode("utf-8")).hexdigest(), 16)
+    n = len(_SURNAME_POOL)
+    primary = _SURNAME_POOL[seed % n]
+    partner = _SURNAME_POOL[(seed // n) % n]
+    if partner == primary:
+        partner = _SURNAME_POOL[(seed // n + 1) % n]
+    return {"primary": primary, "partner": partner}
+
+
 _DESIGN_RULES: dict[str, list[str]] = {
     "viewing_first_v1": [
         "Your primary goal is to arrange or confirm a viewing naturally.",
@@ -520,6 +556,18 @@ def build_human_renter_reply_prompt(
         partner_line = partner
     else:
         partner_line = "you are renting on your own"
+    _sur = persona_surnames(persona)
+    if partner:
+        fullname_line = (
+            f"- Your full name is {name} {_sur['primary']} and your partner's full name is "
+            f"{partner} {_sur['partner']}. Some landlords ask for full names before a viewing; "
+            f"if they do, give them plainly. Never volunteer surnames unprompted."
+        )
+    else:
+        fullname_line = (
+            f"- Your full name is {name} {_sur['primary']}. If a landlord asks for your full name "
+            f"before a viewing, give it plainly. Never volunteer your surname unprompted."
+        )
     origin = (place or "").strip()
     if origin:
         # One consistent, plausible origin (~1-2h away, set upstream) used both
@@ -543,6 +591,7 @@ You are {name}, a real person who wants to rent this specific flat. You are text
 
 Who you are (use only these facts, invent nothing else):
 - You work as a {job}. Your partner is {partner_line}.
+{fullname_line}
 - ONLY if the landlord asks about income or affordability: your household income is around GBP {income['combined_monthly']:,} a month combined. Give a rounded figure, never an oddly precise one, and never bring money up yourself.
 {where_you_live}
 

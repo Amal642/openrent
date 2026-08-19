@@ -1504,6 +1504,15 @@ async def process_account_replies(
                     AI_FAILED
                 )
 
+                # Loop-breaker: invalid_ai_reply means the model produced a reply
+                # we rejected (e.g. an unanswerable ask that becomes a "[surname]"
+                # placeholder). Re-attempting the identical message every run just
+                # fails again forever (the thread 45914242 full-name loop). Ack the
+                # message so we only retry once the landlord says something new.
+                # Transient/empty errors are left un-acked so they still retry.
+                if error == "invalid_ai_reply" and latest_landlord_message:
+                    update_last_processed_message(thread_id, latest_landlord_message)
+
                 continue
 
             mobile = persona.get("mobile_number") if persona else None
