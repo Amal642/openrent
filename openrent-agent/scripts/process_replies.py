@@ -255,6 +255,17 @@ _DEFAULT_CANCEL_MSG = (
     "able to make it. Really sorry for the short notice."
 )
 
+# Graceful sign-offs sent once when a thread is FIRST found to be a duplicate
+# (its number is one we already captured on another thread), so an engaged
+# landlord is not simply ghosted. Deterministic + rotated by thread id for
+# variety; plain tenant "found somewhere else" wording, no dashes, no tells.
+_DUPLICATE_CLOSE_MSGS = [
+    "Thanks so much for your help with this. We've actually just found a place that suits us, so we won't need the viewing after all. Really appreciate your time and all the best with the let.",
+    "Thank you for getting back to me. Our plans have shifted and we've ended up going with somewhere else, so I'll leave it here. Wishing you all the best.",
+    "Really appreciate you sorting this out. Something else came through for us in the end, so we won't be going ahead, but thanks a lot for your time.",
+    "Thanks for the details. We've had a change of plan and won't need to view after all, sorry for any hassle. All the best!",
+]
+
 
 def _has_active_viewing(conversation) -> bool:
     """True when a viewing has been booked, confirmed, or a datetime recorded."""
@@ -521,6 +532,36 @@ async def _try_giveout_salvage(
     return True
 
 
+async def _send_duplicate_close(thread_id, conversation, messages, page, was_duplicate):
+    """Send one graceful sign-off the FIRST time a thread is found to be a
+    duplicate, so an engaged landlord is not left hanging.
+
+    Only for NEW duplicates: ``was_duplicate`` (the thread's status captured at
+    the start of this run) is True for the existing backlog, which we leave
+    untouched. ``conversation._dup_close_done`` guards against a second send in
+    the same run, since the early-dup path and the phone-detect path can both
+    fire. No-op on cold threads the landlord never replied to.
+    """
+    if conversation is None or was_duplicate:
+        return
+    if getattr(conversation, "_dup_close_done", False):
+        return
+    if not get_landlord_messages(messages):
+        return
+    conversation._dup_close_done = True  # set before send so it can't double-fire
+    try:
+        idx = int(str(thread_id)) % len(_DUPLICATE_CLOSE_MSGS)
+    except (TypeError, ValueError):
+        idx = 0
+    msg = _DUPLICATE_CLOSE_MSGS[idx]
+    sent = await send_reply(page, msg)
+    if sent:
+        save_message(thread_id, "outbound", msg)
+        logger.info(f"DUPLICATE_LEAD_CLOSE_SENT thread_id={thread_id}")
+    else:
+        logger.warning(f"DUPLICATE_LEAD_CLOSE_SEND_FAILED thread_id={thread_id}")
+
+
 async def _try_save_viewing_datetime(thread_id, messages) -> bool:
     """
     Extract a viewing datetime from messages and save it to DB.
@@ -684,6 +725,13 @@ async def process_account_replies(
                 )
             )
 
+            # Was this thread ALREADY a duplicate before this run? Used to send a
+            # one-time graceful close on NEW duplicates only, leaving the backlog
+            # of previously-deduped threads untouched.
+            _was_duplicate = bool(
+                conversation and conversation.status == DUPLICATE_LEAD
+            )
+
             # CAPTURE-FIRST (root-cause fix): a landlord's number can arrive at
             # any stage, but phone extraction used to run only in the reply path
             # far below, which the viewing-cancel / follow-up / skip gates skip.
@@ -701,7 +749,11 @@ async def process_account_replies(
                         logger.info(
                             f"PHONE_CAPTURED_EARLY_DUPLICATE thread_id={thread_id} phone={_early_phone}"
                         )
+                        await _send_duplicate_close(
+                            thread_id, conversation, messages, page, _was_duplicate
+                        )
                         update_conversation_status(thread_id, DUPLICATE_LEAD)
+                        continue
                     else:
                         save_phone_number(thread_id, _early_phone)
                         _log_playbook_ab_phone_capture(thread_id)
@@ -1208,6 +1260,9 @@ async def process_account_replies(
                                 f"PHONE_REPLACE_DUPLICATE thread_id={thread_id} "
                                 f"phone={phone} owned_by_other_conversation"
                             )
+                            await _send_duplicate_close(
+                                thread_id, conversation, messages, page, _was_duplicate
+                            )
                             update_conversation_status(thread_id, DUPLICATE_LEAD)
                             update_last_processed_message(thread_id, latest_landlord_message)
                             continue
@@ -1222,6 +1277,9 @@ async def process_account_replies(
 
                     if phone_exists(phone):
                         logger.info(f"Duplicate phone detected: {phone}")
+                        await _send_duplicate_close(
+                            thread_id, conversation, messages, page, _was_duplicate
+                        )
                         update_conversation_status(thread_id, DUPLICATE_LEAD)
                         continue
 
@@ -1302,6 +1360,9 @@ async def process_account_replies(
 
                 if phone_exists(phone):
                     logger.info(f"Duplicate phone detected: {phone}")
+                    await _send_duplicate_close(
+                        thread_id, conversation, messages, page, _was_duplicate
+                    )
                     update_conversation_status(thread_id, DUPLICATE_LEAD)
                     continue
 
