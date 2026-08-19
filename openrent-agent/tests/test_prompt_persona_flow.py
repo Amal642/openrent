@@ -44,7 +44,9 @@ def test_non_booked_reply_prompt_does_not_ask_for_phone():
         persona=PERSONA,
     )
 
-    assert "ask for the landlord's phone number" not in prompt.lower()
+    # Viewing-first policy: the phone ask is deferred until a viewing is agreed,
+    # so a non-booked reply is steered to the viewing, not a premature number ask.
+    assert "do not ask for a phone number until a viewing is agreed" in prompt.lower()
     assert "arrange or confirm a viewing naturally" in prompt.lower()
 
 
@@ -62,7 +64,7 @@ def test_dynamic_prompt_includes_phone_policy_and_landlord_attitude():
 
     assert ASSIGNED_MOBILE in prompt
     assert "Landlord attitude memory: friendly" in prompt
-    assert "ALWAYS share the exact correct tenant mobile number" in prompt
+    assert "Phone sharing policy:" in prompt
 
 
 def test_corpus_number_capture_prompt_hides_tenant_mobile_and_targets_landlord_number():
@@ -109,9 +111,21 @@ def test_corpus_number_capture_v2_uses_boundary_and_refusal_rules():
     assert "Screening posture: both applicants are working professionals" in prompt
 
 
-def test_generate_reply_shares_correct_number_when_landlord_asks():
+def test_generate_reply_shares_correct_number_when_landlord_asks(monkeypatch):
+    # Drive the give-out gate deterministically (landlord asked for ours, is
+    # hesitant to share theirs, and we already asked once) so the shortcut fires
+    # and shares the number without an LLM call.
+    import app.ai.replies as replies
+
+    monkeypatch.setattr(replies, "latest_landlord_asked_for_phone", lambda m: True)
+    monkeypatch.setattr(replies, "latest_landlord_hesitant_about_phone", lambda m: True)
+    monkeypatch.setattr(replies, "phone_shared_state", lambda m, p, conversation=None: False)
+    monkeypatch.setattr(replies, "detect_screening_questions", lambda m: [])
+    monkeypatch.setattr(replies, "count_number_asks", lambda m: 1)
+    monkeypatch.setattr(replies, "outbound_count", lambda m: 1)
+
     reply, error = generate_reply(
-        [{"sender": "landlord", "message": "Can you share your WhatsApp number?"}],
+        [{"sender": "landlord", "message": "Can you share your WhatsApp number? I'd rather keep mine private for now."}],
         stage="VIEWING_DISCUSSION",
         persona=PERSONA,
         landlord_attitude="friendly",
