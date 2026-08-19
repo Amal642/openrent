@@ -108,7 +108,7 @@ from app.db.status import (
     SHORT_TERM_PROPERTY,
 )
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import random
 import re
 from pathlib import Path
@@ -502,6 +502,12 @@ async def _try_giveout_salvage(
         return False
     if require_landlord_asked and not getattr(conversation, "landlord_asked_phone_at", None):
         return False
+    # Never salvage a long-dead viewing: the box is closed, so the send just
+    # fails every run (this was the source of the 115 GIVEOUT_SALVAGE_SEND_FAILED
+    # on stale threads). Aged-out threads are also skipped upstream now.
+    _vd = getattr(conversation, "viewing_datetime", None)
+    if _vd and _vd < datetime.utcnow() - timedelta(hours=48):
+        return False
     persona = ensure_account_persona(account.id)
     mobile = (persona or {}).get("mobile_number")
     if not mobile:
@@ -731,6 +737,16 @@ async def process_account_replies(
             _was_duplicate = bool(
                 conversation and conversation.status == DUPLICATE_LEAD
             )
+
+            # DUPLICATE_LEAD is terminal: the number is already captured on the
+            # sibling thread. Stop reprocessing the backlog every run (it looped
+            # via the early-phone regex + re-mark). New duplicates are still
+            # detected below on their first run (status not yet DUPLICATE_LEAD).
+            if _was_duplicate:
+                logger.info(
+                    f"THREAD_SKIPPED_REASON thread_id={thread_id} reason=duplicate_lead"
+                )
+                continue
 
             # CAPTURE-FIRST (root-cause fix): a landlord's number can arrive at
             # any stage, but phone extraction used to run only in the reply path
