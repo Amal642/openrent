@@ -958,8 +958,21 @@ async def process_account_replies(
                     if phone_already_requested and conversation and conversation.phone_requested_at
                     else 0
                 )
+                # Imminent viewing: within ~2h of the start (or already here/past),
+                # withdraw NOW even without the 4h phone-ask courtesy age. Waiting on
+                # that rule when the viewing is this close just produces a no-show
+                # (the same-day short-notice failure, e.g. thread 45914564). A
+                # pending phone request still holds it via cancellation_block_reason.
+                _hrs_until_viewing = (
+                    (viewing_dt - datetime.utcnow()).total_seconds() / 3600
+                    if viewing_dt else None
+                )
+                _viewing_imminent = (
+                    _hrs_until_viewing is not None and _hrs_until_viewing <= 2
+                )
                 safe_to_cancel = not cancellation_block_reason and (
-                    phone_already_captured
+                    _viewing_imminent
+                    or phone_already_captured
                     or (phone_already_requested and _phone_ask_age_h >= 4)
                 )
 
