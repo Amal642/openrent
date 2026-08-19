@@ -213,7 +213,11 @@ Rules:
 - Only extract the landlord's phone number.
 - Ignore any phone numbers sent by the tenant/user.
 - Reconstruct fragmented numbers only if they clearly belong to the landlord.
-- Return ONLY the phone number, with no extra words, symbols, or explanation.
+- Landlords often DISGUISE their number to slip past OpenRent's number filter. Decode it back to plain digits for the landlord's own number only:
+  - spelled-out digits ARE digits, including run-together clusters: "sixfourthree" = 643, "five" = 5, "double seven" = 77, "triple eight" = 888, and "oh" or a stray letter "O" between/next to digits = 0 ("O7" = 07).
+  - ignore any separators or filler placed between the digits: dots, slashes, dashes, extra spaces, brackets, or words like "then"/"and"/"dash". For example "020.8087..4036" = 02080874036, "O7 985 /sixfourthree/ 668" = 07985643668, "0773668five412" = 07736685412.
+  - Only decode the landlord's own number this way, never the tenant's, and never fabricate digits that are not actually there.
+- Return ONLY the phone number as plain digits (a leading + is allowed for international), with no extra words, symbols, or explanation.
 - If no landlord phone number exists, return EXACTLY: NONE.
 - IMPORTANT: If the landlord is ASKING FOR a phone number without providing their own, return EXACTLY: NONE.
 - IMPORTANT: Only return a complete, dialable phone number. It must have at least 7 digits.
