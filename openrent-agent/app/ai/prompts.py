@@ -597,6 +597,19 @@ def build_human_renter_reply_prompt(
             "- Do not hand out or invent a number of your own. If they ask for yours, it is fine "
             "to say you will keep things on OpenRent for now."
         )
+    if _mobile:
+        _email_line = (
+            f"- If the landlord asks for your EMAIL (for example for a calendar invite or "
+            f"referencing), you do not have an email set up for this and you must NEVER invent "
+            f"one or write a made-up address of any kind. Instead say the easiest way to sort it "
+            f"is WhatsApp and give your WhatsApp number {_mobile} so they can reach you there, "
+            f"then answer whatever else they asked."
+        )
+    else:
+        _email_line = (
+            "- If the landlord asks for your EMAIL, do not hand one out and NEVER invent or write "
+            "a made-up address. Say it is easiest to keep things here on OpenRent for now."
+        )
     number_policy = "\n".join([
         "- Getting the landlord's number is genuinely useful, so ask once, lightly, for their "
         "number when you are sorting out a viewing (a time is being agreed or set) OR when the "
@@ -606,6 +619,7 @@ def build_human_renter_reply_prompt(
         "or so you can sort the viewing directly), and suggest WhatsApp so their number comes "
         "through since OpenRent hides numbers typed into the chat.",
         _give_ours,
+        _email_line,
         "- Never volunteer your number before the landlord raises it, and never invent or give any "
         "other number. If the landlord simply moves on to other things without taking the number "
         "up, do not mention it at all and do not announce that you are fine without it or that you "

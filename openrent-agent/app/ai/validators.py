@@ -10,6 +10,12 @@ PHONE_LIKE_PATTERN = re.compile(
 # [text], {text}, or <text> notation in conversational OpenRent tenant replies.
 _PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]|\{[^}]+\}")
 
+# We never hand out an email address (no persona inbox exists), so ANY email in a
+# reply is either a fabrication ("eleanor@example.com") or the landlord's echoed
+# back — both are wrong. Reject it so it regenerates; the reply prompt redirects
+# email requests to WhatsApp instead.
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
 
 def is_valid_reply(reply):
 
@@ -48,6 +54,10 @@ def is_valid_reply(reply):
 
     # Reject replies that contain unsubstituted template placeholders
     if _PLACEHOLDER_RE.search(reply):
+        return False
+
+    # Reject any email address — we never give one out (see _EMAIL_RE note).
+    if _EMAIL_RE.search(reply):
         return False
 
     return True
