@@ -189,3 +189,14 @@ The worktree may already contain user or prior-agent changes. Do not revert unre
 - Avoid broad refactors while the simulation integration is still being stabilized.
 - Keep Test mode simple, readable, and client-facing.
 - Put raw prompts, completions, runtime context, and event logs behind Advanced mode.
+
+## Codebase discovery
+
+For architecture, dependency, symbol, and flow discovery, use Codebase Memory before broad Read/Grep/Glob operations.
+
+Workflow:
+1. Use Codebase Memory to identify the relevant subsystem, symbols, callers, and dependencies.
+2. Read the exact source files needed before editing.
+3. After changing shared/public symbols, use Codebase Memory to trace affected callers and paths.
+4. Avoid broad repository scans when graph queries can answer the structural question.
+5. Use direct Read/Grep for exact implementation details, generated files, configs, or files CBM cannot parse well.
