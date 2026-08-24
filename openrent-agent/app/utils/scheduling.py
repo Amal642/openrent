@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 
@@ -35,3 +35,30 @@ def is_operating_hours(now: datetime | None = None) -> bool:
     """
     current = now.astimezone(UK_TZ) if now else uk_now()
     return OPERATING_START <= current.time() < OPERATING_END
+
+
+def uk_naive_to_utc_naive(dt):
+    """Interpret a naive datetime as a UK wall-clock time and return the naive
+    UTC instant it denotes. DST (BST/GMT) is resolved by ZoneInfo from the date.
+
+    Viewing times come from humans/banners in UK local time, but the whole
+    cancellation system compares against datetime.utcnow(). Storing UK-local as
+    if it were UTC produced a seasonal 1-hour skew (the cancel window fired late
+    in summer). Canonicalise every stored viewing instant to naive UTC here.
+
+    Passes None through. An already tz-aware value is just converted.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.replace(tzinfo=UK_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def utc_naive_to_uk_naive(dt):
+    """Inverse of uk_naive_to_utc_naive: naive UTC instant -> naive UK wall clock,
+    for rendering a stored viewing time back to a UK-based human (dashboard)."""
+    if dt is None:
+        return None
+    aware = dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return aware.astimezone(UK_TZ).replace(tzinfo=None)

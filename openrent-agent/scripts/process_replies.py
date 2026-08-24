@@ -50,6 +50,7 @@ from app.openrent.popups import close_verified_tenant_popup
 from app.ai.stages import (
     detect_stage,
     extract_viewing_datetime,
+    resolve_viewing_datetime,
 )
 
 from app.ai.extractors import (
@@ -75,13 +76,14 @@ from app.ai.validators import (
     remove_unapproved_phone_numbers
 )
 from app.ai.personas import tenant_shared_phone
-from app.ai.reply_gate import post_capture_decision
+from app.ai.reply_gate import post_capture_decision, landlord_wants_video_call
 
 # Viewing-withdrawal lifecycle helpers (cancel / pre-cancel number-ask / give-out
 # salvage) live in one shared module so the DB-driven cancellation sweep can reuse
 # the exact same behaviour. Re-imported here so every existing call site is
-# unchanged. NOTE: these resolve their deps in viewing_lifecycle's namespace, so
-# tests must monkeypatch app.openrent.viewing_lifecycle.<name>.
+# unchanged (the video-call gate below still calls _try_giveout_salvage). NOTE:
+# these resolve their deps in viewing_lifecycle's namespace, so tests must
+# monkeypatch app.openrent.viewing_lifecycle.<name>.
 from app.openrent.viewing_lifecycle import (
     _cancel_viewing_and_handoff,
     _send_pre_cancel_number_ask,
@@ -438,7 +440,7 @@ async def _try_save_viewing_datetime(thread_id, messages) -> bool:
     Returns True if a datetime was found and saved, False otherwise.
     Cancellation timing is handled separately via _cancel_window_passed.
     """
-    viewing_datetime = extract_viewing_datetime(messages)
+    viewing_datetime = resolve_viewing_datetime(messages)
     if not viewing_datetime:
         return False
 
@@ -558,7 +560,12 @@ async def process_account_replies(
             if _should_run_viewing_detection(banners):
                 ai_viewing = ai_detect_viewing_arranged(messages)
                 if ai_viewing.get("viewing_arranged"):
-                    ai_dt = _parse_ai_viewing_datetime(ai_viewing.get("viewing_datetime"))
+                    # The LLM only DECIDES a viewing is agreed; the datetime is
+                    # resolved deterministically (message-anchored), with the
+                    # LLM's own date used only as a gap-filler. Keeps the LLM
+                    # out of date arithmetic (the off-by-one-day no-show,
+                    # thread 45969788).
+                    ai_dt = resolve_viewing_datetime(messages, llm_detection=ai_viewing)
                     # Only promote to confirmed when the AI also identified a
                     # specific datetime. A viewing with no agreed time is not
                     # truly "booked" and must not enter the cancel flow.
@@ -846,7 +853,9 @@ async def process_account_replies(
                 # so we never emit a normal reply moments before a withdrawal, and so
                 # the withdrawal fires even when this thread is filtered out of the
                 # reply inbox (the "you:" filter). Same viewing_cancellation_due()
-                # predicate the sweep uses, so the two can't disagree.
+                # predicate the sweep uses, so the two can't disagree. (The sweep does
+                # the salvage-before-cancel with require_landlord_asked=False, matching
+                # the Sandra/Claire fix that previously lived here.)
                 if viewing_cancellation_due(conversation):
                     update_last_processed_message(thread_id, latest_landlord_message)
                     logger.info(
@@ -1370,6 +1379,42 @@ async def process_account_replies(
                 logger.info("Reply pipeline completed")
                 continue
 
+            # --- Video-call / screening-call gate ------------------------
+            # Some landlords require a live video/screening call (Zoom/Meet/
+            # Teams) before an in-person viewing. We cannot attend a call, and
+            # agreeing to one produces a no-show + fabricated-excuse loop that
+            # burns the account (e.g. thread 45936155). Pivot to our WhatsApp
+            # give-out instead: hand the number over once so a WhatsApp inbound
+            # captures the landlord as a lead, then stop agreeing to calls. If
+            # we already shared our number, disengage rather than loop.
+            _no_phone_yet = not (
+                conversation and getattr(conversation, "extracted_phone", None)
+            )
+            if _no_phone_yet and landlord_wants_video_call(messages):
+                if conversation and getattr(conversation, "our_number_shared_at", None):
+                    logger.info(
+                        f"VIDEO_CALL_GIVEOUT_ALREADY_SHARED thread_id={thread_id} "
+                        "- not re-agreeing to a call; awaiting WhatsApp/new info"
+                    )
+                    update_last_processed_message(thread_id, latest_landlord_message)
+                    update_conversation_status(thread_id, AI_REPLIED)
+                    continue
+                giveout_sent = await _try_giveout_salvage(
+                    thread_id, conversation, account, messages,
+                    latest_landlord_message, page,
+                    require_landlord_asked=False,
+                )
+                if giveout_sent:
+                    logger.info(f"VIDEO_CALL_GIVEOUT_SENT thread_id={thread_id}")
+                    update_conversation_status(thread_id, AI_REPLIED)
+                else:
+                    logger.info(
+                        f"VIDEO_CALL_GIVEOUT_NOT_SENT thread_id={thread_id} "
+                        "- skipping run rather than agreeing to a call"
+                    )
+                continue
+            # -------------------------------------------------------------
+
             logger.info(
                 f"Generating AI reply for thread {thread_id} "
                 f"at stage {stage or 'NEW_REPLY'}"
@@ -1484,7 +1529,7 @@ async def process_account_replies(
                     and ab_expose_mobile
                 ):
                     whatsapp_line = (
-                        f"My husband's WhatsApp is {mobile} — "
+                        f"My husband's WhatsApp is {mobile}, "
                         "he handles the viewing coordination, so best to reach him there."
                     )
                     reply = f"{reply.rstrip()} {whatsapp_line}" if reply else whatsapp_line

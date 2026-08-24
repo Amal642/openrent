@@ -113,13 +113,16 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
             )
 
             if safe_to_cancel:
-                # Salvage before withdrawing: hand over our WhatsApp give-out once
-                # (a willing-but-redacted landlord can still reach us) and defer the
-                # cancel one run. Guarded on our_number_shared_at so it fires once;
-                # the next sweep run then cancels normally if no lead arrived.
+                # Salvage before withdrawing: ALWAYS hand over our WhatsApp give-out
+                # once first (require_landlord_asked=False) — a single, once-per-thread
+                # message that can only help and does NOT depend on perfectly detecting
+                # that the landlord asked (the Sandra/Claire lost lead: the ask sat in a
+                # non-final message, so the persisted landlord_asked flag was unset when
+                # the cancel ran). Guarded on our_number_shared_at so it fires once; the
+                # next sweep run then cancels normally if no lead arrived.
                 if await _try_giveout_salvage(
                     thread_id, conversation, account, messages,
-                    latest_landlord_message, page,
+                    latest_landlord_message, page, require_landlord_asked=False,
                 ):
                     logger.info(
                         f"VIEWING_WITHDRAWAL_SALVAGE_DEFER thread_id={thread_id}"

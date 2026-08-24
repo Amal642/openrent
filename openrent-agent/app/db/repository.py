@@ -20,7 +20,7 @@ from app.db.models import (
     SearchProfile,
 )
 from app.db.status import HANDOFF_COMPLETE, VIEWING_CANCELLED, VIEWING_BOOKED, VIEWING_DISCUSSION
-from app.utils.scheduling import UK_TZ, uk_now
+from app.utils.scheduling import UK_TZ, uk_now, uk_naive_to_utc_naive, utc_naive_to_uk_naive
 from app.ai.personas import (
     get_conversation_style,
     get_persona_template,
@@ -1602,7 +1602,7 @@ def save_viewing_datetime(thread_id, viewing_datetime):
         ).first()
 
         if conversation:
-            conversation.viewing_datetime = viewing_datetime
+            conversation.viewing_datetime = uk_naive_to_utc_naive(viewing_datetime)
             conversation.viewing_confirmed = True
             if not conversation.viewing_confirmation_source:
                 conversation.viewing_confirmation_source = "ai"
@@ -1675,7 +1675,7 @@ def save_banner_state(
             if not conversation.viewing_confirmation_source:
                 conversation.viewing_confirmation_source = confirmation_source
             if viewing_datetime:
-                conversation.viewing_datetime = viewing_datetime
+                conversation.viewing_datetime = uk_naive_to_utc_naive(viewing_datetime)
                 if not conversation.cancel_target_hours:
                     cancel_target = round(random.uniform(3.2, 4.8), 1)
                     conversation.cancel_target_hours = cancel_target
@@ -3041,7 +3041,7 @@ def get_dashboard_leads(status=None, with_persona=True):
                 "pets_allowed": search_profile.pets_allowed,
                 "status": conversation.status,
                 "conversation_stage": conversation.conversation_stage,
-                "viewing_datetime": conversation.viewing_datetime,
+                "viewing_datetime": utc_naive_to_uk_naive(conversation.viewing_datetime),
                 "viewing_confirmed": conversation.viewing_confirmed,
                 "viewing_confirmation_source": conversation.viewing_confirmation_source,
                 "viewing_cancelled": conversation.viewing_cancelled,
