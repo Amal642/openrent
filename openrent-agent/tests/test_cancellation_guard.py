@@ -2,15 +2,19 @@ import asyncio
 from types import SimpleNamespace
 
 from scripts import process_replies, process_viewing_reminders
+from app.openrent import viewing_lifecycle
 
 
 def test_reply_time_cancellation_is_blocked_while_phone_request_unanswered(
     monkeypatch,
 ):
+    # The withdrawal helpers now live in app.openrent.viewing_lifecycle and
+    # resolve their dependencies in that module's namespace, so patch there.
+    # process_replies still re-exports _cancel_viewing_and_handoff (same object).
     sent = []
 
     monkeypatch.setattr(
-        process_replies,
+        viewing_lifecycle,
         "get_automatic_cancellation_block_reason",
         lambda _thread_id: "awaiting_phone_request_response",
     )
@@ -19,7 +23,7 @@ def test_reply_time_cancellation_is_blocked_while_phone_request_unanswered(
         sent.append(message)
         return True
 
-    monkeypatch.setattr(process_replies, "send_reply", send_reply)
+    monkeypatch.setattr(viewing_lifecycle, "send_reply", send_reply)
 
     result = asyncio.run(
         process_replies._cancel_viewing_and_handoff(
