@@ -11,6 +11,7 @@ from app.db.repository import (
     update_conversation_status,
     get_conversation_by_thread_id,
     get_automatic_cancellation_block_reason,
+    viewing_cancellation_due,
     update_last_processed_message,
     phone_exists,
     mark_handoff_complete,
@@ -836,115 +837,44 @@ async def process_account_replies(
             ):
                 viewing_dt = getattr(conversation, "viewing_datetime", None)
                 phone_already_requested = bool(conversation and conversation.phone_requested_at)
-                phone_already_captured = bool(conversation and conversation.extracted_phone)
-                cancellation_block_reason = (
-                    get_automatic_cancellation_block_reason(thread_id)
-                )
 
-                # An unanswered phone request always blocks cancellation.
-                # After a response, preserve the existing timing rule: cancel
-                # when a phone was captured or the request is at least 4h old.
-                _phone_ask_age_h = (
-                    (datetime.utcnow() - conversation.phone_requested_at).total_seconds() / 3600
-                    if phone_already_requested and conversation and conversation.phone_requested_at
-                    else 0
-                )
-                # Imminent viewing: within ~2h of the start (or already here/past),
-                # withdraw NOW even without the 4h phone-ask courtesy age. Waiting on
-                # that rule when the viewing is this close just produces a no-show
-                # (the same-day short-notice failure, e.g. thread 45914564). A
-                # pending phone request still holds it via cancellation_block_reason.
-                _hrs_until_viewing = (
-                    (viewing_dt - datetime.utcnow()).total_seconds() / 3600
-                    if viewing_dt else None
-                )
-                _viewing_imminent = (
-                    _hrs_until_viewing is not None and _hrs_until_viewing <= 2
-                )
-                safe_to_cancel = not cancellation_block_reason and (
-                    _viewing_imminent
-                    or phone_already_captured
-                    or (phone_already_requested and _phone_ask_age_h >= 4)
-                )
+                # Timed withdrawal (give-out salvage / pre-cancel number-ask /
+                # cancellation) is owned entirely by the Phase-2 sweep
+                # (process_account_viewing_reminders): DB-driven, inbox-independent,
+                # and it runs right after this reply pass every cycle. When a viewing
+                # with a known time is inside its cancel window, defer to the sweep —
+                # so we never emit a normal reply moments before a withdrawal, and so
+                # the withdrawal fires even when this thread is filtered out of the
+                # reply inbox (the "you:" filter). Same viewing_cancellation_due()
+                # predicate the sweep uses, so the two can't disagree.
+                if viewing_cancellation_due(conversation):
+                    update_last_processed_message(thread_id, latest_landlord_message)
+                    logger.info(
+                        f"VIEWING_WITHDRAWAL_DEFERRED_TO_SWEEP thread_id={thread_id} "
+                        f"viewing_dt={viewing_dt}"
+                    )
+                    continue
 
-                # Enter the cancel window when a known viewing time is within the
-                # window, OR when a confirmed viewing has no extractable datetime —
-                # that can never hit a timed window, so treat it as due now (the
-                # no-datetime no-show source, P2). safe_to_cancel still gates the
-                # actual cancel, so the number is captured or requested first.
-                in_cancel_window = viewing_dt is None or _cancel_window_passed(viewing_dt)
+                # No parsed viewing time: the timed sweep cannot schedule these
+                # (there is no datetime to time a cancel against), so keep the one-off
+                # number-ask here. Asking captures the lead; nothing to cancel.
+                if viewing_dt is None and not phone_already_requested:
+                    logger.info(f"VIEWING_NO_DATETIME_NUMBER_ASK thread_id={thread_id}")
+                    travel_city_for_ask = get_travel_city(thread_id)
+                    await _send_pre_cancel_number_ask(
+                        thread_id, messages, latest_landlord_message, page,
+                        travel_city=travel_city_for_ask,
+                    )
+                    continue
 
-                if in_cancel_window:
-                    if safe_to_cancel:
-                        # Salvage before withdrawing: if we never captured the
-                        # landlord's number (e.g. OpenRent redacted it) but they
-                        # engaged on contact details, hand over our WhatsApp
-                        # give-out once and defer the cancel one run so a reply
-                        # can convert this into a lead instead of a dead thread.
-                        if await _try_giveout_salvage(
-                            thread_id, conversation, account, messages,
-                            latest_landlord_message, page,
-                        ):
-                            continue
-                        hours_label = (
-                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
-                            if viewing_dt else "no_datetime"
-                        )
-                        logger.info(
-                            f"VIEWING_CANCEL_NOW thread_id={thread_id} reason={hours_label}"
-                        )
-                        cancelled = await _cancel_viewing_and_handoff(
-                            thread_id, messages, latest_landlord_message, page
-                        )
-                        if not cancelled:
-                            logger.warning(f"VIEWING_CANCEL_FAILED thread_id={thread_id}")
-                        continue
-                    elif not phone_already_requested:
-                        # Haven't asked yet — send number ask, cancel on next run
-                        hours_label = (
-                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h"
-                            if viewing_dt else "no_datetime"
-                        )
-                        logger.info(
-                            f"PRE_CANCEL_NUMBER_ASK thread_id={thread_id} hours_until={hours_label}"
-                        )
-                        travel_city_for_ask = get_travel_city(thread_id)
-                        await _send_pre_cancel_number_ask(
-                            thread_id, messages, latest_landlord_message, page,
-                            travel_city=travel_city_for_ask,
-                        )
-                        continue
-                    else:
-                        if cancellation_block_reason:
-                            logger.info(
-                                f"CANCELLATION_BLOCKED thread_id={thread_id} "
-                                f"reason={cancellation_block_reason}"
-                            )
-                            continue
-                        logger.info(
-                            f"VIEWING_CANCEL_WAITING thread_id={thread_id} "
-                            f"phone_ask_age={_phone_ask_age_h:.1f}h"
-                        )
-                else:
-                    # Outside cancel window or no datetime yet — reply naturally
-                    if viewing_dt is not None:
-                        hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
-                        logger.info(
-                            f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
-                            f"hours_until={hours_until:.1f} — replying naturally while awaiting cancel window"
-                        )
-                    elif not phone_already_requested:
-                        # Viewing confirmed but no datetime — ask for number now
-                        logger.info(
-                            f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} reason=no_datetime — asking for number"
-                        )
-                        travel_city_for_ask = get_travel_city(thread_id)
-                        await _send_pre_cancel_number_ask(
-                            thread_id, messages, latest_landlord_message, page,
-                            travel_city=travel_city_for_ask,
-                        )
-                        continue
-                    # else: no datetime but already asked → reply normally, wait for response
+                # Outside the cancel window (known future time) or no datetime but
+                # already asked: fall through and reply naturally.
+                if viewing_dt is not None:
+                    hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
+                    logger.info(
+                        f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
+                        f"hours_until={hours_until:.1f} — replying naturally while awaiting cancel window"
+                    )
 
             if (
                 conversation

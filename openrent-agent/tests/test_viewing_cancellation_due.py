@@ -89,9 +89,27 @@ def test_default_target_hours_when_unset():
 
 def test_reminder_cancels_confirmed_viewing_with_discussion_stage(monkeypatch):
     """A confirmed viewing whose stage is VIEWING_DISCUSSION must still be
-    cancelled by the sweep (the exact 45975228 no-show condition)."""
+    withdrawn by the sweep (the exact 45975228 no-show condition). Here the
+    number is already captured, so the sweep proceeds straight to cancellation."""
+    from datetime import datetime as _dt
+
     account = SimpleNamespace(id=1, email="tenant@example.test")
-    sent, cancelled, statuses = [], [], []
+    cancelled = []
+
+    conv = SimpleNamespace(
+        viewing_datetime=_dt.utcnow() + timedelta(hours=3),  # in-window future
+        viewing_confirmed=True,
+        viewing_cancelled=False,
+        cancellation_sent_at=None,
+        handoff_completed_at=None,
+        cancel_target_hours=4.3,
+        extracted_phone="447700900123",  # captured -> safe_to_cancel
+        phone_requested_at=None,
+        our_number_shared_at="already",  # salvage no-ops
+        landlord_asked_phone_at=None,
+        landlord_attitude="responsive",
+        conversation_stage="VIEWING_DISCUSSION",  # NOT booked — must not matter
+    )
 
     monkeypatch.setattr(
         process_viewing_reminders,
@@ -99,13 +117,17 @@ def test_reminder_cancels_confirmed_viewing_with_discussion_stage(monkeypatch):
         lambda account_id: [
             {
                 "thread_id": "thread-drifted",
-                "viewing_datetime": NOW + timedelta(hours=4),
+                "viewing_datetime": conv.viewing_datetime,
                 "viewing_confirmed": True,
-                "conversation_stage": "VIEWING_DISCUSSION",  # NOT booked
             }
         ],
     )
     monkeypatch.setattr(process_viewing_reminders, "claim_conversation", lambda *_a: True)
+    monkeypatch.setattr(process_viewing_reminders, "get_conversation_by_thread_id", lambda _t: conv)
+    monkeypatch.setattr(
+        process_viewing_reminders, "get_automatic_cancellation_block_reason", lambda _t: None
+    )
+    monkeypatch.setattr(process_viewing_reminders, "get_latest_landlord_message", lambda _m: "hi")
 
     async def noop_async(*_a, **_k):
         return None
@@ -113,39 +135,18 @@ def test_reminder_cancels_confirmed_viewing_with_discussion_stage(monkeypatch):
     async def extract_conversation(_page):
         return []
 
-    async def send_reply(_page, message):
-        sent.append(message)
+    async def cancel(thread_id, *a, **k):
+        cancelled.append(thread_id)
         return True
+
+    async def salvage(*a, **k):
+        return False
 
     monkeypatch.setattr(process_viewing_reminders, "open_thread", noop_async)
     monkeypatch.setattr(process_viewing_reminders, "extract_conversation", extract_conversation)
-    monkeypatch.setattr(
-        process_viewing_reminders,
-        "get_automatic_cancellation_block_reason",
-        lambda _t: None,
-    )
-    monkeypatch.setattr(
-        process_viewing_reminders,
-        "generate_cancellation_message",
-        lambda _messages: ("Sorry, something's come up and I can't make the viewing.", None),
-    )
-    monkeypatch.setattr(process_viewing_reminders, "send_reply", send_reply)
-    monkeypatch.setattr(
-        process_viewing_reminders, "save_message", lambda *a, **k: None
-    )
-    monkeypatch.setattr(
-        process_viewing_reminders,
-        "mark_viewing_cancelled",
-        lambda thread_id: cancelled.append(thread_id),
-    )
-    monkeypatch.setattr(
-        process_viewing_reminders,
-        "update_conversation_status",
-        lambda thread_id, status: statuses.append((thread_id, status)),
-    )
-    monkeypatch.setattr(
-        process_viewing_reminders, "release_conversation_claim", lambda *a: None
-    )
+    monkeypatch.setattr(process_viewing_reminders, "_cancel_viewing_and_handoff", cancel)
+    monkeypatch.setattr(process_viewing_reminders, "_try_giveout_salvage", salvage)
+    monkeypatch.setattr(process_viewing_reminders, "release_conversation_claim", lambda *a: None)
     monkeypatch.setattr(process_viewing_reminders, "random_sleep", noop_async)
 
     asyncio.run(
@@ -154,6 +155,4 @@ def test_reminder_cancels_confirmed_viewing_with_discussion_stage(monkeypatch):
         )
     )
 
-    assert len(sent) == 1
     assert cancelled == ["thread-drifted"]
-    assert ("thread-drifted", process_viewing_reminders.VIEWING_CANCELLED) in statuses
