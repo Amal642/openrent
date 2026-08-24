@@ -2820,6 +2820,41 @@ def mark_listing_skipped_agent(listing_id, property_count=None):
             db.commit()
 
 
+def viewing_cancellation_due(conversation, now=None):
+    """Canonical predicate: is a confirmed viewing due for graceful pre-viewing
+    cancellation? Single source of truth shared by the DB sweep query and the
+    reminder-loop pre-flight guard.
+
+    Keyed ONLY on the authoritative viewing-state fields, never on
+    ``conversation_stage``. ``conversation_stage`` is regex-derived and gets
+    overwritten by later chat (detect_stage never emits VIEWING_BOOKED; the
+    phone-found path downgrades it), so gating cancellation on it silently
+    dropped genuinely-confirmed viewings and produced no-shows
+    (e.g. thread 45975228: viewing_confirmed=True but stage=VIEWING_DISCUSSION).
+    """
+    if conversation is None:
+        return False
+    now = now or datetime.utcnow()
+    vdt = getattr(conversation, "viewing_datetime", None)
+    if vdt is None:
+        return False
+    if not getattr(conversation, "viewing_confirmed", False):
+        return False
+    if getattr(conversation, "viewing_cancelled", False):
+        return False
+    if getattr(conversation, "cancellation_sent_at", None) is not None:
+        return False
+    if getattr(conversation, "handoff_completed_at", None) is not None:
+        return False
+    # The pre-viewing sweep only withdraws BEFORE the viewing; already-past
+    # viewings are damage handled separately, not re-cancelled here.
+    if vdt <= now:
+        return False
+    target_h = getattr(conversation, "cancel_target_hours", None) or 4.0
+    cancel_at = vdt - timedelta(hours=target_h)
+    return now >= cancel_at
+
+
 def get_due_viewing_cancellations(account_id=None, limit=25):
     """
     Return conversations whose viewing cancellation is due.
@@ -2848,6 +2883,13 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
         )
         logger.info("VIEWING QUERY BUILT")
 
+        # Candidate pull mirrors the canonical viewing_cancellation_due() predicate.
+        # Keyed on the authoritative viewing-state fields, NOT conversation_stage:
+        # stage is regex-derived and gets overwritten by later chat, which silently
+        # dropped genuinely-confirmed viewings from this query (the no-show class,
+        # e.g. thread 45975228: viewing_confirmed=True but stage=VIEWING_DISCUSSION).
+        # handoff_completed_at IS NULL replaces the exclusion the old stage filter
+        # gave implicitly (mark_handoff_complete set stage=HANDOFF_COMPLETE).
         query = query.filter(
             Conversation.viewing_datetime != None,
             Conversation.viewing_datetime <= upper_cutoff,
@@ -2856,11 +2898,7 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
             Conversation.cancel_required == True,
             Conversation.cancellation_sent_at == None,
             Conversation.viewing_confirmed == True,
-            Conversation.conversation_stage == VIEWING_BOOKED,
-            # phone_found and handoff_completed_at are NOT required:
-            # cancellation is time-based and fires regardless of phone status.
-            # The old handoff_completed_at filter was contradictory — mark_handoff_complete
-            # sets stage=HANDOFF_COMPLETE, which conflicts with stage==VIEWING_BOOKED above.
+            Conversation.handoff_completed_at == None,
         )
 
         if account_id is not None:
@@ -2876,13 +2914,12 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
 
         results = []
         for conversation, listing, search_profile, account in query.all():
-            target_h = conversation.cancel_target_hours or 4.0
-            cancel_at = conversation.viewing_datetime - timedelta(hours=target_h)
-
-            if now < cancel_at:
-                # Not yet in the cancellation window for this conversation
+            if not viewing_cancellation_due(conversation, now):
+                # Not yet in the per-conversation cancellation window (or a
+                # guard field flipped between the SQL pull and here).
                 continue
 
+            target_h = conversation.cancel_target_hours or 4.0
             hours_remaining = (
                 conversation.viewing_datetime - now
             ).total_seconds() / 3600

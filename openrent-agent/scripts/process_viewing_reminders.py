@@ -36,20 +36,20 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
     for viewing in due_viewings:
         thread_id = viewing["thread_id"]
 
-        # Pre-flight guard: all three conditions must hold before any cancellation
-        # is sent.  The DB query already filters on these, but this is a last-line
-        # defence in case a race condition or stale record slips through.
+        # Pre-flight guard: last-line defence over the DB query, which already
+        # applies the canonical viewing_cancellation_due() predicate. Keyed on the
+        # authoritative viewing-state fields only — NOT conversation_stage, whose
+        # drift (viewing_confirmed=True while stage=VIEWING_DISCUSSION) was exactly
+        # what silently blocked cancellations and caused no-shows.
         viewing_datetime = viewing.get("viewing_datetime")
         viewing_confirmed = viewing.get("viewing_confirmed")
-        conversation_stage = viewing.get("conversation_stage")
 
-        if not viewing_datetime or not viewing_confirmed or conversation_stage != "VIEWING_BOOKED":
+        if not viewing_datetime or not viewing_confirmed:
             logger.warning(
                 f"CANCELLATION_BLOCKED thread_id={thread_id} "
-                f"reason=no_confirmed_viewing_datetime "
+                f"reason=missing_confirmed_viewing "
                 f"viewing_datetime={viewing_datetime} "
-                f"viewing_confirmed={viewing_confirmed} "
-                f"conversation_stage={conversation_stage}"
+                f"viewing_confirmed={viewing_confirmed}"
             )
             continue
 

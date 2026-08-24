@@ -1474,7 +1474,18 @@ async def process_account_replies(
             # because it false-positives on phrases like "that works" or bare numbers
             # like "1 bed flat". Only non-booking stages are updated here.
             stage = detect_stage(messages)
-            if stage and stage != VIEWING_BOOKED:
+            # Do NOT let a regex stage downgrade clobber a genuinely-confirmed
+            # viewing. viewing_confirmed (banner / AI-detect) is authoritative; a
+            # later chatty message that regex-classifies as DISCUSSION/PENDING must
+            # not move the persisted stage off its booked state. That drift
+            # (viewing_confirmed=True while stage=VIEWING_DISCUSSION) is what used to
+            # drop confirmed viewings out of the cancellation sweep. Reply
+            # generation below still uses the freshly-detected `stage` regardless.
+            if (
+                stage
+                and stage != VIEWING_BOOKED
+                and not (conversation and getattr(conversation, "viewing_confirmed", False))
+            ):
                 if stage == VIEWING_PENDING:
                     logger.info(
                         f"VIEWING_PENDING thread_id={thread_id} "
