@@ -75,7 +75,9 @@ def test_account_create_toggle_update_delete_flow(client):
 
 
 def test_phone_target_is_one_third_of_new_outreach_rounded_up(client, monkeypatch):
-    monkeypatch.setattr("app.api.main.get_dashboard_leads", lambda: [])
+    # /api/metrics calls get_dashboard_leads(with_persona=False); the stub must
+    # accept that keyword or the endpoint 500s.
+    monkeypatch.setattr("app.api.main.get_dashboard_leads", lambda with_persona=False: [])
     monkeypatch.setattr("app.api.main.get_dashboard_accounts", lambda: [])
     monkeypatch.setattr("app.api.main.count_new_outreach_on_day", lambda _day: 7)
 
