@@ -20,7 +20,7 @@ from app.db.models import (
     SearchProfile,
 )
 from app.db.status import HANDOFF_COMPLETE, VIEWING_CANCELLED, VIEWING_BOOKED, VIEWING_DISCUSSION
-from app.utils.scheduling import UK_TZ, uk_now
+from app.utils.scheduling import UK_TZ, uk_now, uk_naive_to_utc_naive, utc_naive_to_uk_naive
 from app.ai.personas import (
     get_conversation_style,
     get_persona_template,
@@ -1602,7 +1602,7 @@ def save_viewing_datetime(thread_id, viewing_datetime):
         ).first()
 
         if conversation:
-            conversation.viewing_datetime = viewing_datetime
+            conversation.viewing_datetime = uk_naive_to_utc_naive(viewing_datetime)
             conversation.viewing_confirmed = True
             if not conversation.viewing_confirmation_source:
                 conversation.viewing_confirmation_source = "ai"
@@ -1675,7 +1675,7 @@ def save_banner_state(
             if not conversation.viewing_confirmation_source:
                 conversation.viewing_confirmation_source = confirmation_source
             if viewing_datetime:
-                conversation.viewing_datetime = viewing_datetime
+                conversation.viewing_datetime = uk_naive_to_utc_naive(viewing_datetime)
                 if not conversation.cancel_target_hours:
                     cancel_target = round(random.uniform(3.2, 4.8), 1)
                     conversation.cancel_target_hours = cancel_target
@@ -1894,6 +1894,94 @@ def save_conversation_error(thread_id, reason):
         if conversation:
             conversation.ai_error_reason = reason
             db.commit()
+
+
+def enqueue_sheet_export_for_conversation(conversation_id):
+    """Best-effort: ensure a PENDING Google-Sheet outbox row exists for a lead.
+
+    Capture paths other than the in-thread ``save_phone_number`` (currently the
+    WhatsApp give-out channel in ``app/whatsapp/repository.py``) set
+    ``phone_found_at`` on a conversation but never enqueued a sheet export, so
+    those leads silently never reached the client sheet. This helper closes that
+    gap without touching the mainline path.
+
+    It is deliberately conservative:
+      * runs in its OWN session and NEVER raises to the caller, so a failure here
+        can never disturb the WhatsApp capture/commit that already happened;
+      * idempotent — no-ops when an outbox row already exists (never disturbs
+        existing export state);
+      * only enqueues when the full exporter chain (conversation -> listing ->
+        search_profile -> account) resolves, because ``get_sheet_export_payload``
+        inner-joins those; without them the row would only churn to failure;
+      * applies the same ``GOOGLE_SHEET_LOCATION`` gate as ``save_phone_number``.
+    """
+    try:
+        from app.config import settings
+        from app.utils.logger import logger
+
+        with session_scope() as db:
+            row = (
+                db.query(Conversation, SearchProfile)
+                .join(Listing, Conversation.listing_id == Listing.id)
+                .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+                .join(Account, SearchProfile.account_id == Account.id)
+                .filter(Conversation.id == conversation_id)
+                .first()
+            )
+            if not row:
+                logger.info(
+                    "GOOGLE_SHEETS_OUTBOX_SKIPPED_NO_CHAIN "
+                    f"conversation_id={conversation_id}"
+                )
+                return
+
+            conversation, search_profile = row
+
+            existing = (
+                db.query(LeadSheetExport)
+                .filter(LeadSheetExport.conversation_id == conversation.id)
+                .first()
+            )
+            if existing is not None:
+                # Already tracked; leave existing outbox state untouched.
+                return
+
+            target_location = str(settings.GOOGLE_SHEET_LOCATION or "").strip()
+            search_location = str(search_profile.location or "").strip()
+            if (
+                target_location
+                and target_location.casefold() not in search_location.casefold()
+            ):
+                logger.info(
+                    "GOOGLE_SHEETS_OUTBOX_SKIPPED_LOCATION "
+                    f"conversation_id={conversation.id} thread_id={conversation.thread_id} "
+                    f"search_location={search_location!r} target_location={target_location!r}"
+                )
+                return
+
+            now = datetime.utcnow()
+            export = LeadSheetExport(
+                conversation_id=conversation.id,
+                status="PENDING",
+                next_attempt_at=now,
+            )
+            db.add(export)
+            db.commit()
+            logger.info(
+                "GOOGLE_SHEETS_OUTBOX_UPSERTED "
+                f"conversation_id={conversation.id} thread_id={conversation.thread_id} "
+                f"action=created status=PENDING source=whatsapp"
+            )
+    except Exception as exc:  # never break the caller's capture flow
+        try:
+            from app.utils.logger import logger as _logger
+
+            _logger.warning(
+                "ENQUEUE_SHEET_EXPORT_FAILED "
+                f"conversation_id={conversation_id} err={exc!r}"
+            )
+        except Exception:
+            pass
 
 
 def save_phone_number(
@@ -2820,6 +2908,41 @@ def mark_listing_skipped_agent(listing_id, property_count=None):
             db.commit()
 
 
+def viewing_cancellation_due(conversation, now=None):
+    """Canonical predicate: is a confirmed viewing due for graceful pre-viewing
+    cancellation? Single source of truth shared by the DB sweep query and the
+    reminder-loop pre-flight guard.
+
+    Keyed ONLY on the authoritative viewing-state fields, never on
+    ``conversation_stage``. ``conversation_stage`` is regex-derived and gets
+    overwritten by later chat (detect_stage never emits VIEWING_BOOKED; the
+    phone-found path downgrades it), so gating cancellation on it silently
+    dropped genuinely-confirmed viewings and produced no-shows
+    (e.g. thread 45975228: viewing_confirmed=True but stage=VIEWING_DISCUSSION).
+    """
+    if conversation is None:
+        return False
+    now = now or datetime.utcnow()
+    vdt = getattr(conversation, "viewing_datetime", None)
+    if vdt is None:
+        return False
+    if not getattr(conversation, "viewing_confirmed", False):
+        return False
+    if getattr(conversation, "viewing_cancelled", False):
+        return False
+    if getattr(conversation, "cancellation_sent_at", None) is not None:
+        return False
+    if getattr(conversation, "handoff_completed_at", None) is not None:
+        return False
+    # The pre-viewing sweep only withdraws BEFORE the viewing; already-past
+    # viewings are damage handled separately, not re-cancelled here.
+    if vdt <= now:
+        return False
+    target_h = getattr(conversation, "cancel_target_hours", None) or 4.0
+    cancel_at = vdt - timedelta(hours=target_h)
+    return now >= cancel_at
+
+
 def get_due_viewing_cancellations(account_id=None, limit=25):
     """
     Return conversations whose viewing cancellation is due.
@@ -2848,6 +2971,13 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
         )
         logger.info("VIEWING QUERY BUILT")
 
+        # Candidate pull mirrors the canonical viewing_cancellation_due() predicate.
+        # Keyed on the authoritative viewing-state fields, NOT conversation_stage:
+        # stage is regex-derived and gets overwritten by later chat, which silently
+        # dropped genuinely-confirmed viewings from this query (the no-show class,
+        # e.g. thread 45975228: viewing_confirmed=True but stage=VIEWING_DISCUSSION).
+        # handoff_completed_at IS NULL replaces the exclusion the old stage filter
+        # gave implicitly (mark_handoff_complete set stage=HANDOFF_COMPLETE).
         query = query.filter(
             Conversation.viewing_datetime != None,
             Conversation.viewing_datetime <= upper_cutoff,
@@ -2856,11 +2986,7 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
             Conversation.cancel_required == True,
             Conversation.cancellation_sent_at == None,
             Conversation.viewing_confirmed == True,
-            Conversation.conversation_stage == VIEWING_BOOKED,
-            # phone_found and handoff_completed_at are NOT required:
-            # cancellation is time-based and fires regardless of phone status.
-            # The old handoff_completed_at filter was contradictory — mark_handoff_complete
-            # sets stage=HANDOFF_COMPLETE, which conflicts with stage==VIEWING_BOOKED above.
+            Conversation.handoff_completed_at == None,
         )
 
         if account_id is not None:
@@ -2876,13 +3002,12 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
 
         results = []
         for conversation, listing, search_profile, account in query.all():
-            target_h = conversation.cancel_target_hours or 4.0
-            cancel_at = conversation.viewing_datetime - timedelta(hours=target_h)
-
-            if now < cancel_at:
-                # Not yet in the cancellation window for this conversation
+            if not viewing_cancellation_due(conversation, now):
+                # Not yet in the per-conversation cancellation window (or a
+                # guard field flipped between the SQL pull and here).
                 continue
 
+            target_h = conversation.cancel_target_hours or 4.0
             hours_remaining = (
                 conversation.viewing_datetime - now
             ).total_seconds() / 3600
@@ -3004,7 +3129,7 @@ def get_dashboard_leads(status=None, with_persona=True):
                 "pets_allowed": search_profile.pets_allowed,
                 "status": conversation.status,
                 "conversation_stage": conversation.conversation_stage,
-                "viewing_datetime": conversation.viewing_datetime,
+                "viewing_datetime": utc_naive_to_uk_naive(conversation.viewing_datetime),
                 "viewing_confirmed": conversation.viewing_confirmed,
                 "viewing_confirmation_source": conversation.viewing_confirmation_source,
                 "viewing_cancelled": conversation.viewing_cancelled,

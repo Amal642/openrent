@@ -59,6 +59,30 @@ def landlord_messages(messages):
     ]
 
 
+def unanswered_landlord_messages(messages):
+    """The landlord messages since our last outbound reply — the burst we have
+    not answered yet. This is the correct unit of "what is the landlord asking
+    right now", because landlords often send several messages in a row (their
+    number in one, a viewing time in the next). Reading only the final message
+    misses the earlier ones (the Sandra/Claire lost-lead: "send me the number"
+    followed by "can you come at 12?" — the ask sat in the non-final message).
+
+    Falls back to the most recent landlord message when the last message is ours
+    (nothing new since we replied), so behaviour is never worse than latest-only.
+    """
+    trailing = []
+    for message in reversed(messages or []):
+        if _sender(message) in {"landlord", "inbound"}:
+            trailing.append(message)
+        else:
+            break
+    trailing.reverse()
+    if trailing:
+        return trailing
+    landlords = landlord_messages(messages)
+    return [landlords[-1]] if landlords else []
+
+
 def outbound_count(messages):
     return len([
         message
@@ -77,10 +101,13 @@ def viewing_requested(messages):
 
 
 def latest_landlord_asked_for_phone(messages):
-    landlords = landlord_messages(messages)
-    if not landlords:
-        return False
-    return landlord_asked_for_phone(_content(landlords[-1]))
+    # Any message in the unanswered burst that asks for our number counts —
+    # an ask we have not answered still stands even if a later message in the
+    # same burst moved on to logistics.
+    return any(
+        landlord_asked_for_phone(_content(m))
+        for m in unanswered_landlord_messages(messages)
+    )
 
 
 _HESITANT_PHONE_PATTERNS = [
@@ -118,12 +145,13 @@ _HESITANT_PHONE_PATTERNS = [
 
 
 def latest_landlord_hesitant_about_phone(messages):
-    """Return True if the latest landlord message shows reluctance to share their number."""
-    landlords = landlord_messages(messages)
-    if not landlords:
-        return False
-    text = _content(landlords[-1])
-    return any(p.search(text) for p in _HESITANT_PHONE_PATTERNS)
+    """True if any message in the unanswered landlord burst shows reluctance to
+    share their number. A later message where they DO share is handled upstream
+    via landlord_already_gave_number / phone extraction, so 'any in burst' is safe."""
+    return any(
+        any(p.search(_content(m)) for p in _HESITANT_PHONE_PATTERNS)
+        for m in unanswered_landlord_messages(messages)
+    )
 
 
 # Each entry: (compiled regex, topic label)
@@ -154,16 +182,16 @@ def detect_screening_questions(messages) -> list[str]:
     An empty list means no screening questions were detected.  A non-empty list
     means the AI must answer these topics before any other objective.
     """
-    latest = landlord_messages(messages)
-    if not latest:
-        return []
-    text = _content(latest[-1])
+    # Aggregate topics across EVERY unanswered landlord message: all pending
+    # screening questions must be answered, not just those in the final message.
     detected: list[str] = []
     seen: set[str] = set()
-    for pattern, topic in _SCREENING_PATTERNS:
-        if topic not in seen and pattern.search(text):
-            detected.append(topic)
-            seen.add(topic)
+    for message in unanswered_landlord_messages(messages):
+        text = _content(message)
+        for pattern, topic in _SCREENING_PATTERNS:
+            if topic not in seen and pattern.search(text):
+                detected.append(topic)
+                seen.add(topic)
     return detected
 
 

@@ -89,18 +89,39 @@ async def get_landlord_property_count(page, landlord_id):
 
     await random_sleep(3, 6)
 
-    links = await page.query_selector_all('a[href^="/property-to-rent/"]')
+    # Count only CURRENTLY-AVAILABLE listings, not lifetime ones. Each card is
+    # an `a.search-property-card`; a card that's already let carries a
+    # "Let agreed" badge (div.badge) inside it. Long-tenured private landlords
+    # accumulate let-agreed history that used to inflate their count past the
+    # agent threshold and wrongly skip them — availability is the signal that
+    # actually separates a private landlord (1-3 live) from an agent (many live).
+    # Scope to the landlord's own `.property-list` container; fall back to the
+    # whole document if the layout ever changes so we never silently count zero.
+    counts = await page.evaluate(
+        r"""() => {
+            const scope = document.querySelector('.property-list') || document;
+            const anchors = [...scope.querySelectorAll('a[href^="/property-to-rent/"]')];
+            const seen = new Set();
+            let available = 0, total = 0;
+            for (const a of anchors) {
+                const href = a.getAttribute('href');
+                if (!href || seen.has(href)) continue;
+                seen.add(href);
+                total += 1;
+                if (/let agreed/i.test(a.textContent || '')) continue;
+                available += 1;
+            }
+            return { available, total };
+        }"""
+    )
 
-    property_links = set()
-    for link in links:
-        href = await link.get_attribute("href")
-        if not href:
-            continue
-        property_links.add(href)
-
-    count = len(property_links)
-    logger.info(f"Landlord {landlord_id} has {count} properties")
-    return count
+    available = counts.get("available", 0)
+    total = counts.get("total", 0)
+    logger.info(
+        f"Landlord {landlord_id}: {available} available "
+        f"({total} lifetime incl. let-agreed)"
+    )
+    return available
 
 
 async def landlord_is_agent(page, property_url, threshold=3, listing_id=None):

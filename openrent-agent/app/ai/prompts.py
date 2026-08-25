@@ -686,6 +686,7 @@ How a real interested renter behaves (this is the whole point, not a checklist):
 - Answer whatever the landlord actually asked, briefly and in full. If they asked several things, answer them all.
 - Keep things moving toward seeing the place: agree to a viewing time when offered, or say you are happy to come and see it.
 - Any viewing time you suggest or accept must still be in the future. Read the current date and time shown below and never offer a slot that has already passed: do not say "this morning" once it is the afternoon or evening, and do not offer a day or weekend that is already over. Name the specific day so there is no doubt ("tomorrow afternoon", "this coming Saturday"), and if the days the landlord mentioned have already gone, suggest the soonest sensible future day instead.
+- If a viewing day was agreed earlier in the thread, work out that day fresh against the current date shown below every single time; never copy a "today" or "tomorrow" from an earlier message. If the agreed viewing is on the current date, call it "today" and never "tomorrow". Only say "tomorrow" when the viewing is genuinely the day after the current date.
 {number_policy}
 - You cannot physically attend a viewing. Never claim to be on your way, running late, nearly there, arriving, outside, at, near, or "here" at the property, and never say you have arrived. Do not narrate a journey or a location. If the landlord says they are waiting, asks if you are coming, or says you are expected or late right now, do NOT pretend to be there or on your way. Apologise briefly and withdraw: say something ordinary has come up so you cannot make it after all (keep the reason low-key and mundane, never urgent, dramatic, or an emergency), and do NOT offer to reschedule or arrange another time. Bow out cleanly rather than claim you are somewhere you are not.
 - If the landlord doubts you are real or calls you a bot, do not get defensive or announce anything. Just reply naturally like a person and keep it practical.
@@ -1089,7 +1090,7 @@ Reply with ONLY this exact JSON and nothing else:
   "reason": "one sentence"
 }}
 
-Use the current date/time above to resolve relative references (e.g. "tomorrow", "next Tuesday", "Friday at 6") into an absolute date for viewing_datetime.
+Each message is prefixed with [its own UK send time]. Resolve every relative reference ("today", "tomorrow", "1pm", "Friday at 6") against the timestamp of the message that contains it, NOT against the latest time. A "tomorrow" said on Wednesday means Thursday even if it is now Friday. Prefer the most recent agreement. If a party says they are on their way / running late / "see you shortly", the viewing is happening that same day at the agreed time. Output viewing_datetime as an absolute UK-local "YYYY-MM-DD HH:MM".
 
 If viewing_arranged is true but no specific datetime can be extracted, set viewing_datetime to null.
 

@@ -113,6 +113,21 @@ def format_conversation(messages):
     return "\n".join(lines)
 
 
+def format_conversation_with_timestamps(messages):
+    """Like format_conversation but prefixes each line with the UK timestamp of
+    when that message was sent, so the viewing detector can resolve relative
+    dates ("tomorrow", "1pm") against the moment they were said rather than
+    against the single processing-time "now" (which collapsed every relative
+    date onto one day and produced off-by-one-day viewing dates)."""
+    from app.ai.stages import message_uk_timestamp_str
+    lines = []
+    for msg in messages:
+        ts = message_uk_timestamp_str(msg)
+        prefix = f"[{ts}] " if ts else ""
+        lines.append(f"{prefix}{msg['sender'].upper()}: {msg['message']}")
+    return "\n".join(lines)
+
+
 def _format_simulation_conversation(messages) -> str:
     lines = []
     for message in messages:
@@ -381,6 +396,13 @@ def generate_reply(
                 if is_valid_reply(candidate):
                     reply = candidate
 
+    # Deterministic guard: never let the reply carry a STALE relative day
+    # word for the agreed viewing (e.g. "1pm tomorrow" on the viewing day).
+    if conversation_state is not None:
+        from app.ai.stages import correct_stale_viewing_day
+        reply = correct_stale_viewing_day(
+            reply, getattr(conversation_state, "viewing_datetime", None)
+        )
     _record_handoff_if_shared(thread_id, reply, (persona or {}).get("mobile_number"))
     return reply, None
 
@@ -633,7 +655,7 @@ def ai_detect_viewing_arranged(messages, retries=2, base_delay=1):
     Returns dict with keys: viewing_arranged (bool), viewing_datetime (str|None), reason (str).
     Called only when the banner scan found nothing, as a fallback.
     """
-    conversation = format_conversation(messages or [])
+    conversation = format_conversation_with_timestamps(messages or [])
     prompt = build_viewing_detection_prompt(conversation)
 
     for attempt in range(1, retries + 1):

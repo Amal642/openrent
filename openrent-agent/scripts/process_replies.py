@@ -11,10 +11,10 @@ from app.db.repository import (
     update_conversation_status,
     get_conversation_by_thread_id,
     get_automatic_cancellation_block_reason,
+    viewing_cancellation_due,
     update_last_processed_message,
     phone_exists,
     mark_handoff_complete,
-    mark_viewing_cancelled,
     mark_phone_requested,
     mark_phone_number_shared,
     mark_landlord_asked_phone,
@@ -50,6 +50,7 @@ from app.openrent.popups import close_verified_tenant_popup
 from app.ai.stages import (
     detect_stage,
     extract_viewing_datetime,
+    resolve_viewing_datetime,
 )
 
 from app.ai.extractors import (
@@ -60,8 +61,6 @@ from app.ai.extractors import (
 from app.ai.replies import (
     ai_detect_viewing_arranged,
     generate_handoff_message,
-    generate_cancel_viewing_message,
-    generate_pre_cancel_number_ask,
     generate_reply,
     generate_distant_location,
     generate_follow_up_message,
@@ -76,9 +75,20 @@ from app.experiments import playbook_ab  # OPEN-21D playbook A/B
 from app.ai.validators import (
     remove_unapproved_phone_numbers
 )
-from app.ai.personas import tenant_shared_phone, generate_phone_share_reply
-from app.ai.reply_gate import post_capture_decision
-from app.whatsapp.repository import record_handoff_intent
+from app.ai.personas import tenant_shared_phone
+from app.ai.reply_gate import post_capture_decision, landlord_wants_video_call
+
+# Viewing-withdrawal lifecycle helpers (cancel / pre-cancel number-ask / give-out
+# salvage) live in one shared module so the DB-driven cancellation sweep can reuse
+# the exact same behaviour. Re-imported here so every existing call site is
+# unchanged (the video-call gate below still calls _try_giveout_salvage). NOTE:
+# these resolve their deps in viewing_lifecycle's namespace, so tests must
+# monkeypatch app.openrent.viewing_lifecycle.<name>.
+from app.openrent.viewing_lifecycle import (
+    _cancel_viewing_and_handoff,
+    _send_pre_cancel_number_ask,
+    _try_giveout_salvage,
+)
 
 from app.ai.conversation_memory import (
     detect_landlord_attitude,
@@ -250,11 +260,6 @@ def _build_name_reply(persona):
     )
 
 
-_DEFAULT_CANCEL_MSG = (
-    "Thanks for arranging the viewing. Unfortunately something has come up and I won't be "
-    "able to make it. Really sorry for the short notice."
-)
-
 # Graceful sign-offs sent once when a thread is FIRST found to be a duplicate
 # (its number is one we already captured on another thread), so an engaged
 # landlord is not simply ghosted. Deterministic + rotated by thread id for
@@ -399,145 +404,6 @@ def _log_playbook_ab_phone_capture(thread_id):
         )
 
 
-async def _cancel_viewing_and_handoff(
-    thread_id, messages, latest_landlord_message, page,
-    persona=None, landlord_attitude=None,
-):
-    """Send a viewing cancellation, mark the viewing cancelled, and complete handoff."""
-    block_reason = get_automatic_cancellation_block_reason(thread_id)
-    if block_reason:
-        logger.info(
-            f"CANCELLATION_BLOCKED thread_id={thread_id} reason={block_reason}"
-        )
-        return False
-
-    logger.info(f"VIEWING_CANCEL_TRIGGERED thread_id={thread_id}")
-
-    cancel_msg, error = generate_cancel_viewing_message(messages)
-    if not cancel_msg or error:
-        logger.warning(
-            f"Cancel message generation failed for thread {thread_id}: "
-            f"{error or 'empty_cancel_message'} — using fallback"
-        )
-        cancel_msg = _DEFAULT_CANCEL_MSG
-
-    sent = await send_reply(page, cancel_msg)
-    if not sent:
-        still_open = await can_reply(page)
-        if not still_open:
-            logger.warning(
-                f"VIEWING_CANCEL_REPLY_DISABLED thread_id={thread_id} "
-                "textarea disabled — marking reply_disabled"
-            )
-            update_conversation_status(thread_id, REPLY_DISABLED)
-            # If we already have the lead's number this thread is done: the
-            # reply box is gone so it can never be cancelled or replied to.
-            # Terminalize so P2 does not re-attempt it every run (CON-2). Gated
-            # on phone-captured to avoid permanently killing a thread on a
-            # transient page failure where we still want the number.
-            _dead_conv = get_conversation_by_thread_id(thread_id)
-            if _dead_conv and _dead_conv.extracted_phone:
-                mark_handoff_complete(thread_id)
-                logger.info(
-                    f"VIEWING_CANCEL_DEADTHREAD_TERMINALIZED thread_id={thread_id}"
-                )
-        else:
-            logger.warning(f"VIEWING_CANCEL_SEND_FAILED thread_id={thread_id}")
-        return False
-
-    logger.info(f"VIEWING_CANCEL_SENT thread_id={thread_id}")
-    save_message(thread_id, "outbound", cancel_msg)
-    update_last_processed_message(thread_id, latest_landlord_message)
-    mark_viewing_cancelled(thread_id)
-    mark_handoff_complete(thread_id)
-    update_conversation_status(thread_id, VIEWING_CANCELLED)
-    logger.info(f"HANDOFF_AFTER_CANCELLATION thread_id={thread_id}")
-    return True
-
-
-async def _send_pre_cancel_number_ask(
-    thread_id, messages, latest_landlord_message, page,
-    travel_city=None,
-) -> bool:
-    """Send a natural phone-ask message one run before cancelling a viewing."""
-    msg, err = generate_pre_cancel_number_ask(messages, place=travel_city)
-    if not msg or err:
-        logger.warning(f"PRE_CANCEL_NUMBER_ASK_GEN_FAILED thread_id={thread_id} error={err}")
-        return False
-    sent = await send_reply(page, msg)
-    if not sent:
-        still_open = await can_reply(page)
-        if not still_open:
-            update_conversation_status(thread_id, REPLY_DISABLED)
-        logger.warning(f"PRE_CANCEL_NUMBER_ASK_SEND_FAILED thread_id={thread_id}")
-        return False
-    save_message(thread_id, "outbound", msg)
-    update_last_processed_message(thread_id, latest_landlord_message)
-    mark_phone_requested(thread_id)
-    logger.info(f"PRE_CANCEL_NUMBER_ASK_SENT thread_id={thread_id}")
-    return True
-
-
-async def _try_giveout_salvage(
-    thread_id, conversation, account, messages, latest_landlord_message, page,
-    require_landlord_asked: bool = True,
-) -> bool:
-    """Share our WhatsApp give-out number before abandoning a no-phone viewing.
-
-    A landlord who is willing to hand over their number but is blocked by
-    OpenRent's in-platform redaction ("(Number Removed)") otherwise ends as a
-    silent cancellation — a lost lead. Instead, hand them our give-out WhatsApp
-    once so they still have a channel to reach us (and record a handoff intent
-    so any later WhatsApp maps back to this property).
-
-    Returns True when the give-out was sent so the caller can defer the cancel
-    one run. Guarded on ``our_number_shared_at`` so it fires at most once; the
-    next run then cancels normally if no lead arrived. ``require_landlord_asked``
-    is True in the pre-cancel path (only salvage when the landlord engaged on
-    contact details) and False in the post-cancel path (they already replied).
-    """
-    if getattr(conversation, "extracted_phone", None):
-        return False
-    if getattr(conversation, "our_number_shared_at", None):
-        return False
-    if require_landlord_asked and not getattr(conversation, "landlord_asked_phone_at", None):
-        return False
-    # Never salvage a long-dead viewing: the box is closed, so the send just
-    # fails every run (this was the source of the 115 GIVEOUT_SALVAGE_SEND_FAILED
-    # on stale threads). Aged-out threads are also skipped upstream now.
-    _vd = getattr(conversation, "viewing_datetime", None)
-    if _vd and _vd < datetime.utcnow() - timedelta(hours=48):
-        return False
-    persona = ensure_account_persona(account.id)
-    mobile = (persona or {}).get("mobile_number")
-    if not mobile:
-        return False
-    reply = generate_phone_share_reply(
-        persona,
-        landlord_attitude=getattr(conversation, "landlord_attitude", "responsive") or "responsive",
-    )
-    if not reply:
-        return False
-    sent = await send_reply(page, reply)
-    if not sent:
-        still_open = await can_reply(page)
-        if not still_open:
-            update_conversation_status(thread_id, REPLY_DISABLED)
-        logger.warning(f"GIVEOUT_SALVAGE_SEND_FAILED thread_id={thread_id}")
-        return False
-    save_message(thread_id, "outbound", reply)
-    mark_our_number_shared(thread_id)
-    try:
-        record_handoff_intent(thread_id)
-    except Exception as exc:
-        logger.warning(
-            f"GIVEOUT_SALVAGE_HANDOFF_INTENT_SKIPPED thread_id={thread_id} error={exc}"
-        )
-    update_last_processed_message(thread_id, latest_landlord_message)
-    logger.info(f"GIVEOUT_SALVAGE_SENT thread_id={thread_id}")
-    return True
-
-
 async def _send_duplicate_close(thread_id, conversation, messages, page, was_duplicate):
     """Send one graceful sign-off the FIRST time a thread is found to be a
     duplicate, so an engaged landlord is not left hanging.
@@ -574,7 +440,7 @@ async def _try_save_viewing_datetime(thread_id, messages) -> bool:
     Returns True if a datetime was found and saved, False otherwise.
     Cancellation timing is handled separately via _cancel_window_passed.
     """
-    viewing_datetime = extract_viewing_datetime(messages)
+    viewing_datetime = resolve_viewing_datetime(messages)
     if not viewing_datetime:
         return False
 
@@ -694,7 +560,12 @@ async def process_account_replies(
             if _should_run_viewing_detection(banners):
                 ai_viewing = ai_detect_viewing_arranged(messages)
                 if ai_viewing.get("viewing_arranged"):
-                    ai_dt = _parse_ai_viewing_datetime(ai_viewing.get("viewing_datetime"))
+                    # The LLM only DECIDES a viewing is agreed; the datetime is
+                    # resolved deterministically (message-anchored), with the
+                    # LLM's own date used only as a gap-filler. Keeps the LLM
+                    # out of date arithmetic (the off-by-one-day no-show,
+                    # thread 45969788).
+                    ai_dt = resolve_viewing_datetime(messages, llm_detection=ai_viewing)
                     # Only promote to confirmed when the AI also identified a
                     # specific datetime. A viewing with no agreed time is not
                     # truly "booked" and must not enter the cancel flow.
@@ -973,115 +844,46 @@ async def process_account_replies(
             ):
                 viewing_dt = getattr(conversation, "viewing_datetime", None)
                 phone_already_requested = bool(conversation and conversation.phone_requested_at)
-                phone_already_captured = bool(conversation and conversation.extracted_phone)
-                cancellation_block_reason = (
-                    get_automatic_cancellation_block_reason(thread_id)
-                )
 
-                # An unanswered phone request always blocks cancellation.
-                # After a response, preserve the existing timing rule: cancel
-                # when a phone was captured or the request is at least 4h old.
-                _phone_ask_age_h = (
-                    (datetime.utcnow() - conversation.phone_requested_at).total_seconds() / 3600
-                    if phone_already_requested and conversation and conversation.phone_requested_at
-                    else 0
-                )
-                # Imminent viewing: within ~2h of the start (or already here/past),
-                # withdraw NOW even without the 4h phone-ask courtesy age. Waiting on
-                # that rule when the viewing is this close just produces a no-show
-                # (the same-day short-notice failure, e.g. thread 45914564). A
-                # pending phone request still holds it via cancellation_block_reason.
-                _hrs_until_viewing = (
-                    (viewing_dt - datetime.utcnow()).total_seconds() / 3600
-                    if viewing_dt else None
-                )
-                _viewing_imminent = (
-                    _hrs_until_viewing is not None and _hrs_until_viewing <= 2
-                )
-                safe_to_cancel = not cancellation_block_reason and (
-                    _viewing_imminent
-                    or phone_already_captured
-                    or (phone_already_requested and _phone_ask_age_h >= 4)
-                )
+                # Timed withdrawal (give-out salvage / pre-cancel number-ask /
+                # cancellation) is owned entirely by the Phase-2 sweep
+                # (process_account_viewing_reminders): DB-driven, inbox-independent,
+                # and it runs right after this reply pass every cycle. When a viewing
+                # with a known time is inside its cancel window, defer to the sweep —
+                # so we never emit a normal reply moments before a withdrawal, and so
+                # the withdrawal fires even when this thread is filtered out of the
+                # reply inbox (the "you:" filter). Same viewing_cancellation_due()
+                # predicate the sweep uses, so the two can't disagree. (The sweep does
+                # the salvage-before-cancel with require_landlord_asked=False, matching
+                # the Sandra/Claire fix that previously lived here.)
+                if viewing_cancellation_due(conversation):
+                    update_last_processed_message(thread_id, latest_landlord_message)
+                    logger.info(
+                        f"VIEWING_WITHDRAWAL_DEFERRED_TO_SWEEP thread_id={thread_id} "
+                        f"viewing_dt={viewing_dt}"
+                    )
+                    continue
 
-                # Enter the cancel window when a known viewing time is within the
-                # window, OR when a confirmed viewing has no extractable datetime —
-                # that can never hit a timed window, so treat it as due now (the
-                # no-datetime no-show source, P2). safe_to_cancel still gates the
-                # actual cancel, so the number is captured or requested first.
-                in_cancel_window = viewing_dt is None or _cancel_window_passed(viewing_dt)
+                # No parsed viewing time: the timed sweep cannot schedule these
+                # (there is no datetime to time a cancel against), so keep the one-off
+                # number-ask here. Asking captures the lead; nothing to cancel.
+                if viewing_dt is None and not phone_already_requested:
+                    logger.info(f"VIEWING_NO_DATETIME_NUMBER_ASK thread_id={thread_id}")
+                    travel_city_for_ask = get_travel_city(thread_id)
+                    await _send_pre_cancel_number_ask(
+                        thread_id, messages, latest_landlord_message, page,
+                        travel_city=travel_city_for_ask,
+                    )
+                    continue
 
-                if in_cancel_window:
-                    if safe_to_cancel:
-                        # Salvage before withdrawing: if we never captured the
-                        # landlord's number (e.g. OpenRent redacted it) but they
-                        # engaged on contact details, hand over our WhatsApp
-                        # give-out once and defer the cancel one run so a reply
-                        # can convert this into a lead instead of a dead thread.
-                        if await _try_giveout_salvage(
-                            thread_id, conversation, account, messages,
-                            latest_landlord_message, page,
-                        ):
-                            continue
-                        hours_label = (
-                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h_remaining"
-                            if viewing_dt else "no_datetime"
-                        )
-                        logger.info(
-                            f"VIEWING_CANCEL_NOW thread_id={thread_id} reason={hours_label}"
-                        )
-                        cancelled = await _cancel_viewing_and_handoff(
-                            thread_id, messages, latest_landlord_message, page
-                        )
-                        if not cancelled:
-                            logger.warning(f"VIEWING_CANCEL_FAILED thread_id={thread_id}")
-                        continue
-                    elif not phone_already_requested:
-                        # Haven't asked yet — send number ask, cancel on next run
-                        hours_label = (
-                            f"{((viewing_dt - datetime.utcnow()).total_seconds()/3600):.1f}h"
-                            if viewing_dt else "no_datetime"
-                        )
-                        logger.info(
-                            f"PRE_CANCEL_NUMBER_ASK thread_id={thread_id} hours_until={hours_label}"
-                        )
-                        travel_city_for_ask = get_travel_city(thread_id)
-                        await _send_pre_cancel_number_ask(
-                            thread_id, messages, latest_landlord_message, page,
-                            travel_city=travel_city_for_ask,
-                        )
-                        continue
-                    else:
-                        if cancellation_block_reason:
-                            logger.info(
-                                f"CANCELLATION_BLOCKED thread_id={thread_id} "
-                                f"reason={cancellation_block_reason}"
-                            )
-                            continue
-                        logger.info(
-                            f"VIEWING_CANCEL_WAITING thread_id={thread_id} "
-                            f"phone_ask_age={_phone_ask_age_h:.1f}h"
-                        )
-                else:
-                    # Outside cancel window or no datetime yet — reply naturally
-                    if viewing_dt is not None:
-                        hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
-                        logger.info(
-                            f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
-                            f"hours_until={hours_until:.1f} — replying naturally while awaiting cancel window"
-                        )
-                    elif not phone_already_requested:
-                        # Viewing confirmed but no datetime — ask for number now
-                        logger.info(
-                            f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} reason=no_datetime — asking for number"
-                        )
-                        travel_city_for_ask = get_travel_city(thread_id)
-                        await _send_pre_cancel_number_ask(
-                            thread_id, messages, latest_landlord_message, page,
-                            travel_city=travel_city_for_ask,
-                        )
-                        continue
-                    # else: no datetime but already asked → reply normally, wait for response
+                # Outside the cancel window (known future time) or no datetime but
+                # already asked: fall through and reply naturally.
+                if viewing_dt is not None:
+                    hours_until = (viewing_dt - datetime.utcnow()).total_seconds() / 3600
+                    logger.info(
+                        f"VIEWING_CANCEL_DEFERRED thread_id={thread_id} "
+                        f"hours_until={hours_until:.1f} — replying naturally while awaiting cancel window"
+                    )
 
             if (
                 conversation
@@ -1474,7 +1276,18 @@ async def process_account_replies(
             # because it false-positives on phrases like "that works" or bare numbers
             # like "1 bed flat". Only non-booking stages are updated here.
             stage = detect_stage(messages)
-            if stage and stage != VIEWING_BOOKED:
+            # Do NOT let a regex stage downgrade clobber a genuinely-confirmed
+            # viewing. viewing_confirmed (banner / AI-detect) is authoritative; a
+            # later chatty message that regex-classifies as DISCUSSION/PENDING must
+            # not move the persisted stage off its booked state. That drift
+            # (viewing_confirmed=True while stage=VIEWING_DISCUSSION) is what used to
+            # drop confirmed viewings out of the cancellation sweep. Reply
+            # generation below still uses the freshly-detected `stage` regardless.
+            if (
+                stage
+                and stage != VIEWING_BOOKED
+                and not (conversation and getattr(conversation, "viewing_confirmed", False))
+            ):
                 if stage == VIEWING_PENDING:
                     logger.info(
                         f"VIEWING_PENDING thread_id={thread_id} "
@@ -1565,6 +1378,42 @@ async def process_account_replies(
                 update_conversation_status(thread_id, AI_REPLIED)
                 logger.info("Reply pipeline completed")
                 continue
+
+            # --- Video-call / screening-call gate ------------------------
+            # Some landlords require a live video/screening call (Zoom/Meet/
+            # Teams) before an in-person viewing. We cannot attend a call, and
+            # agreeing to one produces a no-show + fabricated-excuse loop that
+            # burns the account (e.g. thread 45936155). Pivot to our WhatsApp
+            # give-out instead: hand the number over once so a WhatsApp inbound
+            # captures the landlord as a lead, then stop agreeing to calls. If
+            # we already shared our number, disengage rather than loop.
+            _no_phone_yet = not (
+                conversation and getattr(conversation, "extracted_phone", None)
+            )
+            if _no_phone_yet and landlord_wants_video_call(messages):
+                if conversation and getattr(conversation, "our_number_shared_at", None):
+                    logger.info(
+                        f"VIDEO_CALL_GIVEOUT_ALREADY_SHARED thread_id={thread_id} "
+                        "- not re-agreeing to a call; awaiting WhatsApp/new info"
+                    )
+                    update_last_processed_message(thread_id, latest_landlord_message)
+                    update_conversation_status(thread_id, AI_REPLIED)
+                    continue
+                giveout_sent = await _try_giveout_salvage(
+                    thread_id, conversation, account, messages,
+                    latest_landlord_message, page,
+                    require_landlord_asked=False,
+                )
+                if giveout_sent:
+                    logger.info(f"VIDEO_CALL_GIVEOUT_SENT thread_id={thread_id}")
+                    update_conversation_status(thread_id, AI_REPLIED)
+                else:
+                    logger.info(
+                        f"VIDEO_CALL_GIVEOUT_NOT_SENT thread_id={thread_id} "
+                        "- skipping run rather than agreeing to a call"
+                    )
+                continue
+            # -------------------------------------------------------------
 
             logger.info(
                 f"Generating AI reply for thread {thread_id} "
@@ -1680,7 +1529,7 @@ async def process_account_replies(
                     and ab_expose_mobile
                 ):
                     whatsapp_line = (
-                        f"My husband's WhatsApp is {mobile} — "
+                        f"My husband's WhatsApp is {mobile}, "
                         "he handles the viewing coordination, so best to reach him there."
                     )
                     reply = f"{reply.rstrip()} {whatsapp_line}" if reply else whatsapp_line

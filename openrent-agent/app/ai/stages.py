@@ -343,3 +343,272 @@ def extract_viewing_datetime(messages, now=None):
 
     _stage_log("VIEWING_DATETIME_EXTRACTED", f"extracted datetime={candidate}")
     return candidate
+
+
+# --- viewing-time helpers shared with the AI detector -----------------------
+EN_ROUTE_PATTERNS = [
+    r"\brunning\s+(?:late|\d+)",
+    r"\bon (?:my|the) way\b",
+    r"\bomw\b",
+    r"\bnearly there\b",
+    r"\balmost there\b",
+    r"\bjust arrived\b",
+    r"\bi'?m (?:here|outside|downstairs|waiting)\b",
+    r"\bat the (?:property|flat|door|building)\b",
+    r"\bsee you (?:shortly|soon|in a bit|in \d+)\b",
+    r"\b\d+\s*min(?:ute)?s?\s*(?:late|away|out)\b",
+    r"\bbe there in\b",
+]
+_EN_ROUTE_RE = re.compile("|".join(EN_ROUTE_PATTERNS), re.I)
+
+
+def message_uk_timestamp_str(message):
+    """Human-readable UK timestamp ('Thu 21 Aug 08:07') for a message, or None.
+    Anchors the detector's relative-date resolution to when each line was sent."""
+    from app.utils.scheduling import utc_naive_to_uk_naive
+    dt = _message_time(message)  # naive UTC (or None)
+    if dt is None:
+        return None
+    uk = utc_naive_to_uk_naive(dt)
+    return uk.strftime("%a %d %b %H:%M")
+
+
+def landlord_says_en_route(messages):
+    """True if the most recent landlord/inbound message signals they are en route
+    or the viewing is imminent (so it must be today, not a future day)."""
+    for message in reversed(list(messages or [])):
+        if not isinstance(message, dict):
+            continue
+        sender = str(message.get("sender") or message.get("direction") or "").lower()
+        if sender in {"us", "user", "tenant", "outbound", "ai", "assistant"}:
+            continue
+        text = str(message.get("message") or message.get("content") or "")
+        return bool(_EN_ROUTE_RE.search(text))
+    return False
+
+
+def reconcile_viewing_datetime(dt_uk, messages, now=None):
+    """En-route guard, in naive UK-local time. When the latest landlord message
+    signals they are on their way / running late, the viewing is happening TODAY:
+    if the resolved date drifted to a later UK day, snap it back to that message's
+    UK date, keeping the agreed clock time. No-op otherwise. DST-safe (no cross-
+    zone conversions)."""
+    from app.utils.scheduling import utc_naive_to_uk_naive
+    if dt_uk is None or not landlord_says_en_route(messages):
+        return dt_uk
+    anchor_dt = None
+    for message in reversed(list(messages or [])):
+        if not isinstance(message, dict):
+            continue
+        sender = str(message.get("sender") or message.get("direction") or "").lower()
+        if sender in {"us", "user", "tenant", "outbound", "ai", "assistant"}:
+            continue
+        anchor_dt = _message_time(message)  # naive UTC
+        break
+    anchor_uk = (
+        utc_naive_to_uk_naive(anchor_dt) if anchor_dt
+        else (now or utc_naive_to_uk_naive(datetime.utcnow()))
+    )
+    if dt_uk.date() <= anchor_uk.date():
+        return dt_uk
+    corrected = dt_uk.replace(
+        year=anchor_uk.year, month=anchor_uk.month, day=anchor_uk.day
+    )
+    _stage_log(
+        "VIEWING_DATETIME_RECONCILED",
+        f"en_route signal -> snapped {dt_uk} to {corrected}",
+    )
+    return corrected
+
+
+def parse_llm_viewing_datetime(dt_str):
+    """Parse the LLM's 'YYYY-MM-DD HH:MM' string to a naive UK-local datetime,
+    or None. Kept permissive about the separator."""
+    if not dt_str:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(str(dt_str).strip(), fmt)
+        except ValueError:
+            continue
+    return None
+
+
+# A viewing resolved outside this window relative to now is almost certainly an
+# arithmetic slip (e.g. an LLM landing a weekday in the wrong month). Used only
+# to prefer the alternative source / log — never to silently drop.
+_MAX_FUTURE_DAYS = 90
+_MAX_PAST_HOURS = 48
+
+
+def _within_bounds(dt_uk, now_uk):
+    if dt_uk is None:
+        return False
+    if dt_uk > now_uk + timedelta(days=_MAX_FUTURE_DAYS):
+        return False
+    if dt_uk < now_uk - timedelta(hours=_MAX_PAST_HOURS):
+        return False
+    return True
+
+
+def resolve_viewing_datetime(messages, llm_detection=None, now=None):
+    """Single source of truth for a viewing datetime (naive UK-local, or None).
+
+    Deterministic, message-anchored extraction is authoritative; the LLM's date
+    is a gap-filler only. This removes the LLM from date ARITHMETIC — the class
+    of error behind the off-by-one-day no-show (thread 45969788).
+
+    Priority:
+      1. deterministic extract_viewing_datetime() (anchored to message time)
+      2. if deterministic is None -> the LLM's parsed date (bounded)
+      3. if both present but on different days -> deterministic wins (logged)
+    Then: en-route reconcile + sanity-bound. Caller converts UK->UTC at save.
+    """
+    from app.utils.scheduling import utc_naive_to_uk_naive
+    now_uk = now or utc_naive_to_uk_naive(datetime.utcnow())
+
+    det = extract_viewing_datetime(messages, now)
+    llm = None
+    if isinstance(llm_detection, dict):
+        llm = parse_llm_viewing_datetime(llm_detection.get("viewing_datetime"))
+    elif isinstance(llm_detection, str):
+        llm = parse_llm_viewing_datetime(llm_detection)
+
+    if det is not None and llm is not None:
+        if det.date() != llm.date():
+            # Different day: the LLM's weakness is date ARITHMETIC, so trust the
+            # message-anchored deterministic date (and its time). (thread 45969788)
+            _stage_log(
+                "VIEWING_DATETIME_DISAGREEMENT",
+                f"deterministic={det} llm={llm} -> deterministic day (anchored)",
+            )
+            chosen = det
+        elif det.time() != llm.time():
+            # Same day, different time: the regex takes the LAST time in a
+            # message, which is wrong when several are named ("make it 4:30 ...
+            # booked for 4pm"). The LLM reads which slot was actually agreed, so
+            # take its time on the anchored day. (thread 45987890)
+            _stage_log(
+                "VIEWING_DATETIME_TIME_FROM_LLM",
+                f"deterministic={det} llm={llm} -> llm time on deterministic day",
+            )
+            chosen = datetime.combine(det.date(), llm.time())
+        else:
+            chosen = det
+    elif det is not None:
+        chosen = det
+    elif llm is not None:
+        # Gap-fill: deterministic parser found nothing (e.g. bare-hour phrasing).
+        # Trust the LLM's date only if it is sanely bounded.
+        if _within_bounds(llm, now_uk):
+            chosen = llm
+        else:
+            _stage_log(
+                "VIEWING_DATETIME_SUSPICIOUS",
+                f"llm-only={llm} out of bounds vs now={now_uk} -> dropping",
+            )
+            return None
+    else:
+        return None
+
+    chosen = reconcile_viewing_datetime(chosen, messages, now=now_uk)
+
+    if not _within_bounds(chosen, now_uk):
+        # Prefer the other source if it is in bounds; else keep but flag.
+        alt = llm if chosen is det else det
+        if _within_bounds(alt, now_uk):
+            _stage_log(
+                "VIEWING_DATETIME_SUSPICIOUS",
+                f"chosen={chosen} out of bounds -> using alternative {alt}",
+            )
+            chosen = reconcile_viewing_datetime(alt, messages, now=now_uk)
+        else:
+            _stage_log(
+                "VIEWING_DATETIME_SUSPICIOUS",
+                f"chosen={chosen} out of bounds vs now={now_uk} (no in-bounds alt)",
+            )
+
+    return chosen
+
+
+# --- outbound stale relative-date guard -------------------------------------
+_WEEKDAY_NAMES = [
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+]
+
+# Cues that the reply is proposing an ALTERNATIVE / reschedule rather than
+# restating the agreed slot -> never rewrite its day words.
+_ALT_CUE_RE = re.compile(
+    r"\b(also|either|instead|alternatively|otherwise|reschedule|rearrange|"
+    r"another\s+(?:day|time)|move\s+it|push\s+it|change\s+it|could\s+we|"
+    r"can\s+we|can\s+you\s+do)\b",
+    re.I,
+)
+
+
+def _viewing_time_variants(uk_dt):
+    """Strings a reply might use to restate the agreed viewing clock time,
+    so we only rewrite a day word that is attached to the SAME slot."""
+    h24, m = uk_dt.hour, uk_dt.minute
+    h12 = h24 % 12 or 12
+    ampm = "am" if h24 < 12 else "pm"
+    v = set()
+    if m == 0:
+        v |= {f"{h12}{ampm}", f"{h12} {ampm}", f"{h12}:00{ampm}",
+              f"{h12}:00 {ampm}", f"{h12}.00{ampm}"}
+    else:
+        v |= {f"{h12}:{m:02d}{ampm}", f"{h12}:{m:02d} {ampm}", f"{h12}.{m:02d}{ampm}"}
+    v.add(f"{h24:02d}:{m:02d}")
+    return v
+
+
+def _correct_day_term(viewing_date, now_date):
+    delta = (viewing_date - now_date).days
+    if delta == 0:
+        return "today"
+    if delta == 1:
+        return "tomorrow"
+    return _WEEKDAY_NAMES[viewing_date.weekday()]
+
+
+def correct_stale_viewing_day(reply, viewing_dt_utc, now=None):
+    """Deterministically fix a stale future relative day-word ("tomorrow",
+    "day after tomorrow") in an outbound reply that restates an agreed viewing
+    time but names the wrong day (the "1pm tomorrow said on the viewing day"
+    bug, thread 45969788). Returns the corrected reply, or the reply unchanged.
+
+    Conservative gates (all required): a viewing datetime is known and falls
+    today or tomorrow; the reply restates that agreed clock time; the reply is
+    not offering an alternative/reschedule; and the day-word actually resolves
+    to a different day than the viewing.
+    """
+    from app.utils.scheduling import utc_naive_to_uk_naive
+    if not reply or viewing_dt_utc is None:
+        return reply
+    now_uk = utc_naive_to_uk_naive(now) if now else utc_naive_to_uk_naive(datetime.utcnow())
+    viewing_uk = utc_naive_to_uk_naive(viewing_dt_utc)
+
+    day_delta = (viewing_uk.date() - now_uk.date()).days
+    if day_delta not in (0, 1):
+        return reply  # only guard imminent viewings; far-future is ambiguous
+
+    low = reply.lower()
+    if not any(t in low for t in _viewing_time_variants(viewing_uk)):
+        return reply  # reply does not restate the agreed slot
+    if _ALT_CUE_RE.search(reply):
+        return reply  # offering an alternative / reschedule
+
+    correct_term = _correct_day_term(viewing_uk.date(), now_uk.date())
+    result = reply
+    for word, offset in (("day after tomorrow", 2), ("tomorrow", 1)):
+        if now_uk.date() + timedelta(days=offset) == viewing_uk.date():
+            continue  # this word is actually correct for the viewing day
+        pat = re.compile(r"\b" + re.escape(word) + r"\b", re.I)
+        if pat.search(result):
+            result = pat.sub(correct_term, result)
+            _stage_log(
+                "VIEWING_REPLY_DAY_CORRECTED",
+                f"'{word}' -> '{correct_term}' (viewing {viewing_uk.date()}, now {now_uk.date()})",
+            )
+            break
+    return result

@@ -1,27 +1,43 @@
 import asyncio
+from datetime import datetime
 
-from app.ai.replies import generate_cancellation_message
 from app.browser.auth import login
 from app.browser.launcher import launch_browser
 from app.db.repository import (
     claim_conversation,
     get_active_accounts,
     get_automatic_cancellation_block_reason,
+    get_conversation_by_thread_id,
     get_due_viewing_cancellations,
-    mark_viewing_cancelled,
+    get_travel_city,
     release_conversation_claim,
-    save_message,
     update_account_worker_state,
     update_conversation_status,
+    viewing_cancellation_due,
 )
 from app.db.init_db import init_db
-from app.db.status import AI_FAILED, VIEWING_CANCELLED
-from app.openrent.inbox import extract_conversation, open_thread, send_reply
+from app.db.status import AI_FAILED
+from app.openrent.inbox import extract_conversation, get_latest_landlord_message, open_thread
+from app.openrent.viewing_lifecycle import (
+    _cancel_viewing_and_handoff,
+    _send_pre_cancel_number_ask,
+    _try_giveout_salvage,
+)
 from app.utils.human import random_sleep
 from app.utils.logger import logger
 
 
 async def process_account_viewing_reminders(account, page, worker_id=None):
+    """Phase-2 viewing-withdrawal sweep — the single owner of viewing cancellation.
+
+    DB-driven and inbox-independent: it opens each due thread directly by
+    thread_id, so it is unaffected by the reply-inbox "you:" filter that starves
+    the reply loop. For every confirmed viewing that has entered its cancel
+    window it runs the full withdrawal lifecycle — give-out salvage -> pre-cancel
+    number-ask (2-step) -> cancellation — with an imminent-viewing override.
+    All sends reuse the shared app.openrent.viewing_lifecycle helpers, so the
+    behaviour is identical to what the reply loop used to do inline.
+    """
     owner = worker_id or f"account-{account.id}"
     due_viewings = get_due_viewing_cancellations(account_id=account.id)
 
@@ -36,20 +52,17 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
     for viewing in due_viewings:
         thread_id = viewing["thread_id"]
 
-        # Pre-flight guard: all three conditions must hold before any cancellation
-        # is sent.  The DB query already filters on these, but this is a last-line
-        # defence in case a race condition or stale record slips through.
-        viewing_datetime = viewing.get("viewing_datetime")
-        viewing_confirmed = viewing.get("viewing_confirmed")
-        conversation_stage = viewing.get("conversation_stage")
-
-        if not viewing_datetime or not viewing_confirmed or conversation_stage != "VIEWING_BOOKED":
+        # Pre-flight guard: last-line defence over the DB query, which already
+        # applies the canonical viewing_cancellation_due() predicate. Keyed on the
+        # authoritative viewing-state fields only — NOT conversation_stage, whose
+        # drift (viewing_confirmed=True while stage=VIEWING_DISCUSSION) was exactly
+        # what silently blocked cancellations and caused no-shows.
+        if not viewing.get("viewing_datetime") or not viewing.get("viewing_confirmed"):
             logger.warning(
                 f"CANCELLATION_BLOCKED thread_id={thread_id} "
-                f"reason=no_confirmed_viewing_datetime "
-                f"viewing_datetime={viewing_datetime} "
-                f"viewing_confirmed={viewing_confirmed} "
-                f"conversation_stage={conversation_stage}"
+                f"reason=missing_confirmed_viewing "
+                f"viewing_datetime={viewing.get('viewing_datetime')} "
+                f"viewing_confirmed={viewing.get('viewing_confirmed')}"
             )
             continue
 
@@ -61,33 +74,87 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
             await open_thread(page, thread_id)
             messages = await extract_conversation(page)
 
-            block_reason = get_automatic_cancellation_block_reason(thread_id)
-            if block_reason:
+            # Re-load fresh state: a Phase-1 reply may have flipped fields
+            # (phone captured, cancelled, handoff) since the candidate query ran.
+            conversation = get_conversation_by_thread_id(thread_id)
+            if not viewing_cancellation_due(conversation):
                 logger.info(
-                    f"CANCELLATION_BLOCKED thread_id={thread_id} "
-                    f"reason={block_reason}"
+                    f"VIEWING_WITHDRAWAL_SKIP thread_id={thread_id} "
+                    "reason=not_due_on_refresh"
                 )
                 continue
 
-            message, error = generate_cancellation_message(messages)
-            if not message or error:
-                logger.warning(
-                    f"Cancellation generation failed for {thread_id}: {error}"
+            latest_landlord_message = get_latest_landlord_message(messages)
+
+            viewing_dt = conversation.viewing_datetime
+            phone_captured = bool(conversation.extracted_phone)
+            phone_requested = bool(conversation.phone_requested_at)
+            phone_ask_age_h = (
+                (datetime.utcnow() - conversation.phone_requested_at).total_seconds() / 3600
+                if phone_requested and conversation.phone_requested_at
+                else 0
+            )
+            hrs_until = (
+                (viewing_dt - datetime.utcnow()).total_seconds() / 3600
+                if viewing_dt else None
+            )
+            # Imminent: within ~2h of a still-future viewing — withdraw NOW even
+            # without the 4h phone-ask courtesy age (the same-day short-notice
+            # no-show, audit #4). A pending phone request still holds it via
+            # block_reason below.
+            viewing_imminent = hrs_until is not None and 0 < hrs_until <= 2
+
+            block_reason = get_automatic_cancellation_block_reason(thread_id)
+
+            safe_to_cancel = not block_reason and (
+                viewing_imminent
+                or phone_captured
+                or (phone_requested and phone_ask_age_h >= 4)
+            )
+
+            if safe_to_cancel:
+                # Salvage before withdrawing: ALWAYS hand over our WhatsApp give-out
+                # once first (require_landlord_asked=False) — a single, once-per-thread
+                # message that can only help and does NOT depend on perfectly detecting
+                # that the landlord asked (the Sandra/Claire lost lead: the ask sat in a
+                # non-final message, so the persisted landlord_asked flag was unset when
+                # the cancel ran). Guarded on our_number_shared_at so it fires once; the
+                # next sweep run then cancels normally if no lead arrived.
+                if await _try_giveout_salvage(
+                    thread_id, conversation, account, messages,
+                    latest_landlord_message, page, require_landlord_asked=False,
+                ):
+                    logger.info(
+                        f"VIEWING_WITHDRAWAL_SALVAGE_DEFER thread_id={thread_id}"
+                    )
+                    continue
+                hours_label = (
+                    f"{hrs_until:.1f}h_remaining" if hrs_until is not None else "no_datetime"
                 )
-                update_conversation_status(thread_id, AI_FAILED)
-                continue
+                logger.info(f"VIEWING_CANCEL_NOW thread_id={thread_id} reason={hours_label}")
+                cancelled = await _cancel_viewing_and_handoff(
+                    thread_id, messages, latest_landlord_message, page
+                )
+                if not cancelled:
+                    logger.warning(f"VIEWING_CANCEL_FAILED thread_id={thread_id}")
+            elif block_reason:
+                logger.info(
+                    f"CANCELLATION_BLOCKED thread_id={thread_id} reason={block_reason}"
+                )
+            elif not phone_requested:
+                # 2-step: ask for the landlord's number one run before withdrawing.
+                travel_city = get_travel_city(thread_id)
+                logger.info(f"PRE_CANCEL_NUMBER_ASK thread_id={thread_id}")
+                await _send_pre_cancel_number_ask(
+                    thread_id, messages, latest_landlord_message, page,
+                    travel_city=travel_city,
+                )
+            else:
+                logger.info(
+                    f"VIEWING_CANCEL_WAITING thread_id={thread_id} "
+                    f"phone_ask_age={phone_ask_age_h:.1f}h"
+                )
 
-            sent = await send_reply(page, message)
-            if not sent:
-                logger.warning(f"Cancellation send failed for {thread_id}")
-                update_conversation_status(thread_id, AI_FAILED)
-                continue
-
-            save_message(thread_id, "outbound", message)
-            mark_viewing_cancelled(thread_id)
-            update_conversation_status(thread_id, VIEWING_CANCELLED)
-
-            logger.info(f"Cancelled viewing for thread {thread_id}")
             await random_sleep(2, 5)
 
         except Exception as exc:
