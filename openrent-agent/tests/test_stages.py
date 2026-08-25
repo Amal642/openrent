@@ -87,21 +87,25 @@ def test_extract_viewing_datetime_falls_back_to_now_without_timestamp():
     assert viewing == datetime(2026, 8, 11, 12, 0)
 
 
-def test_extract_viewing_datetime_treats_bare_afternoon_hour_as_pm():
+def test_extract_viewing_datetime_defers_bare_hour_to_llm():
+    # A bare hour with no am/pm is intentionally NOT resolved by the deterministic
+    # extractor — guessing it would manufacture phantom times (e.g. "call you at
+    # 2"). resolve_viewing_datetime gap-fills bare-hour phrasing via the LLM; see
+    # that resolver and test_viewing_datetime.test_bare_hour_without_ampm_is_not_a_time.
     now = datetime(2026, 6, 4, 17, 0)
     messages = [
         {"sender": "landlord", "message": "Viewing booked for tomorrow at 3."},
     ]
 
-    viewing = extract_viewing_datetime(messages, now=now)
-
-    assert viewing == datetime(2026, 6, 5, 15, 0)
+    assert extract_viewing_datetime(messages, now=now) is None
 
 
 def test_extract_viewing_datetime_uses_uk_numeric_date():
     now = datetime(2026, 6, 4, 9, 0)
     messages = [
-        {"sender": "landlord", "message": "Confirmed for 05/06 at 3."},
+        # Explicit clock time (3pm) so the deterministic extractor engages; the
+        # point of this case is UK day/month ordering (05/06 -> 5 June).
+        {"sender": "landlord", "message": "Confirmed for 05/06 at 3pm."},
     ]
 
     viewing = extract_viewing_datetime(messages, now=now)
