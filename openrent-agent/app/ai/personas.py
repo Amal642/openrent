@@ -1,4 +1,5 @@
 import random
+from app.utils.text import strip_ai_dashes
 import re
 
 
@@ -601,4 +602,5 @@ def generate_phone_share_reply(persona, landlord_attitude="responsive"):
             f"Sure — my husband sorts all the viewing logistics. His WhatsApp is {mobile}.",
         ],
     }
-    return random.choice(options[attitude])
+    reply = random.choice(options[attitude])
+    return strip_ai_dashes(reply)

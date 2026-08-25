@@ -1,4 +1,5 @@
 import os
+from app.utils.text import strip_ai_dashes
 import random
 import re
 
@@ -549,6 +550,7 @@ async def send_initial_message(
 
     # ── Message ───────────────────────────────────────────────
     logger.info("Filling message textarea")
+    message_text = strip_ai_dashes(message_text)
     await page.locator("#Message").fill(message_text)
 
     # ── Submit ────────────────────────────────────────────────

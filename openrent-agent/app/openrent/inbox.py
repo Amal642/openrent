@@ -1,4 +1,5 @@
 import math
+from app.utils.text import strip_ai_dashes
 
 from app.openrent.popups import close_verified_tenant_popup
 from app.utils.human import random_sleep
@@ -261,6 +262,10 @@ async def send_reply(
     page,
     reply_text
 ):
+
+    # Scrub AI-tell dashes (em/en) so no outbound reply carries bot-polished
+    # punctuation, whatever produced it (LLM, give-out template, cancel...).
+    reply_text = strip_ai_dashes(reply_text)
 
     await close_verified_tenant_popup(page)
 

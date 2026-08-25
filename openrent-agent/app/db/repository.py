@@ -1896,6 +1896,94 @@ def save_conversation_error(thread_id, reason):
             db.commit()
 
 
+def enqueue_sheet_export_for_conversation(conversation_id):
+    """Best-effort: ensure a PENDING Google-Sheet outbox row exists for a lead.
+
+    Capture paths other than the in-thread ``save_phone_number`` (currently the
+    WhatsApp give-out channel in ``app/whatsapp/repository.py``) set
+    ``phone_found_at`` on a conversation but never enqueued a sheet export, so
+    those leads silently never reached the client sheet. This helper closes that
+    gap without touching the mainline path.
+
+    It is deliberately conservative:
+      * runs in its OWN session and NEVER raises to the caller, so a failure here
+        can never disturb the WhatsApp capture/commit that already happened;
+      * idempotent — no-ops when an outbox row already exists (never disturbs
+        existing export state);
+      * only enqueues when the full exporter chain (conversation -> listing ->
+        search_profile -> account) resolves, because ``get_sheet_export_payload``
+        inner-joins those; without them the row would only churn to failure;
+      * applies the same ``GOOGLE_SHEET_LOCATION`` gate as ``save_phone_number``.
+    """
+    try:
+        from app.config import settings
+        from app.utils.logger import logger
+
+        with session_scope() as db:
+            row = (
+                db.query(Conversation, SearchProfile)
+                .join(Listing, Conversation.listing_id == Listing.id)
+                .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+                .join(Account, SearchProfile.account_id == Account.id)
+                .filter(Conversation.id == conversation_id)
+                .first()
+            )
+            if not row:
+                logger.info(
+                    "GOOGLE_SHEETS_OUTBOX_SKIPPED_NO_CHAIN "
+                    f"conversation_id={conversation_id}"
+                )
+                return
+
+            conversation, search_profile = row
+
+            existing = (
+                db.query(LeadSheetExport)
+                .filter(LeadSheetExport.conversation_id == conversation.id)
+                .first()
+            )
+            if existing is not None:
+                # Already tracked; leave existing outbox state untouched.
+                return
+
+            target_location = str(settings.GOOGLE_SHEET_LOCATION or "").strip()
+            search_location = str(search_profile.location or "").strip()
+            if (
+                target_location
+                and target_location.casefold() not in search_location.casefold()
+            ):
+                logger.info(
+                    "GOOGLE_SHEETS_OUTBOX_SKIPPED_LOCATION "
+                    f"conversation_id={conversation.id} thread_id={conversation.thread_id} "
+                    f"search_location={search_location!r} target_location={target_location!r}"
+                )
+                return
+
+            now = datetime.utcnow()
+            export = LeadSheetExport(
+                conversation_id=conversation.id,
+                status="PENDING",
+                next_attempt_at=now,
+            )
+            db.add(export)
+            db.commit()
+            logger.info(
+                "GOOGLE_SHEETS_OUTBOX_UPSERTED "
+                f"conversation_id={conversation.id} thread_id={conversation.thread_id} "
+                f"action=created status=PENDING source=whatsapp"
+            )
+    except Exception as exc:  # never break the caller's capture flow
+        try:
+            from app.utils.logger import logger as _logger
+
+            _logger.warning(
+                "ENQUEUE_SHEET_EXPORT_FAILED "
+                f"conversation_id={conversation_id} err={exc!r}"
+            )
+        except Exception:
+            pass
+
+
 def save_phone_number(
     thread_id,
     phone

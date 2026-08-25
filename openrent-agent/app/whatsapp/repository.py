@@ -233,6 +233,7 @@ def apply_match_result(
         if not contact:
             return None
 
+        captured_conversation_id = None
         contact.match_candidates = _json_dumps(candidates[:5])
         contact.match_status = match_status
         contact.confidence = confidence or None
@@ -261,11 +262,18 @@ def apply_match_result(
                 conversation.phone_found = True
                 conversation.phone_found_at = datetime.utcnow()
                 conversation.status = "PHONE_ACQUIRED"
+                captured_conversation_id = conversation.id
         elif contact.status in {None, "NEW_CONTACT"}:
             contact.status = "AWAITING_PROPERTY"
 
         contact.updated_at = datetime.utcnow()
         db.commit()
+        # Capture is now durable; best-effort enqueue to the client sheet (own
+        # session, never raises). Mirrors save_phone_number's outbox behaviour.
+        if captured_conversation_id is not None:
+            from app.db.repository import enqueue_sheet_export_for_conversation
+
+            enqueue_sheet_export_for_conversation(captured_conversation_id)
         db.refresh(contact)
         return contact
     finally:
@@ -709,7 +717,13 @@ def link_conversation(contact: WhatsAppContact, landlord_name: str) -> bool:
                 conv.phone_found = True
                 conv.phone_found_at = datetime.utcnow()
                 conv.status = "PHONE_ACQUIRED"
+                captured_conversation_id = conv.id
                 db.commit()
+                # Capture is now durable; best-effort enqueue to the client
+                # sheet (own session, never raises).
+                from app.db.repository import enqueue_sheet_export_for_conversation
+
+                enqueue_sheet_export_for_conversation(captured_conversation_id)
                 return True
 
         return False
