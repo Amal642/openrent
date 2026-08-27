@@ -320,7 +320,11 @@ def _parse_ai_viewing_datetime(dt_str):
     return None
 
 
-def _should_run_viewing_detection(banners) -> bool:
+def _should_run_viewing_detection(
+    banners,
+    conversation=None,
+    has_new_landlord_message=True,
+) -> bool:
     """Run AI viewing-detection whenever the viewing is not already confirmed.
 
     This deliberately runs even when a "Request Viewing" banner is present.
@@ -330,8 +334,35 @@ def _should_run_viewing_detection(banners) -> bool:
     fired -> no-shows). The detector requires MUTUAL agreement AND a specific
     datetime before promoting, so a one-sided tenant request cannot
     false-positive.
+
+    Two lossless cost guards (added 2026-08-25 after a prod audit found the
+    detector firing ~6,377 times/day across only 517 threads — the SAME
+    chat-confirmed threads re-scanned ~18x/day because this gate reads only the
+    live page banner, never the persisted DB state):
+
+    * has_new_landlord_message: only call the LLM when the landlord has said
+      something we have not yet answered. A viewing can only be newly agreed OR
+      rescheduled in a new landlord message; with nothing new the conversation
+      is unchanged and the temperature=0.0 detector returns the identical
+      result it already persisted. A reschedule is a new message, so it still
+      re-opens detection (the datetime still updates) — this is why the guard is
+      lossless for the cancellation flow.
+    * terminal stage: HANDOFF_COMPLETE / VIEWING_CANCELLED / SHORT_TERM_PROPERTY
+      threads send no reply and their viewing state is already final, so
+      re-detecting a booking on them changes nothing.
+
+    Both parameters default to the pre-guard behaviour, so callers passing only
+    `banners` (and existing tests) are unaffected.
     """
-    return not banners["viewing_confirmed"]
+    if banners["viewing_confirmed"]:
+        return False
+    if not has_new_landlord_message:
+        return False
+    if conversation is not None:
+        stage = getattr(conversation, "conversation_stage", None)
+        if stage in (HANDOFF_COMPLETE, VIEWING_CANCELLED, SHORT_TERM_PROPERTY):
+            return False
+    return True
 
 
 def _assign_playbook_ab_if_enabled(thread_id, persona):
@@ -557,7 +588,20 @@ async def process_account_replies(
             # requires MUTUAL agreement AND a specific datetime before promoting
             # (see _should_run_viewing_detection), so a one-sided tenant request
             # cannot false-positive.
-            if _should_run_viewing_detection(banners):
+            # Pre-detector snapshot of the persisted conversation + whether the
+            # landlord has an unanswered message. Read here (before the detector
+            # writes) purely to gate the LLM call; the authoritative fetch below
+            # (post-detector) is unchanged so all downstream logic still sees
+            # this run's detection result.
+            _conv_pre = get_conversation_by_thread_id(thread_id)
+            _has_new_landlord_msg = _thread_has_unanswered_landlord_message(
+                messages, _conv_pre
+            )[0]
+            if _should_run_viewing_detection(
+                banners,
+                conversation=_conv_pre,
+                has_new_landlord_message=_has_new_landlord_msg,
+            ):
                 ai_viewing = ai_detect_viewing_arranged(messages)
                 if ai_viewing.get("viewing_arranged"):
                     # The LLM only DECIDES a viewing is agreed; the datetime is
