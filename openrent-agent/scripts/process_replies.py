@@ -53,6 +53,8 @@ from app.ai.stages import (
     resolve_viewing_datetime,
 )
 
+from app.ai.reply_timing import reply_hold_remaining_seconds
+
 from app.ai.extractors import (
     ai_extract_phone,
     regex_extract_phone
@@ -751,6 +753,28 @@ async def process_account_replies(
                 f"THREAD_HAS_UNANSWERED_LANDLORD_MESSAGE thread_id={thread_id} "
                 f"value={has_unanswered_landlord_message}"
             )
+
+            # Human reply pacing: don't fire a conversational reply seconds after
+            # the landlord messaged (bot tell — thread 46230796 answered every
+            # turn 8-19s after detection). Hold until a human-plausible delay has
+            # elapsed since their REAL message time (data-message-time); the next
+            # sweep re-checks, so nothing blocks a worker slot. Only defers the
+            # too-fast cases — a message that arrived well before this sweep is
+            # already past its delay and sends normally. Skipped once we have the
+            # number (handoff must not be delayed) and for en-route / imminent
+            # coordination (handled inside the helper).
+            if (
+                has_unanswered_landlord_message
+                and conversation
+                and not conversation.extracted_phone
+            ):
+                _hold_s = reply_hold_remaining_seconds(messages, thread_id)
+                if _hold_s > 0:
+                    logger.info(
+                        f"REPLY_HELD thread_id={thread_id} "
+                        f"hold_remaining_min={_hold_s / 60:.1f}"
+                    )
+                    continue
 
             # Reactivate a cold lead the moment the landlord finally replies —
             # a late reply is still a real lead, don't leave it stuck inactive.
