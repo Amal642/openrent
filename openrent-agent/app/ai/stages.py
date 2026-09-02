@@ -182,6 +182,122 @@ def _target_date_from_text(text, now):
     return now.date()
 
 
+# Month names (full + common abbreviations) for "3rd September" / "Sept 3" style
+# dates, which _target_date_from_text (numeric dd/mm + weekday only) cannot read.
+_MONTH_NAMES = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
+    "december": 12, "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7,
+    "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+# Longest names first so "september" wins over "sep" in the alternation.
+_MONTH_ALT = "|".join(sorted(_MONTH_NAMES, key=len, reverse=True))
+_DAY_MONTH_RE = re.compile(  # "3rd September", "3 Sept"
+    rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({_MONTH_ALT})\b", re.I
+)
+_MONTH_DAY_RE = re.compile(  # "September 3rd", "Sept 3"
+    rf"\b({_MONTH_ALT})\s+(\d{{1,2}})(?:st|nd|rd|th)?\b", re.I
+)
+
+_WEEKDAY_INDEX = {
+    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+    "friday": 4, "saturday": 5, "sunday": 6,
+}
+
+
+def _resolve_day_month(text, ref):
+    """Resolve an ordinal-day + month-name date ('3rd September') to a date, or
+    None. Rolls to next year only when the date is clearly in the past."""
+    for rex, day_grp, mon_grp in ((_DAY_MONTH_RE, 1, 2), (_MONTH_DAY_RE, 2, 1)):
+        match = rex.search(text)
+        if not match:
+            continue
+        day = int(match.group(day_grp))
+        month = _MONTH_NAMES.get(match.group(mon_grp).lower())
+        if not month:
+            continue
+        try:
+            candidate = datetime(ref.year, month, day).date()
+        except ValueError:
+            continue
+        if candidate < ref.date() - timedelta(days=2):
+            try:
+                candidate = datetime(ref.year + 1, month, day).date()
+            except ValueError:
+                continue
+        return candidate
+    return None
+
+
+def _explicit_target_date(text, ref):
+    """The explicit calendar day named in THIS text, or None.
+
+    Unlike _target_date_from_text this NEVER falls back to ref.date(): a None
+    return means 'no explicit day stated here', which lets callers tell a real,
+    evidence-based day (grounded) apart from a guess. Handles relative words,
+    ordinal+month names, numeric dd/mm dates, and a SINGLE unambiguous weekday
+    (two weekdays like 'Friday or Saturday' are ambiguous -> None, deferred to
+    the LLM)."""
+    if "day after tomorrow" in text:
+        return (ref + timedelta(days=2)).date()
+    if "tomorrow" in text:
+        return (ref + timedelta(days=1)).date()
+    if "today" in text:
+        return ref.date()
+
+    day_month = _resolve_day_month(text, ref)
+    if day_month is not None:
+        return day_month
+
+    for match in NUMERIC_DATE_PATTERN.finditer(text):
+        day = int(match.group(1))
+        month = int(match.group(2))
+        year_text = match.group(3)
+        year = ref.year
+        if year_text:
+            year = int(year_text)
+            if year < 100:
+                year += 2000
+        try:
+            candidate = datetime(year, month, day).date()
+        except ValueError:
+            continue
+        if candidate < ref.date() and not year_text:
+            try:
+                candidate = datetime(year + 1, month, day).date()
+            except ValueError:
+                continue
+        return candidate
+
+    named = {idx for name, idx in _WEEKDAY_INDEX.items()
+             if re.search(rf"\b{name}\b", text)}
+    if len(named) == 1:
+        idx = next(iter(named))
+        days_ahead = (idx - ref.weekday()) % 7
+        if days_ahead == 0:
+            days_ahead = 7
+        return (ref + timedelta(days=days_ahead)).date()
+
+    return None
+
+
+def _carry_explicit_day(recent, chosen_idx, fallback_ref):
+    """The most recent explicit day stated at/before the chosen message, or None.
+
+    Lets a bare-time confirming line ('8:30 would be fine') inherit the day
+    pinned earlier in the thread ('...come on the 3rd September'). Each message's
+    own send time anchors its relative words; missing timestamps use fallback_ref.
+    """
+    for i in range(chosen_idx, -1, -1):
+        message = recent[i]
+        text = _message_text(message).lower()
+        ref = _message_time(message) or fallback_ref
+        day = _explicit_target_date(text, ref)
+        if day is not None:
+            return day
+    return None
+
+
 def _has_time(text):
     date_spans = _date_spans(text)
     return any(
@@ -274,12 +390,21 @@ def _part_of_day_datetime(messages, now):
     return None
 
 
-def extract_viewing_datetime(messages, now=None):
+def _extract_viewing_datetime_impl(messages, now=None):
+    """Deterministic viewing-datetime extraction returning ``(datetime, grounded)``.
+
+    ``grounded`` is True when the DAY came from real evidence — an explicit day in
+    the chosen message, a day carried from an earlier turn, or a part-of-day
+    reference — and False when it fell back to the message date because no day was
+    stated. Callers use it to decide whether to trust the deterministic day over
+    the LLM's (see resolve_viewing_datetime): a grounded day beats the LLM's
+    arithmetic (thread 45969788), but a guessed day yields to the LLM's reading of
+    which day was actually agreed (thread 46215267)."""
     now = now or datetime.utcnow()
     recent = _recent_messages(messages, limit=8)
 
     candidates = []
-    for message in recent:
+    for idx, message in enumerate(recent):
         text = _message_text(message).lower()
         # Consider a message with an explicit time that is either about a viewing
         # OR references a specific day (today/tomorrow/weekday). The day clause
@@ -305,20 +430,20 @@ def extract_viewing_datetime(messages, now=None):
             # time that a greedy "6-6" numeric-date match would otherwise swallow.
             if not _is_explicit_time_match(match):
                 continue
-            candidates.append((text, match, ref))
+            candidates.append((text, match, ref, idx))
 
     if not candidates:
         fallback = _part_of_day_datetime(recent, now)
         if fallback is not None:
             _stage_log("VIEWING_DATETIME_EXTRACTED", f"part-of-day default datetime={fallback}")
-            return fallback
+            return fallback, True
         _stage_log("VIEWING_DATETIME_EXTRACTED", "no candidates — no time found in booking/discussion messages")
-        return None
+        return None, False
 
-    combined, time_match, ref = candidates[-1]
+    combined, time_match, ref, chosen_idx = candidates[-1]
 
     if not time_match:
-        return None
+        return None, False
 
     hour = int(time_match.group(1))
     minute = int(time_match.group(2) or 0)
@@ -331,7 +456,18 @@ def extract_viewing_datetime(messages, now=None):
     elif not suffix and 1 <= hour <= 7:
         hour += 12
 
-    target_date = _target_date_from_text(combined, ref)
+    # Resolve the DAY. Prefer an explicit day in the chosen message; otherwise
+    # carry the most recent explicit day stated earlier in the thread (so a
+    # bare-time confirming line inherits "...the 3rd September" from a prior
+    # turn); only if neither exists fall back to the message date (ungrounded).
+    target_date = _explicit_target_date(combined, ref)
+    grounded = target_date is not None
+    if target_date is None:
+        carried = _carry_explicit_day(recent, chosen_idx, ref)
+        if carried is not None:
+            target_date, grounded = carried, True
+        else:
+            target_date, grounded = ref.date(), False
 
     candidate = datetime.combine(target_date, datetime.min.time()).replace(
         hour=hour,
@@ -341,8 +477,13 @@ def extract_viewing_datetime(messages, now=None):
     if candidate < ref:
         candidate += timedelta(days=1)
 
-    _stage_log("VIEWING_DATETIME_EXTRACTED", f"extracted datetime={candidate}")
-    return candidate
+    _stage_log("VIEWING_DATETIME_EXTRACTED", f"extracted datetime={candidate} grounded={grounded}")
+    return candidate, grounded
+
+
+def extract_viewing_datetime(messages, now=None):
+    """Backward-compatible wrapper: the resolved datetime only (or None)."""
+    return _extract_viewing_datetime_impl(messages, now)[0]
 
 
 # --- viewing-time helpers shared with the AI detector -----------------------
@@ -467,7 +608,7 @@ def resolve_viewing_datetime(messages, llm_detection=None, now=None):
     from app.utils.scheduling import utc_naive_to_uk_naive
     now_uk = now or utc_naive_to_uk_naive(datetime.utcnow())
 
-    det = extract_viewing_datetime(messages, now)
+    det, det_grounded = _extract_viewing_datetime_impl(messages, now)
     llm = None
     if isinstance(llm_detection, dict):
         llm = parse_llm_viewing_datetime(llm_detection.get("viewing_datetime"))
@@ -476,13 +617,28 @@ def resolve_viewing_datetime(messages, llm_detection=None, now=None):
 
     if det is not None and llm is not None:
         if det.date() != llm.date():
-            # Different day: the LLM's weakness is date ARITHMETIC, so trust the
-            # message-anchored deterministic date (and its time). (thread 45969788)
-            _stage_log(
-                "VIEWING_DATETIME_DISAGREEMENT",
-                f"deterministic={det} llm={llm} -> deterministic day (anchored)",
-            )
-            chosen = det
+            if det_grounded:
+                # The deterministic day is evidence-based (an explicit day in the
+                # confirming message, or one carried from an earlier turn), so
+                # trust it over the LLM — whose weakness is date ARITHMETIC.
+                # (thread 45969788)
+                _stage_log(
+                    "VIEWING_DATETIME_DISAGREEMENT",
+                    f"deterministic={det} llm={llm} -> deterministic day (grounded)",
+                )
+                chosen = det
+            else:
+                # The deterministic day was a GUESS — no day was stated for this
+                # time anywhere in the thread — so the LLM's reading of which day
+                # was agreed is more reliable. Keep the deterministic clock time
+                # (a direct regex of the stated time) on the LLM's day.
+                # (thread 46215267: bare-time confirm, day only in an earlier turn)
+                _stage_log(
+                    "VIEWING_DATETIME_DAY_FROM_LLM",
+                    f"deterministic={det} (ungrounded day) llm={llm} "
+                    "-> llm day + deterministic time",
+                )
+                chosen = datetime.combine(llm.date(), det.time())
         elif det.time() != llm.time():
             # Same day, different time: the regex takes the LAST time in a
             # message, which is wrong when several are named ("make it 4:30 ...
