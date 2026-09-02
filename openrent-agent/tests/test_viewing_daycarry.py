@@ -135,6 +135,40 @@ def test_resolve_same_day_takes_llm_time():
     assert chosen == datetime(2026, 9, 3, 9, 0)
 
 
+def test_tomorrow_beside_weekday_is_ambiguous():
+    # "6pm on Thursday ... message tomorrow" — the 'tomorrow' is logistics, not
+    # the viewing day; the two conflicting days make this line ambiguous.
+    assert _explicit_target_date(
+        "i confirm 6pm on thursday, will message tomorrow", NOW
+    ) is None
+
+
+def test_time_range_beside_weekday_is_ambiguous():
+    # "12-2 pm" can look like a 12/2 date; with a weekday present -> ambiguous.
+    assert _explicit_target_date("would thursday lunch work? around 12-2 pm", NOW) is None
+
+
+def test_availability_date_beside_viewing_weekday_is_ambiguous():
+    assert _explicit_target_date(
+        "available 1 october; could you view thursday after 6pm?", NOW
+    ) is None
+
+
+def test_thread_46217218_tomorrow_vs_weekday_resolves_via_carry():
+    # Real failure: confirming line has both 'Thursday' and an unrelated
+    # 'tomorrow' -> ambiguous -> carry the clean 'Thursday' from the prior turn.
+    msgs = [
+        _m("landlord", "Would you be available for a viewing on Thursday after 6pm?", NOW),
+        _m("us", "Thursday after 6pm works for me. What time exactly?", NOW),
+        _m("landlord",
+           "I confirm 6pm on Thursday. I'll follow up with logistics over WhatsApp "
+           "later (probably tomorrow).", NOW),
+    ]
+    dt, grounded = _extract_viewing_datetime_impl(msgs, NOW)
+    assert dt == datetime(2026, 9, 3, 18, 0)  # Thursday, NOT Wednesday-from-"tomorrow"
+    assert grounded is True
+
+
 def test_thread_46215267_shape_end_to_end():
     # The real failure: day in an earlier turn, later turns only restate the time.
     msgs = [

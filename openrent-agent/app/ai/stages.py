@@ -229,26 +229,9 @@ def _resolve_day_month(text, ref):
     return None
 
 
-def _explicit_target_date(text, ref):
-    """The explicit calendar day named in THIS text, or None.
-
-    Unlike _target_date_from_text this NEVER falls back to ref.date(): a None
-    return means 'no explicit day stated here', which lets callers tell a real,
-    evidence-based day (grounded) apart from a guess. Handles relative words,
-    ordinal+month names, numeric dd/mm dates, and a SINGLE unambiguous weekday
-    (two weekdays like 'Friday or Saturday' are ambiguous -> None, deferred to
-    the LLM)."""
-    if "day after tomorrow" in text:
-        return (ref + timedelta(days=2)).date()
-    if "tomorrow" in text:
-        return (ref + timedelta(days=1)).date()
-    if "today" in text:
-        return ref.date()
-
-    day_month = _resolve_day_month(text, ref)
-    if day_month is not None:
-        return day_month
-
+def _first_numeric_date(text, ref):
+    """First dd/mm[/yy] numeric date in text as a date, or None. Rolls a bare
+    dd/mm that has already passed this year forward to next year."""
     for match in NUMERIC_DATE_PATTERN.finditer(text):
         day = int(match.group(1))
         month = int(match.group(2))
@@ -268,16 +251,45 @@ def _explicit_target_date(text, ref):
             except ValueError:
                 continue
         return candidate
+    return None
 
-    named = {idx for name, idx in _WEEKDAY_INDEX.items()
-             if re.search(rf"\b{name}\b", text)}
-    if len(named) == 1:
-        idx = next(iter(named))
-        days_ahead = (idx - ref.weekday()) % 7
-        if days_ahead == 0:
-            days_ahead = 7
-        return (ref + timedelta(days=days_ahead)).date()
 
+def _explicit_target_date(text, ref):
+    """The single explicit calendar day named in THIS text, or None.
+
+    Collects every distinct day the text points to — relative words, an
+    ordinal+month name ('3rd September'), a numeric dd/mm date, and each named
+    weekday — and returns a day ONLY when they all agree. If the text names more
+    than one distinct day it is AMBIGUOUS and returns None: e.g. an offer of two
+    days ('Friday or Saturday'), or a viewing weekday sitting next to an
+    unrelated 'tomorrow' (logistics) or an availability date. None also means
+    'no explicit day here'. It NEVER falls back to ref.date(); the caller then
+    carries the day from an earlier turn or defers to the LLM. This is the guard
+    against picking up the wrong day token from a busy message (threads 46217218
+    'tomorrow' vs 'Thursday', and a '12-2 pm' range misread as a date)."""
+    candidates = set()
+    if "day after tomorrow" in text:
+        candidates.add((ref + timedelta(days=2)).date())
+    elif "tomorrow" in text:
+        candidates.add((ref + timedelta(days=1)).date())
+    if "today" in text:
+        candidates.add(ref.date())
+
+    day_month = _resolve_day_month(text, ref)
+    if day_month is not None:
+        candidates.add(day_month)
+
+    numeric = _first_numeric_date(text, ref)
+    if numeric is not None:
+        candidates.add(numeric)
+
+    for name, idx in _WEEKDAY_INDEX.items():
+        if re.search(rf"\b{name}\b", text):
+            days_ahead = (idx - ref.weekday()) % 7 or 7
+            candidates.add((ref + timedelta(days=days_ahead)).date())
+
+    if len(candidates) == 1:
+        return next(iter(candidates))
     return None
 
 
