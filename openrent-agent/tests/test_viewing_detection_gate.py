@@ -41,9 +41,28 @@ def test_runs_when_no_banner():
     assert _should_run_viewing_detection(_banners(confirmed=False, requested=False)) is True
 
 
-def test_skips_when_already_confirmed():
-    assert _should_run_viewing_detection(_banners(confirmed=True, requested=True)) is False
-    assert _should_run_viewing_detection(_banners(confirmed=True, requested=False)) is False
+def test_confirmed_banner_no_longer_blocks_detection_with_new_message():
+    # THE RESCHEDULE FIX (thread 46179401): a live "viewing confirmed" banner
+    # used to hard-block detection. OpenRent leaves that banner on the ORIGINAL
+    # date after a free-text reschedule, so blocking on it stranded the stale
+    # date and caused a silent no-show. With a NEW landlord message on a
+    # non-terminal thread, detection must now run even when the banner says
+    # confirmed, so the new slot is re-resolved.
+    assert _should_run_viewing_detection(
+        _banners(confirmed=True, requested=False),
+        conversation=_conv(stage="VIEWING_BOOKED", viewing_confirmed=True),
+        has_new_landlord_message=True,
+    ) is True
+
+
+def test_confirmed_banner_skips_without_new_message():
+    # Cost guard still holds: with nothing new from the landlord, the confirmed
+    # banner + persisted state are unchanged, so do not re-scan.
+    assert _should_run_viewing_detection(
+        _banners(confirmed=True, requested=False),
+        conversation=_conv(stage="VIEWING_BOOKED", viewing_confirmed=True),
+        has_new_landlord_message=False,
+    ) is False
 
 
 # --- Cost guards (2026-08-25 audit): stop re-scanning unchanged conversations ---
@@ -100,7 +119,9 @@ def test_skips_terminal_stages_even_with_new_message():
         ) is False
 
 
-def test_single_arg_call_is_backward_compatible():
-    # Existing callers passing only `banners` keep the original behaviour.
+def test_single_arg_call_runs_by_default():
+    # With no conversation context and the default (a new landlord message
+    # assumed), detection runs regardless of the banner: a stale confirmed
+    # banner no longer suppresses it.
     assert _should_run_viewing_detection(_banners(confirmed=False)) is True
-    assert _should_run_viewing_detection(_banners(confirmed=True)) is False
+    assert _should_run_viewing_detection(_banners(confirmed=True)) is True

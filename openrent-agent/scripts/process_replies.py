@@ -327,7 +327,13 @@ def _should_run_viewing_detection(
     conversation=None,
     has_new_landlord_message=True,
 ) -> bool:
-    """Run AI viewing-detection whenever the viewing is not already confirmed.
+    """Decide whether to run AI viewing-detection this pass.
+
+    Runs when the landlord has a new (unanswered) message and the thread is not
+    terminal — even when a live "viewing confirmed" banner is present, because
+    OpenRent leaves that banner on the ORIGINAL date after a free-text reschedule,
+    so a stale banner would otherwise permanently suppress re-detection of the new
+    slot (the no-show bug, thread 46179401).
 
     This deliberately runs even when a "Request Viewing" banner is present.
     Landlords usually confirm a viewing in free-text chat, not via OpenRent's
@@ -356,14 +362,22 @@ def _should_run_viewing_detection(
     Both parameters default to the pre-guard behaviour, so callers passing only
     `banners` (and existing tests) are unaffected.
     """
-    if banners["viewing_confirmed"]:
-        return False
-    if not has_new_landlord_message:
-        return False
+    # Terminal threads: final viewing state, no reply is sent — never detect.
     if conversation is not None:
         stage = getattr(conversation, "conversation_stage", None)
         if stage in (HANDOFF_COMPLETE, VIEWING_CANCELLED, SHORT_TERM_PROPERTY):
             return False
+    # Nothing new from the landlord since we last processed -> identical input,
+    # so the temperature=0 detector returns what the DB already holds. Skip.
+    if not has_new_landlord_message:
+        return False
+    # Otherwise run — INCLUDING when a live "viewing confirmed" banner is present.
+    # OpenRent does NOT update that banner when a viewing is rescheduled in
+    # free-text, so a STALE confirmed banner must not suppress re-detection of a
+    # newly-agreed slot (no-show bug, thread 46179401: the banner asserted the
+    # original date for a week while the real viewing had moved). save_banner_state
+    # keeps the banner advance-only, so a genuine chat reschedule wins over a stale
+    # banner and a stale banner never regresses a good date.
     return True
 
 
@@ -616,18 +630,37 @@ async def process_account_replies(
                     # specific datetime. A viewing with no agreed time is not
                     # truly "booked" and must not enter the cancel flow.
                     if ai_dt:
-                        banners["viewing_confirmed"] = True
-                        banners["viewing_datetime"] = ai_dt
-                        save_banner_state(
-                            thread_id,
-                            viewing_confirmed=True,
-                            viewing_datetime=ai_dt,
-                            confirmation_source="ai",
-                        )
-                        logger.info(
-                            f"AI_VIEWING_DETECTED thread_id={thread_id} "
-                            f"datetime={ai_dt} reason={ai_viewing.get('reason')!r}"
-                        )
+                        # Reconcile against what is already stored (which may be a
+                        # STALE banner date re-asserted earlier this pass). Apply
+                        # the chat slot only when nothing is stored yet, or it is a
+                        # DIFFERENT time still in the future — a genuine reschedule.
+                        # This corrects a stale OpenRent banner (thread 46179401)
+                        # without a resolved-past reading clobbering a good date.
+                        from app.utils.scheduling import uk_naive_to_utc_naive
+                        ai_dt_utc = uk_naive_to_utc_naive(ai_dt)
+                        stored_utc = getattr(_conv_pre, "viewing_datetime", None)
+                        if stored_utc is None or (
+                            ai_dt_utc != stored_utc and ai_dt_utc > datetime.utcnow()
+                        ):
+                            banners["viewing_confirmed"] = True
+                            banners["viewing_datetime"] = ai_dt
+                            save_banner_state(
+                                thread_id,
+                                viewing_confirmed=True,
+                                viewing_datetime=ai_dt,
+                                confirmation_source="ai",
+                            )
+                            logger.info(
+                                f"AI_VIEWING_DETECTED thread_id={thread_id} "
+                                f"datetime={ai_dt} stored={stored_utc} "
+                                f"reason={ai_viewing.get('reason')!r}"
+                            )
+                        else:
+                            logger.info(
+                                f"AI_VIEWING_UNCHANGED thread_id={thread_id} "
+                                f"resolved={ai_dt} stored={stored_utc} "
+                                "— no future reschedule to apply"
+                            )
                     else:
                         logger.info(
                             f"AI_VIEWING_DETECTED_NO_DATETIME thread_id={thread_id} "

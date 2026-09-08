@@ -1675,10 +1675,31 @@ def save_banner_state(
             if not conversation.viewing_confirmation_source:
                 conversation.viewing_confirmation_source = confirmation_source
             if viewing_datetime:
-                conversation.viewing_datetime = uk_naive_to_utc_naive(viewing_datetime)
-                if not conversation.cancel_target_hours:
-                    cancel_target = round(random.uniform(3.2, 4.8), 1)
-                    conversation.cancel_target_hours = cancel_target
+                new_utc = uk_naive_to_utc_naive(viewing_datetime)
+                stored = conversation.viewing_datetime
+                # OpenRent's "viewing confirmed" banner is NOT updated when a
+                # viewing is rescheduled in free-text — it keeps asserting the
+                # ORIGINAL date. Treat the banner as ADVANCE-ONLY: it may set the
+                # date when none is stored or move it LATER, but must never regress
+                # a newer (chat-resolved) slot back to the stale banner date — the
+                # no-show bug (thread 46179401). The AI/chat source is
+                # authoritative and may move the slot in either direction.
+                is_banner = confirmation_source == "banner"
+                if stored is not None and is_banner and new_utc <= stored:
+                    pass  # stale/duplicate banner — do not regress the stored slot
+                else:
+                    if stored != new_utc and (
+                        conversation.handoff_completed_at is None
+                        and not conversation.viewing_cancelled
+                    ):
+                        # The agreed slot moved -> re-arm the pre-viewing
+                        # cancellation so it fires against the NEW time (only while
+                        # the thread is still live, never re-opening a closed one).
+                        conversation.cancellation_sent_at = None
+                    conversation.viewing_datetime = new_utc
+                    if not conversation.cancel_target_hours:
+                        cancel_target = round(random.uniform(3.2, 4.8), 1)
+                        conversation.cancel_target_hours = cancel_target
             if conversation.conversation_stage not in (
                 "HANDOFF_COMPLETE",
                 "VIEWING_CANCELLED",
