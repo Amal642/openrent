@@ -82,7 +82,7 @@ def extract_name_from_message(text: str) -> Optional[str]:
             f"Message: {text}"
         )
         response = _client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model=settings.OPENAI_UTILITY_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=30,
@@ -109,7 +109,7 @@ def extract_property_from_message(text: str) -> Optional[str]:
             f"Message: {text}"
         )
         response = _client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model=settings.OPENAI_UTILITY_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=60,

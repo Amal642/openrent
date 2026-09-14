@@ -14,7 +14,13 @@ class Settings:
     FIELD_ENCRYPTION_KEY = os.getenv("FIELD_ENCRYPTION_KEY", "")
 
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    # Model for landlord-facing REPLY GENERATION (quality-sensitive: bot-tell risk).
     OPENAI_REPLY_MODEL = os.getenv("OPENAI_REPLY_MODEL", "gpt-4.1-mini")
+    # Cheaper model for internal CLASSIFICATION / EXTRACTION calls (viewing
+    # detection, short-term detection, phone/name/address extraction). These
+    # return structured JSON / a token at temperature 0, so a smaller model is
+    # equivalent in quality at ~1/3 the input cost. No landlord ever sees this.
+    OPENAI_UTILITY_MODEL = os.getenv("OPENAI_UTILITY_MODEL", "gpt-4o-mini")
 
     DATABASE_URL = os.getenv("DATABASE_URL")
 

@@ -661,7 +661,7 @@ def ai_detect_viewing_arranged(messages, retries=2, base_delay=1):
     for attempt in range(1, retries + 1):
         try:
             response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model=settings.OPENAI_UTILITY_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
             )
@@ -713,7 +713,7 @@ JSON only:""".strip()
     for attempt in range(1, retries + 1):
         try:
             response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model=settings.OPENAI_UTILITY_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
             )
