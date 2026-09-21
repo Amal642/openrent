@@ -17,7 +17,10 @@ _LISTING_ID_RE = re.compile(r"(?:^|/)(\d{5,})(?:[/?#]|$)")
 def _is_bot_page(html: str, title: str) -> str | None:
     """Return a reason string if the page looks like a bot-wall, else None."""
     lower = html.lower()
-    if "captcha" in lower or "recaptcha" in lower:
+    # A bare "captcha"/"recaptcha" substring is unreliable: OpenRent embeds a
+    # reCAPTCHA widget on normal pages (incl. search results) since ~2026-09-17,
+    # so match the actual challenge text instead of the ambient widget script.
+    if "verify you are human" in lower or "unusual traffic" in lower:
         return "CAPTCHA detected"
     if "sign in" in lower and "password" in lower and "enquir" not in lower:
         return "Login wall detected"
