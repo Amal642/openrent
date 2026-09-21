@@ -286,7 +286,12 @@ async def login(page, context, account):
     except Exception as diag_exc:
         logger.warning(f"Could not capture post-login diagnostics for {account.email}: {diag_exc}")
 
-    if await _captcha_suspected(page):
+    # A successful login lands on /my-dashboard. OpenRent embeds a reCAPTCHA
+    # widget in authenticated pages, so the word "captcha" now appears in the
+    # normal dashboard HTML — a naive substring scan false-positives on every
+    # successful re-login. Only treat captcha as blocking when we did NOT reach
+    # an authenticated page.
+    if "my-dashboard" not in (page.url or "") and await _captcha_suspected(page):
         update_session_health(
             account.id,
             "captcha_suspected",
