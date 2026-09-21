@@ -17,8 +17,11 @@ async def _is_authenticated(page):
 
 
 async def _captcha_suspected(page):
+    # Match the actual challenge text, not the ambient reCAPTCHA widget that
+    # OpenRent now embeds site-wide (~2026-09-17): the bare word "captcha"
+    # appears on normal authenticated pages and would false-positive.
     content = (await page.content()).lower()
-    return "captcha" in content or "verify you are human" in content
+    return "verify you are human" in content or "unusual traffic" in content
 
 
 async def _capture_page_diagnostics(page, email: str, reason: str):
