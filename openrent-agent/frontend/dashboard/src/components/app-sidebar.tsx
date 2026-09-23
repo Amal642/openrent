@@ -87,7 +87,7 @@ export function AppSidebar() {
                   >
                     <AlertTriangle className="size-4" />
                     <span className="flex-1">Failed Accounts</span>
-                    {failedCount > 0 && (
+                    {false && failedCount > 0 && (
                       <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
                         {failedCount}
                       </span>
