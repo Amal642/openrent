@@ -3617,6 +3617,7 @@ def detect_and_mark_degraded_accounts():
                 .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
                 .filter(
                     SearchProfile.account_id == account.id,
+                    SearchProfile.active == True,  # noqa: E712 judge only current areas
                     Conversation.created_at >= since,
                 )
                 .one()
