@@ -21,3 +21,5 @@ Loaded on demand (not every turn) — keep it lean: **one line per lesson, prune
 - prod git root is the **parent** dir, so `git apply` silently no-ops — use `patch -p2`/`-p1` from the app dir. [2026-09-14]
 - Never use a naive `"captcha" in html` check — OpenRent's site-wide reCAPTCHA breaks it; match the real challenge text. [2026-09-21]
 - Search-profile changes are read fresh per run — **no worker restart needed**; restarting mid-run risks orphaned workers. [2026-09-17]
+- **Don't `ALTER` a hot table** (e.g. `accounts`) on the live Supabase DB — the workers/backend hold constant locks, so `ADD COLUMN` fails with lock/statement-timeout. Prefer a **logic-only fix** (no schema change), or stop the services for the DDL window. [2026-09-23]
+- Prefer fixing detector/allocator logic over adding DB columns — e.g. the degraded detector judges only **active-profile** conversations (a reallocated account's stale-area convos drop out naturally), giving a grace period with zero schema change. [2026-09-23]
