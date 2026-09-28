@@ -561,16 +561,25 @@ def build_human_renter_reply_prompt(
     else:
         partner_line = "you are renting on your own"
     _sur = persona_surnames(persona)
+    # Reactive only. Phrasing like "some landlords ask for full names" primed the
+    # model to append "let me know if you need our full names" to viewing
+    # confirmations (~85% of full-name mentions were unprompted), a repeated
+    # template tell. So: answer only when explicitly asked, never raise it.
+    _no_offer = (
+        "Only use this if the landlord's message explicitly asks for names. Otherwise do "
+        "not mention names, surnames or \"full names\" at all: never offer them, never ask "
+        "whether they need them, never add \"let me know if you need our names\"."
+    )
     if partner:
         fullname_line = (
             f"- Your full name is {name} {_sur['primary']} and your partner's full name is "
-            f"{partner} {_sur['partner']}. Some landlords ask for full names before a viewing; "
-            f"if they do, give them plainly. Never volunteer surnames unprompted."
+            f"{partner} {_sur['partner']}. If the landlord asks for your names, give them "
+            f"plainly. {_no_offer}"
         )
     else:
         fullname_line = (
-            f"- Your full name is {name} {_sur['primary']}. If a landlord asks for your full name "
-            f"before a viewing, give it plainly. Never volunteer your surname unprompted."
+            f"- Your full name is {name} {_sur['primary']}. If the landlord asks for your name, "
+            f"give it plainly. {_no_offer}"
         )
     # Single coherent number-exchange policy. The model reads the whole
     # conversation, so it handles any phrasing ("send me yours", "you first",
