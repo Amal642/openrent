@@ -19,6 +19,7 @@ from typing import Optional
 
 from app.config import settings
 from app.utils.logger import logger
+from app.utils.text import strip_ai_dashes
 from app.whatsapp.matcher import (
     extract_name_from_message,
     extract_property_from_message,
@@ -300,6 +301,8 @@ def _schedule_reply(
     contact_id: int, message: str, next_status: str, **extra_updates
 ) -> None:
     """Store or suppress the pending reply depending on the feature flag."""
+    # Scrub before the duplicate check and last_ai_reply so both see the sent text.
+    message = strip_ai_dashes(message)
     if outbound_message_exists(contact_id, message):
         update_contact(
             contact_id,

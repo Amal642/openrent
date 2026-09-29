@@ -17,6 +17,7 @@ import httpx
 
 from app.config import settings
 from app.utils.logger import logger
+from app.utils.text import strip_ai_dashes
 
 _DISPATCH_INTERVAL_SECONDS = 60
 
@@ -99,6 +100,9 @@ class KapsoWhatsAppWorker:
         if not clean_phone:
             logger.warning(f"WHATSAPP_KAPSO_SEND_FAILED phone={phone!r} reason=invalid_phone")
             return False
+
+        # Single choke point for every WhatsApp outbound: em/en dashes are a bot tell.
+        text = strip_ai_dashes(text)
 
         url = (
             f"{settings.KAPSO_BASE_URL.rstrip('/')}/"
@@ -233,7 +237,8 @@ class KapsoWhatsAppWorker:
 
         logger.info(f"WHATSAPP_KAPSO_DISPATCH due_count={len(contacts)}")
         for contact in contacts:
-            reply = getattr(contact, "last_ai_reply", None)
+            # Scrub here too so the duplicate check and stored history match the sent text.
+            reply = strip_ai_dashes(getattr(contact, "last_ai_reply", None))
             if not reply:
                 await asyncio.to_thread(mark_reply_sent, contact.id)
                 continue
