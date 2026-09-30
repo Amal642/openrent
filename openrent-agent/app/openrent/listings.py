@@ -1,5 +1,6 @@
 
 import re
+from pathlib import Path
 
 from app.db.repository import (
     listing_exists,
@@ -30,7 +31,27 @@ def _is_bot_page(html: str, title: str) -> str | None:
         return "Cloudflare challenge"
     if "just a moment" in title.lower():
         return "Cloudflare JS challenge"
+    # AWS WAF CAPTCHA interstitial (seen since ~2026-09-26): title "Human
+    # Verification" plus the WAF bootstrap (gokuProps + #captcha-container).
+    # Neither marker appears on normal search/enquiry pages.
+    if "human verification" in title.lower() or (
+        "gokuprops" in lower and "captcha-container" in lower
+    ):
+        return "AWS WAF CAPTCHA"
     return None
+
+
+async def _save_discovery_diagnostic(page, search_profile_id, kind: str) -> None:
+    """Screenshot a page that yielded no listings, one file per profile
+    (overwritten each time) so disk use stays bounded."""
+    try:
+        screenshots_dir = Path("screenshots")
+        screenshots_dir.mkdir(parents=True, exist_ok=True)
+        path = str(screenshots_dir / f"discovery_{kind}_profile_{search_profile_id}.png")
+        await page.screenshot(path=path)
+        logger.info(f"DISCOVERY_DIAGNOSTIC_SCREENSHOT profile_id={search_profile_id} path={path}")
+    except Exception as exc:
+        logger.warning(f"DISCOVERY_DIAGNOSTIC_SCREENSHOT_FAILED profile_id={search_profile_id} error={exc}")
 
 
 async def scrape_search_results(
@@ -57,7 +78,11 @@ async def scrape_search_results(
     html = await page.content()
     bot_reason = _is_bot_page(html, title)
     if bot_reason:
-        logger.error(f"DISCOVERY_BOT_WALL profile_id={search_profile_id} reason={bot_reason}")
+        logger.error(
+            f"DISCOVERY_BOT_WALL profile_id={search_profile_id} reason={bot_reason} "
+            f"title={title!r} url={current_url}"
+        )
+        await _save_discovery_diagnostic(page, search_profile_id, "botwall")
         return 0
 
     if "openrent.co.uk" in current_url and "/properties-to-rent" not in current_url:
@@ -107,7 +132,11 @@ async def scrape_search_results(
                 )
 
     if not candidate_ids:
-        logger.warning(f"DISCOVERY_ZERO_CANDIDATES profile_id={search_profile_id} url={current_url}")
+        logger.warning(
+            f"DISCOVERY_ZERO_CANDIDATES profile_id={search_profile_id} url={current_url} "
+            f"title={title!r} html_len={len(html)}"
+        )
+        await _save_discovery_diagnostic(page, search_profile_id, "zero")
         return 0
 
     new_count = 0

@@ -13,6 +13,9 @@ from app.db.repository import (
     increment_message_count,
     get_conversation_by_thread_id,
     claim_uncontacted_listings,
+    claim_overflow_listings,
+    overflow_listing_fits_band,
+    return_overflow_listing,
     ensure_account_persona,
     release_listing_claim,
     save_message_once,
@@ -78,11 +81,26 @@ async def process_account_listings(
         return
 
     persona = ensure_account_persona(account.id)
+    claim_owner = worker_id or f"account-{account.id}"
     listings = claim_uncontacted_listings(
         account.id,
-        worker_id or f"account-{account.id}",
+        claim_owner,
         limit=20,
     )
+
+    # No inventory of our own: take over surplus listings from same-region
+    # accounts that can't send them all (see claim_overflow_listings). Each
+    # one is rent-checked against our persona's band once its page is open,
+    # and anything not sent this run goes back to its donor.
+    overflow_origin = {}
+    if not listings:
+        listings, overflow_origin = claim_overflow_listings(account.id, claim_owner)
+        if listings:
+            donors = sorted({o["origin_account_id"] for o in overflow_origin.values()})
+            logger.info(
+                f"OVERFLOW_CLAIMED account_id={account.id} "
+                f"claimed={len(listings)} donors={donors}"
+            )
 
     logger.info(
         f"MESSAGE_CANDIDATES_AVAILABLE account_id={account.id} "
@@ -98,6 +116,26 @@ async def process_account_listings(
 
     logger.info(f"MESSAGE_STAGE_STARTED account_id={account.id} candidates={len(listings)}")
 
+    try:
+        messages_sent, agent_skipped, skipped_other, not_contactable = await _process_claimed_listings(
+            account, page, listings, persona, claim_owner, overflow_origin
+        )
+    finally:
+        for listing_pk, origin in overflow_origin.items():
+            return_overflow_listing(
+                listing_pk, origin["origin_profile_id"], claim_owner, reason="end_of_run"
+            )
+
+    logger.info(
+        f"MESSAGES_SENT_THIS_RUN account_id={account.id} "
+        f"sent={messages_sent} candidates={len(listings)} "
+        f"agent_skipped={agent_skipped} not_contactable={not_contactable} "
+        f"other_skipped={skipped_other}"
+    )
+    logger.info(f"MESSAGE_STAGE_FINISHED account_id={account.id}")
+
+
+async def _process_claimed_listings(account, page, listings, persona, claim_owner, overflow_origin):
     messages_sent = 0
     agent_skipped = 0
     skipped_other = 0
@@ -206,6 +244,19 @@ async def process_account_listings(
                 skipped_other += 1
                 continue
 
+            overflow = overflow_origin.get(listing_pk)
+            if overflow and not overflow_listing_fits_band(metadata, overflow):
+                logger.info(
+                    f"OVERFLOW_OUT_OF_BAND listing={listing_ext_id} "
+                    f"rent_pcm={metadata.get('rent_pcm')} bedrooms={metadata.get('bedrooms')} "
+                    f"band=£{overflow['price_min']}-{overflow['price_max']} — returning to donor"
+                )
+                return_overflow_listing(
+                    listing_pk, overflow["origin_profile_id"], claim_owner, reason="out_of_band"
+                )
+                skipped_other += 1
+                continue
+
             message_link = await get_message_link(page)
             contactable = message_link is not None
 
@@ -290,13 +341,7 @@ async def process_account_listings(
         finally:
             release_listing_claim(
                 listing_pk,
-                worker_id or f"account-{account.id}",
+                claim_owner,
             )
 
-    logger.info(
-        f"MESSAGES_SENT_THIS_RUN account_id={account.id} "
-        f"sent={messages_sent} candidates={len(listings)} "
-        f"agent_skipped={agent_skipped} not_contactable={not_contactable} "
-        f"other_skipped={skipped_other}"
-    )
-    logger.info(f"MESSAGE_STAGE_FINISHED account_id={account.id}")
+    return messages_sent, agent_skipped, skipped_other, not_contactable

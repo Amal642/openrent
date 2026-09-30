@@ -26,6 +26,23 @@ from app.db.repository import create_search_profile
 from app.utils.logger import logger
 
 
+# An area only counts as exhausted (worth moving its account away) when it is
+# paused AND its recent supply is below ~1 new listing/day. "pause" alone also
+# fires when a single owner is harvesting its area exactly (usable backlog 0,
+# supply supports 1 account), which is the healthy steady state -- moving that
+# owner into another account's area (2026-09-28: 28->Woolwich, 31->Acton,
+# 34->Lewisham) only created double coverage.
+EXHAUSTED_MAX_NEW_LISTINGS_7D = 7
+
+
+def _exhausted_locations(metrics: list[AreaMetrics]) -> set[str]:
+    return {
+        m.location
+        for m in metrics
+        if m.status == "pause" and m.new_listings_7d < EXHAUSTED_MAX_NEW_LISTINGS_7D
+    }
+
+
 def run_allocation(dry_run: bool = False) -> dict:
     """
     Assign pool SIMs and rebalance exhausted ones.
@@ -35,7 +52,7 @@ def run_allocation(dry_run: bool = False) -> dict:
     # Only allocatable locations are valid SIM targets (spend guardrail); the
     # metrics list still contains every active area for reporting.
     area_defaults = get_area_defaults(allocatable_only=True)
-    paused_locations = {m.location for m in metrics if m.status == "pause"}
+    paused_locations = _exhausted_locations(metrics)
 
     assigned: list[dict] = []
     rebalanced: list[dict] = []
@@ -198,33 +215,37 @@ def _ranked_areas(metrics: list[AreaMetrics], allocatable: dict) -> list[AreaMet
 
     1. Listing IDs are globally unique, so an area already worked by other
        accounts yields ~nothing to a newcomer — incumbents scrape new supply
-       first. So we place into the LEAST-contested area with spare capacity,
-       not the one with the highest raw supply.
+       first. So we only place into UNCONTESTED areas, never the one with
+       the highest raw supply.
     2. A fresh, uncontested area has no conversations yet, so its
        area-intelligence `status` is `insufficient_data` and its `score` is 0.
        Ranking by `score` (the old behaviour) therefore excluded every
        uncontested area and could only recycle accounts back into the
        saturated, already-established ones. We must not gate on `score` here.
 
-    Eligibility instead requires real, discovered supply
-    (`total_listings >= MIN_TOTAL_LISTINGS_FOR_DECISION`) with room for one
-    more account (`current_account_gap > 0`, i.e. measured supply supports
-    more accounts than are currently assigned). Ranking prefers the fewest
-    existing accounts, then the largest spare capacity, then proven phone
-    rate as a tie-break.
+    Eligibility requires real, discovered supply
+    (`total_listings >= MIN_TOTAL_LISTINGS_FOR_DECISION`) and NO active
+    account already working the area: a listing can only be messaged by the
+    account whose profile discovered it, so a second owner just races the
+    first for the same new listings. `current_account_gap` is not required
+    because an unowned area's 7-day supply is ~0 (nobody searched it), which
+    would make every unowned area ineligible. Ranking prefers the freshest
+    recent supply, then spare capacity, then proven phone rate, then
+    historical volume.
     """
     eligible = [
         m for m in metrics
         if m.location in allocatable
         and m.total_listings >= MIN_TOTAL_LISTINGS_FOR_DECISION
-        and m.current_account_gap > 0
+        and m.active_accounts == 0
     ]
     return sorted(
         eligible,
         key=lambda m: (
-            m.active_accounts,
+            -m.new_listings_7d,
             -m.current_account_gap,
             -m.phone_capture_rate_pct,
+            -m.total_listings,
         ),
     )
 

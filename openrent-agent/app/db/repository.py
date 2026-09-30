@@ -1236,6 +1236,9 @@ def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30)
     stale_before = datetime.utcnow() - timedelta(minutes=stale_minutes)
 
     with session_scope() as db:
+        # Row-lock the claimed rows (SKIP LOCKED) so a concurrent overflow
+        # claim by another account can never take the same listing between
+        # this read and the commit below (no-op on SQLite).
         listings = (
             db.query(Listing)
             .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
@@ -1251,6 +1254,7 @@ def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30)
                 ),
             )
             .limit(limit)
+            .with_for_update(of=Listing, skip_locked=True)
             .all()
         )
 
@@ -1260,6 +1264,237 @@ def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30)
 
         db.commit()
         return listings
+
+
+# Overflow claiming.
+#
+# A listing can only be messaged by the account whose search profile discovered
+# it, and every account is paced to ~7 sends/day. With 10-mile search radii the
+# first account to scrape a neighbourhood keeps its listings, so some accounts
+# pile up unsent surplus while their neighbours find nothing new and send 0
+# (2026-09-29: 270 open listings fleet-wide while accts 13/23/30/31 sent 0-3).
+# When an account has no inventory of its own, it may take over surplus
+# listings from another account in the SAME region. Ownership moves to the
+# claimer's active profile so every downstream lookup (reply processing,
+# cancellation sweeps, degraded detector, dashboards) resolves to the account
+# that actually sent the message.
+OVERFLOW_DONOR_KEEP = 8         # a healthy donor keeps ~1 day of its own sends
+OVERFLOW_MAX_AGE_DAYS = 5       # older listings are likely let already
+OVERFLOW_CLAIM_LIMIT = 8        # enough candidates to find one contactable
+
+
+def claim_overflow_listings(account_id, worker_id, limit=OVERFLOW_CLAIM_LIMIT, stale_minutes=30):
+    """Transfer and claim surplus listings from other same-region accounts.
+
+    Returns ``(listings, origins)``. ``origins`` maps each claimed listing pk to
+    the donor profile it came from plus the claimer profile's price/bedroom
+    band, so the caller can hand it back (``return_overflow_listing``) if the
+    real rent turns out to be outside the claimer persona's affordability band
+    (rent is only known once the listing page is opened).
+    """
+    from sqlalchemy import or_, update
+    from app.utils.logger import logger
+
+    now = datetime.utcnow()
+    stale_before = now - timedelta(minutes=stale_minutes)
+    fresh_after = now - timedelta(days=OVERFLOW_MAX_AGE_DAYS)
+
+    def _open_listing_filters():
+        return (
+            Listing.message_sent == False,  # noqa: E712
+            Listing.processing_failed == False,  # noqa: E712
+            Listing.skip_reason == None,  # noqa: E711
+            Listing.listing_archived == False,  # noqa: E712
+            or_(Listing.processing_owner == None, Listing.processing_started_at < stale_before),  # noqa: E711
+        )
+
+    with session_scope() as db:
+        region_of = {loc.term_value: (loc.region or "South") for loc in db.query(Location).all()}
+
+        # Target = the claimer's widest-band active profile in each region.
+        target_by_region = {}
+        for profile in (
+            db.query(SearchProfile)
+            .filter(SearchProfile.account_id == account_id, SearchProfile.active == True)  # noqa: E712
+            .order_by(SearchProfile.id)
+            .all()
+        ):
+            region = region_of.get(profile.location, "South")
+            current = target_by_region.get(region)
+            if current is None or (profile.price_max or 0) > (current.price_max or 0):
+                target_by_region[region] = profile
+        if not target_by_region:
+            return [], {}
+
+        donor_counts = (
+            db.query(SearchProfile.account_id, func.count(Listing.id))
+            .join(Listing, Listing.search_profile_id == SearchProfile.id)
+            .filter(
+                SearchProfile.account_id != account_id,
+                Listing.first_seen >= fresh_after,
+                *_open_listing_filters(),
+            )
+            .group_by(SearchProfile.account_id)
+            .all()
+        )
+        if not donor_counts:
+            return [], {}
+
+        # Benched/failed/disabled accounts cannot send their listings at all,
+        # so all of it is surplus; a healthy donor keeps a day's worth.
+        unavailable = {
+            acc_id
+            for (acc_id,) in db.query(Account.id).filter(
+                (Account.failed == True)  # noqa: E712
+                | (Account.permanently_failed == True)  # noqa: E712
+                | (Account.active == False)  # noqa: E712
+                | (Account.deleted_at != None)  # noqa: E711
+            )
+        }
+        surplus = {}
+        for donor_id, open_count in donor_counts:
+            spare = open_count if donor_id in unavailable else open_count - OVERFLOW_DONOR_KEEP
+            if spare > 0:
+                surplus[donor_id] = spare
+        if not surplus:
+            return [], {}
+
+        candidates = (
+            db.query(
+                Listing.id,
+                Listing.search_profile_id,
+                Listing.rent_pcm,
+                Listing.bedrooms,
+                SearchProfile.account_id,
+                SearchProfile.location,
+            )
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .filter(
+                SearchProfile.account_id.in_(list(surplus)),
+                Listing.first_seen >= fresh_after,
+                *_open_listing_filters(),
+            )
+            .order_by(Listing.first_seen.desc(), Listing.id.desc())
+            .all()
+        )
+
+        taken_from = {}
+        origins = {}
+        for listing_pk, donor_profile_id, rent_pcm, bedrooms, donor_id, donor_location in candidates:
+            if len(origins) >= limit:
+                break
+            if taken_from.get(donor_id, 0) >= surplus[donor_id]:
+                continue
+            target = target_by_region.get(region_of.get(donor_location, "South"))
+            if target is None:
+                continue
+            band = {
+                "price_min": target.price_min,
+                "price_max": target.price_max,
+                "bedrooms_min": target.bedrooms_min,
+                "bedrooms_max": target.bedrooms_max,
+            }
+            # Rent already known (page opened before) and outside our band:
+            # don't take it just to hand it back after another page load.
+            if rent_pcm is not None and not overflow_listing_fits_band(
+                {"rent_pcm": rent_pcm, "bedrooms": bedrooms}, band
+            ):
+                continue
+            # Atomic conditional transfer+claim: only succeeds if the listing is
+            # still the donor's and still unclaimed. A donor that locked it first
+            # (claim_uncontacted_listings uses FOR UPDATE) wins; we skip it.
+            result = db.execute(
+                update(Listing)
+                .where(
+                    Listing.id == listing_pk,
+                    Listing.search_profile_id == donor_profile_id,
+                    *_open_listing_filters(),
+                )
+                .values(
+                    search_profile_id=target.id,
+                    processing_owner=worker_id,
+                    processing_started_at=now,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                continue
+            taken_from[donor_id] = taken_from.get(donor_id, 0) + 1
+            origins[listing_pk] = {
+                "origin_profile_id": donor_profile_id,
+                "origin_account_id": donor_id,
+                **band,
+            }
+            logger.info(
+                f"OVERFLOW_TRANSFER listing_pk={listing_pk} from_account={donor_id} "
+                f"from_profile={donor_profile_id} to_account={account_id} to_profile={target.id}"
+            )
+
+        db.commit()
+        if not origins:
+            return [], {}
+        listings = (
+            db.query(Listing)
+            .filter(Listing.id.in_(list(origins)))
+            .order_by(Listing.first_seen.desc(), Listing.id.desc())
+            .all()
+        )
+        return listings, origins
+
+
+def overflow_listing_fits_band(metadata, origin) -> bool:
+    """True if the scraped rent/bedrooms fit the claimer profile's band.
+
+    Unknown rent is treated as NOT fitting: the claimer's price cap is its
+    persona's affordability routing, so it must never message a listing it
+    can't prove it can afford.
+    """
+    rent = metadata.get("rent_pcm")
+    if rent is None:
+        return False
+    if origin.get("price_min") is not None and rent < origin["price_min"]:
+        return False
+    if origin.get("price_max") is not None and rent > origin["price_max"]:
+        return False
+    bedrooms = metadata.get("bedrooms")
+    if bedrooms is not None:
+        if origin.get("bedrooms_min") is not None and bedrooms < origin["bedrooms_min"]:
+            return False
+        if origin.get("bedrooms_max") is not None and bedrooms > origin["bedrooms_max"]:
+            return False
+    return True
+
+
+def return_overflow_listing(listing_pk, origin_profile_id, worker_id, reason=""):
+    """Hand an unsent overflow listing back to its donor profile, unclaimed.
+
+    Conditional so it can never undo a send, and never clobber a claim that
+    someone else (e.g. the donor) has taken since. Idempotent.
+    """
+    from sqlalchemy import or_, update
+    from app.utils.logger import logger
+
+    with session_scope() as db:
+        result = db.execute(
+            update(Listing)
+            .where(
+                Listing.id == listing_pk,
+                Listing.message_sent == False,  # noqa: E712
+                Listing.search_profile_id != origin_profile_id,
+                or_(Listing.processing_owner == None, Listing.processing_owner == worker_id),  # noqa: E711
+            )
+            .values(
+                search_profile_id=origin_profile_id,
+                processing_owner=None,
+                processing_started_at=None,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        db.commit()
+    if result.rowcount == 1:
+        logger.info(
+            f"OVERFLOW_RETURNED listing_pk={listing_pk} to_profile={origin_profile_id} reason={reason}"
+        )
 
 
 def release_listing_claim(listing_id, worker_id=None):
