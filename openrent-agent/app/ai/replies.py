@@ -28,6 +28,7 @@ from app.ai.personas import TENANT_SENDERS, generate_phone_share_reply
 from app.ai.validators import is_valid_reply, remove_unapproved_phone_numbers
 from app.config import settings
 from app.utils.logger import logger
+from app.utils.text import strip_ai_dashes
 
 client = OpenAI(
     api_key=settings.OPENAI_API_KEY,
@@ -94,12 +95,12 @@ class ReplyGenerationResult:
 
 def _sanitize_dashes(text: str) -> str:
     """
-    Replace em and en dashes with commas so generated messages
-    feel natural rather than AI-polished.
+    Replace em and en dashes so generated messages feel natural rather than
+    AI-polished. Delegates to the shared scrubber: the old local version turned
+    a dash into a bare "," with no space ("07783129181,best") and en-dash
+    ranges into commas ("3,5pm").
     """
-    text = text.replace("—", ",")  # em dash —
-    text = text.replace("–", ",")  # en dash –
-    return text
+    return strip_ai_dashes(text)
 
 
 def _default_completion_create(**kwargs):
