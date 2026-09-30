@@ -13,9 +13,13 @@ def normalize_uk_phone(phone):
         phone
     )
 
-    # 00 international access code → leading +
-    if phone.startswith("00") and not phone.startswith("0044"):
+    # 00 international access code → leading + ("0044 7911…" → "+447911…")
+    if phone.startswith("00"):
         phone = "+" + phone[2:]
+
+    # "+44 (0)7911…" / "+4407911…": drop the redundant trunk 0 after +44
+    if phone.startswith("+440"):
+        phone = "+44" + phone[4:]
 
     # Foreign number (a landlord may be based abroad): keep the international
     # E.164 form as-is when it carries a non-UK country code and a plausible

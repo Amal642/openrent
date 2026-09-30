@@ -41,8 +41,9 @@ QR_FILE = Path("whatsapp-qr.png")
 def _signature_is_valid(raw_body: bytes, signature: str | None) -> bool:
     secret = settings.KAPSO_WEBHOOK_SECRET
     if not secret:
-        logger.warning("WHATSAPP_KAPSO_WEBHOOK_SECRET_NOT_SET accepting_unsigned_webhook=True")
-        return True
+        # Fail closed: without a secret anyone could post fake landlord messages.
+        logger.error("WHATSAPP_KAPSO_WEBHOOK_SECRET_NOT_SET rejecting_webhook=True")
+        return False
     if not signature:
         return False
 
@@ -118,8 +119,15 @@ def _extract_incoming_messages(payload: dict) -> list[dict]:
     contacts = data.get("contacts") if isinstance(data.get("contacts"), list) else []
     first_contact = contacts[0] if contacts and isinstance(contacts[0], dict) else {}
 
+    # Kapso v2 puts contact data on a top-level "conversation" object.
+    conversation = payload.get("conversation") if isinstance(payload.get("conversation"), dict) else {}
+
     extracted = []
     for item in _message_items(payload):
+        # Our own outbound messages echoed back are never landlord messages.
+        if str(_dig(item, "kapso", "direction") or "").lower() == "outbound":
+            continue
+
         text = _first_value(
             item,
             [
@@ -128,12 +136,20 @@ def _extract_incoming_messages(payload: dict) -> list[dict]:
                 ("body",),
                 ("message",),
                 ("content",),
+                ("kapso", "content"),
+                ("kapso", "transcript"),
             ],
         )
         if isinstance(text, dict):
             text = text.get("body")
         if not text:
-            continue
+            # Voice note / photo / location with no caption: the sender's number
+            # IS the lead, so keep the message with a placeholder instead of
+            # dropping the contact entirely.
+            msg_type = item.get("type")
+            if not msg_type or msg_type == "text":
+                continue
+            text = f"[{msg_type} message]"
 
         phone = _first_value(
             item,
@@ -154,7 +170,7 @@ def _extract_incoming_messages(payload: dict) -> list[dict]:
                 ("phone",),
                 ("phone_number",),
             ],
-        )
+        ) or _first_value(conversation, [("phone_number",)])
         if not phone:
             continue
 
@@ -167,7 +183,9 @@ def _extract_incoming_messages(payload: dict) -> list[dict]:
                 ("sender_name",),
                 ("name",),
             ],
-        ) or _first_value(first_contact, [("profile", "name"), ("name",)])
+        ) or _first_value(first_contact, [("profile", "name"), ("name",)]) or _first_value(
+            conversation, [("contact_name",)]
+        )
 
         extracted.append(
             {
@@ -190,6 +208,7 @@ async def _handle_kapso_webhook(
     request: Request,
     x_webhook_signature: str | None,
     route_hint: str,
+    webhook_event: str | None = None,
 ) -> dict:
     raw_body = await request.body()
     if not _signature_is_valid(raw_body, x_webhook_signature):
@@ -202,7 +221,8 @@ async def _handle_kapso_webhook(
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Webhook payload must be an object")
 
-    event = str(payload.get("event") or route_hint or "").lower()
+    # Kapso v2 sends the event name in the X-Webhook-Event header, not the body.
+    event = str(webhook_event or payload.get("event") or route_hint or "").lower()
     if route_hint == "sent" or any(
         token in event for token in ("sent", "status", "delivered", "read", "failed")
     ):
@@ -310,12 +330,14 @@ class NodeLogPayload(BaseModel):
 async def whatsapp_incoming(
     request: Request,
     x_webhook_signature: str | None = Header(default=None),
+    x_webhook_event: str | None = Header(default=None),
 ):
     """Kapso incoming webhook alias."""
     return await _handle_kapso_webhook(
         request,
         x_webhook_signature,
         route_hint="incoming",
+        webhook_event=x_webhook_event,
     )
 
 
@@ -323,12 +345,14 @@ async def whatsapp_incoming(
 async def whatsapp_kapso_webhook(
     request: Request,
     x_webhook_signature: str | None = Header(default=None),
+    x_webhook_event: str | None = Header(default=None),
 ):
     """Kapso webhook for incoming and sent/status events."""
     return await _handle_kapso_webhook(
         request,
         x_webhook_signature,
         route_hint="webhook",
+        webhook_event=x_webhook_event,
     )
 
 
@@ -336,12 +360,14 @@ async def whatsapp_kapso_webhook(
 async def whatsapp_sent(
     request: Request,
     x_webhook_signature: str | None = Header(default=None),
+    x_webhook_event: str | None = Header(default=None),
 ):
     """Kapso sent/status webhook alias."""
     return await _handle_kapso_webhook(
         request,
         x_webhook_signature,
         route_hint="sent",
+        webhook_event=x_webhook_event,
     )
 
 

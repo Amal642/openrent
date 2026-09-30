@@ -66,6 +66,16 @@ def normalize_phone(number):
     return re.sub(r"\D", "", number or "")
 
 
+def _uk_canonical(digits):
+    """Map UK international digits to national form so "+44 7783 129181",
+    "0044 7783…" and "07783 129181" compare equal ("447783129181" -> "07783129181")."""
+    if digits.startswith("0044"):
+        digits = digits[2:]
+    if digits.startswith("44") and len(digits) == 12:
+        return "0" + digits[2:]
+    return digits
+
+
 def remove_unapproved_phone_numbers(reply, allowed_mobile_number=None):
 
     if not reply:
@@ -82,7 +92,7 @@ def remove_unapproved_phone_numbers(reply, allowed_mobile_number=None):
         # still survives. Any other number is stripped.
         if (
             allowed_digits
-            and normalize_phone(candidate) == allowed_digits
+            and _uk_canonical(normalize_phone(candidate)) == _uk_canonical(allowed_digits)
         ):
             return candidate
 

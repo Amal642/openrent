@@ -7,6 +7,22 @@ import ssl
 
 from app.utils.logger import logger
 
+# A listing whose "Minimum Tenancy" is below this is treated as a short let
+# and skipped. 6 months is the standard UK long-let minimum (initial 6-month
+# AST), so it is accepted; 1-5 month minimums are skipped.
+MIN_ACCEPTED_TENANCY_MONTHS = 6
+
+_SHORT_TERM_KEYWORD_RE = re.compile(
+    r"\b(?:short[- ]term(?:\s+let)?|short\s+let|holiday\s+let|"
+    r"short\s+stay|serviced\s+accommodation|temporary\s+accommodation)\b",
+    re.IGNORECASE,
+)
+# Negation shortly before a keyword: "no short term lets", "not a short let".
+_SHORT_TERM_NEGATION_RE = re.compile(
+    r"\b(?:no|not|non|never|without)\b[^.\n]*$|n't\b[^.\n]*$",
+    re.IGNORECASE,
+)
+
 
 def _clean_text(value):
     if value is None:
@@ -228,15 +244,14 @@ def parse_listing_metadata(content, body_text="", page_title=""):
         n = int(tenancy_match.group(1))
         unit = tenancy_match.group(2).lower()
         min_tenancy_months = n * 12 if "year" in unit else n
-        if min_tenancy_months < 12:
+        if min_tenancy_months < MIN_ACCEPTED_TENANCY_MONTHS:
             is_short_term = True
 
-    # Explicit short-term/holiday let keywords
-    if not is_short_term and re.search(
-        r"\b(?:short[- ]term(?:\s+let)?|short\s+let|holiday\s+let|"
-        r"short\s+stay|serviced\s+accommodation|temporary\s+accommodation)\b",
-        searchable,
-        re.IGNORECASE,
+    # Explicit short-term/holiday let keywords. A negated mention ("no short
+    # term lets", "not a short let") describes a LONG let, so it doesn't count.
+    if not is_short_term and any(
+        not _SHORT_TERM_NEGATION_RE.search(searchable[max(0, m.start() - 25):m.start()])
+        for m in _SHORT_TERM_KEYWORD_RE.finditer(searchable)
     ):
         is_short_term = True
 

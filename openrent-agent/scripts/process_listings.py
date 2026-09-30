@@ -33,7 +33,10 @@ from app.openrent.messaging import (
     send_initial_message,
     get_existing_thread_id,
 )
-from app.openrent.listing_metadata import extract_listing_metadata
+from app.openrent.listing_metadata import (
+    MIN_ACCEPTED_TENANCY_MONTHS,
+    extract_listing_metadata,
+)
 
 from app.ai.replies import (
     generate_initial_property_message
@@ -234,7 +237,7 @@ async def _process_claimed_listings(account, page, listings, persona, claim_owne
 
             min_months = metadata.get("min_tenancy_months")
             if metadata.get("is_short_term") or (
-                min_months is not None and min_months < 12
+                min_months is not None and min_months < MIN_ACCEPTED_TENANCY_MONTHS
             ):
                 logger.info(
                     f"SHORT_TERM_PROPERTY listing={listing_ext_id} "

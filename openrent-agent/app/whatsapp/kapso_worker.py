@@ -21,6 +21,21 @@ from app.utils.text import strip_ai_dashes
 
 _DISPATCH_INTERVAL_SECONDS = 60
 
+# WhatsApp only allows free-text messages within 24h of the landlord's last
+# message (the customer-service window). Outside it Meta rejects the send, so
+# retrying (with an AI call each time for cancellations) only burned calls:
+# ~8.5k failed sends/day before 2026-09-29. Keep a small safety margin.
+_SERVICE_WINDOW = timedelta(hours=23, minutes=45)
+_SEND_RETRY_DELAY = timedelta(minutes=15)
+
+
+def service_window_open(contact, now: Optional[datetime] = None) -> bool:
+    """True when a free-text WhatsApp message can still reach this contact."""
+    last = getattr(contact, "last_received_at", None)
+    if not last:
+        return False
+    return (now or datetime.utcnow()) - last < _SERVICE_WINDOW
+
 
 class KapsoWhatsAppWorker:
     """Singleton transport worker for sending WhatsApp messages through Kapso."""
@@ -32,6 +47,8 @@ class KapsoWhatsAppWorker:
         self.last_active: Optional[datetime] = None
         self.last_error: Optional[str] = None
         self.error_count: int = 0
+        # Contacts already logged as window-closed (log once, not every minute).
+        self._window_closed_logged: set[int] = set()
 
     async def start(self) -> None:
         if self.status in ("connected", "starting"):
@@ -184,6 +201,17 @@ class KapsoWhatsAppWorker:
 
         logger.info(f"WHATSAPP_KAPSO_CANCELLATION_DUE count={len(contacts)}")
         for contact in contacts:
+            # Check the window BEFORE generating the (AI) cancellation text.
+            if not service_window_open(contact):
+                if contact.id not in self._window_closed_logged:
+                    self._window_closed_logged.add(contact.id)
+                    logger.info(
+                        f"WHATSAPP_KAPSO_CANCELLATION_WINDOW_CLOSED "
+                        f"phone={contact.phone_number} contact_id={contact.id} "
+                        f"last_received_at={contact.last_received_at}"
+                    )
+                continue
+
             conversation = await asyncio.to_thread(get_conversation_for_contact, contact)
             thread_id = conversation.thread_id if conversation else None
 
@@ -273,6 +301,15 @@ class KapsoWhatsAppWorker:
                 )
                 continue
 
+            if not service_window_open(contact):
+                # Stale reply the landlord can no longer receive; drop it.
+                await asyncio.to_thread(mark_reply_sent, contact.id)
+                logger.info(
+                    f"WHATSAPP_KAPSO_REPLY_DROPPED_WINDOW_CLOSED "
+                    f"phone={contact.phone_number} last_received_at={contact.last_received_at}"
+                )
+                continue
+
             if await asyncio.to_thread(last_message_direction, contact) == "outbound":
                 logger.info(
                     f"WHATSAPP_KAPSO_REPLY_SKIPPED_AWAITING_LANDLORD "
@@ -290,7 +327,7 @@ class KapsoWhatsAppWorker:
                     f"phone={contact.phone_number} status={contact.status}"
                 )
             else:
-                new_time = datetime.utcnow() + timedelta(minutes=5)
+                new_time = datetime.utcnow() + _SEND_RETRY_DELAY
                 await asyncio.to_thread(
                     update_contact, contact.id, reply_scheduled_at=new_time
                 )

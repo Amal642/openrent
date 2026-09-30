@@ -1,7 +1,12 @@
 import re
 from datetime import datetime, timedelta
 
-from app.ai.personas import LANDLORD_ATTITUDES, landlord_asked_for_phone, tenant_shared_phone
+from app.ai.personas import (
+    LANDLORD_ATTITUDES,
+    TENANT_SENDERS,
+    landlord_asked_for_phone,
+    tenant_shared_phone,
+)
 
 
 FRIENDLY_PATTERNS = [
@@ -87,7 +92,7 @@ def outbound_count(messages):
     return len([
         message
         for message in messages or []
-        if _sender(message) in {"user", "tenant", "outbound", "ai"}
+        if _sender(message) in TENANT_SENDERS
     ])
 
 

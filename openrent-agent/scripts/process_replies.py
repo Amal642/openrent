@@ -451,6 +451,32 @@ def _log_playbook_ab_phone_capture(thread_id):
         )
 
 
+async def _capture_phone_before_withdrawal(thread_id, page, messages):
+    """Full extraction (reveal link -> regex -> AI) for a thread about to be
+    handed to the viewing-withdrawal sweep. Saves the number if it is new; never
+    sends anything and never raises, so the deferral always proceeds."""
+    try:
+        if await reveal_hidden_phone_number(page):
+            messages = await extract_conversation(page)
+        texts = get_landlord_messages(messages)
+        phone = regex_extract_phone(texts) or ai_extract_phone(texts)
+        phone = normalize_uk_phone(phone) if phone else None
+        if not phone:
+            return None
+        if phone_exists(phone):
+            logger.info(
+                f"PHONE_BEFORE_WITHDRAWAL_DUPLICATE thread_id={thread_id} phone={phone}"
+            )
+            return None
+        save_phone_number(thread_id, phone)
+        _log_playbook_ab_phone_capture(thread_id)
+        logger.info(f"PHONE_CAPTURED_BEFORE_WITHDRAWAL thread_id={thread_id} phone={phone}")
+        return phone
+    except Exception as exc:
+        logger.warning(f"PHONE_BEFORE_WITHDRAWAL_FAILED thread_id={thread_id} error={exc}")
+        return None
+
+
 async def _send_duplicate_close(thread_id, conversation, messages, page, was_duplicate):
     """Send one graceful sign-off the FIRST time a thread is found to be a
     duplicate, so an engaged landlord is not left hanging.
@@ -958,6 +984,17 @@ async def process_account_replies(
                 # the salvage-before-cancel with require_landlord_asked=False, matching
                 # the Sandra/Claire fix that previously lived here.)
                 if viewing_cancellation_due(conversation):
+                    # Last chance before the sweep withdraws the viewing: the
+                    # early capture above is regex-only, and the sweep never
+                    # extracts, so a hidden (reveal-link) or obfuscated number sent
+                    # in the cancel window was lost. Only runs for a new landlord
+                    # message with no number yet, so it adds ~no AI cost.
+                    if (
+                        conversation
+                        and not conversation.extracted_phone
+                        and has_unanswered_landlord_message
+                    ):
+                        await _capture_phone_before_withdrawal(thread_id, page, messages)
                     update_last_processed_message(thread_id, latest_landlord_message)
                     logger.info(
                         f"VIEWING_WITHDRAWAL_DEFERRED_TO_SWEEP thread_id={thread_id} "
@@ -1193,19 +1230,24 @@ async def process_account_replies(
                 if phone:
 
                     logger.info(f"AI Phone found: {phone}")
-                    update_conversation_status(thread_id, PHONE_ACQUIRED)
                     phone = normalize_uk_phone(phone)
 
                     if not phone:
                         # normalise stripped all digits (e.g. "(Number Removed)") —
-                        # not a real UK number; never overwrite a stored phone with empty
+                        # not a real UK number; never overwrite a stored phone with empty.
+                        # Do NOT skip the thread: the landlord just tried to give us
+                        # their number, so fall through to a normal reply (the reply
+                        # prompt handles "(Number Removed)" by offering our WhatsApp).
+                        # Skipping sent nothing and re-processed the thread every sweep.
                         logger.warning(
                             f"PHONE_NORMALISE_EMPTY thread_id={thread_id} "
-                            "AI extraction returned non-numeric text — ignoring"
+                            "AI extraction returned non-numeric text — replying instead"
                         )
                         await _screenshot_thread(page, thread_id, label="number_removed_ai")
-                        update_last_processed_message(thread_id, latest_landlord_message)
-                        continue
+
+                if phone:
+                    # Only a valid, normalised number marks the lead as acquired.
+                    update_conversation_status(thread_id, PHONE_ACQUIRED)
 
                     stored_phone = conversation.extracted_phone if conversation else None
 
@@ -1287,19 +1329,20 @@ async def process_account_replies(
                     continue
 
             if phone:
-
                 logger.info(f"Phone found: {phone}")
-                update_conversation_status(thread_id, PHONE_ACQUIRED)
                 phone = normalize_uk_phone(phone)
-
                 if not phone:
+                    # Not a usable number: reply normally instead of skipping the
+                    # thread (same reasoning as the AI-extraction path above).
                     logger.warning(
                         f"PHONE_NORMALISE_EMPTY thread_id={thread_id} "
-                        "regex extraction returned non-numeric text — ignoring"
+                        "regex extraction returned an invalid number — replying instead"
                     )
                     await _screenshot_thread(page, thread_id, label="number_removed_regex")
-                    update_last_processed_message(thread_id, latest_landlord_message)
-                    continue
+
+            if phone:
+                # Only a valid, normalised number marks the lead as acquired.
+                update_conversation_status(thread_id, PHONE_ACQUIRED)
 
                 stored_phone = conversation.extracted_phone if conversation else None
 
@@ -1309,6 +1352,19 @@ async def process_account_replies(
                     continue
 
                 if stored_phone and stored_phone != phone:
+                    if phone_exists(phone):
+                        # Same guard as the AI path: the new number already belongs
+                        # to another conversation (would violate the unique phone).
+                        logger.info(
+                            f"PHONE_REPLACE_DUPLICATE thread_id={thread_id} "
+                            f"phone={phone} owned_by_other_conversation"
+                        )
+                        await _send_duplicate_close(
+                            thread_id, conversation, messages, page, _was_duplicate
+                        )
+                        update_conversation_status(thread_id, DUPLICATE_LEAD)
+                        update_last_processed_message(thread_id, latest_landlord_message)
+                        continue
                     logger.info(
                         f"PHONE_REPLACED thread_id={thread_id} "
                         f"OLD_PHONE={stored_phone} NEW_PHONE={phone}"
@@ -1625,7 +1681,9 @@ async def process_account_replies(
                 if (
                     should_share_our_number
                     and mobile
-                    and mobile not in reply
+                    # Digit-aware: the model may already have written the number
+                    # spaced ("07783 129181") or as +44; never add it twice.
+                    and not tenant_shared_phone([{"sender": "us", "message": reply}], mobile)
                     and not screening_questions
                     and ab_expose_mobile
                 ):

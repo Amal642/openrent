@@ -9,6 +9,17 @@ from typing import Any, Optional
 
 from app.db.connection import SessionLocal
 from app.db.models import Conversation, Listing, WhatsAppContact, WhatsAppHandoffIntent
+from app.utils.logger import logger
+from app.utils.phone import normalize_uk_phone
+
+
+def _conversation_phone(phone_number):
+    """Phone to store on a Conversation for a WhatsApp capture: the same "07…"
+    form OpenRent captures use (so dedup sees one landlord), except unresolved
+    legacy "lid:" placeholders, which are kept verbatim (not a real number)."""
+    if not phone_number or str(phone_number).startswith("lid:"):
+        return phone_number
+    return normalize_uk_phone(phone_number) or phone_number
 
 
 def _json_list(value: str | None) -> list:
@@ -258,11 +269,19 @@ def apply_match_result(
                     .first()
                 )
             if conversation:
-                conversation.extracted_phone = contact.phone_number
+                # Same canonical form as OpenRent captures ("07…"), so dedup
+                # (phone_exists / unique phone) sees one landlord, not two.
+                conversation.extracted_phone = _conversation_phone(contact.phone_number)
                 conversation.phone_found = True
                 conversation.phone_found_at = datetime.utcnow()
                 conversation.status = "PHONE_ACQUIRED"
                 captured_conversation_id = conversation.id
+            else:
+                logger.warning(
+                    f"WHATSAPP_MATCH_NO_CONVERSATION contact_id={contact.id} "
+                    f"listing_id={best.get('listing_id')} thread_id={best.get('thread_id')} "
+                    "lead not recorded on any conversation"
+                )
         elif contact.status in {None, "NEW_CONTACT"}:
             contact.status = "AWAITING_PROPERTY"
 
@@ -713,7 +732,7 @@ def link_conversation(contact: WhatsAppContact, landlord_name: str) -> bool:
                 .first()
             )
             if conv:
-                conv.extracted_phone = contact.phone_number
+                conv.extracted_phone = _conversation_phone(contact.phone_number)
                 conv.phone_found = True
                 conv.phone_found_at = datetime.utcnow()
                 conv.status = "PHONE_ACQUIRED"

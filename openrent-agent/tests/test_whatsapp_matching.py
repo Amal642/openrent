@@ -55,6 +55,9 @@ def _seed_listing(
         landlord_name=name,
         property_address=address,
         thread_id=thread_id,
+        # A listing with a conversation was messaged by us; on prod every such
+        # listing has message_sent=True (7031/7031 on 2026-09-30).
+        message_sent=True,
     )
     session.add(listing)
     session.flush()
@@ -95,7 +98,7 @@ def test_incoming_message_matches_by_name_and_property(whatsapp_db, monkeypatch)
         assert contact.reply_scheduled_at is None
         assert contact.last_ai_reply is None
         assert conversation.phone_found is True
-        assert conversation.extracted_phone == "447534992399"
+        assert conversation.extracted_phone == "07534992399"
         assert conversation.status == "PHONE_ACQUIRED"
 
 
@@ -183,7 +186,7 @@ def test_incoming_message_matches_unique_landlord_by_whatsapp_name_only(
         assert contact.thread_id == "THREAD-DARYNA"
         assert contact.confidence == 90.0
         assert conversation.phone_found is True
-        assert conversation.extracted_phone == "447534992400"
+        assert conversation.extracted_phone == "07534992400"
 
 
 def test_incoming_message_does_not_match_ambiguous_landlord_name_only(

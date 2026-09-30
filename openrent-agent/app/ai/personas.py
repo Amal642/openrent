@@ -509,19 +509,30 @@ def landlord_asked_for_phone(text):
     )
 
 
+# Sender labels for OUR side of a conversation. Live OpenRent threads scraped by
+# app/openrent/inbox.py label our messages "us"; DB rows use "outbound"; tests and
+# older callers use user/tenant/ai. Every "was this sent by us?" check must use
+# this one set so none of them silently misses live messages.
+TENANT_SENDERS = frozenset({"us", "user", "tenant", "outbound", "ai", "assistant", "operator"})
+
+
 def tenant_shared_phone(messages, mobile_number):
     if not mobile_number:
         return False
     compact_number = re.sub(r"\D", "", mobile_number)
     local_number = "0" + compact_number[2:] if compact_number.startswith("44") else compact_number
+    # Also match the +44 form of a number stored as 07… ("+44 7783 129181").
+    intl_number = "44" + local_number[1:] if local_number.startswith("0") else None
     for message in messages or []:
         sender = str(message.get("sender") or message.get("direction") or "").lower()
-        if sender not in {"user", "tenant", "outbound", "ai"}:
+        if sender not in TENANT_SENDERS:
             continue
         content_digits = re.sub(r"\D", "", str(message.get("message") or message.get("content") or ""))
         if compact_number and compact_number in content_digits:
             return True
         if local_number and local_number in content_digits:
+            return True
+        if intl_number and intl_number in content_digits:
             return True
     return False
 

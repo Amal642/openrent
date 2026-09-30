@@ -62,3 +62,16 @@ def test_empty_or_none():
     assert normalize_uk_phone("") is None
     assert normalize_uk_phone(None) is None
     assert normalize_uk_phone("(Number Removed)") is None
+
+
+def test_0044_international_prefix_is_uk():
+    assert normalize_uk_phone("0044 7911 123456") == "07911123456"
+
+
+def test_plus44_with_bracketed_trunk_zero():
+    assert normalize_uk_phone("+44 (0)7700 900123") == "07700900123"
+    assert normalize_uk_phone("+4407700900123") == "07700900123"
+
+
+def test_redacted_text_is_none():
+    assert normalize_uk_phone("(Number Removed)") is None

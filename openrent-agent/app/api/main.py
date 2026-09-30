@@ -304,7 +304,6 @@ class CRMAuthMiddleware(BaseHTTPMiddleware):
             "/api/whatsapp/webhook",
             "/api/whatsapp/incoming",
             "/api/whatsapp/sent",
-            "/api/whatsapp/resolve",
         }
         if request.method != "OPTIONS" and path.startswith("/api/") and not is_public:
             try:

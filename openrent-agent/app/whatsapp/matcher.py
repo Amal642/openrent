@@ -208,7 +208,12 @@ def match_landlord_by_name(name: str) -> list[dict]:
     db = SessionLocal()
     try:
         # Fetch all listings that have a landlord_name
-        listings = db.query(Listing).filter(Listing.landlord_name.isnot(None)).all()
+        # Only landlords we actually messaged can have our WhatsApp number.
+        listings = (
+            db.query(Listing)
+            .filter(Listing.landlord_name.isnot(None), Listing.message_sent.is_(True))
+            .all()
+        )
 
         results = []
         for listing in listings:
@@ -246,7 +251,7 @@ def match_landlord_by_property(
     try:
         listings = (
             db.query(Listing)
-            .filter(Listing.property_address.isnot(None))
+            .filter(Listing.property_address.isnot(None), Listing.message_sent.is_(True))
             .all()
         )
 
@@ -332,7 +337,10 @@ def match_by_evidence(
 
     db = SessionLocal()
     try:
-        listings = db.query(Listing).all()
+        # Only listings we messaged: a landlord can only have our WhatsApp number
+        # if we contacted them. Scoring never-contacted listings produced
+        # "matches" with no conversation (lead marked acquired, never exported).
+        listings = db.query(Listing).filter(Listing.message_sent.is_(True)).all()
         candidates = []
         strict_name_only_listing_ids: set[int] = set()
 

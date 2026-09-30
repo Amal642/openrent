@@ -1778,6 +1778,18 @@ def save_message(thread_id, direction, content, created_at=None):
         db.commit()
 
 
+_REDACTION_MARKER = "(number removed)"
+_REDACTION_KEY_RE = re.compile(r"\(number removed\)|\+?\d[\d \-]{6,}\d", re.IGNORECASE)
+
+
+def _redaction_key(text):
+    """Message text with phone numbers and OpenRent's "(Number Removed)"
+    placeholder both collapsed to one token, so an original message and its
+    redacted edit compare equal."""
+    keyed = _REDACTION_KEY_RE.sub("#", (text or "").lower())
+    return re.sub(r"\s+", " ", keyed).strip()
+
+
 def save_message_once(thread_id, direction, content, created_at=None):
     content = (content or "").strip()
     if not content:
@@ -1804,6 +1816,20 @@ def save_message_once(thread_id, direction, content, created_at=None):
 
         if existing:
             return
+
+        # OpenRent retro-redacts numbers in OLD landlord messages ("call me on
+        # 07911 123456" becomes "call me on (Number Removed)"). That is an edit
+        # of a message we already stored, not a new message: storing it again
+        # inflated inbound counts (221 phantom rows on 2026-09-26) and bumped
+        # last_message_at on old threads. Keep the original (it has the number).
+        if direction == "inbound" and _REDACTION_MARKER in content.lower():
+            edited_key = _redaction_key(content)
+            prior = db.query(Message.content).filter(
+                Message.conversation_id == conversation.id,
+                Message.direction == "inbound",
+            ).all()
+            if any(_redaction_key(row.content) == edited_key for row in prior):
+                return
 
         message = Message(
             conversation_id=conversation.id,
@@ -2319,6 +2345,13 @@ def save_phone_number(
                 "GOOGLE_SHEETS_OUTBOX_UPSERTED "
                 f"conversation_id={conversation.id} thread_id={thread_id} "
                 f"export_id={export.id} action={export_action} status={export.status}"
+            )
+        else:
+            # Never silently drop a captured number: the caller has already
+            # logged PHONE_FOUND, so make the no-op visible.
+            logger.warning(
+                f"PHONE_SAVE_NO_LISTING_CHAIN thread_id={thread_id} phone={normalized_phone} "
+                "conversation has no listing/search_profile; number NOT saved"
             )
 
 

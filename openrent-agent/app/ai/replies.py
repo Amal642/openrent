@@ -24,7 +24,7 @@ from app.ai.conversation_memory import (
     phone_shared_state,
     viewing_requested,
 )
-from app.ai.personas import generate_phone_share_reply
+from app.ai.personas import TENANT_SENDERS, generate_phone_share_reply
 from app.ai.validators import is_valid_reply, remove_unapproved_phone_numbers
 from app.config import settings
 from app.utils.logger import logger
@@ -239,7 +239,7 @@ _NUMBER_ASK_KEYWORDS = (
 def count_number_asks(messages):
     return sum(
         1 for m in (messages or [])
-        if str(m.get("direction") or m.get("sender") or "").lower() in {"outbound", "operator", "ai", "user"}
+        if str(m.get("direction") or m.get("sender") or "").lower() in TENANT_SENDERS
         and any(kw in (m.get("message") or m.get("content") or m.get("text") or "").lower() for kw in _NUMBER_ASK_KEYWORDS)
     )
 
@@ -702,6 +702,7 @@ Return JSON only: {{"is_short_term": true/false, "reason": "brief explanation"}}
 Rules:
 - Only return true if the landlord EXPLICITLY STATED the property is short-term, temporary, holiday let, or has a maximum tenancy of less than 12 months.
 - Phrases like "short-term let", "maximum 6 months", "only available until [date]", "minimum 2 months maximum 4 months" mean is_short_term = true.
+- A MINIMUM term of 6 months or more ("minimum 6 months", "6 month AST", "6 months initially then rolling") is a normal long let: is_short_term = false.
 - If the tenant mentioned "long-term" but the landlord said nothing about tenancy length, return false.
 - If unsure, return false.
 
