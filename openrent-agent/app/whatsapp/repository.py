@@ -542,7 +542,7 @@ def get_conversation_for_contact(contact: WhatsAppContact) -> Optional[Conversat
 def record_handoff_intent(thread_id: str) -> Optional[WhatsAppHandoffIntent]:
     """Record that we just shared the WhatsApp number on an OpenRent thread.
 
-    Called when the reply prompt hands out the husband's WhatsApp number so a
+    Called when the reply prompt hands out the partner's WhatsApp number so a
     later inbound WhatsApp from that landlord can be matched back to the correct
     property/thread (see matcher._apply_handoff_prior). Best-effort: resolves the
     thread's Conversation -> Listing to snapshot the landlord name + address.

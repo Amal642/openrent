@@ -579,38 +579,41 @@ def generate_phone_share_reply(persona, landlord_attitude="responsive"):
     if not mobile:
         return None
 
-    # The persona sending is female; the number belongs to her husband/partner.
-    # Always frame as husband's WhatsApp (or partner's when in doubt) and guide
-    # the landlord to contact via WhatsApp only — never ask for their number here.
+    # The number belongs to the persona's partner, who "sorts the viewings" and
+    # answers the WhatsApp line (app/whatsapp/reply.py plays the partner). Always
+    # "my partner", never "my husband": some personas' partners are women
+    # (e.g. Sophia/Alice, Katherine/Laura), and the WhatsApp side can't know
+    # which persona a landlord came from until the contact is matched.
+    # Guide the landlord to WhatsApp only; never ask for their number here.
     attitude = landlord_attitude if landlord_attitude in LANDLORD_ATTITUDES else "responsive"
     options = {
         "cold": [
-            f"My husband handles the viewing side of things — his WhatsApp is {mobile}.",
-            f"Sure, my husband's WhatsApp is {mobile}. Best to reach him there.",
+            f"My partner handles the viewing side of things, their WhatsApp is {mobile}.",
+            f"Sure, my partner's WhatsApp is {mobile}. Best to reach them there.",
         ],
         "aggressive": [
-            f"Of course — my husband sorts all the viewing logistics, his WhatsApp is {mobile}. Feel free to message him directly.",
-            f"Sure — my husband's WhatsApp is {mobile}. He'll be the one coordinating viewings.",
+            f"Of course, my partner sorts all the viewing logistics, their WhatsApp is {mobile}. Feel free to message them directly.",
+            f"Sure, my partner's WhatsApp is {mobile}. They'll be the one coordinating viewings.",
         ],
         "suspicious": [
-            f"No problem — my husband handles the viewing coordination, his WhatsApp is {mobile}. Happy to sort everything through there.",
-            f"Of course — my partner's WhatsApp is {mobile}. He's the one dealing with viewings, so easiest to go through him.",
+            f"No problem, my partner handles the viewing coordination, their WhatsApp is {mobile}. Happy to sort everything through there.",
+            f"Of course, my partner's WhatsApp is {mobile}. They're the one dealing with viewings, so easiest to go through them.",
         ],
         "friendly": [
-            f"Sure! My husband's WhatsApp is {mobile} — he's sorting the viewing side, so feel free to message him there.",
-            f"Of course — my husband handles all of that, his WhatsApp is {mobile}. He's the best person to reach for the viewing.",
+            f"Sure! My partner's WhatsApp is {mobile}, they're sorting the viewing side, so feel free to message them there.",
+            f"Of course, my partner handles all of that, their WhatsApp is {mobile}. They're the best person to reach for the viewing.",
         ],
         "helpful": [
-            f"Thanks — my husband's WhatsApp is {mobile}. He's handling the viewing coordination, so best to reach him there.",
-            f"Sure — my partner's WhatsApp is {mobile}. He sorts the viewing logistics, so easiest to message him directly.",
+            f"Thanks, my partner's WhatsApp is {mobile}. They're handling the viewing coordination, so best to reach them there.",
+            f"Sure, my partner's WhatsApp is {mobile}. They sort the viewing logistics, so easiest to message them directly.",
         ],
         "slow_reply": [
-            f"My husband's WhatsApp is {mobile} — he handles the viewing side.",
-            f"Sure, my partner's WhatsApp is {mobile}. He'll be coordinating the viewing.",
+            f"My partner's WhatsApp is {mobile}, they handle the viewing side.",
+            f"Sure, my partner's WhatsApp is {mobile}. They'll be coordinating the viewing.",
         ],
         "responsive": [
-            f"Of course — my husband's WhatsApp is {mobile}. He handles the viewing coordination, so easiest to reach him there.",
-            f"Sure — my husband sorts all the viewing logistics. His WhatsApp is {mobile}.",
+            f"Of course, my partner's WhatsApp is {mobile}. They handle the viewing coordination, so easiest to reach them there.",
+            f"Sure, my partner sorts all the viewing logistics. Their WhatsApp is {mobile}.",
         ],
     }
     reply = random.choice(options[attitude])

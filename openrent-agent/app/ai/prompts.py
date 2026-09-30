@@ -393,8 +393,8 @@ def _phone_policy_lines(
             f"- Drive distance context: {drive_distance or 'unknown'}",
             "- Never invent any number, email address, or contact detail.",
             "- If the landlord asks for YOUR (the tenant's) phone number or mobile, do NOT provide it. "
-            "Redirect naturally: tell them your husband is handling the viewing coordination and ask for the landlord's number to pass on to him. "
-            "Keep it brief and natural — e.g. 'My husband's actually sorting the viewing side of things, would you be able to share your number so I can pass it to him?'.",
+            "Redirect naturally: tell them your partner is handling the viewing coordination and ask for the landlord's number to pass on to them. "
+            "Keep it brief and natural — e.g. 'My partner's actually sorting the viewing side of things, would you be able to share your number so I can pass it on?'.",
             "- Do not ask for the landlord's number until viewing, video viewing, timing, travel, directions, delays, or day-of-viewing logistics are being discussed.",
             f"- If your reply answers screening and proposes or narrows a viewing time/window, include a soft request for {number_phrase} for viewing logistics.",
             f"- Good shape: answer screening in one short sentence, suggest or ask about viewing timing, then ask for {number_phrase} in case of delays.",
@@ -412,7 +412,7 @@ def _phone_policy_lines(
             lines.extend(
                 [
                     "- If the landlord has refused to share a number, respect that for the next tenant reply and keep arranging on OpenRent.",
-                    "- If the landlord asks for YOUR phone number, do not provide it. Redirect: say your husband is handling the viewing logistics and ask for the landlord's number to pass to him.",
+                    "- If the landlord asks for YOUR phone number, do not provide it. Redirect: say your partner is handling the viewing logistics and ask for the landlord's number to pass on to them.",
                     "- Do not ask for a number immediately after a booking if the previous landlord message refused phone sharing before booking.",
                     "- When answering screening, explicitly say 'work' or 'working full-time' if that is true from persona facts.",
                     "- Prefer 'Could I get your number just in case we're delayed?' over conditional wording like 'if we set a time, could I...'.",
@@ -430,11 +430,11 @@ def _phone_policy_lines(
         "- Never invent any other number, email address, or contact detail.",
     ]
     if mobile:
-        lines.insert(0, f"- Husband's/partner's WhatsApp number: {mobile}")
+        lines.insert(0, f"- Partner's WhatsApp number (your partner handles the viewings): {mobile}")
         lines.insert(
             5,
             f"- Phone/WhatsApp sharing is always the last resort, never the first move. Only share {mobile} as "
-            "'my husband's WhatsApp' (or 'my partner's WhatsApp') when ALL of the following are true: "
+            "'my partner's WhatsApp' when ALL of the following are true: "
             "(1) you have already asked for the landlord's own number earlier in this conversation, AND "
             "(2) the landlord has explicitly asked for our phone number or WhatsApp, AND "
             "(3) the landlord has indicated they will not share their own number (declined, or went quiet on the topic after you asked). "
@@ -589,8 +589,10 @@ def build_human_renter_reply_prompt(
     _mobile = (persona or {}).get("mobile_number")
     if _mobile:
         _give_ours = (
-            f"- Give them your WhatsApp number: {_mobile} (written plainly as your WhatsApp, "
-            f"once) in ANY of these cases: they ask for YOUR number; they say you should go "
+            f"- Give them your partner's WhatsApp number: {_mobile}. Your partner is the one "
+            f"sorting out the viewing side, so present it plainly, once, as your partner's "
+            f"WhatsApp (not your own) and say it is best to message your partner there. Do this "
+            f"in ANY of these cases: they ask for YOUR number; they say you should go "
             f"first; they decline or say they cannot share theirs here; OR earlier in the "
             f"conversation they tried to give their own number but it came through blocked "
             f"(shown as \"(Number Removed)\", a run of asterisks, \"number hidden\", or similar) "
@@ -599,7 +601,7 @@ def build_human_renter_reply_prompt(
             f"if their latest message is about something else. Do NOT deflect with \"let's keep "
             f"it on OpenRent\" or \"I'll keep things here\" when a number is wanted, that reads as "
             f"evasive. Skip all of this if you already have the landlord's number, or if you have "
-            f"already given yours earlier in the conversation."
+            f"already given the number earlier in the conversation."
         )
     else:
         _give_ours = (
@@ -611,7 +613,8 @@ def build_human_renter_reply_prompt(
             f"- If the landlord asks for your EMAIL (for example for a calendar invite or "
             f"referencing), you do not have an email set up for this and you must NEVER invent "
             f"one or write a made-up address of any kind. Instead say the easiest way to sort it "
-            f"is WhatsApp and give your WhatsApp number {_mobile} so they can reach you there, "
+            f"is WhatsApp and give your partner's WhatsApp number {_mobile} so they can message "
+            f"your partner there, "
             f"then answer whatever else they asked."
         )
     else:
@@ -657,8 +660,9 @@ def build_human_renter_reply_prompt(
         number_policy += (
             f"\n- RIGHT NOW: the landlord already tried to give you their number but OpenRent "
             f"blocked it (it shows as \"(Number Removed)\") and you still do not have it, so their "
-            f"number never actually reached you. Give them your WhatsApp number {_mobile} in this "
-            f"reply so they can reach you, then answer anything else they asked. This is not "
+            f"number never actually reached you. Give them your partner's WhatsApp number {_mobile} in "
+            f"this reply (your partner is sorting the viewings) so they can reach you both, then "
+            f"answer anything else they asked. This is not "
             f"volunteering, they raised numbers first."
         )
     origin = (place or "").strip()

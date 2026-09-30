@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import random
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -88,12 +89,57 @@ def _format_history(history: Optional[list[dict]]) -> str:
     return "\n".join(lines) if lines else "(no prior messages)"
 
 
+# Who is who on this WhatsApp line. Without this the model guessed the texter
+# was a prospective tenant ("which property you're interested in") when it is a
+# LANDLORD whose listing we (the tenants) enquired about (2026-09-30).
+_ROLE_CONTEXT = (
+    "You are texting on WhatsApp as a tenant, one half of a couple looking for a place to rent. "
+    "We sent enquiries on OpenRent about properties that landlords are advertising, and gave "
+    "some of those landlords this WhatsApp number. The person messaging you is one of those "
+    "landlords (or someone acting for them) getting back to us about THEIR property. "
+    "Your partner sent the OpenRent enquiries and told the landlord this is your WhatsApp, "
+    "because you are the one sorting out the viewings. "
+    "Refer to the person who made the enquiries only as \"my partner\". Never give your own "
+    "name or any name they didn't use first (using the landlord's own name back is fine). "
+)
+
+# A landlord who was told "my partner's WhatsApp" often opens by asking for the
+# person they chatted with on OpenRent ("is this Nicola?", "Hi Sarah, ..."). The
+# model reliably fumbled that ("I'm my partner's partner"), so the name is
+# detected here and the exact self-introduction is supplied to it.
+_ASKED_FOR_NAME_RES = [
+    re.compile(r"\b(?i:is this|is that|are you|am i (?:speaking|talking|chatting) (?:to|with))\s+([A-Z][a-z]{1,20})\b"),
+    re.compile(r"^\s*(?i:hi|hello|hey|hiya|dear|morning|afternoon|evening)[,!\s]+([A-Z][a-z]{1,20})\b"),
+]
+_NOT_A_NAME = {
+    "There", "All", "Mate", "Sir", "Madam", "Guys", "Everyone", "Again", "Yes", "Yeah",
+    "Hi", "Hello", "Hey", "The", "This", "That", "Openrent", "Whatsapp", "Ok", "Okay",
+    "Still", "Available", "Interested", "Good", "Thanks", "Thank", "It", "My", "Your",
+}
+
+
+def _name_asked_for(history: Optional[list[dict]]) -> Optional[str]:
+    """Name the landlord used for us in their LATEST message, if any."""
+    latest = next(
+        (item.get("message") for item in reversed(history or [])
+         if isinstance(item, dict) and item.get("direction") != "outbound" and item.get("message")),
+        None,
+    )
+    if not latest:
+        return None
+    for pattern in _ASKED_FOR_NAME_RES:
+        match = pattern.search(latest)
+        if match and match.group(1) not in _NOT_A_NAME:
+            return match.group(1)
+    return None
+
+
 def build_name_ask(history: Optional[list[dict]] = None) -> str:
     """Ask who we're speaking with, phrased naturally from the conversation so far."""
     try:
         prompt = (
-            "Someone has messaged this WhatsApp number about a property enquiry from OpenRent, "
-            "but we don't know their name yet. "
+            _ROLE_CONTEXT
+            + "We don't know their name yet. "
             "Write a very short, casual WhatsApp message asking who you're speaking with. "
             "Rules: one sentence, no names, no em dashes or en dashes, no bullet points, "
             "no brackets or placeholders, vary the phrasing each time, sound like a real person "
@@ -117,15 +163,24 @@ def build_name_ask(history: Optional[list[dict]] = None) -> str:
 
 def build_property_ask(name: Optional[str] = None, history: Optional[list[dict]] = None) -> str:
     """Ask which property they mean, phrased naturally from the conversation so far."""
+    asked_name = _name_asked_for(history)
     try:
         prompt = (
-            "Someone has messaged this WhatsApp number about a property enquiry from OpenRent. "
-            "We know who they are but not which property they mean. "
-            "Persona fact: my wife handles our OpenRent enquiries, which is why we're texting from "
-            "this number. "
-            "Write a very short, casual WhatsApp message asking which property or address they mean, "
-            "working the wife/OpenRent detail in naturally. "
-            "Rules: one or two sentences, no em dashes or en dashes, no bullet points, "
+            _ROLE_CONTEXT
+            + "We don't yet know which of their properties they're getting in touch about, and "
+            "we enquired about several, so we need to match them to the right enquiry. "
+            "Persona fact: my partner handles our OpenRent messages. "
+            "Write a very short, casual WhatsApp reply that asks which of their properties (the "
+            "address or area) they're messaging about, and briefly says my partner is the one who "
+            "handles our OpenRent messages so we can check the enquiry. Always refer to them as "
+            "\"my partner\". If their message is just a greeting or a check-in, answer that briefly "
+            "first, then ask. "
+            + (
+                f"They asked for {asked_name}, who is your partner, so start your reply with "
+                f"\"Hi, it's {asked_name}'s partner here\" and then ask. "
+                if asked_name else ""
+            )
+            + "Rules: one or two sentences, no em dashes or en dashes, no bullet points, "
             "no brackets or placeholders, vary the phrasing each time, sound like a real person "
             "texting, not a template. Reply with ONLY the message text, no quotes.\n\n"
             f"Conversation so far:\n{_format_history(history)}"
@@ -143,7 +198,7 @@ def build_property_ask(name: Optional[str] = None, history: Optional[list[dict]]
         logger.warning(f"WHATSAPP_PROPERTY_ASK_LLM_FAILED error={exc}")
 
     return (
-        "Hi, my wife manages our enquiries on OpenRent. "
+        "Hi, my partner manages our enquiries on OpenRent. "
         "Could you let us know the property address or details so we can look it up?"
     )
 

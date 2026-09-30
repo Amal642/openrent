@@ -1688,8 +1688,8 @@ async def process_account_replies(
                     and ab_expose_mobile
                 ):
                     whatsapp_line = (
-                        f"My husband's WhatsApp is {mobile}, "
-                        "he handles the viewing coordination, so best to reach him there."
+                        f"My partner's WhatsApp is {mobile}, "
+                        "they handle the viewing coordination, so best to reach them there."
                     )
                     reply = f"{reply.rstrip()} {whatsapp_line}" if reply else whatsapp_line
 
