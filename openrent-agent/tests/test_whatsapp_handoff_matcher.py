@@ -219,3 +219,60 @@ def test_stale_handoff_intent_is_ignored(whatsapp_db, monkeypatch):
         contact = session.query(WhatsAppContact).one()
         assert contact.match_status == "UNMATCHED"
         assert contact.thread_id is None
+
+
+def _seed_sent_listing(session, *, name, address, listing_id, thread_id):
+    listing = Listing(
+        listing_id=listing_id,
+        property_url=f"https://example.com/{listing_id}",
+        landlord_name=name,
+        property_address=address,
+        thread_id=thread_id,
+        message_sent=True,
+    )
+    session.add(listing)
+    session.flush()
+    session.add(Conversation(thread_id=thread_id, listing_id=listing.id))
+    session.commit()
+    return listing.id
+
+
+def test_named_street_beats_same_district_listing(whatsapp_db):
+    """2026-09-30 regression (contact 392): the persona handed the number to 3
+    landlords in one minute; one wrote "is this Nicola?" then named "Bedonwell
+    Road DA17 5NZ". A different listing in the same DA17 district tied at 90 vs
+    90.8, so it stayed UNMATCHED. The named street must now win clearly, while
+    the name-only first message stays ambiguous (asks which property)."""
+    with whatsapp_db() as session:
+        bedonwell = _seed_sent_listing(session, name="Anterpreet S.", address="Bedonwell Road, DA17",
+                                       listing_id="L-BED", thread_id="T-BED")
+        _seed_sent_listing(session, name="H S.", address="Wadeville Close, DA17",
+                           listing_id="L-WADE", thread_id="T-WADE")
+        _seed_sent_listing(session, name="Nayem K.", address="Goldsmith Avenue, E12",
+                           listing_id="L-GOLD", thread_id="T-GOLD")
+        _seed_sent_listing(session, name="Ashrafur R.", address="Church St, E16",
+                           listing_id="L-CHURCH", thread_id="T-CHURCH")
+        # Fuzzy look-alike in another district, also recently handed the number.
+        _seed_sent_listing(session, name="Ravi P.", address="Well Road, EN5",
+                           listing_id="L-WELL", thread_id="T-WELL")
+    for thread in ("T-BED", "T-GOLD", "T-CHURCH", "T-WELL"):
+        repository.record_handoff_intent(thread)
+
+    candidates, confidence = matcher.match_by_evidence(["Nicola"], [])
+    assert handler._match_status(candidates, confidence) == "UNMATCHED"
+
+    candidates, confidence = matcher.match_by_evidence(["Nicola"], ["Bedonwell Road DA17 5NZ"])
+    assert handler._match_status(candidates, confidence) == "MATCHED"
+    assert candidates[0]["listing_id"] == bedonwell
+    assert candidates[0]["confidence"] - candidates[1]["confidence"] >= handler.AUTO_MATCH_MIN_GAP
+
+
+@pytest.mark.parametrize("hint,stored,expected", [
+    ("Bedonwell Road DA17 5NZ", "Bedonwell Road, DA17", 96.0),   # street + district
+    ("Bedonwell Road DA17 5NZ", "Wadeville Close, DA17", 70.0),  # wrong street, same district
+    ("DA17 5NZ", "Wadeville Close, DA17", 90.0),                 # postcode only: district still counts
+    ("Bedonwell Road DA17 5NZ", "Well Road, EN5", 30.0),         # other district: capped, not a look-alike
+    ("Bedonwell Road", "Bedonwell Road, DA17", 92.0),            # no postcode in hint: unchanged
+])
+def test_property_score_street_vs_district(hint, stored, expected):
+    assert matcher._property_score(hint, stored) == expected

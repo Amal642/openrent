@@ -191,10 +191,53 @@ def _property_score(candidate: str | None, stored: str | None) -> float:
     # Stored listing addresses often only carry the outward code (e.g. "Canning
     # Town, E16" with no inward code), so a full-postcode candidate would never
     # match on `full_code` alone above — fall back to matching just the district.
+    # A district holds thousands of addresses, so when the landlord also named a
+    # street, the street decides: same street + district beats district-only,
+    # and a DIFFERENT street in the same district must not tie with the right
+    # one (2026-09-30: "Bedonwell Road DA17 5NZ" tied Wadeville Close, DA17 at
+    # 90 vs 90.8, so a landlord who named the exact property stayed unmatched).
     if outward and re.search(rf"\b{re.escape(outward)}\b", stored_norm):
-        score = max(score, 90.0)
+        street = _street_tokens(candidate_norm)
+        if not street:
+            score = max(score, 90.0)
+        elif street.issubset(stored_tokens):
+            score = max(score, 96.0)
+        else:
+            score = max(score, 70.0)
+    elif outward and _OUTWARD_RE.search(stored_norm):
+        # Both addresses carry a postcode district and they differ: a different
+        # place, whatever the fuzzy text says ("Bedonwell Road DA17" vs "Well
+        # Road, EN5" scored 59 on similarity alone and, via a recent handoff,
+        # blocked the true match on 2026-09-30).
+        score = min(score, 30.0)
 
     return score
+
+
+_OUTWARD_RE = re.compile(r"\b[a-z]{1,2}\d[a-z\d]?\b")
+
+
+_GENERIC_ADDRESS_WORDS = {
+    "road", "rd", "street", "st", "avenue", "ave", "close", "lane", "ln", "way",
+    "drive", "dr", "court", "ct", "place", "pl", "gardens", "gdns", "crescent",
+    "terrace", "grove", "square", "sq", "flat", "house", "the", "one", "property",
+    "london", "uk", "and", "of",
+}
+_POSTCODE_PART_RE = re.compile(r"^(?:[a-z]{1,2}\d[a-z\d]?|\d[a-z]{2})$")
+
+
+def _street_tokens(text: str) -> set[str]:
+    """Distinctive street/place words in an address hint (no postcode parts,
+    numbers or generic words like "road"), e.g. "bedonwell road da17 5nz" ->
+    {"bedonwell"}."""
+    return {
+        token
+        for token in _token_words(text)
+        if len(token) >= 3
+        and not token.isdigit()
+        and token not in _GENERIC_ADDRESS_WORDS
+        and not _POSTCODE_PART_RE.match(token)
+    }
 
 
 def match_landlord_by_name(name: str) -> list[dict]:

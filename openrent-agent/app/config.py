@@ -38,6 +38,12 @@ class Settings:
     PROXY_PASSWORD = os.getenv("PROXY_PASSWORD")
 
     AI_AUTOSEND: bool = os.getenv("AI_AUTOSEND", "true").lower() == "true"
+    # Outcome detectors (zero-reply / degraded) only LOG suspect accounts unless
+    # this is on; when on they set Account.failed, which benches the account.
+    # Off by operator decision 2026-09-30: keep every account running.
+    AUTO_BENCH_ACCOUNTS: bool = (
+        os.getenv("AUTO_BENCH_ACCOUNTS", "false").lower() in {"1", "true", "yes", "on"}
+    )
     WHATSAPP_AUTO_REPLY_ENABLED: bool = (
         os.getenv("WHATSAPP_AUTO_REPLY_ENABLED", "false").lower()
         in {"1", "true", "yes", "on"}

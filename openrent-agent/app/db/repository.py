@@ -3786,6 +3786,8 @@ def detect_and_mark_failed_accounts():
     (>= MIN_DAILY_OUTBOUND_FOR_FAILURE) on each of 2 consecutive calendar days
     with no inbound (landlord) replies in that window.
     """
+    from app.config import settings
+    from app.utils.logger import logger
     from app.utils.scheduling import uk_now
 
     now_uk = uk_now()
@@ -3820,6 +3822,13 @@ def detect_and_mark_failed_accounts():
             replies = _count_account_inbound_since(db, account.id, day1_start)
 
             if replies == 0:
+                if not settings.AUTO_BENCH_ACCOUNTS:
+                    logger.warning(
+                        "ZERO_REPLY_ACCOUNT_DETECTED "
+                        f"account_id={account.id} email={account.email} "
+                        f"sent_day1={sent_day1} sent_day2={sent_day0} auto_bench=off"
+                    )
+                    continue
                 account.failed = True
                 account.failed_at = datetime.utcnow()
                 account.failure_reason = (
@@ -3860,6 +3869,7 @@ def detect_and_mark_degraded_accounts():
     below ``DEGRADED_MAX_REPLY_RATE`` AND its phone-capture rate is at or below
     ``DEGRADED_MAX_PHONE_RATE`` — the signature of an OpenRent soft-ban.
     """
+    from app.config import settings
     from app.utils.logger import logger
 
     since = datetime.utcnow() - timedelta(days=DEGRADED_WINDOW_DAYS)
@@ -3898,6 +3908,14 @@ def detect_and_mark_degraded_accounts():
             phone_rate = (phones or 0) / convos
 
             if reply_rate <= DEGRADED_MAX_REPLY_RATE and phone_rate <= DEGRADED_MAX_PHONE_RATE:
+                if not settings.AUTO_BENCH_ACCOUNTS:
+                    logger.warning(
+                        "DEGRADED_ACCOUNT_DETECTED "
+                        f"account_id={account.id} email={account.email} "
+                        f"convos={convos} reply_rate={reply_rate:.2f} "
+                        f"phone_rate={phone_rate:.2f} auto_bench=off"
+                    )
+                    continue
                 account.failed = True
                 account.failed_at = datetime.utcnow()
                 account.failure_reason = (

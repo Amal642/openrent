@@ -24,6 +24,14 @@ def db_session(tmp_path, monkeypatch):
     return TestingSessionLocal
 
 
+@pytest.fixture(autouse=True)
+def auto_bench_on(monkeypatch):
+    # These tests exercise the benching behaviour itself; production default
+    # is off (see test_*_auto_bench_off below).
+    from app.config import settings
+    monkeypatch.setattr(settings, "AUTO_BENCH_ACCOUNTS", True)
+
+
 def _make_account(session, *, email):
     account = Account(email=email, password="", session_file="s.json", active=True)
     session.add(account)
@@ -154,3 +162,34 @@ def test_scheduler_skips_failed_account(monkeypatch):
     selected_ids = {a.id for a in selected}
     assert 1 in selected_ids
     assert 2 not in selected_ids
+
+
+def test_degraded_account_only_logged_when_auto_bench_off(db_session, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "AUTO_BENCH_ACCOUNTS", False)
+    with db_session() as session:
+        acc_id, profile_id = _make_account(session, email="dead-but-running@example.com")
+        _add_conversations(session, profile_id, count=40, replied=8, phones=0)
+
+    repository.detect_and_mark_degraded_accounts()
+
+    with db_session() as session:
+        account = session.query(Account).filter_by(id=acc_id).one()
+        assert account.failed is False
+        assert account.failure_reason is None
+
+
+@pytest.mark.parametrize("auto_bench,expect_failed", [(False, False), (True, True)])
+def test_zero_reply_detector_respects_auto_bench(db_session, monkeypatch, auto_bench, expect_failed):
+    from app.config import settings
+    monkeypatch.setattr(settings, "AUTO_BENCH_ACCOUNTS", auto_bench)
+    monkeypatch.setattr(repository, "_count_account_outbound_on_day", lambda *a, **k: 50)
+    monkeypatch.setattr(repository, "_count_account_inbound_since", lambda *a, **k: 0)
+    with db_session() as session:
+        acc_id, _ = _make_account(session, email="silent@example.com")
+        session.commit()
+
+    repository.detect_and_mark_failed_accounts()
+
+    with db_session() as session:
+        assert session.query(Account).filter_by(id=acc_id).one().failed is expect_failed
