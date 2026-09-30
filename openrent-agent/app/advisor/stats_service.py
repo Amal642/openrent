@@ -6,6 +6,8 @@ No LLM calls used here — data is read directly and formatted as plain text.
 import re
 from datetime import datetime
 
+from app.utils.scheduling import uk_today, utc_naive_to_uk_date
+
 from app.db.repository import (
     count_new_outreach_on_day,
     get_capacity_stats,
@@ -56,11 +58,12 @@ def _proxy_snapshot() -> dict:
 def _is_date_today(value, today) -> bool:
     if not value:
         return False
+    # Stored timestamps are naive UTC; "today" is the UK calendar day.
     if isinstance(value, datetime):
-        return value.date() == today
+        return utc_naive_to_uk_date(value) == today
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).date() == today
+            return utc_naive_to_uk_date(datetime.fromisoformat(value.replace("Z", "+00:00"))) == today
         except ValueError:
             return False
     return False
@@ -68,7 +71,7 @@ def _is_date_today(value, today) -> bool:
 
 def _lead_snapshot() -> dict:
     leads = get_dashboard_leads()
-    today = datetime.utcnow().date()
+    today = uk_today()
     total = len(leads)
     with_phone = sum(1 for l in leads if l.get("phone_number"))
     phones_today = sum(

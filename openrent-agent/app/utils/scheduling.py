@@ -19,6 +19,35 @@ def uk_now() -> datetime:
     return datetime.now(UK_TZ)
 
 
+# Day boundaries. Timestamps are stored as naive UTC, but every "today" count,
+# daily cap and per-day report must follow the UK calendar day. UTC midnight is
+# 01:00 UK in summer, so bucketing by UTC dates put 00:00-01:00 UK events on
+# the wrong day and reset "today" counters an hour late.
+def uk_today():
+    """Today's date on the UK calendar."""
+    return uk_now().date()
+
+
+def uk_day_start_utc(day=None) -> datetime:
+    """Naive-UTC instant of 00:00 UK time on `day` (default: UK today), for
+    comparing against stored naive-UTC timestamps."""
+    day = day or uk_today()
+    return (
+        datetime.combine(day, time.min, tzinfo=UK_TZ)
+        .astimezone(timezone.utc)
+        .replace(tzinfo=None)
+    )
+
+
+def utc_naive_to_uk_date(dt):
+    """UK calendar date of a stored naive-UTC timestamp (None passes through)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(UK_TZ).date()
+
+
 def is_uk_outreach_window(now: datetime | None = None) -> bool:
     """True for initial landlord enquiries from 08:00 until 23:00 UK time."""
     current = now.astimezone(UK_TZ) if now else uk_now()

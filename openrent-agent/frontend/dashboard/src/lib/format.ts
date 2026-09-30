@@ -5,8 +5,9 @@ export function fmtMoney(n: number) {
 // Backend stores UTC datetimes but may omit the 'Z' suffix on some fields.
 // Without a timezone marker JS Date() interprets the string as LOCAL time,
 // shifting the displayed time by the browser's UTC offset. Appending 'Z'
-// forces UTC interpretation for any naive ISO string.
-function toUtc(iso: string): Date {
+// forces UTC interpretation for any naive ISO string. Use this (never a bare
+// `new Date(apiString)`) whenever a backend timestamp is compared or displayed.
+export function toUtc(iso: string): Date {
   if (iso && !iso.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(iso)) {
     return new Date(iso + "Z");
   }

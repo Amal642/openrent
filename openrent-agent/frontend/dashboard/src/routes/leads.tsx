@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { completeLead, getAccounts, getLeads, getSearchProfiles } from "@/lib/api";
-import { fmtMoney, fmtRelative } from "@/lib/format";
+import { fmtMoney, fmtRelative, toUtc } from "@/lib/format";
 import { STATUS_META } from "@/lib/status";
 import type { LeadStatus } from "@/lib/types";
 import { toast } from "sonner";
@@ -141,7 +141,7 @@ function LeadsList() {
         if (viewingsOnly && !l.viewingConfirmed) return false;
         if (lastUpdated !== "all") {
           const ms = { "1h": 3600000, "24h": 86400000, "7d": 604800000, "30d": 2592000000 }[lastUpdated];
-          if (ms && Date.now() - new Date(l.lastUpdatedAt).getTime() > ms) return false;
+          if (ms && Date.now() - toUtc(l.lastUpdatedAt).getTime() > ms) return false;
         }
         if (q) {
           const t = q.toLowerCase();

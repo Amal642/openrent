@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -87,12 +88,42 @@ def test_transcript_is_derived_from_events_only():
     ]
 
 
+# Measured wall-clock durations: real elapsed time, never deterministic. They
+# were 0 ms on an idle machine, so the equality below passed only by luck and
+# failed whenever the box was busy (any commit, 2026-09-30).
+_WALL_CLOCK_KEYS = {
+    "latency_ms",
+    "run_duration_ms",
+    "evaluation_timing_ms",
+    "generation_latency_ms",
+}
+
+
+def _without_wall_clock(value):
+    if isinstance(value, dict):
+        return {
+            k: _without_wall_clock(v)
+            for k, v in value.items()
+            if k not in _WALL_CLOCK_KEYS
+        }
+    if isinstance(value, list):
+        return [_without_wall_clock(v) for v in value]
+    if isinstance(value, str):
+        # The rendered replay text embeds the same durations.
+        return re.sub(
+            r"(['\"](?:%s)['\"]:\s*)\d+" % "|".join(sorted(_WALL_CLOCK_KEYS)),
+            r"\g<1>0",
+            value,
+        )
+    return value
+
+
 def test_same_seed_gives_same_output(monkeypatch, tmp_path):
     _patch_deterministic_runtime(monkeypatch, tmp_path)
     first = run_simulation(deterministic_seed=42, max_turns=1).to_dict()
     second = run_simulation(deterministic_seed=42, max_turns=1).to_dict()
 
-    assert first == second
+    assert _without_wall_clock(first) == _without_wall_clock(second)
 
 
 def test_memory_does_not_leak_into_transcript(monkeypatch, tmp_path):

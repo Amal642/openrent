@@ -20,7 +20,15 @@ from app.db.models import (
     SearchProfile,
 )
 from app.db.status import HANDOFF_COMPLETE, VIEWING_CANCELLED, VIEWING_BOOKED, VIEWING_DISCUSSION
-from app.utils.scheduling import UK_TZ, uk_now, uk_naive_to_utc_naive, utc_naive_to_uk_naive
+from app.utils.scheduling import (
+    UK_TZ,
+    uk_day_start_utc,
+    uk_naive_to_utc_naive,
+    uk_now,
+    uk_today,
+    utc_naive_to_uk_date,
+    utc_naive_to_uk_naive,
+)
 from app.ai.personas import (
     get_conversation_style,
     get_persona_template,
@@ -1048,7 +1056,7 @@ def count_available_inventory(account_id: int) -> int:
 
 
 def count_discovered_today(account_id: int) -> int:
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = uk_day_start_utc()  # UK calendar day (daily discovery cap)
     with session_scope() as db:
         return (
             db.query(Listing)
@@ -1638,7 +1646,7 @@ def can_send_message(account_id):
             return False
 
         today = uk_now().date()
-        if not account.messages_sent_reset_at or account.messages_sent_reset_at.date() != today:
+        if not account.messages_sent_reset_at or utc_naive_to_uk_date(account.messages_sent_reset_at) != today:
             account.messages_sent_today = 0
             account.messages_sent_reset_at = datetime.utcnow()
             db.commit()
@@ -1654,7 +1662,7 @@ def increment_message_count(account_id):
 
         if account:
             today = uk_now().date()
-            if not account.messages_sent_reset_at or account.messages_sent_reset_at.date() != today:
+            if not account.messages_sent_reset_at or utc_naive_to_uk_date(account.messages_sent_reset_at) != today:
                 account.messages_sent_today = 0
                 account.messages_sent_reset_at = datetime.utcnow()
             account.messages_sent_today += 1
@@ -2862,10 +2870,12 @@ def get_playbook_ab_database_outcomes(lead_ids):
 
 
 def count_new_outreach_on_day(day=None):
-    """Count conversations whose first persisted outbound message was sent that UTC day."""
-    target_day = day or datetime.utcnow().date()
-    day_start = datetime.combine(target_day, datetime.min.time())
-    day_end = day_start + timedelta(days=1)
+    """Count conversations whose first persisted outbound message was sent on
+    that UK calendar day (default: UK today)."""
+    target_day = day or uk_today()
+    # UK-day window in naive UTC; per-day bounds keep 23h/25h DST days exact.
+    day_start = uk_day_start_utc(target_day)
+    day_end = uk_day_start_utc(target_day + timedelta(days=1))
 
     with session_scope() as db:
         first_outbound = (
@@ -3141,6 +3151,10 @@ def landlord_already_contacted(listing_id) -> bool:
 def delete_stale_uncontacted_listings(days: int = 30) -> int:
     """Delete fetched listings that were never messaged and are older than `days` days.
     Only touches message_sent=False rows — never deletes listings with sent messages."""
+    from sqlalchemy import exists
+
+    from app.db.models import WhatsAppContact
+
     threshold = datetime.utcnow() - timedelta(days=days)
     with session_scope() as db:
         stale = (
@@ -3148,6 +3162,11 @@ def delete_stale_uncontacted_listings(days: int = 30) -> int:
             .filter(
                 Listing.message_sent == False,
                 Listing.first_seen < threshold,
+                # Never delete a listing another row still points at (FK, no
+                # cascade): one such row made the whole batch fail every day
+                # since at least 2026-09-25, so nothing was ever cleaned up.
+                ~exists().where(Conversation.listing_id == Listing.id),
+                ~exists().where(WhatsAppContact.listing_id == Listing.id),
             )
             .all()
         )
@@ -3321,7 +3340,7 @@ def get_due_viewing_cancellations(account_id=None, limit=25):
 
 
 def count_phones_today(account_id=None):
-    start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    start = uk_day_start_utc()  # UK calendar day
 
     with session_scope() as db:
         query = (
@@ -3418,7 +3437,10 @@ def get_dashboard_leads(status=None, with_persona=True):
                 "pets_allowed": search_profile.pets_allowed,
                 "status": conversation.status,
                 "conversation_stage": conversation.conversation_stage,
-                "viewing_datetime": utc_naive_to_uk_naive(conversation.viewing_datetime),
+                # Send the stored UTC instant WITH its zone; the dashboard renders
+                # it in Europe/London. A naive UK value was read as UTC by the
+                # dashboard and shown +1h late during BST.
+                "viewing_datetime": _utc(conversation.viewing_datetime),
                 "viewing_confirmed": conversation.viewing_confirmed,
                 "viewing_confirmation_source": conversation.viewing_confirmation_source,
                 "viewing_cancelled": conversation.viewing_cancelled,

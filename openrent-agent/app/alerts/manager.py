@@ -18,6 +18,7 @@ from app.config import settings
 from app.db.models import AlertEvent, AlertSignature
 from app.db.repository import session_scope
 from app.utils.logger import logger
+from app.utils.scheduling import uk_day_start_utc
 
 BroadcastFn = Callable[[str], Awaitable[None]]
 
@@ -176,7 +177,7 @@ class AlertManager:
             active_incidents = (
                 db.query(AlertSignature).filter(AlertSignature.active == True).all()
             )
-            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = uk_day_start_utc()  # UK calendar day
             events_today = (
                 db.query(AlertEvent).filter(AlertEvent.created_at >= today_start).count()
             )

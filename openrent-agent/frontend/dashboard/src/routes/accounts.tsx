@@ -72,7 +72,7 @@ import {
 } from "@/lib/api";
 import type { Proxy } from "@/lib/types";
 import type { Account, ProxyStatus, SessionStatus, WorkerStatus } from "@/lib/types";
-import { fmtDateTime, fmtRelative } from "@/lib/format";
+import { fmtDateTime, fmtRelative, toUtc } from "@/lib/format";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/accounts")({
@@ -150,7 +150,7 @@ function staleness(a: Account): Staleness {
   if (a.workerStatus === "running" || a.workerStatus === "queued") return "fresh";
   const lastRun = a.lastRunAt || a.workerLastCompletedAt;
   if (!lastRun) return "very_stale";
-  const hoursAgo = (Date.now() - new Date(lastRun).getTime()) / 3_600_000;
+  const hoursAgo = (Date.now() - toUtc(lastRun).getTime()) / 3_600_000;
   if (hoursAgo < 8) return "fresh";
   if (hoursAgo < 30) return "stale";
   return "very_stale";
@@ -173,7 +173,7 @@ const STALE_LABEL: Record<Staleness, string | null> = {
 function sortAccounts(accounts: Account[], key: SortKey): Account[] {
   const lastRunMs = (a: Account) => {
     const t = a.lastRunAt || a.workerLastCompletedAt;
-    return t ? new Date(t).getTime() : 0;
+    return t ? toUtc(t).getTime() : 0;
   };
   if (key === "lastRun_desc") return [...accounts].sort((a, b) => lastRunMs(b) - lastRunMs(a));
   if (key === "lastRun_asc") return [...accounts].sort((a, b) => lastRunMs(a) - lastRunMs(b));

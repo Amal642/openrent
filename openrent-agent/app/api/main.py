@@ -6,6 +6,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 import os
 import socket
 
+from app.utils.scheduling import uk_today, utc_naive_to_uk_date
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -929,7 +930,8 @@ def api_skip_lead(thread_id: str):
 def api_metrics():
     leads = get_dashboard_leads(with_persona=False)
     accounts = get_dashboard_accounts()
-    today = datetime.utcnow().date()
+    # All day buckets follow the UK calendar day (timestamps are naive UTC).
+    today = uk_today()
     new_outreach_today = count_new_outreach_on_day(today)
     daily_phone_target = (
         (new_outreach_today + 2) // 3
@@ -941,7 +943,7 @@ def api_metrics():
         lead for lead in leads
         if lead.get("phone")
         and lead.get("phone_found_at")
-        and lead["phone_found_at"].date() == today
+        and utc_naive_to_uk_date(lead["phone_found_at"]) == today
     ]
 
     by_day = {}
@@ -949,7 +951,7 @@ def api_metrics():
         created_at = lead.get("created_at")
         if not created_at:
             continue
-        day = created_at.date().isoformat()
+        day = utc_naive_to_uk_date(created_at).isoformat()
         by_day.setdefault(
             day,
             {"date": day, "leads": 0, "replies": 0, "phones": 0, "failures": 0},
@@ -958,7 +960,7 @@ def api_metrics():
         if lead.get("last_processed_message"):
             by_day[day]["replies"] += 1
         if lead.get("phone"):
-            phone_day = (lead.get("phone_found_at") or created_at).date().isoformat()
+            phone_day = utc_naive_to_uk_date(lead.get("phone_found_at") or created_at).isoformat()
             by_day.setdefault(
                 phone_day,
                 {"date": phone_day, "leads": 0, "replies": 0, "phones": 0, "failures": 0},
@@ -968,7 +970,7 @@ def api_metrics():
             by_day[day]["failures"] += 1
 
     for offset in range(13, -1, -1):
-        day = (datetime.utcnow().date() - timedelta(days=offset)).isoformat()
+        day = (today - timedelta(days=offset)).isoformat()
         by_day.setdefault(
             day,
             {"date": day, "leads": 0, "replies": 0, "phones": 0, "failures": 0},
