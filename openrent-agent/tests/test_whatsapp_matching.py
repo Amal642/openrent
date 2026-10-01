@@ -734,3 +734,23 @@ def test_message_with_content_skips_the_greeting(whatsapp_db, auto_reply_on):
 ])
 def test_is_bare_greeting(message, expected):
     assert handler._is_bare_greeting(message) is expected
+
+
+@pytest.mark.parametrize("message", ["Hi, who is this?", "Who are you? How did you get my number?", "who's this"])
+def test_who_is_this_gets_a_normal_reply_not_a_silent_hold(whatsapp_db, auto_reply_on, message):
+    _inbound("447534992470", message, "MSG-WHO")
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        assert contact.status == "AWAITING_PROPERTY"
+        assert contact.last_ai_reply == "Which of your properties is this about?"
+
+
+@pytest.mark.parametrize("message", ["This is a scam", "Are you a bot?", "Stop messaging me", "I'm reporting this number"])
+def test_hostile_messages_still_hold_silently(whatsapp_db, auto_reply_on, message):
+    _inbound("447534992471", message, "MSG-HOSTILE")
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        assert contact.status == "SUSPICIOUS_HOLD"
+        assert contact.last_ai_reply is None

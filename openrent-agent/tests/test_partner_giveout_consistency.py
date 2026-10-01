@@ -112,3 +112,12 @@ def test_live_reply_prompt_gives_partners_whatsapp(monkeypatch):
     assert "partner's WhatsApp number: 07783129181" in prompt
     assert "Give them your WhatsApp number" not in prompt
     assert "husband" not in prompt.lower()
+
+
+def test_property_ask_prompt_explains_who_we_are(monkeypatch):
+    fake = _FakeClient()
+    monkeypatch.setattr(reply, "_client", fake)
+    reply.build_property_ask(None, [{"direction": "inbound", "message": "Hi, who is this?"}])
+    prompt = fake.prompts[-1]
+    assert "ask who you are" in prompt
+    assert "gave you this number" in prompt

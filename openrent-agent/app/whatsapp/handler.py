@@ -57,9 +57,10 @@ TERMINAL_REGULAR_REPLY_STATUSES = {
     "MAX_REPLIES_REACHED",
 }
 
+# "who is this?" / "who are you?" are deliberately NOT here: they are the most
+# natural opener from a genuine landlord we gave the number to, and silence made
+# us look more suspicious. build_property_ask answers them instead (2026-10-01).
 _SUSPICIOUS_PATTERNS = (
-    r"\bwho are you\b",
-    r"\bwho is this\b",
     r"\bprove\b",
     r"\bscam\b",
     r"\bfraud\b",

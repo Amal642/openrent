@@ -174,7 +174,10 @@ def build_property_ask(name: Optional[str] = None, history: Optional[list[dict]]
             "address or area) they're messaging about, and briefly says my partner is the one who "
             "handles our OpenRent messages so we can check the enquiry. Always refer to them as "
             "\"my partner\". If their message is just a greeting or a check-in, answer that briefly "
-            "first, then ask. "
+            "first, then ask. If they ask who you are (or how they came to be talking to you), "
+            "answer that first, relaxed and in the first person, along the lines of: my partner "
+            "messaged you on OpenRent about your place and gave you this number, I'm sorting out "
+            "the viewings. "
             + (
                 f"They asked for {asked_name}, who is your partner, so start your reply with "
                 f"\"Hi, it's {asked_name}'s partner here\" and then ask. "
