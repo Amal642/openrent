@@ -4,6 +4,8 @@ Endpoints:
   POST /api/whatsapp/webhook      — Kapso webhook for incoming/sent/status events
   POST /api/whatsapp/incoming     — Kapso incoming webhook alias
   POST /api/whatsapp/sent         — Kapso sent/status webhook alias
+  GET  /api/whatsapp/meta/webhook — Meta Cloud API subscription handshake
+  POST /api/whatsapp/meta/webhook — Meta Cloud API webhook (shadow or live)
   GET  /api/whatsapp/contacts     — dashboard list
   POST /api/whatsapp/contacts     — manual contact entry
   PATCH /api/whatsapp/contacts/:id — edit contact
@@ -19,8 +21,8 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from app.config import settings
@@ -369,6 +371,100 @@ async def whatsapp_sent(
         route_hint="sent",
         webhook_event=x_webhook_event,
     )
+
+
+# ── Direct Meta Cloud API webhook ─────────────────────────────────────────────
+
+async def _process_meta_messages(messages: list[dict]) -> None:
+    from app.whatsapp.handler import handle_incoming_message
+
+    # Sequential, in delivery order, so a landlord's two quick messages are
+    # captured in the order they were sent.
+    for message in messages:
+        kwargs = {k: v for k, v in message.items() if k != "phone_number_id"}
+        try:
+            await handle_incoming_message(**kwargs)
+        except Exception as exc:
+            logger.error(
+                f"WHATSAPP_META_HANDLER_ERROR phone={message.get('phone_number')} "
+                f"message_id={message.get('message_id')} error={exc}"
+            )
+
+
+async def _handle_meta_webhook(
+    raw_body: bytes,
+    signature: str | None,
+    background: BackgroundTasks,
+) -> dict:
+    from app.whatsapp import meta_webhook
+
+    if not meta_webhook.signature_is_valid(raw_body, signature):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    try:
+        payload = json.loads(raw_body.decode() or "{}")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Webhook payload must be an object")
+
+    messages = meta_webhook.extract_incoming_messages(payload)
+    ours = settings.META_WA_PHONE_NUMBER_ID
+    if ours:
+        foreign = [m for m in messages if str(m.get("phone_number_id")) != ours]
+        for m in foreign:
+            logger.info(
+                f"WHATSAPP_META_WEBHOOK_OTHER_NUMBER phone_number_id={m.get('phone_number_id')} "
+                f"message_id={m.get('message_id')}"
+            )
+        messages = [m for m in messages if str(m.get("phone_number_id")) == ours]
+
+    if not messages:
+        # Delivery receipts (statuses) and non-message changes land here.
+        return {"status": "ok", "processed": 0}
+
+    mode = settings.META_WEBHOOK_MODE
+    if mode != "live":
+        for m in messages:
+            logger.info(
+                f"WHATSAPP_META_WEBHOOK_SHADOW phone={m['phone_number']} "
+                f"phone_number_id={m.get('phone_number_id')} "
+                f"message_id={m.get('message_id')} sender_name={m.get('sender_name')!r} "
+                f"message_len={len(m['message'])}"
+            )
+        return {"status": "ok", "mode": "shadow", "processed": 0, "parsed": len(messages)}
+
+    # Ack fast: Meta retries slow/failed deliveries, and the handler can make
+    # AI calls. Redeliveries are deduped on message_id in the handler.
+    background.add_task(_process_meta_messages, messages)
+    logger.info(f"WHATSAPP_META_WEBHOOK_QUEUED count={len(messages)}")
+    return {"status": "ok", "mode": "live", "processed": len(messages)}
+
+
+@router.get("/meta/webhook")
+def whatsapp_meta_verify(
+    hub_mode: str | None = Query(default=None, alias="hub.mode"),
+    hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
+    hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
+):
+    """Meta's webhook subscription handshake: echo hub.challenge if the token matches."""
+    from app.whatsapp.meta_webhook import verify_challenge
+
+    challenge = verify_challenge(hub_mode, hub_verify_token, hub_challenge)
+    if challenge is None:
+        logger.warning(f"WHATSAPP_META_VERIFY_REJECTED mode={hub_mode!r}")
+        raise HTTPException(status_code=403, detail="Verification failed")
+    logger.info("WHATSAPP_META_VERIFY_OK")
+    return PlainTextResponse(challenge)
+
+
+@router.post("/meta/webhook")
+async def whatsapp_meta_webhook(
+    request: Request,
+    background: BackgroundTasks,
+    x_hub_signature_256: str | None = Header(default=None),
+):
+    """Direct Meta Cloud API webhook (inbound messages + delivery statuses)."""
+    return await _handle_meta_webhook(await request.body(), x_hub_signature_256, background)
 
 
 @router.post("/resolve")

@@ -29,6 +29,45 @@ _SERVICE_WINDOW = timedelta(hours=23, minutes=45)
 _SEND_RETRY_DELAY = timedelta(minutes=15)
 
 
+def _provider() -> str:
+    return "meta" if settings.WHATSAPP_PROVIDER == "meta" else "kapso"
+
+
+def _missing_env() -> list[str]:
+    if _provider() == "meta":
+        required = {
+            "META_WA_ACCESS_TOKEN": settings.META_WA_ACCESS_TOKEN,
+            "META_WA_PHONE_NUMBER_ID": settings.META_WA_PHONE_NUMBER_ID,
+        }
+    else:
+        required = {
+            "KAPSO_API_KEY": settings.KAPSO_API_KEY,
+            "KAPSO_PHONE_NUMBER_ID": settings.KAPSO_PHONE_NUMBER_ID,
+        }
+    return [name for name, value in required.items() if not value]
+
+
+def _phone_number_id() -> str:
+    if _provider() == "meta":
+        return settings.META_WA_PHONE_NUMBER_ID
+    return settings.KAPSO_PHONE_NUMBER_ID
+
+
+def _send_target() -> tuple[str, dict]:
+    """(messages URL, auth headers) for the configured provider.
+
+    Kapso proxies Meta's Graph API, so the payload is identical; only the base
+    URL and the auth header change.
+    """
+    if _provider() == "meta":
+        base = settings.META_GRAPH_BASE_URL
+        headers = {"Authorization": f"Bearer {settings.META_WA_ACCESS_TOKEN}"}
+    else:
+        base = settings.KAPSO_BASE_URL
+        headers = {"X-API-Key": settings.KAPSO_API_KEY}
+    return f"{base.rstrip('/')}/{_phone_number_id()}/messages", headers
+
+
 def service_window_open(contact, now: Optional[datetime] = None) -> bool:
     """True when a free-text WhatsApp message can still reach this contact."""
     last = getattr(contact, "last_received_at", None)
@@ -58,12 +97,7 @@ class KapsoWhatsAppWorker:
         self.status = "starting"
         await self._publish_status()
 
-        missing = []
-        if not settings.KAPSO_API_KEY:
-            missing.append("KAPSO_API_KEY")
-        if not settings.KAPSO_PHONE_NUMBER_ID:
-            missing.append("KAPSO_PHONE_NUMBER_ID")
-
+        missing = _missing_env()
         if missing:
             self.status = "error"
             self.last_error = f"Missing required env vars: {', '.join(missing)}"
@@ -79,7 +113,7 @@ class KapsoWhatsAppWorker:
         self._poll_task = asyncio.create_task(
             self._dispatch_loop(), name="wa-kapso-dispatch"
         )
-        logger.info("WHATSAPP_KAPSO_WORKER_STARTED")
+        logger.info(f"WHATSAPP_KAPSO_WORKER_STARTED provider={_provider()}")
 
     async def stop(self) -> None:
         if self._poll_task:
@@ -121,10 +155,7 @@ class KapsoWhatsAppWorker:
         # Single choke point for every WhatsApp outbound: em/en dashes are a bot tell.
         text = strip_ai_dashes(text)
 
-        url = (
-            f"{settings.KAPSO_BASE_URL.rstrip('/')}/"
-            f"{settings.KAPSO_PHONE_NUMBER_ID}/messages"
-        )
+        url, headers = _send_target()
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
@@ -132,10 +163,10 @@ class KapsoWhatsAppWorker:
             "type": "text",
             "text": {"body": text},
         }
-        headers = {"X-API-Key": settings.KAPSO_API_KEY}
 
         logger.info(
-            f"WHATSAPP_KAPSO_SEND_START phone={clean_phone} text_len={len(text)}"
+            f"WHATSAPP_KAPSO_SEND_START provider={_provider()} "
+            f"phone={clean_phone} text_len={len(text)}"
         )
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -345,7 +376,7 @@ class KapsoWhatsAppWorker:
                 json.dumps(
                     {
                         "status": self.status,
-                        "transport": "kapso",
+                        "transport": _provider(),
                         "at": datetime.utcnow().isoformat(),
                         "last_active": self.last_active.isoformat()
                         if self.last_active
@@ -362,8 +393,8 @@ class KapsoWhatsAppWorker:
     def get_status_dict(self) -> dict:
         return {
             "status": self.status,
-            "transport": "kapso",
-            "phone_number_id": settings.KAPSO_PHONE_NUMBER_ID,
+            "transport": _provider(),
+            "phone_number_id": _phone_number_id(),
             "last_active": self.last_active.isoformat() if self.last_active else None,
             "last_error": self.last_error,
             "error_count": self.error_count,

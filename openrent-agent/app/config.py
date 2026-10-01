@@ -55,6 +55,19 @@ class Settings:
     KAPSO_API_KEY = os.getenv("KAPSO_API_KEY", "")
     KAPSO_PHONE_NUMBER_ID = os.getenv("KAPSO_PHONE_NUMBER_ID", "")
     KAPSO_WEBHOOK_SECRET = os.getenv("KAPSO_WEBHOOK_SECRET", "")
+    # Outbound WhatsApp provider: "kapso" (default) or "meta" (direct Cloud API).
+    # Kapso is a proxy over the same Graph API, so only base URL + auth differ.
+    WHATSAPP_PROVIDER = os.getenv("WHATSAPP_PROVIDER", "kapso").strip().lower()
+    META_GRAPH_BASE_URL = os.getenv(
+        "META_GRAPH_BASE_URL", "https://graph.facebook.com/v24.0"
+    )
+    META_WA_ACCESS_TOKEN = os.getenv("META_WA_ACCESS_TOKEN", "")
+    META_WA_PHONE_NUMBER_ID = os.getenv("META_WA_PHONE_NUMBER_ID", "")
+    META_APP_SECRET = os.getenv("META_APP_SECRET", "")
+    META_WEBHOOK_VERIFY_TOKEN = os.getenv("META_WEBHOOK_VERIFY_TOKEN", "")
+    # Inbound on /api/whatsapp/meta/webhook: "shadow" parses + logs only (safe
+    # to run next to Kapso), "live" hands messages to the handler.
+    META_WEBHOOK_MODE = os.getenv("META_WEBHOOK_MODE", "shadow").strip().lower()
     WORKER_TICK_SECONDS = int(os.getenv("WORKER_TICK_SECONDS", "300"))
     MAX_PARALLEL_WORKERS = int(os.getenv("MAX_PARALLEL_WORKERS", "2"))
     DISCOVERY_LIMIT_PER_RUN = int(os.getenv("DISCOVERY_LIMIT_PER_RUN", "25"))

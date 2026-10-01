@@ -305,6 +305,8 @@ class CRMAuthMiddleware(BaseHTTPMiddleware):
             "/api/whatsapp/webhook",
             "/api/whatsapp/incoming",
             "/api/whatsapp/sent",
+            # Meta verifies the GET handshake by token, the POST by app-secret HMAC.
+            "/api/whatsapp/meta/webhook",
         }
         if request.method != "OPTIONS" and path.startswith("/api/") and not is_public:
             try:
