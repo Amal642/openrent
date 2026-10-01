@@ -276,3 +276,42 @@ def test_named_street_beats_same_district_listing(whatsapp_db):
 ])
 def test_property_score_street_vs_district(hint, stored, expected):
     assert matcher._property_score(hint, stored) == expected
+
+
+def test_named_building_beats_generic_word_lookalikes(whatsapp_db):
+    """2026-10-01 regression (contact 398): "Inga from Tothill house Page street"
+    stayed UNMATCHED at 90.5 vs 86.0 for "Horizon House, BR8" (shared generic
+    word "House" + a recent handoff). Distinctive words decide now."""
+    with whatsapp_db() as session:
+        inga = _seed_sent_listing(session, name="Inga N.", address="Tothill House, SW1P",
+                                  listing_id="L-TOT", thread_id="T-TOT")
+        _seed_sent_listing(session, name="Ionela C.", address="Horizon House, BR8",
+                           listing_id="L-HOR", thread_id="T-HOR")
+        _seed_sent_listing(session, name="Gina R.", address="Ongar Road, SW6",
+                           listing_id="L-ONG", thread_id="T-ONG")
+    for thread in ("T-TOT", "T-HOR", "T-ONG"):
+        repository.record_handoff_intent(thread)
+
+    candidates, confidence = matcher.match_by_evidence(
+        ["Scion Mastery/Angloslav", "Inga"], ["Tothill House, Page Street"]
+    )
+    assert handler._match_status(candidates, confidence) == "MATCHED"
+    assert candidates[0]["listing_id"] == inga
+
+
+@pytest.mark.parametrize("hint,stored,expected", [
+    ("Tothill House, Page Street", "Tothill House, SW1P", 75.0),  # shares the building name
+    ("Tothill House, Page Street", "Horizon House, BR8", 30.0),   # only generic "House" shared
+    ("the flat on Goldsmith Avenue", "Goldsmith Avenue, E12", 88.0),
+    ("Elm Road", "Elm Park, RM12", 30.0),                          # same word, different street type
+    ("Elm Road", "Elm Road, RM12", 92.0),
+])
+def test_property_score_distinctive_words(hint, stored, expected):
+    assert matcher._property_score(hint, stored) == expected
+
+
+def test_same_name_different_street_type_in_same_district_is_not_a_match():
+    # Found in the 2026-10-01 audit: "Farmers Close, SL9" scored 96 against
+    # "Farmers Place, SL9".
+    assert matcher._property_score("Farmers Close, SL9", "Farmers Place, SL9") == 70.0
+    assert matcher._property_score("Farmers Close, SL9", "Farmers Close, SL9") >= 96.0

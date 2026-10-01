@@ -200,16 +200,35 @@ def _property_score(candidate: str | None, stored: str | None) -> float:
         street = _street_tokens(candidate_norm)
         if not street:
             score = max(score, 90.0)
-        elif street.issubset(stored_tokens):
+        elif street.issubset(stored_tokens) and not _conflicting_street_names(candidate_norm, stored_norm):
             score = max(score, 96.0)
         else:
-            score = max(score, 70.0)
+            # Different street in the same district, or the same name with a
+            # different street type ("Farmers Close" vs "Farmers Place, SL9").
+            score = min(max(score, 70.0), 70.0)
     elif outward and _OUTWARD_RE.search(stored_norm):
         # Both addresses carry a postcode district and they differ: a different
         # place, whatever the fuzzy text says ("Bedonwell Road DA17" vs "Well
         # Road, EN5" scored 59 on similarity alone and, via a recent handoff,
         # blocked the true match on 2026-09-30).
         score = min(score, 30.0)
+    else:
+        # No postcode to decide it: let the distinctive name words decide.
+        # Sharing one ("Tothill House, Page Street" vs "Tothill House, SW1P") is
+        # strong evidence; sharing none means a different place, however similar
+        # the generic words ("... House") make the fuzzy score (2026-10-01:
+        # "Horizon House, BR8" scored 86 via a recent handoff and blocked the
+        # true match for a landlord who named her building).
+        mine = _street_tokens(candidate_norm)
+        theirs = _street_tokens(stored_norm)
+        if mine and theirs:
+            shared = (mine & theirs) - _conflicting_street_names(candidate_norm, stored_norm)
+            if shared and mine <= theirs:
+                score = max(score, 88.0)
+            elif shared:
+                score = max(score, 75.0)
+            else:
+                score = min(score, 30.0)
 
     return score
 
@@ -222,8 +241,41 @@ _GENERIC_ADDRESS_WORDS = {
     "drive", "dr", "court", "ct", "place", "pl", "gardens", "gdns", "crescent",
     "terrace", "grove", "square", "sq", "flat", "house", "the", "one", "property",
     "london", "uk", "and", "of",
+    # Common in many unrelated addresses; must not count as "the same place".
+    "park", "hill", "green", "north", "south", "east", "west", "upper", "lower",
+    "new", "old", "great", "little", "high", "church", "station", "mill", "manor",
+    "lodge", "view", "mews", "row", "walk", "rise", "hall", "gate", "common",
+    "bridge", "wharf", "quay", "heights", "mansions", "villas", "cottages", "town",
+    "city", "centre", "center", "studio", "apartment", "apartments", "maisonette",
+    "room", "rooms", "bed", "beds", "bedroom", "bedrooms", "double", "single",
+    "floor", "ground", "first", "top", "building", "block", "home", "your", "my",
+    "about", "for", "this", "that", "with", "near",
 }
 _POSTCODE_PART_RE = re.compile(r"^(?:[a-z]{1,2}\d[a-z\d]?|\d[a-z]{2})$")
+
+
+_STREET_TYPES = {
+    "road", "rd", "street", "st", "avenue", "ave", "close", "lane", "ln", "way", "drive",
+    "dr", "court", "ct", "place", "pl", "gardens", "gdns", "crescent", "terrace", "grove",
+    "square", "sq", "park", "hill", "mews", "row", "walk", "rise", "green", "gate", "house",
+    "lodge", "mansions", "villas", "cottages", "heights",
+}
+
+
+def _named_street_types(text: str) -> dict[str, set[str]]:
+    words = re.findall(r"[a-z0-9]+", text)
+    out: dict[str, set[str]] = {}
+    for word, nxt in zip(words, words[1:]):
+        if nxt in _STREET_TYPES and word not in _GENERIC_ADDRESS_WORDS:
+            out.setdefault(word, set()).add(nxt)
+    return out
+
+
+def _conflicting_street_names(candidate_norm: str, stored_norm: str) -> set[str]:
+    """Name words used with DIFFERENT street types on each side ("Elm Road" vs
+    "Elm Park"), so sharing the word doesn't mean the same place."""
+    mine, theirs = _named_street_types(candidate_norm), _named_street_types(stored_norm)
+    return {w for w in mine.keys() & theirs.keys() if not (mine[w] & theirs[w])}
 
 
 def _street_tokens(text: str) -> set[str]:
