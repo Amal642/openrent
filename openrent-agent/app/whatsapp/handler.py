@@ -13,6 +13,7 @@ Automatic replies are still controlled by WHATSAPP_AUTO_REPLY_ENABLED.
 from __future__ import annotations
 
 import json
+import random
 import re
 from datetime import datetime
 from typing import Optional
@@ -77,6 +78,42 @@ _SUSPICIOUS_RE = re.compile("|".join(_SUSPICIOUS_PATTERNS), re.IGNORECASE)
 
 def _is_suspicious_message(message: str) -> bool:
     return bool(_SUSPICIOUS_RE.search(message or ""))
+
+
+# Words a message may consist of to count as a bare opener: greetings plus
+# "are you there / anyone around" check-ins. Any other word (a name, a street,
+# "flat", "viewing", ...) means they've said something we should answer.
+_GREETING_WORDS = {"hi", "hii", "hiii", "hello", "helo", "hallo", "hey", "heya", "hiya", "yo"}
+_TIME_GREETING_WORDS = {"morning", "afternoon", "evening"}
+_CHECK_IN_WORDS = {"are", "you", "u", "there", "around", "anyone", "is", "still", "again", "good", "all"}
+
+
+def _is_bare_greeting(message: str) -> bool:
+    text = (message or "").strip()
+    if not text:
+        return False
+    words = re.findall(r"[a-z]+", text.lower())
+    if not words:
+        # Emoji/punctuation-only opener (e.g. a wave) counts as a greeting.
+        return len(text) <= 6
+    if len(words) > 6:
+        return False
+    allowed = _GREETING_WORDS | _TIME_GREETING_WORDS | _CHECK_IN_WORDS
+    if any(word not in allowed for word in words):
+        return False
+    return any(word in _GREETING_WORDS | _TIME_GREETING_WORDS for word in words) or (
+        "there" in words or "around" in words
+    )
+
+
+def _greeting_back(message: str) -> str:
+    words = set(re.findall(r"[a-z]+", (message or "").lower()))
+    if "there" in words and ({"are", "you", "u", "anyone", "is"} & words):
+        return random.choice(["Hi, yes!", "Yes, hi!", "Hi, yes I'm here!"])
+    for part in ("morning", "afternoon", "evening"):
+        if part in words:
+            return random.choice([f"Good {part}!", f"Hi, good {part}!"])
+    return random.choice(["Hi!", "Hey!", "Hi there!", "Hello!"])
 
 
 _VIEWING_KEYWORDS = (
@@ -604,6 +641,15 @@ async def handle_incoming_message(
         return
 
     history = _json_list(contact.message_history)
+
+    # A bare opener ("Hi", "Hello?", "Good morning", "Hi, are you there?") just
+    # gets a greeting back, like a person would; whatever they say next is what
+    # we respond to. Only for our FIRST reply: if they greet again we've already
+    # said hi, so fall through to asking which property (and a repeated "Hi!"
+    # would trip the duplicate-text guard and close the contact).
+    if sent_count == 0 and _is_bare_greeting(message):
+        _schedule_reply(contact.id, _greeting_back(message), "AWAITING_PROPERTY", name=display_name)
+        return
 
     if all_names and all_property_hints:
         # We have both pieces of info already — don't chase a higher-confidence

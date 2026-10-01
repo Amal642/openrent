@@ -253,7 +253,9 @@ def test_incoming_message_with_no_name_or_property_asks_for_property_details(
     asyncio.run(
         handler.handle_incoming_message(
             phone_number="447534992402",
-            message="Hello",
+            # Not a bare greeting (those get a greeting back first; see
+            # test_bare_greeting_*), and no name/property evidence.
+            message="I got your number from OpenRent",
             sender_name=None,
             jid="447534992402@s.whatsapp.net",
             message_id="MSG-NO-EVIDENCE",
@@ -637,3 +639,98 @@ def test_saved_unmatched_contact_rematches_and_cancels_on_frustrated_followup(
         assert contact.status == "CANCELLED"
         assert contact.thread_id == "THREAD-BURNHAM"
         assert conversation.viewing_cancelled is True
+
+
+
+def _inbound(phone, message, message_id):
+    asyncio.run(
+        handler.handle_incoming_message(
+            phone_number=phone,
+            message=message,
+            sender_name=None,
+            jid=f"{phone}@s.whatsapp.net",
+            message_id=message_id,
+        )
+    )
+
+
+@pytest.fixture()
+def auto_reply_on(monkeypatch):
+    monkeypatch.setattr(handler.settings, "WHATSAPP_AUTO_REPLY_ENABLED", True)
+    monkeypatch.setattr(handler, "next_reply_time", lambda: datetime.utcnow())
+    monkeypatch.setattr(
+        handler, "build_property_ask",
+        lambda name=None, history=None: "Which of your properties is this about?",
+    )
+
+
+def test_bare_greeting_first_gets_greeting_back(whatsapp_db, auto_reply_on):
+    _inbound("447534992460", "Hi", "MSG-HI-1")
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        assert contact.last_ai_reply in {"Hi!", "Hey!", "Hi there!", "Hello!"}
+        assert contact.status == "AWAITING_PROPERTY"
+        assert not contact.property_ask_count
+
+
+def test_are_you_there_gets_yes(whatsapp_db, auto_reply_on):
+    _inbound("447534992461", "Hi. Are you there", "MSG-THERE-1")
+
+    with whatsapp_db() as session:
+        assert session.query(WhatsAppContact).one().last_ai_reply in {
+            "Hi, yes!", "Yes, hi!", "Hi, yes I'm here!"
+        }
+
+
+def test_second_greeting_after_our_hi_asks_which_property(whatsapp_db, auto_reply_on):
+    _inbound("447534992462", "Hi", "MSG-HI-A")
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        greeting = contact.last_ai_reply
+    repository.append_outbound_message(contact.id, greeting)  # our "Hi!" was sent
+
+    _inbound("447534992462", "Hello?", "MSG-HI-B")
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        assert contact.last_ai_reply == "Which of your properties is this about?"
+        assert contact.property_ask_count == 1
+        assert contact.status == "AWAITING_PROPERTY"
+
+
+def test_greeting_then_property_details_matches_the_lead(whatsapp_db, auto_reply_on):
+    with whatsapp_db() as session:
+        _seed_listing(session)  # Natalie, 12 Loring Road
+    _inbound("447534992463", "Hello", "MSG-HI-C")
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        greeting = contact.last_ai_reply
+    repository.append_outbound_message(contact.id, greeting)
+
+    _inbound("447534992463", "Hi this is Natalie, about my house on Loring Road", "MSG-DETAILS-C")
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        assert contact.match_status == "MATCHED"
+        assert contact.status == "PHONE_ACQUIRED"
+        assert contact.thread_id == "THREAD-1"
+
+
+def test_message_with_content_skips_the_greeting(whatsapp_db, auto_reply_on):
+    _inbound("447534992464", "Hi, you gave me this number on OpenRent", "MSG-CONTENT-D")
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        assert contact.last_ai_reply == "Which of your properties is this about?"
+        assert contact.property_ask_count == 1
+
+
+@pytest.mark.parametrize("message,expected", [
+    ("Hi", True), ("Hello?", True), ("hey there", True), ("Good morning", True),
+    ("Is anyone there?", True), ("Hi again", True), ("👋", True),
+    ("Hello is this Nicola?", False), ("Hi Sarah", False), ("Hi, about the flat", False),
+    ("Still available?", False), ("ok", False), ("good", False),
+])
+def test_is_bare_greeting(message, expected):
+    assert handler._is_bare_greeting(message) is expected
