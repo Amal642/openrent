@@ -19,6 +19,7 @@ from app.db.repository import (
     mark_phone_number_shared,
     mark_landlord_asked_phone,
     mark_our_number_shared,
+    mark_viewing_cancelled,
     update_conversation_memory,
     save_viewing_datetime,
     save_banner_state,
@@ -69,6 +70,7 @@ from app.ai.replies import (
     detect_short_term_tenancy,
     generate_short_term_close_message,
     count_number_asks,
+    is_viewing_withdrawal,
 )
 
 import os  # OPEN-21D playbook A/B
@@ -1771,6 +1773,19 @@ async def process_account_replies(
             ):
                 mark_our_number_shared(thread_id)
                 logger.info(f"OUR_NUMBER_SHARED thread_id={thread_id}")
+
+            # The reply itself withdrew from a confirmed viewing (allowed when
+            # the landlord says it's happening right now). Record it so the
+            # timed sweep doesn't send a SECOND cancellation later (thread
+            # 46739765 got "something's come up" then "we've decided to stay").
+            if (
+                is_viewing_withdrawal(reply)
+                and conversation
+                and getattr(conversation, "viewing_confirmed", False)
+                and not getattr(conversation, "viewing_cancelled", False)
+            ):
+                mark_viewing_cancelled(thread_id)
+                logger.info(f"VIEWING_WITHDRAWN_IN_REPLY thread_id={thread_id}")
 
             # OPEN-21D playbook A/B - append-only HEURISTIC outcome diagnostics. No-op unless
             # enabled; wrapped so it can NEVER affect reply behaviour. NOT the primary outcome:

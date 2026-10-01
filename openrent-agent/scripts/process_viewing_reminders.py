@@ -26,6 +26,16 @@ from app.openrent.viewing_lifecycle import (
 from app.utils.human import random_sleep
 from app.utils.logger import logger
 
+# Hard deadline: inside this many hours of a still-future viewing we withdraw
+# NOW, whatever else is pending. The "awaiting phone-request response" block
+# and the "give-out now, cancel next run" defer had no deadline, so a landlord
+# who didn't answer in time (or a give-out sent ~1h before) meant the viewing
+# simply passed: a no-show (28 + ~15 cases, Sep 17-Oct 1 audit).
+CANCEL_DEADLINE_HOURS = 1.5
+# Only hand over our WhatsApp (which defers the cancel one run, ~1h) when there
+# is enough time left for that next run to still land before the deadline.
+SALVAGE_MIN_HOURS = 2.5
+
 
 async def process_account_viewing_reminders(account, page, worker_id=None):
     """Phase-2 viewing-withdrawal sweep — the single owner of viewing cancellation.
@@ -105,12 +115,19 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
             viewing_imminent = hrs_until is not None and 0 < hrs_until <= 2
 
             block_reason = get_automatic_cancellation_block_reason(thread_id)
+            at_deadline = hrs_until is not None and 0 < hrs_until <= CANCEL_DEADLINE_HOURS
 
-            safe_to_cancel = not block_reason and (
+            safe_to_cancel = at_deadline or (not block_reason and (
                 viewing_imminent
                 or phone_captured
                 or (phone_requested and phone_ask_age_h >= 4)
-            )
+            ))
+
+            if at_deadline and (block_reason or not phone_requested):
+                logger.info(
+                    f"VIEWING_CANCEL_DEADLINE thread_id={thread_id} "
+                    f"hours_until={hrs_until:.2f} overriding={block_reason or 'no_phone_request'}"
+                )
 
             if safe_to_cancel:
                 # Salvage before withdrawing: ALWAYS hand over our WhatsApp give-out
@@ -120,7 +137,9 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
                 # non-final message, so the persisted landlord_asked flag was unset when
                 # the cancel ran). Guarded on our_number_shared_at so it fires once; the
                 # next sweep run then cancels normally if no lead arrived.
-                if await _try_giveout_salvage(
+                if (
+                    hrs_until is not None and hrs_until > SALVAGE_MIN_HOURS
+                ) and await _try_giveout_salvage(
                     thread_id, conversation, account, messages,
                     latest_landlord_message, page, require_landlord_asked=False,
                 ):

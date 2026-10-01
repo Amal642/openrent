@@ -268,6 +268,20 @@ def apply_match_result(
                     .filter(Conversation.listing_id == best.get("listing_id"))
                     .first()
                 )
+            # Consume the handoff intent(s) for this thread: the landlord we
+            # handed the number to has now reached us, so the intent must stop
+            # boosting OTHER inbound contacts. Nothing ever set this before
+            # (0 consumed since Aug 20), so stale intents stayed in the 7-day
+            # prior and raised the odds of name collisions (2026-10-01 audit).
+            if best.get("thread_id"):
+                db.query(WhatsAppHandoffIntent).filter(
+                    WhatsAppHandoffIntent.thread_id == best.get("thread_id"),
+                    WhatsAppHandoffIntent.matched_contact_id.is_(None),
+                ).update(
+                    {WhatsAppHandoffIntent.matched_contact_id: contact.id},
+                    synchronize_session=False,
+                )
+
             if conversation:
                 # Same canonical form as OpenRent captures ("07…"), so dedup
                 # (phone_exists / unique phone) sees one landlord, not two.

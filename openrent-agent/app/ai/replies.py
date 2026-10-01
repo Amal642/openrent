@@ -93,6 +93,28 @@ class ReplyGenerationResult:
     latency_ms: int = 0
 
 
+# A reply that backs out of the viewing ("something's come up so I won't be
+# able to make it"). The prompt allows this only when the landlord says the
+# viewing is happening right now; otherwise the timed sweep owns withdrawal and
+# first asks for / gives a number. Curly or straight apostrophes.
+_APOS = "['\u2019]"
+_WITHDRAWAL_RE = re.compile(
+    rf"\b(?:can{_APOS}?t|cannot|won{_APOS}?t|unable to|not be able to|won{_APOS}?t be able to) make it\b"
+    rf"|\bwon{_APOS}?t be able to (?:come|attend|view|do)\b"
+    rf"|\b(?:need|have|going) to cancel\b"
+    rf"|\bsomething{_APOS}?s come up\b|\bsomething has come up\b",
+    re.I,
+)
+_KEEP_VIEWING_NUDGE = (
+    "\n\nThe landlord is not at the property right now and nobody is waiting for you. "
+    "Keep the viewing as arranged: reply naturally and confirm it."
+)
+
+
+def is_viewing_withdrawal(text: str | None) -> bool:
+    return bool(text and _WITHDRAWAL_RE.search(text))
+
+
 def _sanitize_dashes(text: str) -> str:
     """
     Replace em and en dashes so generated messages feel natural rather than
@@ -396,6 +418,36 @@ def generate_reply(
                 )
                 if is_valid_reply(candidate):
                     reply = candidate
+
+    # Premature-withdrawal guard: the model backed out of viewings on a plain
+    # same-day confirmation ("just confirming tonight at 6"), skipping the
+    # sweep's ask-for-number / give-out steps (lost leads, and a second
+    # cancellation later). Unless the landlord says it's happening right now,
+    # regenerate with an explicit "keep the viewing" nudge, up to twice.
+    if is_viewing_withdrawal(reply):
+        from app.ai.stages import landlord_says_en_route
+        tid_tag = f" thread_id={thread_id}" if thread_id else ""
+        if landlord_says_en_route(messages):
+            logger.info(f"WITHDRAWAL_ALLOWED_EN_ROUTE{tid_tag}")
+        else:
+            for _attempt in range(2):
+                logger.warning(f"PREMATURE_WITHDRAWAL_REGENERATING{tid_tag} attempt={_attempt + 1}")
+                regen = generate_reply_result(
+                    conversation,
+                    model=settings.OPENAI_REPLY_MODEL,
+                    temperature=0.7,
+                    prompt_builder=lambda c: build_prompt(c) + _KEEP_VIEWING_NUDGE,
+                )
+                if not regen.is_valid:
+                    continue
+                candidate = remove_unapproved_phone_numbers(
+                    regen.reply, (persona or {}).get("mobile_number")
+                )
+                if is_valid_reply(candidate) and not is_viewing_withdrawal(candidate):
+                    reply = candidate
+                    break
+            else:
+                logger.warning(f"PREMATURE_WITHDRAWAL_GUARD_EXHAUSTED{tid_tag}")
 
     # Deterministic guard: never let the reply carry a STALE relative day
     # word for the agreed viewing (e.g. "1pm tomorrow" on the viewing day).

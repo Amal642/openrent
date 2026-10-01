@@ -315,3 +315,28 @@ def test_same_name_different_street_type_in_same_district_is_not_a_match():
     # "Farmers Place, SL9".
     assert matcher._property_score("Farmers Close, SL9", "Farmers Place, SL9") == 70.0
     assert matcher._property_score("Farmers Close, SL9", "Farmers Close, SL9") >= 96.0
+
+
+def test_match_consumes_the_handoff_intent(whatsapp_db, monkeypatch):
+    """2026-10-01 audit: matched_contact_id was never set, so a used intent kept
+    boosting every later inbound for 7 days. A match must consume it."""
+    monkeypatch.setattr(handler, "extract_name_from_message", lambda text: None)
+    monkeypatch.setattr(handler, "extract_property_from_message", lambda text: None)
+    with whatsapp_db() as session:
+        _, pk2 = _seed_two_darynas(session)
+    repository.record_handoff_intent("THREAD-DARYNA-2")
+
+    _inbound_from_daryna("447534992480", "MSG-CONSUME-1")
+
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        assert contact.match_status == "MATCHED" and contact.listing_id == pk2
+        intent = session.query(WhatsAppHandoffIntent).filter_by(thread_id="THREAD-DARYNA-2").one()
+        assert intent.matched_contact_id == contact.id
+
+    # A different number with the same WhatsApp name no longer gets the boost:
+    # name-only evidence is ambiguous again -> stays UNMATCHED.
+    _inbound_from_daryna("447534992481", "MSG-CONSUME-2")
+    with whatsapp_db() as session:
+        second = session.query(WhatsAppContact).filter_by(phone_number="447534992481").one()
+        assert second.match_status == "UNMATCHED"

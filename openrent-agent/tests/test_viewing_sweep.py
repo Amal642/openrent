@@ -131,3 +131,51 @@ def test_not_due_on_refresh_skips(monkeypatch):
     calls = _run(monkeypatch, _conv(viewing_cancelled=True))
     assert calls["cancel"] == [] and calls["ask"] == [] and calls["salvage"] == []
     assert calls["released"] == [("t1", "w1")]
+
+
+# --- Hard deadline + salvage timing (2026-10-01 audit: 28 viewings passed while
+# "awaiting phone-request response", ~15 after a give-out deferred the cancel). ---
+
+def test_blocked_but_at_deadline_cancels(monkeypatch):
+    conv = _conv(
+        viewing_datetime=datetime.utcnow() + timedelta(hours=1.0),
+        phone_requested_at=datetime.utcnow() - timedelta(hours=2),
+    )
+    calls = _run(monkeypatch, conv, block_reason="awaiting_phone_request_response")
+    assert len(calls["cancel"]) == 1
+    assert calls["salvage"] == [] and calls["ask"] == []
+
+
+def test_blocked_with_time_left_still_waits(monkeypatch):
+    conv = _conv(
+        viewing_datetime=datetime.utcnow() + timedelta(hours=3.5),
+        phone_requested_at=datetime.utcnow() - timedelta(hours=1),
+    )
+    calls = _run(monkeypatch, conv, block_reason="awaiting_phone_request_response")
+    assert calls["cancel"] == [] and calls["salvage"] == [] and calls["ask"] == []
+
+
+def test_no_giveout_when_too_close_to_defer(monkeypatch):
+    # 2h away: a give-out would push the cancel ~1h later, too close -> cancel now.
+    conv = _conv(viewing_datetime=datetime.utcnow() + timedelta(hours=2.0))
+    conv._salvage_returns = True
+    calls = _run(monkeypatch, conv)
+    assert calls["salvage"] == []
+    assert len(calls["cancel"]) == 1
+
+
+def test_giveout_still_offered_with_time_left(monkeypatch):
+    conv = _conv(
+        viewing_datetime=datetime.utcnow() + timedelta(hours=3.5),
+        phone_requested_at=datetime.utcnow() - timedelta(hours=5),
+    )
+    conv._salvage_returns = True
+    calls = _run(monkeypatch, conv)
+    assert len(calls["salvage"]) == 1
+    assert calls["cancel"] == []
+
+
+def test_never_asked_at_deadline_cancels_instead_of_asking(monkeypatch):
+    calls = _run(monkeypatch, _conv(viewing_datetime=datetime.utcnow() + timedelta(hours=0.8)))
+    assert len(calls["cancel"]) == 1
+    assert calls["ask"] == []
