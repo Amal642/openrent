@@ -22,9 +22,12 @@ from app.config import settings
 from app.utils.logger import logger
 from app.utils.text import strip_ai_dashes
 from app.whatsapp.matcher import (
+    LISTING_HINT_PREFIX,
+    extract_listing_ids,
     extract_name_from_message,
     extract_property_from_message,
     match_by_evidence,
+    mentioned_persona_names,
 )
 from app.whatsapp.reply import (
     build_name_ask,
@@ -413,6 +416,16 @@ def _save_unmatched_and_close(
     )
 
 
+def _address_hint(property_hints: list[str]) -> Optional[str]:
+    """Human-readable property evidence for the contact record: a real address
+    hint first, else the pasted listing link as "OpenRent listing <id>"."""
+    plain = [h for h in property_hints or [] if not h.startswith(LISTING_HINT_PREFIX)]
+    if plain:
+        return plain[0]
+    link = next((h for h in property_hints or [] if h.startswith(LISTING_HINT_PREFIX)), None)
+    return f"OpenRent listing {link[len(LISTING_HINT_PREFIX):]}" if link else None
+
+
 def _gather_evidence(contact, message: str, sender_name: Optional[str]):
     """Extract name/property evidence from this message and merge with whatever
     the contact has already accumulated across prior messages."""
@@ -428,6 +441,9 @@ def _gather_evidence(contact, message: str, sender_name: Optional[str]):
     property_hint = extract_property_from_message(message)
     if property_hint:
         new_property_hints.append(property_hint)
+    # A pasted OpenRent listing link identifies the property exactly.
+    for listing_ref in extract_listing_ids(message):
+        new_property_hints.append(f"{LISTING_HINT_PREFIX}{listing_ref}")
 
     contact = (
         update_contact_evidence(
@@ -460,8 +476,16 @@ def _match_and_link(
     all_property_hints: list[str],
     line_number: Optional[str] = None,
 ):
+    inbound_texts = [
+        item.get("message") or ""
+        for item in _json_list(contact.message_history)
+        if isinstance(item, dict) and item.get("direction") != "outbound"
+    ]
     candidates, confidence = match_by_evidence(
-        all_names, all_property_hints, line_number=line_number
+        all_names,
+        all_property_hints,
+        line_number=line_number,
+        persona_names=mentioned_persona_names(inbound_texts),
     )
     best = candidates[0] if candidates else None
     match_status = _match_status(candidates, confidence)
@@ -671,7 +695,7 @@ async def handle_incoming_message(
         # We have both pieces of info already — don't chase a higher-confidence
         # CRM match and don't ask the landlord to confirm, just save it and close.
         _save_unmatched_and_close(
-            contact, display_name, all_property_hints[0], confidence
+            contact, display_name, _address_hint(all_property_hints), confidence
         )
         return
 
@@ -684,7 +708,7 @@ async def handle_incoming_message(
             # Asked twice for the property and the landlord hasn't given a
             # usable one (e.g. deflects with "today is the viewing") — leave
             # it rather than keep pushing. Save whatever we have and close.
-            property_hint = all_property_hints[0] if all_property_hints else None
+            property_hint = _address_hint(all_property_hints)
             _save_unmatched_and_close(contact, display_name, property_hint, confidence)
             return
 

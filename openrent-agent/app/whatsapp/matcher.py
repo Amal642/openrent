@@ -11,7 +11,7 @@ from openai import OpenAI
 
 from app.config import settings
 from app.db.connection import SessionLocal
-from app.db.models import Listing
+from app.db.models import Account, Listing, SearchProfile
 from app.utils.logger import logger
 
 _client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=15.0)
@@ -197,10 +197,17 @@ def _property_score(candidate: str | None, stored: str | None) -> float:
     # one (2026-09-30: "Bedonwell Road DA17 5NZ" tied Wadeville Close, DA17 at
     # 90 vs 90.8, so a landlord who named the exact property stayed unmatched).
     if outward and re.search(rf"\b{re.escape(outward)}\b", stored_norm):
-        street = _street_tokens(candidate_norm)
+        # House numbers ("123a") are not street words.
+        street = {t for t in _street_tokens(candidate_norm) if not any(ch.isdigit() for ch in t)}
         if not street:
             score = max(score, 90.0)
-        elif street.issubset(stored_tokens) and not _conflicting_street_names(candidate_norm, stored_norm):
+        elif not _conflicting_street_names(candidate_norm, stored_norm) and (
+            street.issubset(stored_tokens) or _names_stored_street(candidate_norm, stored_norm)
+        ):
+            # Either every street word the landlord used is in our address, or
+            # our listing's street appears in theirs: landlords add towns and
+            # cross roads ("53 Headley Drive, Tadworth, Epsom Downs, KT18 5RP"
+            # vs "Headley Drive, KT18" scored 70, like a different street).
             score = max(score, 96.0)
         else:
             # Different street in the same district, or the same name with a
@@ -229,6 +236,10 @@ def _property_score(candidate: str | None, stored: str | None) -> float:
                 score = max(score, 75.0)
             else:
                 score = min(score, 30.0)
+        elif not theirs and _names_stored_street(candidate_norm, stored_norm):
+            # Our street is all common words ("Grove Place, AL9") but the
+            # landlord wrote it out ("Grove Place, Welham Green").
+            score = max(score, 80.0)
 
     return score
 
@@ -276,6 +287,27 @@ def _conflicting_street_names(candidate_norm: str, stored_norm: str) -> set[str]
     "Elm Park"), so sharing the word doesn't mean the same place."""
     mine, theirs = _named_street_types(candidate_norm), _named_street_types(stored_norm)
     return {w for w in mine.keys() & theirs.keys() if not (mine[w] & theirs[w])}
+
+
+_UNIT_WORDS = {
+    "flat", "studio", "apartment", "room", "rooms", "bed", "beds", "bedroom",
+    "bedrooms", "double", "single", "the", "maisonette", "unit",
+}
+
+
+def _names_stored_street(candidate_norm: str, stored_norm: str) -> bool:
+    """True when a street segment of our stored address ("clonmel road" in
+    "studio flat, clonmel road, tw11") appears whole in the landlord's text."""
+    candidate_text = " ".join(re.findall(r"[a-z0-9]+", candidate_norm.replace("'", "")))
+    for segment in stored_norm.split(","):
+        words = re.findall(r"[a-z0-9]+", segment.replace("'", ""))
+        while words and (any(ch.isdigit() for ch in words[0]) or words[0] in _UNIT_WORDS):
+            words = words[1:]  # "flat 3 montrose court" -> "montrose court"
+        if len(words) < 2 or words[-1] not in _STREET_TYPES:
+            continue
+        if re.search(rf"\b{re.escape(' '.join(words))}\b", candidate_text):
+            return True
+    return False
 
 
 def _street_tokens(text: str) -> set[str]:
@@ -422,18 +454,74 @@ def get_all_match_candidates(
     return candidates, best_confidence
 
 
+# A landlord who pastes the OpenRent listing link has told us exactly which
+# property it is (2026-10-02: "Aziz Property Group" sent the Chestnut Grove CR4
+# link and still stayed UNMATCHED on a 3.6-point gap). Link IDs are stored in
+# the contact's property_hints with this prefix so they persist across messages.
+LISTING_HINT_PREFIX = "openrent-listing:"
+_LISTING_LINK_RE = re.compile(r"openrent\.co\.uk/\S*?(\d{6,9})(?=$|[/?#\s)\]>.,])", re.I)
+LISTING_LINK_CONFIDENCE = 99.0
+# When the landlord names one of our personas ("your partner Claire contacted
+# us", "is this Nicola?"), candidates on that persona's account get a modest
+# boost; it can tip a near-tie but never outranks a listing link.
+PERSONA_BOOST = 8.0
+PERSONA_BOOST_CAP = 97.0
+# Minimum address score for a handoff intent's property evidence to count.
+HANDOFF_MIN_PROPERTY_SCORE = 75.0
+
+
+def extract_listing_ids(text: str | None) -> list[str]:
+    """OpenRent listing IDs from any openrent.co.uk links in the text."""
+    return list(dict.fromkeys(_LISTING_LINK_RE.findall(text or "")))
+
+
+def mentioned_persona_names(texts: list[str]) -> list[str]:
+    """The ONE persona first name a landlord used for us (partner X, is this X,
+    hi X, X contacted us...). Empty when none or more than one, so a landlord
+    who happens to share a persona's name, or a vague message, adds nothing."""
+    db = SessionLocal()
+    try:
+        personas = {
+            (name or "").strip()
+            for (name,) in db.query(Account.persona_name).filter(
+                Account.active.is_(True), Account.deleted_at.is_(None)
+            )
+            if name and len(name.strip()) >= 3
+        }
+    finally:
+        db.close()
+    found = set()
+    blob = "\n".join(t for t in texts if t)
+    for persona in personas:
+        n = re.escape(persona)
+        patterns = (
+            rf"\b(?:partner|wife|husband|other half|girlfriend|boyfriend)\s+(?:is\s+)?{n}\b",
+            rf"\b(?:is this|is that|are you|speak(?:ing)? (?:to|with)|hi|hello|hey|dear|morning)\s+{n}\b",
+            rf"\b{n}(?:'s|’s)?\s+(?:contacted|messaged|enquired|gave|sent|asked|from open\s?rent)\b",
+        )
+        if any(re.search(p, blob, re.I) for p in patterns):
+            found.add(persona)
+    return sorted(found) if len(found) == 1 else []
+
+
 def match_by_evidence(
     names: list[str] | None,
     property_hints: list[str] | None,
     line_number: str | None = None,
+    persona_names: list[str] | None = None,
 ) -> tuple[list[dict], float]:
     """Score listings against accumulated WhatsApp name and property evidence.
 
     line_number is OUR number the landlord wrote to (any format); when given,
     handoff priors for a different give-out number are ignored.
+    persona_names: our persona the landlord named (see mentioned_persona_names).
     """
     names = [n.strip() for n in (names or []) if n and n.strip()]
     property_hints = [p.strip() for p in (property_hints or []) if p and p.strip()]
+    link_ids = list(dict.fromkeys(
+        h[len(LISTING_HINT_PREFIX):] for h in property_hints if h.startswith(LISTING_HINT_PREFIX)
+    ))
+    property_hints = [h for h in property_hints if not h.startswith(LISTING_HINT_PREFIX)]
 
     db = SessionLocal()
     try:
@@ -511,11 +599,98 @@ def match_by_evidence(
         # certainly belongs to that thread). Feeds well-founded candidates to the
         # caller's threshold+gap logic WITHOUT changing it; no intents -> unchanged.
         _apply_handoff_prior(db, candidates, names, property_hints, line_number)
+        _apply_persona_boost(db, candidates, persona_names)
+        _apply_listing_links(db, candidates, link_ids)
 
         candidates.sort(key=lambda x: x["confidence"], reverse=True)
         return candidates, candidates[0]["confidence"] if candidates else 0.0
     finally:
         db.close()
+
+
+def _apply_persona_boost(db, candidates, persona_names):
+    """Boost candidates whose listing belongs to the persona the landlord named."""
+    if not persona_names or not candidates:
+        return
+    wanted = {p.casefold() for p in persona_names}
+    ids = [c["listing_id"] for c in candidates if c.get("listing_id")]
+    persona_of = dict(
+        db.query(Listing.id, Account.persona_name)
+        .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+        .join(Account, SearchProfile.account_id == Account.id)
+        .filter(Listing.id.in_(ids))
+        .all()
+    )
+    for candidate in candidates:
+        persona = (persona_of.get(candidate.get("listing_id")) or "").casefold()
+        if persona and persona in wanted and candidate["confidence"] < PERSONA_BOOST_CAP:
+            candidate["confidence"] = min(PERSONA_BOOST_CAP, candidate["confidence"] + PERSONA_BOOST)
+            candidate["reason"] = f"{candidate.get('reason') or ''}+persona"
+
+
+def _apply_listing_links(db, candidates, link_ids):
+    """A pasted listing link for a listing we messaged is a certain match: put
+    it at LISTING_LINK_CONFIDENCE and, when exactly one such listing is linked,
+    hold every other candidate below the auto-match gap."""
+    linked = []
+    for listing_ref in link_ids:
+        listing = (
+            db.query(Listing)
+            .filter(Listing.listing_id == listing_ref, Listing.message_sent.is_(True))
+            .first()
+        )
+        if listing:
+            linked.append(listing)
+    if not linked:
+        return
+    by_listing = {c["listing_id"]: c for c in candidates}
+    for listing in linked:
+        candidate = by_listing.get(listing.id)
+        if candidate is None:
+            candidate = {
+                "listing_id": listing.id,
+                "listing_listing_id": listing.listing_id,
+                "thread_id": listing.thread_id,
+                "landlord_name": listing.landlord_name,
+                "landlord_id": listing.landlord_id,
+                "property_address": listing.property_address,
+                "name_score": 0.0,
+                "property_score": 0.0,
+                "matched_name": None,
+                "matched_property_hint": f"{LISTING_HINT_PREFIX}{listing.listing_id}",
+            }
+            candidates.append(candidate)
+            by_listing[listing.id] = candidate
+        candidate["confidence"] = LISTING_LINK_CONFIDENCE
+        candidate["reason"] = "listing_link"
+    if len({listing.id for listing in linked}) == 1:
+        linked_id = linked[0].id
+        for candidate in candidates:
+            if candidate["listing_id"] != linked_id:
+                candidate["confidence"] = min(candidate["confidence"], LISTING_LINK_CONFIDENCE - 9)
+
+
+_COMPANY_NAME_WORDS = {
+    "property", "properties", "group", "holdings", "holding", "ltd", "limited",
+    "lettings", "letting", "estates", "estate", "homes", "management",
+    "investments", "investment", "services", "capital", "living", "residential",
+    "rentals", "rental", "real", "uk",
+}
+
+
+def _handoff_name_score(name: str | None, landlord_name: str | None) -> float:
+    """Name score with company words removed, so "Aziz Property Group" doesn't
+    look like "Gemini Property Holdings U." (56.5, enough to lift that handoff
+    to 80 on 2026-10-02). Personal names and nicknames score as before."""
+    def strip(text):
+        return " ".join(
+            w for w in re.findall(r"[A-Za-z0-9'.-]+", text or "")
+            if w.lower().strip(".") not in _COMPANY_NAME_WORDS
+        )
+    a, b = strip(name), strip(landlord_name)
+    if a == (name or "").strip() and b == (landlord_name or "").strip():
+        return _name_score(name, landlord_name)
+    return _name_score(a, b) if a and b else 0.0
 
 
 def _apply_handoff_prior(db, candidates, names, property_hints, line_number=None):
@@ -557,13 +732,18 @@ def _apply_handoff_prior(db, candidates, names, property_hints, line_number=None
         shared = national_digits(getattr(intent, "shared_number", None))
         if line_digits and shared and shared != line_digits:
             continue
-        nm = max((_name_score(n, intent.landlord_name) for n in names), default=0.0)
+        nm = max((_handoff_name_score(n, intent.landlord_name) for n in names), default=0.0)
         pm = max((_property_score(h, intent.property_address) for h in property_hints), default=0.0)
-        if nm < 50 and pm < 50:
+        # Property evidence only counts here at street level (>= 75): a
+        # different street in the same district scores 70 and must not lift a
+        # handoff over the listing whose street the landlord actually named
+        # (2026-10-02: London Road CR4 at 88.4 beat an exact Chestnut Grove CR4).
+        strong_pm = pm >= HANDOFF_MIN_PROPERTY_SCORE
+        if nm < 50 and not strong_pm:
             continue
-        if pm >= 50 and nm >= 50:
+        if strong_pm and nm >= 50:
             conf = min(97.0, 82.0 + pm * 0.12)
-        elif pm >= 50:
+        elif strong_pm:
             conf = min(95.0, 80.0 + pm * 0.12)
         else:
             conf = min(88.0, 70.0 + nm * 0.18)

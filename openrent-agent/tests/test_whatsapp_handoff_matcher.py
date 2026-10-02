@@ -340,3 +340,168 @@ def test_match_consumes_the_handoff_intent(whatsapp_db, monkeypatch):
     with whatsapp_db() as session:
         second = session.query(WhatsAppContact).filter_by(phone_number="447534992481").one()
         assert second.match_status == "UNMATCHED"
+
+
+# --- Listing links + persona mentions (2026-10-02 regression, contact 402:
+# "Your partner claire contacted us" + the Chestnut Grove CR4 listing link, left
+# UNMATCHED on a 92.0 vs 88.4 tie between two CR4 handoffs). ---
+
+from app.db.models import Account, SearchProfile  # noqa: E402
+
+
+def _seed_persona_listing(session, *, persona, email, listing_id, thread_id, name, address):
+    account = Account(email=email, password="", active=True, persona_name=persona)
+    session.add(account)
+    session.flush()
+    profile = SearchProfile(account_id=account.id, location="Croydon, Greater London")
+    session.add(profile)
+    session.flush()
+    listing = Listing(
+        listing_id=listing_id, property_url=f"https://example.com/{listing_id}",
+        landlord_name=name, property_address=address, thread_id=thread_id,
+        message_sent=True, search_profile_id=profile.id,
+    )
+    session.add(listing)
+    session.flush()
+    session.add(Conversation(thread_id=thread_id, listing_id=listing.id))
+    session.commit()
+    return listing.id
+
+
+def _seed_cr4_pair(session):
+    omar = _seed_persona_listing(session, persona="Claire", email="claire@x", listing_id="3056683",
+                                 thread_id="T-OMAR", name="Omar A.", address="Chestnut Grove, CR4")
+    _seed_persona_listing(session, persona="Victoria", email="vic@x", listing_id="3011111",
+                          thread_id="T-SEAN", name="Sean S.", address="London Road, CR4")
+    return omar
+
+
+def test_extract_listing_ids():
+    url = "https://www.openrent.co.uk/property-to-rent/mitcham/3-bed-terraced-house-chestnut-grove-cr4/3056683"
+    assert matcher.extract_listing_ids(url) == ["3056683"]
+    assert matcher.extract_listing_ids("3 bed house in mitcham") == []
+    assert matcher.extract_listing_ids("https://www.rightmove.co.uk/properties/123456789") == []
+
+
+def test_original_case_now_matches_on_the_named_street_alone(whatsapp_db):
+    # Contact 402 was a 92.0 vs 88.4 tie. The different-street handoff (London
+    # Road, address score 70) no longer gets the handoff boost, so the named
+    # street now decides.
+    with whatsapp_db() as session:
+        omar = _seed_cr4_pair(session)
+    for thread in ("T-OMAR", "T-SEAN"):
+        repository.record_handoff_intent(thread)
+    candidates, confidence = matcher.match_by_evidence(["Aziz Property Group"], ["Chestnut Grove, CR4"])
+    assert handler._match_status(candidates, confidence) == "MATCHED"
+    assert candidates[0]["listing_id"] == omar
+
+
+def test_listing_link_is_a_certain_match(whatsapp_db):
+    with whatsapp_db() as session:
+        omar = _seed_cr4_pair(session)
+    for thread in ("T-OMAR", "T-SEAN"):
+        repository.record_handoff_intent(thread)
+    candidates, confidence = matcher.match_by_evidence(
+        ["Aziz Property Group"], ["Chestnut Grove, CR4", matcher.LISTING_HINT_PREFIX + "3056683"]
+    )
+    assert handler._match_status(candidates, confidence) == "MATCHED"
+    assert candidates[0]["listing_id"] == omar and candidates[0]["reason"] == "listing_link"
+
+
+def test_link_to_a_listing_we_never_messaged_is_ignored(whatsapp_db):
+    with whatsapp_db() as session:
+        _seed_cr4_pair(session)
+    candidates, _ = matcher.match_by_evidence([], [matcher.LISTING_HINT_PREFIX + "9999999"])
+    assert candidates == []
+
+
+def test_persona_mention_tips_a_near_tie(whatsapp_db):
+    with whatsapp_db() as session:
+        omar = _seed_cr4_pair(session)
+    for thread in ("T-OMAR", "T-SEAN"):
+        repository.record_handoff_intent(thread)
+    persona = matcher.mentioned_persona_names(
+        ["Hi I am contacting you 3 bed house in mitcham. Your partner claire contacted us through openrent."]
+    )
+    assert persona == ["Claire"]
+    candidates, confidence = matcher.match_by_evidence(
+        ["Aziz Property Group"], ["Chestnut Grove, CR4"], persona_names=persona
+    )
+    assert handler._match_status(candidates, confidence) == "MATCHED"
+    assert candidates[0]["listing_id"] == omar
+
+
+def test_persona_mentions_need_an_addressing_phrase_and_one_name(whatsapp_db):
+    with whatsapp_db() as session:
+        _seed_cr4_pair(session)
+    assert matcher.mentioned_persona_names(["Hello, is this Claire from Openrent?"]) == ["Claire"]
+    assert matcher.mentioned_persona_names(["It's Victoria here, the landlord"]) == []
+    assert matcher.mentioned_persona_names(["Hi Claire", "and is that Victoria too?"]) == []
+
+
+def test_inbound_with_listing_link_matches_end_to_end(whatsapp_db, monkeypatch):
+    with whatsapp_db() as session:
+        omar = _seed_cr4_pair(session)
+    asyncio.run(handler.handle_incoming_message(
+        phone_number="447534992490",
+        message="Hi, about https://www.openrent.co.uk/property-to-rent/mitcham/3-bed-terraced-house-chestnut-grove-cr4/3056683",
+        sender_name="Aziz Property Group",
+        jid="447534992490@s.whatsapp.net",
+        message_id="MSG-LINK-1",
+    ))
+    with whatsapp_db() as session:
+        contact = session.query(WhatsAppContact).one()
+        assert contact.match_status == "MATCHED"
+        assert contact.listing_id == omar and contact.status == "PHONE_ACQUIRED"
+
+
+def test_exact_street_beats_a_handoff_on_a_different_street(whatsapp_db):
+    """Live check 2026-10-02: with Omar's intent already consumed, a weak
+    different-street handoff (London Road CR4, score 70 -> 88.4) beat the exact
+    Chestnut Grove CR4 address. Must pick the named street (or nothing)."""
+    with whatsapp_db() as session:
+        omar = _seed_cr4_pair(session)
+    repository.record_handoff_intent("T-SEAN")  # only the wrong listing has a live handoff
+    candidates, confidence = matcher.match_by_evidence(["Aziz Property Group"], ["Chestnut Grove, CR4"])
+    assert handler._match_status(candidates, confidence) == "MATCHED"
+    assert candidates[0]["listing_id"] == omar
+
+
+def test_street_named_with_house_number_town_or_cross_road_is_the_same_street():
+    """2026-10-02 audit: our stored address is short ("Headley Drive, KT18"), so
+    extra words in the landlord's (house number, town, a second road) made the
+    right street score 70, the same as a different street in the district."""
+    from app.whatsapp.matcher import _property_score
+
+    same = [
+        ("123a Broad Lane N15 4DP", "Broad Lane, N15"),
+        ("53 Headley Drive, Tadworth, Epsom Downs, KT18 5RP", "Headley Drive, KT18"),
+        ("14 Montrose court, Finchley Road NW11 6AG", "Montrose Court, NW11"),
+        ("7a Hill Rise, Richmond, TW10 6UQ", "Hill Rise, TW10"),
+        ("64 Clonmel Road, Teddington TW11 0SR", "Studio Flat, Clonmel Road, TW11"),
+    ]
+    for hint, stored in same:
+        assert _property_score(hint, stored) >= 96.0, (hint, stored)
+    assert _property_score("Grove Place, Welham Green", "Grove Place, AL9") >= 75.0
+
+    different = [
+        ("Chestnut Grove CR4", "London Road, CR4"),
+        ("Bedonwell Road DA17 5NZ", "Wadeville Close, DA17"),
+        ("Elm Road SL9", "Elm Park, SL9"),
+        ("552 King's Rd, Coleridge Gardens, London SW10 0RL", "Bailey House, SW10"),
+    ]
+    for hint, stored in different:
+        assert _property_score(hint, stored) <= 70.0, (hint, stored)
+
+
+def test_company_words_alone_do_not_tie_a_sender_to_a_handoff():
+    """2026-10-02 live check: "Aziz Property Group" vs a handoff to "Gemini
+    Property Holdings U." scored 56.5 on the shared company words alone, which
+    lifted that unrelated handoff to 80."""
+    from app.whatsapp.matcher import _handoff_name_score
+
+    assert _handoff_name_score("Aziz Property Group", "Gemini Property Holdings U.") < 50
+    assert _handoff_name_score("Aziz Property Group", "Nguyen Properties U.") < 50
+    assert _handoff_name_score("Ceba Property", "Ceba Property L.") >= 78
+    assert _handoff_name_score("Selva", "Selvachandran R.") >= 78
+    assert _handoff_name_score("Sam", "Samuel B.") >= 78
