@@ -37,6 +37,7 @@ def test_kapso_extracts_incoming_meta_style_message():
             "jid": None,
             "lid": None,
             "message_id": "wamid.test",
+            "line_phone_number_id": None,
         }
     ]
 

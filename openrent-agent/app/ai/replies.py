@@ -284,7 +284,7 @@ def _record_handoff_if_shared(thread_id, reply, mobile_number):
     try:
         from app.whatsapp.repository import record_handoff_intent
 
-        record_handoff_intent(str(thread_id))
+        record_handoff_intent(str(thread_id), shared_number=mobile_number)
         logger.info(f"WHATSAPP_HANDOFF_INTENT_RECORDED thread_id={thread_id}")
     except Exception as exc:
         logger.warning(

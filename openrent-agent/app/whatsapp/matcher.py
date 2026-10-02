@@ -425,8 +425,13 @@ def get_all_match_candidates(
 def match_by_evidence(
     names: list[str] | None,
     property_hints: list[str] | None,
+    line_number: str | None = None,
 ) -> tuple[list[dict], float]:
-    """Score listings against accumulated WhatsApp name and property evidence."""
+    """Score listings against accumulated WhatsApp name and property evidence.
+
+    line_number is OUR number the landlord wrote to (any format); when given,
+    handoff priors for a different give-out number are ignored.
+    """
     names = [n.strip() for n in (names or []) if n and n.strip()]
     property_hints = [p.strip() for p in (property_hints or []) if p and p.strip()]
 
@@ -505,7 +510,7 @@ def match_by_evidence(
         # the WhatsApp number to (a landlord just handed the number almost
         # certainly belongs to that thread). Feeds well-founded candidates to the
         # caller's threshold+gap logic WITHOUT changing it; no intents -> unchanged.
-        _apply_handoff_prior(db, candidates, names, property_hints)
+        _apply_handoff_prior(db, candidates, names, property_hints, line_number)
 
         candidates.sort(key=lambda x: x["confidence"], reverse=True)
         return candidates, candidates[0]["confidence"] if candidates else 0.0
@@ -513,8 +518,13 @@ def match_by_evidence(
         db.close()
 
 
-def _apply_handoff_prior(db, candidates, names, property_hints):
+def _apply_handoff_prior(db, candidates, names, property_hints, line_number=None):
     """Boost/add candidates from recent, unconsumed WhatsApp handoff intents.
+
+    With several give-out numbers, a landlord can only be writing in response
+    to a handoff of the number they wrote to: intents that recorded a different
+    shared_number are skipped. Legacy intents (no shared_number) or an unknown
+    line keep the old all-intents behaviour.
 
     A landlord we handed the number to in the last 7 days is a strong prior for
     that thread, so a name-only match here outweighs the generic name-only cap
@@ -539,8 +549,14 @@ def _apply_handoff_prior(db, candidates, names, property_hints):
         return
     if not intents:
         return
+    from app.whatsapp.lines import national_digits
+
+    line_digits = national_digits(line_number)
     by_listing = {c["listing_id"]: c for c in candidates}
     for intent in intents:
+        shared = national_digits(getattr(intent, "shared_number", None))
+        if line_digits and shared and shared != line_digits:
+            continue
         nm = max((_name_score(n, intent.landlord_name) for n in names), default=0.0)
         pm = max((_property_score(h, intent.property_address) for h in property_hints), default=0.0)
         if nm < 50 and pm < 50:

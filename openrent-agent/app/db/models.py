@@ -485,6 +485,10 @@ class WhatsAppContact(Base):
     property_ask_count = Column(Integer, default=0, nullable=True)
     reply_scheduled_at = Column(DateTime, nullable=True)
     cancellation_sent_at = Column(DateTime, nullable=True)
+    # Meta phone_number_id of OUR number the landlord last wrote to. Replies go
+    # out from it (the 24h service window is per business number). NULL = the
+    # default line.
+    line_phone_number_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -506,6 +510,9 @@ class WhatsAppHandoffIntent(Base):
     property_address = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     matched_contact_id = Column(Integer, nullable=True)
+    # The give-out number we shared on the thread (persona mobile_number), so an
+    # inbound on one of our lines only considers handoffs of THAT number.
+    shared_number = Column(String, nullable=True)
 
 
 # ---------------- APP SETTINGS (generic persisted key/value flags) ----------------

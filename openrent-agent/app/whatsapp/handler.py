@@ -454,8 +454,15 @@ def _gather_evidence(contact, message: str, sender_name: Optional[str]):
     return contact, all_names, all_property_hints
 
 
-def _match_and_link(contact, all_names: list[str], all_property_hints: list[str]):
-    candidates, confidence = match_by_evidence(all_names, all_property_hints)
+def _match_and_link(
+    contact,
+    all_names: list[str],
+    all_property_hints: list[str],
+    line_number: Optional[str] = None,
+):
+    candidates, confidence = match_by_evidence(
+        all_names, all_property_hints, line_number=line_number
+    )
     best = candidates[0] if candidates else None
     match_status = _match_status(candidates, confidence)
     contact = (
@@ -495,10 +502,14 @@ async def handle_incoming_message(
     jid: Optional[str] = None,
     lid: Optional[str] = None,
     message_id: Optional[str] = None,
+    line_phone_number_id: Optional[str] = None,
+    line_display_number: Optional[str] = None,
 ) -> None:
     """
     Main entry point called by the FastAPI webhook.
     sender_name is WhatsApp pushName/profile display name when available.
+    line_* identify which of OUR numbers received the message (None = unknown,
+    behaves exactly like the single-number setup).
     """
     phone = _normalize_phone(phone_number)
     received_at = _received_at(timestamp)
@@ -506,7 +517,8 @@ async def handle_incoming_message(
 
     logger.info(
         f"WHATSAPP_INCOMING phone={phone} lid={lid_value} "
-        f"sender_name={sender_name!r} message_len={len(message)}"
+        f"sender_name={sender_name!r} message_len={len(message)} "
+        f"line={line_phone_number_id}"
     )
 
     # Guard: never interact with cancelled or suspicion-flagged contacts.
@@ -533,6 +545,7 @@ async def handle_incoming_message(
         jid=jid,
         lid=lid_value,
         message_id=message_id,
+        line_phone_number_id=line_phone_number_id,
     )
 
     if is_duplicate_delivery:
@@ -574,7 +587,9 @@ async def handle_incoming_message(
         contact, retry_names, retry_property_hints = _gather_evidence(
             contact, message, sender_name
         )
-        contact, _, _, _, _ = _match_and_link(contact, retry_names, retry_property_hints)
+        contact, _, _, _, _ = _match_and_link(
+            contact, retry_names, retry_property_hints, line_display_number
+        )
         conversation = get_conversation_for_contact(contact)
         if conversation:
             _sync_linked_inbound_message(contact, conversation, message, received_at)
@@ -610,7 +625,7 @@ async def handle_incoming_message(
         contact, message, sender_name
     )
     contact, candidates, confidence, best, match_status = _match_and_link(
-        contact, all_names, all_property_hints
+        contact, all_names, all_property_hints, line_display_number
     )
     conversation = get_conversation_for_contact(contact)
     if conversation:

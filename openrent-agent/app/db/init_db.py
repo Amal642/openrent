@@ -115,8 +115,13 @@ REQUIRED_COLUMNS = {
         "property_ask_count": "INTEGER DEFAULT 0",
         "reply_scheduled_at": "TIMESTAMP",
         "cancellation_sent_at": "TIMESTAMP",
+        "line_phone_number_id": "VARCHAR",
         "created_at": "TIMESTAMP",
         "updated_at": "TIMESTAMP",
+    },
+
+    "whatsapp_handoff_intents": {
+        "shared_number": "VARCHAR",
     },
 
     "conversations": {

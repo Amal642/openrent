@@ -201,6 +201,15 @@ def _extract_incoming_messages(payload: dict) -> list[dict]:
                 "jid": _first_value(item, [("jid",)]),
                 "lid": _first_value(item, [("lid",)]),
                 "message_id": _first_value(item, [("id",), ("message_id",)]),
+                # Kapso v2 carries our receiving number at the top level.
+                "line_phone_number_id": _first_value(
+                    payload,
+                    [
+                        ("phone_number_id",),
+                        ("conversation", "phone_number_id"),
+                        ("data", "metadata", "phone_number_id"),
+                    ],
+                ),
             }
         )
     return extracted
@@ -381,9 +390,8 @@ async def _process_meta_messages(messages: list[dict]) -> None:
     # Sequential, in delivery order, so a landlord's two quick messages are
     # captured in the order they were sent.
     for message in messages:
-        kwargs = {k: v for k, v in message.items() if k != "phone_number_id"}
         try:
-            await handle_incoming_message(**kwargs)
+            await handle_incoming_message(**message)
         except Exception as exc:
             logger.error(
                 f"WHATSAPP_META_HANDLER_ERROR phone={message.get('phone_number')} "
@@ -407,16 +415,19 @@ async def _handle_meta_webhook(
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Webhook payload must be an object")
 
+    from app.whatsapp.lines import accepted_phone_number_ids
+
     messages = meta_webhook.extract_incoming_messages(payload)
-    ours = settings.META_WA_PHONE_NUMBER_ID
+    ours = accepted_phone_number_ids()
     if ours:
-        foreign = [m for m in messages if str(m.get("phone_number_id")) != ours]
+        foreign = [m for m in messages if str(m.get("line_phone_number_id")) not in ours]
         for m in foreign:
             logger.info(
-                f"WHATSAPP_META_WEBHOOK_OTHER_NUMBER phone_number_id={m.get('phone_number_id')} "
+                f"WHATSAPP_META_WEBHOOK_OTHER_NUMBER "
+                f"phone_number_id={m.get('line_phone_number_id')} "
                 f"message_id={m.get('message_id')}"
             )
-        messages = [m for m in messages if str(m.get("phone_number_id")) == ours]
+        messages = [m for m in messages if str(m.get("line_phone_number_id")) in ours]
 
     if not messages:
         # Delivery receipts (statuses) and non-message changes land here.
@@ -427,7 +438,7 @@ async def _handle_meta_webhook(
         for m in messages:
             logger.info(
                 f"WHATSAPP_META_WEBHOOK_SHADOW phone={m['phone_number']} "
-                f"phone_number_id={m.get('phone_number_id')} "
+                f"phone_number_id={m.get('line_phone_number_id')} "
                 f"message_id={m.get('message_id')} sender_name={m.get('sender_name')!r} "
                 f"message_len={len(m['message'])}"
             )

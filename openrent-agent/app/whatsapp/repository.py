@@ -126,6 +126,7 @@ def capture_incoming_message(
     jid: str | None = None,
     lid: str | None = None,
     message_id: str | None = None,
+    line_phone_number_id: str | None = None,
 ) -> WhatsAppContact:
     """Create/update a WhatsApp contact and append the inbound message history."""
     db = SessionLocal()
@@ -188,6 +189,18 @@ def capture_incoming_message(
                 )
             )
             contact.message_history = _json_dumps(history)
+
+        if line_phone_number_id:
+            line = str(line_phone_number_id)
+            previous = getattr(contact, "line_phone_number_id", None)
+            if previous and previous != line:
+                # Same landlord now writing to a different one of our numbers:
+                # reply on the line they just used (its 24h window is open).
+                logger.warning(
+                    f"WHATSAPP_CONTACT_LINE_SWITCH contact_id={contact.id} "
+                    f"from={previous} to={line}"
+                )
+            contact.line_phone_number_id = line
 
         contact.last_message = message
         contact.last_received_at = received_at
@@ -553,7 +566,9 @@ def get_conversation_for_contact(contact: WhatsAppContact) -> Optional[Conversat
         db.close()
 
 
-def record_handoff_intent(thread_id: str) -> Optional[WhatsAppHandoffIntent]:
+def record_handoff_intent(
+    thread_id: str, shared_number: Optional[str] = None
+) -> Optional[WhatsAppHandoffIntent]:
     """Record that we just shared the WhatsApp number on an OpenRent thread.
 
     Called when the reply prompt hands out the partner's WhatsApp number so a
@@ -584,6 +599,9 @@ def record_handoff_intent(thread_id: str) -> Optional[WhatsAppHandoffIntent]:
             .first()
         )
         if existing:
+            if shared_number and not getattr(existing, "shared_number", None):
+                existing.shared_number = shared_number
+                db.commit()
             return existing
 
         intent = WhatsAppHandoffIntent(
@@ -591,6 +609,7 @@ def record_handoff_intent(thread_id: str) -> Optional[WhatsAppHandoffIntent]:
             listing_id=(listing.id if listing else (conv.listing_id if conv else None)),
             landlord_name=(listing.landlord_name if listing else None),
             property_address=(listing.property_address if listing else None),
+            shared_number=shared_number,
         )
         db.add(intent)
         db.commit()

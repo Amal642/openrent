@@ -74,7 +74,8 @@ def test_text_message_parsed_with_profile_name():
         "timestamp": 1730092800,
         "sender_name": "John Doe",
         "message_id": "wamid.ABC",
-        "phone_number_id": PNID,
+        "line_phone_number_id": PNID,
+        "line_display_number": "447783129181",
     }
 
 
@@ -153,10 +154,11 @@ def test_verify_challenge_rejects_when_token_unset(monkeypatch):
 
 # ── Endpoint behaviour ───────────────────────────────────────────────────────
 
-def _configure(monkeypatch, mode, pnid=PNID):
+def _configure(monkeypatch, mode, pnid=PNID, extra=""):
     monkeypatch.setattr(whatsapp_router.settings, "META_APP_SECRET", "appsecret")
     monkeypatch.setattr(whatsapp_router.settings, "META_WEBHOOK_MODE", mode)
     monkeypatch.setattr(whatsapp_router.settings, "META_WA_PHONE_NUMBER_ID", pnid)
+    monkeypatch.setattr(whatsapp_router.settings, "META_WA_PHONE_NUMBER_IDS", extra)
 
 
 def _call(payload, secret="appsecret"):
@@ -189,6 +191,13 @@ def test_live_mode_ignores_other_phone_number_ids(monkeypatch):
     assert bg.tasks == []
 
 
+def test_live_mode_accepts_extra_configured_numbers(monkeypatch):
+    _configure(monkeypatch, "live", extra="2222, 3333")
+    out, bg = _call(_payload([_msg()], pnid="3333"))
+    assert out["processed"] == 1
+    assert bg.tasks[0][1][0][0]["line_phone_number_id"] == "3333"
+
+
 def test_bad_signature_rejected(monkeypatch):
     _configure(monkeypatch, "live")
     with pytest.raises(HTTPException) as exc:
@@ -196,7 +205,7 @@ def test_bad_signature_rejected(monkeypatch):
     assert exc.value.status_code == 401
 
 
-def test_process_strips_phone_number_id_before_handler(monkeypatch):
+def test_process_passes_line_to_handler(monkeypatch):
     calls = []
 
     async def fake_handle(**kwargs):
@@ -205,8 +214,9 @@ def test_process_strips_phone_number_id_before_handler(monkeypatch):
     monkeypatch.setattr("app.whatsapp.handler.handle_incoming_message", fake_handle)
     [m] = meta_webhook.extract_incoming_messages(_payload([_msg()]))
     asyncio.run(whatsapp_router._process_meta_messages([m]))
-    assert calls and "phone_number_id" not in calls[0]
     assert calls[0]["phone_number"] == "447911123456"
+    assert calls[0]["line_phone_number_id"] == PNID
+    assert calls[0]["line_display_number"] == "447783129181"
 
 
 def test_process_continues_after_handler_error(monkeypatch):
@@ -253,6 +263,7 @@ def _fake_send(monkeypatch):
 
     monkeypatch.setattr("app.whatsapp.kapso_worker.httpx.AsyncClient", FakeClient)
     monkeypatch.setattr(KapsoWhatsAppWorker, "_publish_status", no_publish)
+    monkeypatch.setattr(kapso_worker, "_contact_line", lambda phone: None)
     return captured
 
 

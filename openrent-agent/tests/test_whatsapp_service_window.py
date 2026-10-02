@@ -45,7 +45,7 @@ def test_reply_dropped_when_window_closed(monkeypatch):
     _patch_reply_repo(monkeypatch, _contact(30), marked)
     worker = KapsoWhatsAppWorker()
 
-    async def fake_send(phone, text):
+    async def fake_send(phone, text, line_phone_number_id=None):
         sent.append(text)
         return True
 
@@ -60,7 +60,7 @@ def test_reply_sent_when_window_open(monkeypatch):
     _patch_reply_repo(monkeypatch, _contact(2), marked)
     worker = KapsoWhatsAppWorker()
 
-    async def fake_send(phone, text):
+    async def fake_send(phone, text, line_phone_number_id=None):
         sent.append(text)
         return True
 
@@ -82,7 +82,7 @@ def test_cancellation_skipped_before_ai_call_when_window_closed(monkeypatch):
     )
     worker = KapsoWhatsAppWorker()
 
-    async def fake_send(phone, text):
+    async def fake_send(phone, text, line_phone_number_id=None):
         raise AssertionError("must not send outside the window")
 
     worker.send_message = fake_send

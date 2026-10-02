@@ -74,8 +74,8 @@ def _message_text(item: dict) -> str | None:
 def extract_incoming_messages(payload: dict) -> list[dict]:
     """Flatten a Meta webhook into handler-ready inbound messages.
 
-    Each dict carries the handle_incoming_message kwargs plus
-    "phone_number_id" (which of our numbers received it).
+    Each dict is handle_incoming_message kwargs, including which of our
+    numbers received it (line_phone_number_id / line_display_number).
     """
     if payload.get("object") != "whatsapp_business_account":
         return []
@@ -90,7 +90,9 @@ def extract_incoming_messages(payload: dict) -> list[dict]:
             value = change.get("value") or {}
             if not isinstance(value, dict):
                 continue
-            phone_number_id = (value.get("metadata") or {}).get("phone_number_id")
+            metadata = value.get("metadata") or {}
+            phone_number_id = metadata.get("phone_number_id")
+            display_number = metadata.get("display_phone_number")
             names = {
                 str(c.get("wa_id")): (c.get("profile") or {}).get("name")
                 for c in value.get("contacts") or []
@@ -126,7 +128,8 @@ def extract_incoming_messages(payload: dict) -> list[dict]:
                         "timestamp": timestamp,
                         "sender_name": names.get(str(phone)),
                         "message_id": item.get("id"),
-                        "phone_number_id": phone_number_id,
+                        "line_phone_number_id": phone_number_id,
+                        "line_display_number": display_number,
                     }
                 )
     return extracted

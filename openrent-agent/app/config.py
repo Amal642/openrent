@@ -63,6 +63,9 @@ class Settings:
     )
     META_WA_ACCESS_TOKEN = os.getenv("META_WA_ACCESS_TOKEN", "")
     META_WA_PHONE_NUMBER_ID = os.getenv("META_WA_PHONE_NUMBER_ID", "")
+    # Extra numbers on the same WABA (comma-separated phone_number_ids). The one
+    # above stays the default line for contacts with no recorded line.
+    META_WA_PHONE_NUMBER_IDS = os.getenv("META_WA_PHONE_NUMBER_IDS", "")
     META_APP_SECRET = os.getenv("META_APP_SECRET", "")
     META_WEBHOOK_VERIFY_TOKEN = os.getenv("META_WEBHOOK_VERIFY_TOKEN", "")
     # Inbound on /api/whatsapp/meta/webhook: "shadow" parses + logs only (safe

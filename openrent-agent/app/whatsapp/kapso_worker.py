@@ -18,6 +18,7 @@ import httpx
 from app.config import settings
 from app.utils.logger import logger
 from app.utils.text import strip_ai_dashes
+from app.whatsapp.lines import accepted_phone_number_ids, meta_send_phone_number_id
 
 _DISPATCH_INTERVAL_SECONDS = 60
 
@@ -47,14 +48,15 @@ def _missing_env() -> list[str]:
     return [name for name, value in required.items() if not value]
 
 
-def _phone_number_id() -> str:
+def _phone_number_id(line_phone_number_id: Optional[str] = None) -> str:
     if _provider() == "meta":
-        return settings.META_WA_PHONE_NUMBER_ID
+        return meta_send_phone_number_id(line_phone_number_id)
+    # Kapso's API key is bound to its single project number.
     return settings.KAPSO_PHONE_NUMBER_ID
 
 
-def _send_target() -> tuple[str, dict]:
-    """(messages URL, auth headers) for the configured provider.
+def _send_target(line_phone_number_id: Optional[str] = None) -> tuple[str, dict]:
+    """(messages URL, auth headers) for the configured provider and line.
 
     Kapso proxies Meta's Graph API, so the payload is identical; only the base
     URL and the auth header change.
@@ -65,7 +67,16 @@ def _send_target() -> tuple[str, dict]:
     else:
         base = settings.KAPSO_BASE_URL
         headers = {"X-API-Key": settings.KAPSO_API_KEY}
-    return f"{base.rstrip('/')}/{_phone_number_id()}/messages", headers
+    number_id = _phone_number_id(line_phone_number_id)
+    return f"{base.rstrip('/')}/{number_id}/messages", headers
+
+
+def _contact_line(phone: str) -> Optional[str]:
+    """Line a contact last wrote to, for callers that only pass a phone."""
+    from app.whatsapp.repository import get_contact_by_phone
+
+    contact = get_contact_by_phone(phone)
+    return getattr(contact, "line_phone_number_id", None) if contact else None
 
 
 def service_window_open(contact, now: Optional[datetime] = None) -> bool:
@@ -136,17 +147,27 @@ class KapsoWhatsAppWorker:
             "reason=Kapso API transport does not use browser proxies"
         )
 
-    async def send_message(self, phone: str, text: str) -> bool:
+    async def send_message(
+        self, phone: str, text: str, line_phone_number_id: Optional[str] = None
+    ) -> bool:
         if self.status != "connected":
             logger.warning(
                 f"WHATSAPP_KAPSO_SEND_SKIPPED status={self.status} phone={phone}"
             )
             return False
 
-        async with self._send_lock:
-            return await self._do_send(phone, text)
+        if line_phone_number_id is None and _provider() == "meta":
+            try:
+                line_phone_number_id = await asyncio.to_thread(_contact_line, phone)
+            except Exception as exc:
+                logger.warning(f"WHATSAPP_LINE_LOOKUP_FAILED phone={phone} error={exc}")
 
-    async def _do_send(self, phone: str, text: str) -> bool:
+        async with self._send_lock:
+            return await self._do_send(phone, text, line_phone_number_id)
+
+    async def _do_send(
+        self, phone: str, text: str, line_phone_number_id: Optional[str] = None
+    ) -> bool:
         clean_phone = re.sub(r"\D", "", phone)
         if not clean_phone:
             logger.warning(f"WHATSAPP_KAPSO_SEND_FAILED phone={phone!r} reason=invalid_phone")
@@ -155,7 +176,7 @@ class KapsoWhatsAppWorker:
         # Single choke point for every WhatsApp outbound: em/en dashes are a bot tell.
         text = strip_ai_dashes(text)
 
-        url, headers = _send_target()
+        url, headers = _send_target(line_phone_number_id)
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
@@ -166,6 +187,7 @@ class KapsoWhatsAppWorker:
 
         logger.info(
             f"WHATSAPP_KAPSO_SEND_START provider={_provider()} "
+            f"line={_phone_number_id(line_phone_number_id)} "
             f"phone={clean_phone} text_len={len(text)}"
         )
         try:
@@ -266,7 +288,11 @@ class KapsoWhatsAppWorker:
                 )
                 continue
 
-            ok = await self.send_message(contact.phone_number, msg)
+            ok = await self.send_message(
+                contact.phone_number,
+                msg,
+                line_phone_number_id=getattr(contact, "line_phone_number_id", None),
+            )
             if ok:
                 await asyncio.to_thread(append_outbound_message, contact.id, msg)
                 await asyncio.to_thread(mark_contact_cancelled, contact.id)
@@ -349,7 +375,11 @@ class KapsoWhatsAppWorker:
                 await asyncio.to_thread(mark_reply_sent, contact.id)
                 continue
 
-            ok = await self.send_message(contact.phone_number, reply)
+            ok = await self.send_message(
+                contact.phone_number,
+                reply,
+                line_phone_number_id=getattr(contact, "line_phone_number_id", None),
+            )
             if ok:
                 await asyncio.to_thread(append_outbound_message, contact.id, reply)
                 await asyncio.to_thread(mark_reply_sent, contact.id)
@@ -395,6 +425,7 @@ class KapsoWhatsAppWorker:
             "status": self.status,
             "transport": _provider(),
             "phone_number_id": _phone_number_id(),
+            "lines": sorted(accepted_phone_number_ids()) if _provider() == "meta" else [],
             "last_active": self.last_active.isoformat() if self.last_active else None,
             "last_error": self.last_error,
             "error_count": self.error_count,
