@@ -1131,7 +1131,11 @@ def set_next_outreach_at(account_id: int) -> None:
                 second=0, microsecond=0,
             ) + timedelta(minutes=random.uniform(0, 20))
         else:
-            gap = remaining_minutes / remaining_quota          # even spread
+            # Even spread with one slot of headroom: dividing by the quota
+            # alone planned the last send AT the window end, so with any
+            # worker delay it missed (every account stopped at 7 of 8,
+            # 2026-10-02, last sends 22:xx then blocked at 23:00).
+            gap = remaining_minutes / (remaining_quota + 1)
             gap *= random.uniform(0.85, 1.15)                  # +/-15% jitter
             gap = max(                                         # clamp last so
                 OUTREACH_GAP_MIN_MINUTES,                      # the burst floor

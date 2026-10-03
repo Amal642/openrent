@@ -6,13 +6,16 @@ from zoneinfo import ZoneInfo
 
 UK_TZ = ZoneInfo("Europe/London")
 
-# Initial outreach window (sending first messages to landlords)
+# Initial outreach window (sending first messages to landlords). Ends at
+# midnight UK (time.max, since time(24, 0) doesn't exist): enquiries sent at
+# 22:00 got the same reply rate as daytime ones (85%, healthy accounts Aug-Oct).
 OUTREACH_START = time(8, 0)
-OUTREACH_END = time(23, 0)
+OUTREACH_END = time.max
 
-# Full system operating window — scheduler only queues jobs inside this range
+# Full system operating window — scheduler only queues jobs inside this range.
+# Same end as outreach so replies keep flowing while enquiries go out.
 OPERATING_START = time(8, 0)
-OPERATING_END = time(23, 0)
+OPERATING_END = time.max
 
 
 def uk_now() -> datetime:
@@ -49,7 +52,7 @@ def utc_naive_to_uk_date(dt):
 
 
 def is_uk_outreach_window(now: datetime | None = None) -> bool:
-    """True for initial landlord enquiries from 08:00 until 23:00 UK time."""
+    """True for initial landlord enquiries from 08:00 until midnight UK time."""
     current = now.astimezone(UK_TZ) if now else uk_now()
     return OUTREACH_START <= current.time() < OUTREACH_END
 
@@ -59,7 +62,7 @@ def is_operating_hours(now: datetime | None = None) -> bool:
     True when the scheduler may queue any account work
     (scraping, outreach, replies, phone requests, viewing handling).
 
-    Window: 08:15 – 23:00 Europe/London, every day.
+    Window: 08:00 until midnight Europe/London, every day.
     Outside this window the scheduler logs a sleep message and skips the tick.
     """
     current = now.astimezone(UK_TZ) if now else uk_now()
