@@ -76,8 +76,20 @@ def _matches_any(text, patterns):
     return any(re.search(pattern, text, re.I) for pattern in patterns)
 
 
+def _numeric_dates(text):
+    """NUMERIC_DATE_PATTERN matches that really are dates. A hyphenated pair
+    with no year ("6-6.30pm", "6-7pm", "10-12") is a time RANGE: read as dd-mm it
+    became 6 June / 6 July, and a past one rolled to next year (thread 46001652:
+    "this evening from 6-6.30pm" stored as 2027-06-06, so no cancellation could
+    ever fire). Slash dates ("6/7") and dated hyphens ("06-07-2026") still count."""
+    return [
+        match for match in NUMERIC_DATE_PATTERN.finditer(text)
+        if match.group(3) or "-" not in match.group(0)
+    ]
+
+
 def _date_spans(text):
-    return [match.span() for match in NUMERIC_DATE_PATTERN.finditer(text)]
+    return [match.span() for match in _numeric_dates(text)]
 
 
 def _overlaps_any(span, spans):
@@ -143,7 +155,7 @@ def _target_date_from_text(text, now):
     if "today" in text:
         return now.date()
 
-    for match in NUMERIC_DATE_PATTERN.finditer(text):
+    for match in _numeric_dates(text):
         day = int(match.group(1))
         month = int(match.group(2))
         year_text = match.group(3)
@@ -196,7 +208,11 @@ _DAY_MONTH_RE = re.compile(  # "3rd September", "3 Sept"
     rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({_MONTH_ALT})\b", re.I
 )
 _MONTH_DAY_RE = re.compile(  # "September 3rd", "Sept 3"
-    rf"\b({_MONTH_ALT})\s+(\d{{1,2}})(?:st|nd|rd|th)?\b", re.I
+    # Not when the number is a clock time: "26th September 12:00 PM" and
+    # "26 Sept 9-11am" also read as 12 / 9 September and made a clear date
+    # look ambiguous (threads 46718887, 46723624).
+    rf"\b({_MONTH_ALT})\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?![:.]\d|\s*[ap]\.?m\b|\s*-\s*\d)",
+    re.I,
 )
 
 _WEEKDAY_INDEX = {
@@ -205,34 +221,44 @@ _WEEKDAY_INDEX = {
 }
 
 
-def _resolve_day_month(text, ref):
-    """Resolve an ordinal-day + month-name date ('3rd September') to a date, or
-    None. Rolls to next year only when the date is clearly in the past."""
+def _day_month_dates(text, ref):
+    """Every ordinal-day + month-name date in the text ('3rd September',
+    'Sept 3'). Each rolls to next year only when clearly in the past. ALL are
+    returned so a message naming two ('tenanted until 2nd September ... viewings
+    on 26th August', thread 45940966) reads as ambiguous, not as the first one."""
+    found = set()
+    used_months = []  # month-word spans already read as "3rd July"
     for rex, day_grp, mon_grp in ((_DAY_MONTH_RE, 1, 2), (_MONTH_DAY_RE, 2, 1)):
-        match = rex.search(text)
-        if not match:
-            continue
-        day = int(match.group(day_grp))
-        month = _MONTH_NAMES.get(match.group(mon_grp).lower())
-        if not month:
-            continue
-        try:
-            candidate = datetime(ref.year, month, day).date()
-        except ValueError:
-            continue
-        if candidate < ref.date() - timedelta(days=2):
+        for match in rex.finditer(text):
+            # One month word gives one date: "Friday 3rd July 2 (Number
+            # Removed)" (OpenRent ate "026") must not ALSO read as "July 2"
+            # (conversation 809 -> 2027-07-02).
+            if rex is _MONTH_DAY_RE and match.span(mon_grp) in used_months:
+                continue
+            if rex is _DAY_MONTH_RE:
+                used_months.append(match.span(mon_grp))
+            day = int(match.group(day_grp))
+            month = _MONTH_NAMES.get(match.group(mon_grp).lower())
+            if not month:
+                continue
             try:
-                candidate = datetime(ref.year + 1, month, day).date()
+                candidate = datetime(ref.year, month, day).date()
             except ValueError:
                 continue
-        return candidate
-    return None
+            if candidate < ref.date() - timedelta(days=2):
+                try:
+                    candidate = datetime(ref.year + 1, month, day).date()
+                except ValueError:
+                    continue
+            found.add(candidate)
+    return found
 
 
-def _first_numeric_date(text, ref):
-    """First dd/mm[/yy] numeric date in text as a date, or None. Rolls a bare
-    dd/mm that has already passed this year forward to next year."""
-    for match in NUMERIC_DATE_PATTERN.finditer(text):
+def _numeric_date_values(text, ref):
+    """Every dd/mm[/yy] numeric date in the text. Rolls a bare dd/mm that has
+    already passed this year forward to next year."""
+    found = set()
+    for match in _numeric_dates(text):
         day = int(match.group(1))
         month = int(match.group(2))
         year_text = match.group(3)
@@ -250,8 +276,13 @@ def _first_numeric_date(text, ref):
                 candidate = datetime(year + 1, month, day).date()
             except ValueError:
                 continue
-        return candidate
-    return None
+        found.add(candidate)
+    return found
+
+
+_WEEKDAY_BEFORE_DATE_RE = re.compile(
+    r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b,?\s+(?:the\s+)?(?=\d|[a-z]{3})"
+)
 
 
 def _explicit_target_date(text, ref):
@@ -275,18 +306,31 @@ def _explicit_target_date(text, ref):
     if "today" in text:
         candidates.add(ref.date())
 
-    day_month = _resolve_day_month(text, ref)
-    if day_month is not None:
-        candidates.add(day_month)
-
-    numeric = _first_numeric_date(text, ref)
-    if numeric is not None:
-        candidates.add(numeric)
-
-    for name, idx in _WEEKDAY_INDEX.items():
-        if re.search(rf"\b{name}\b", text):
-            days_ahead = (idx - ref.weekday()) % 7 or 7
-            candidates.add((ref + timedelta(days=days_ahead)).date())
+    explicit = _day_month_dates(text, ref) | _numeric_date_values(text, ref)
+    named_weekdays = {
+        idx for name, idx in _WEEKDAY_INDEX.items() if re.search(rf"\b{name}\b", text)
+    }
+    # A weekday written right before a date pins it ("Friday 14th August",
+    # "Saturday, 26 Sept"): keep that date, so another date in the same message
+    # ("tenants move out 31st August", thread 45758272) doesn't make it
+    # ambiguous, and the weekday's next occurrence isn't a rival day. Only when
+    # ADJACENT: "available 1 october; view thursday" must stay ambiguous even
+    # though 1 Oct 2026 is a Thursday.
+    pinned = set()
+    for match in _WEEKDAY_BEFORE_DATE_RE.finditer(text):
+        idx = _WEEKDAY_INDEX[match.group(1)]
+        tail = text[match.end():match.end() + 24]
+        pinned |= {
+            d for d in _day_month_dates(tail, ref) | _numeric_date_values(tail, ref)
+            if d.weekday() == idx
+        }
+    if pinned:
+        explicit = pinned
+        named_weekdays -= {d.weekday() for d in pinned}
+    candidates |= explicit
+    for idx in named_weekdays:
+        days_ahead = (idx - ref.weekday()) % 7 or 7
+        candidates.add((ref + timedelta(days=days_ahead)).date())
 
     if len(candidates) == 1:
         return next(iter(candidates))

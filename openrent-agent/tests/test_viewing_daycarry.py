@@ -13,7 +13,7 @@ from app.ai.stages import (
     _extract_viewing_datetime_impl,
     resolve_viewing_datetime,
     _explicit_target_date,
-    _resolve_day_month,
+    _day_month_dates,
 )
 
 NOW = datetime(2026, 9, 1, 10, 0)  # Tuesday 1 Sep, naive UTC/UK (BST offset irrelevant here)
@@ -27,24 +27,24 @@ def _m(sender, text, ts=NOW):
 # --- ordinal + month-name parsing -------------------------------------------
 
 def test_resolve_day_month_ordinal_then_month():
-    assert _resolve_day_month("come on the 3rd september", NOW) == datetime(2026, 9, 3).date()
+    assert _day_month_dates("come on the 3rd september", NOW) == {datetime(2026, 9, 3).date()}
 
 
 def test_resolve_day_month_month_then_day():
-    assert _resolve_day_month("see you september 3rd", NOW) == datetime(2026, 9, 3).date()
+    assert _day_month_dates("see you september 3rd", NOW) == {datetime(2026, 9, 3).date()}
 
 
 def test_resolve_day_month_abbreviated():
-    assert _resolve_day_month("the 3rd sept works", NOW) == datetime(2026, 9, 3).date()
+    assert _day_month_dates("the 3rd sept works", NOW) == {datetime(2026, 9, 3).date()}
 
 
 def test_resolve_day_month_rolls_to_next_year_when_clearly_past():
     # In Sep, "3rd January" means next January.
-    assert _resolve_day_month("the 3rd january", NOW) == datetime(2027, 1, 3).date()
+    assert _day_month_dates("the 3rd january", NOW) == {datetime(2027, 1, 3).date()}
 
 
 def test_resolve_day_month_none_when_no_month():
-    assert _resolve_day_month("the 3rd works for me", NOW) is None
+    assert _day_month_dates("the 3rd works for me", NOW) == set()
 
 
 def test_extract_ordinal_month_in_confirming_message():
@@ -143,9 +143,10 @@ def test_tomorrow_beside_weekday_is_ambiguous():
     ) is None
 
 
-def test_time_range_beside_weekday_is_ambiguous():
-    # "12-2 pm" can look like a 12/2 date; with a weekday present -> ambiguous.
-    assert _explicit_target_date("would thursday lunch work? around 12-2 pm", NOW) is None
+def test_time_range_beside_weekday_is_the_weekday():
+    # "12-2 pm" is a time range, not 12 Feb (a hyphenated pair with no year is
+    # never read as a date since 2026-10-03), so the weekday decides.
+    assert _explicit_target_date("would thursday lunch work? around 12-2 pm", NOW) == datetime(2026, 9, 3).date()
 
 
 def test_availability_date_beside_viewing_weekday_is_ambiguous():
