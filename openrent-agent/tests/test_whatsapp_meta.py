@@ -316,3 +316,51 @@ def test_meta_provider_start_requires_meta_env(monkeypatch):
     asyncio.run(worker.start())
     assert worker.status == "error"
     assert "META_WA_ACCESS_TOKEN" in worker.last_error
+
+
+# ── Kapso webhook defers to Meta once the Meta webhook is live ───────────────
+
+class _KapsoRequest:
+    def __init__(self, body: bytes):
+        self._body = body
+
+    async def body(self):
+        return self._body
+
+
+def _kapso_inbound_body():
+    return json.dumps({
+        "message": {"id": "wamid.KAPSO1", "from": "447700900123", "type": "text",
+                    "text": {"body": "Hi, is the flat still available?"}},
+        "conversation": {"phone_number": "447700900123", "contact_name": "Pat"},
+    }).encode()
+
+
+def _run_kapso(monkeypatch, mode):
+    calls = []
+
+    async def fake_handle(**kwargs):
+        calls.append(kwargs)
+
+    import app.whatsapp.handler as handler
+    monkeypatch.setattr(handler, "handle_incoming_message", fake_handle)
+    monkeypatch.setattr(whatsapp_router, "_signature_is_valid", lambda body, sig: True)
+    monkeypatch.setattr(whatsapp_router.settings, "META_WEBHOOK_MODE", mode)
+    result = asyncio.run(whatsapp_router._handle_kapso_webhook(
+        _KapsoRequest(_kapso_inbound_body()), "sig", route_hint="webhook",
+        webhook_event="whatsapp.message.received",
+    ))
+    return result, calls
+
+
+def test_kapso_inbound_processed_while_meta_is_shadow(monkeypatch):
+    result, calls = _run_kapso(monkeypatch, "shadow")
+    assert result["processed"] == 1
+    assert len(calls) == 1
+
+
+def test_kapso_inbound_dropped_once_meta_is_live(monkeypatch):
+    result, calls = _run_kapso(monkeypatch, "live")
+    assert result["processed"] == 0
+    assert result["owner"] == "meta"
+    assert calls == []

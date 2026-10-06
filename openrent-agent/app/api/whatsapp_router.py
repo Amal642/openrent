@@ -251,6 +251,16 @@ async def _handle_kapso_webhook(
         )
         return {"status": "ignored", "event": event, "processed": 0}
 
+    # Once the direct Meta webhook is live it receives the same messages (Kapso
+    # is only a partner on our WABA). The handler's duplicate check is not
+    # atomic, so processing both copies could send the landlord two replies:
+    # Meta owns inbound, Kapso deliveries are acknowledged and dropped.
+    if settings.META_WEBHOOK_MODE == "live":
+        logger.info(
+            f"WHATSAPP_KAPSO_WEBHOOK_SKIPPED_META_LIVE event={event!r} count={len(messages)}"
+        )
+        return {"status": "ok", "event": event, "processed": 0, "owner": "meta"}
+
     from app.whatsapp.handler import handle_incoming_message
 
     for message in messages:
