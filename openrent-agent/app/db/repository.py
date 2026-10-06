@@ -1364,7 +1364,8 @@ def claim_overflow_listings(account_id, worker_id, limit=OVERFLOW_CLAIM_LIMIT, s
             return [], {}
 
         # Benched/failed/disabled accounts cannot send their listings at all,
-        # so all of it is surplus; a healthy donor keeps a day's worth.
+        # and scraper accounts (daily_limit 0) never will, so all of it is
+        # surplus; a healthy donor keeps a day's worth.
         unavailable = {
             acc_id
             for (acc_id,) in db.query(Account.id).filter(
@@ -1372,6 +1373,7 @@ def claim_overflow_listings(account_id, worker_id, limit=OVERFLOW_CLAIM_LIMIT, s
                 | (Account.permanently_failed == True)  # noqa: E712
                 | (Account.active == False)  # noqa: E712
                 | (Account.deleted_at != None)  # noqa: E711
+                | (Account.daily_limit <= 0)
             )
         }
         surplus = {}

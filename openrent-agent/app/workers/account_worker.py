@@ -100,6 +100,78 @@ async def _heartbeat_loop(account_id, phase_getter):
         await asyncio.sleep(45)
 
 
+def is_scraper_account(account) -> bool:
+    """daily_limit 0 = restricted on OpenRent: search only, never send. A NULL
+    limit is the model default (8), not a scraper."""
+    return account.daily_limit is not None and account.daily_limit <= 0
+
+
+async def _run_discovery(account, page, inventory, cooldown_hours):
+    """Phases 5-7: discovery, gated by inventory caps, the per-day budget and
+    the cooldown. Caps only suppress NEW discovery, never outreach."""
+    if inventory >= settings.HARD_CAP_INVENTORY:
+        logger.info(
+            f"INVENTORY_HARD_CAP_REACHED account_id={account.id} "
+            f"available={inventory} cap={settings.HARD_CAP_INVENTORY} "
+            f"discovery=disabled"
+        )
+    elif inventory >= settings.TARGET_INVENTORY:
+        logger.info(
+            f"INVENTORY_TARGET_REACHED account_id={account.id} "
+            f"available={inventory} target={settings.TARGET_INVENTORY} "
+            f"discovery=skipped"
+        )
+    else:
+        # =====================================================
+        # PHASE 5 — DISCOVERY BUDGET CHECK (per-day cap)
+        # =====================================================
+
+        discovered_today = count_discovered_today(account.id)
+        logger.info(
+            f"DISCOVERY_BUDGET account_id={account.id} "
+            f"discovered_today={discovered_today} "
+            f"limit={settings.DISCOVERY_LIMIT_PER_DAY}"
+        )
+
+        if discovered_today >= settings.DISCOVERY_LIMIT_PER_DAY:
+            logger.info(
+                f"DISCOVERY_DAILY_LIMIT_REACHED account_id={account.id} "
+                f"discovered_today={discovered_today}"
+            )
+        else:
+            # =====================================================
+            # PHASE 6 — DISCOVERY COOLDOWN CHECK
+            # =====================================================
+
+            if not should_scrape_now(
+                account.id,
+                cooldown_hours=cooldown_hours,
+            ):
+                logger.info(
+                    f"DISCOVERY_COOLDOWN account_id={account.id} "
+                    f"cooldown_hours={cooldown_hours}"
+                )
+            else:
+                # =====================================================
+                # PHASE 7 — DISCOVERY (max DISCOVERY_LIMIT_PER_RUN new)
+                # =====================================================
+
+                update_account_worker_state(
+                    account.id, "running", phase="discovery"
+                )
+                try:
+                    await scrape_account_listings(
+                        account,
+                        page,
+                        new_limit=settings.DISCOVERY_LIMIT_PER_RUN,
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        f"DISCOVERY_FAILED account_id={account.id} "
+                        f"email={account.email} error={exc}"
+                    )
+
+
 async def run_account_worker(account):
 
     worker_id = f"account-{account.id}-{uuid4().hex[:8]}"
@@ -234,9 +306,22 @@ async def run_account_worker(account):
         # If daily limit is already reached, skip discovery and outreach
         # entirely. This prevents launching a Chromium scrape session that
         # would waste RAM without being able to send any messages.
+        # A scraper account (daily_limit 0) is the exception: it searches
+        # its areas but never sends; senders overflow-claim what it finds.
         # =====================================================
 
-        if not can_send_message(account.id):
+        if is_scraper_account(account):
+            inventory = count_available_inventory(account.id)
+            logger.info(
+                f"SCRAPER_MODE account_id={account.id} available={inventory} "
+                "discovery_only"
+            )
+            phase = "discovery"
+            await _run_discovery(
+                account, page, inventory,
+                cooldown_hours=settings.SCRAPER_DISCOVERY_COOLDOWN_HOURS,
+            )
+        elif not can_send_message(account.id):
             logger.info(
                 f"DAILY_LIMIT_REACHED account_id={account.id} "
                 "skipping_discovery_and_messaging"
@@ -258,68 +343,11 @@ async def run_account_worker(account):
             # They must never block outreach on existing inventory.
             # =====================================================
 
-            if inventory >= settings.HARD_CAP_INVENTORY:
-                logger.info(
-                    f"INVENTORY_HARD_CAP_REACHED account_id={account.id} "
-                    f"available={inventory} cap={settings.HARD_CAP_INVENTORY} "
-                    f"discovery=disabled"
-                )
-            elif inventory >= settings.TARGET_INVENTORY:
-                logger.info(
-                    f"INVENTORY_TARGET_REACHED account_id={account.id} "
-                    f"available={inventory} target={settings.TARGET_INVENTORY} "
-                    f"discovery=skipped"
-                )
-            else:
-                # =====================================================
-                # PHASE 5 — DISCOVERY BUDGET CHECK (per-day cap)
-                # =====================================================
-
-                discovered_today = count_discovered_today(account.id)
-                logger.info(
-                    f"DISCOVERY_BUDGET account_id={account.id} "
-                    f"discovered_today={discovered_today} "
-                    f"limit={settings.DISCOVERY_LIMIT_PER_DAY}"
-                )
-
-                if discovered_today >= settings.DISCOVERY_LIMIT_PER_DAY:
-                    logger.info(
-                        f"DISCOVERY_DAILY_LIMIT_REACHED account_id={account.id} "
-                        f"discovered_today={discovered_today}"
-                    )
-                else:
-                    # =====================================================
-                    # PHASE 6 — DISCOVERY COOLDOWN CHECK
-                    # =====================================================
-
-                    if not should_scrape_now(
-                        account.id,
-                        cooldown_hours=settings.DISCOVERY_COOLDOWN_HOURS,
-                    ):
-                        logger.info(
-                            f"DISCOVERY_COOLDOWN account_id={account.id} "
-                            f"cooldown_hours={settings.DISCOVERY_COOLDOWN_HOURS}"
-                        )
-                    else:
-                        # =====================================================
-                        # PHASE 7 — DISCOVERY (max DISCOVERY_LIMIT_PER_RUN new)
-                        # =====================================================
-
-                        phase = "discovery"
-                        update_account_worker_state(
-                            account.id, "running", phase=phase
-                        )
-                        try:
-                            await scrape_account_listings(
-                                account,
-                                page,
-                                new_limit=settings.DISCOVERY_LIMIT_PER_RUN,
-                            )
-                        except Exception as exc:
-                            logger.exception(
-                                f"DISCOVERY_FAILED account_id={account.id} "
-                                f"email={account.email} error={exc}"
-                            )
+            phase = "discovery"
+            await _run_discovery(
+                account, page, inventory,
+                cooldown_hours=settings.DISCOVERY_COOLDOWN_HOURS,
+            )
 
             # =====================================================
             # PHASE 8 — INITIAL OUTREACH (messaging)

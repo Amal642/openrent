@@ -213,3 +213,18 @@ def test_send_path_does_not_overflow_when_own_inventory_exists(monkeypatch):
 
     asyncio.run(pl.process_account_listings(Acc(), page=None, worker_id="w-30"))
     assert called == []
+
+
+def test_scraper_donor_gives_everything(db):
+    # 2026-10-06: restricted accounts were set to daily_limit 0 (search only).
+    # They will never send, so the keep-a-day rule must not lock their finds.
+    with db() as s:
+        claimer, _ = _account(s, "c@x", "Lewisham, London")
+        scraper, scraper_prof = _account(s, "s@x", "Woolwich, Greater London")
+        s.get(Account, scraper).daily_limit = 0
+        s.commit()
+        _listings(s, scraper_prof, 5)
+
+    listings, _ = repository.claim_overflow_listings(claimer, "w-c", limit=50)
+
+    assert len(listings) == 5
