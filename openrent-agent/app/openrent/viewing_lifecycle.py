@@ -23,6 +23,7 @@ from app.ai.replies import (
 from app.db.repository import (
     ensure_account_persona,
     get_automatic_cancellation_block_reason,
+    get_giveout_numbers,
     get_conversation_by_thread_id,
     mark_handoff_complete,
     mark_our_number_shared,
@@ -34,6 +35,7 @@ from app.db.repository import (
 )
 from app.db.status import REPLY_DISABLED, VIEWING_CANCELLED
 from app.openrent.inbox import can_reply, send_reply
+from app.whatsapp.lines import pin_thread_giveout_number
 from app.utils.logger import logger
 from app.whatsapp.repository import record_handoff_intent
 
@@ -176,7 +178,9 @@ async def _try_giveout_salvage(
     _vd = getattr(conversation, "viewing_datetime", None)
     if _vd and _vd < datetime.utcnow() - timedelta(hours=48):
         return False
-    persona = ensure_account_persona(account.id)
+    persona = pin_thread_giveout_number(
+        ensure_account_persona(account.id), messages, get_giveout_numbers()
+    )
     mobile = (persona or {}).get("mobile_number")
     if not mobile:
         return False

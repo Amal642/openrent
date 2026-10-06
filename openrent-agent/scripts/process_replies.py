@@ -1,7 +1,9 @@
+from app.whatsapp.lines import pin_thread_giveout_number
 from app.db.repository import (
     account_stop_requested,
     claim_conversation,
     ensure_account_persona,
+    get_giveout_numbers,
     release_conversation_claim,
     save_ai_reply,
     save_inbound_messages,
@@ -1178,6 +1180,9 @@ async def process_account_replies(
             landlord_texts = landlord_messages
 
             persona = ensure_account_persona(account.id)
+            # Keep the WhatsApp number this landlord was already given, even if
+            # the account has since moved to another line.
+            persona = pin_thread_giveout_number(persona, messages, get_giveout_numbers())
             landlord_attitude = detect_landlord_attitude(
                 messages,
                 previous=conversation.landlord_attitude if conversation else None,

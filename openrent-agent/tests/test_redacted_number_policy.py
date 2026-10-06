@@ -350,6 +350,7 @@ def _patch_lifecycle(monkeypatch, conversation, mobile=MOBILE):
     monkeypatch.setattr(viewing_lifecycle, "mark_phone_requested", lambda t: events["requested"].append(t))
     monkeypatch.setattr(viewing_lifecycle, "mark_our_number_shared", lambda t: events["shared"].append(t))
     monkeypatch.setattr(viewing_lifecycle, "ensure_account_persona", lambda _id: {"mobile_number": mobile})
+    monkeypatch.setattr(viewing_lifecycle, "get_giveout_numbers", lambda: {mobile} if mobile else set())
     monkeypatch.setattr(viewing_lifecycle, "save_message", lambda *a: None)
     monkeypatch.setattr(viewing_lifecycle, "record_handoff_intent", lambda *a, **k: None)
     monkeypatch.setattr(viewing_lifecycle, "update_last_processed_message", lambda *a: None)

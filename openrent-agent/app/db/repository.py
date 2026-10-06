@@ -440,6 +440,24 @@ def _parse_generated_names(names_text):
     return names
 
 
+def get_giveout_numbers():
+    """Every WhatsApp give-out number currently assigned to an account (the live
+    lines). A number dropped from all accounts (a dead line) is no longer live,
+    so threads that only ever got it are offered the account's current number.
+    Best-effort: on a DB error returns an empty set, which keeps each thread on
+    its account's number (the pre-multi-line behaviour)."""
+    try:
+        with session_scope() as db:
+            rows = db.query(Account.mobile_number).filter(
+                Account.mobile_number.isnot(None), Account.mobile_number != ""
+            ).distinct().all()
+            return {r[0] for r in rows}
+    except Exception as exc:
+        from app.utils.logger import logger
+        logger.warning(f"GIVEOUT_NUMBERS_LOOKUP_FAILED error={exc}")
+        return set()
+
+
 def ensure_account_persona(account_or_id, db=None):
     if db is not None:
         return _ensure_account_persona(db, account_or_id)
