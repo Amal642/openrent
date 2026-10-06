@@ -9,7 +9,10 @@ import sys
 
 from app.browser.auth import _is_authenticated, login
 from app.browser.launcher import get_session_file, launch_browser
-from app.db.repository import get_active_accounts
+from sqlalchemy.orm import joinedload
+
+from app.db.models import Account
+from app.db.repository import ensure_account_persona, session_scope
 from app.proxy.check_proxy import check_proxy
 from app.workers.account_worker import _proxy_url_for_account
 
@@ -43,11 +46,18 @@ async def probe(account):
 
 
 async def main(ids):
-    accounts = {a.id: a for a in get_active_accounts()}
+    # Loaded by id regardless of `active`, so a paused account can be probed
+    # before it is switched back on.
+    with session_scope() as db:
+        accounts = {
+            a.id: a
+            for a in db.query(Account).options(joinedload(Account.proxy)).filter(Account.id.in_(ids)).all()
+        }
     for i in ids:
         if i not in accounts:
-            print(f"[{i}] not an active account; skipped")
+            print(f"[{i}] no such account; skipped")
             continue
+        ensure_account_persona(i)
         await probe(accounts[i])
 
 
