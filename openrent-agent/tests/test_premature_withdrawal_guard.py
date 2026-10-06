@@ -15,7 +15,7 @@ CONFIRM = "Lovely, still on for 6pm, see you then!"
 def _fake_generation(monkeypatch, outputs):
     calls = []
 
-    def fake(conversation, *, model=None, temperature=0.7, prompt_builder=None, retries=3, base_delay=2):
+    def fake(conversation, *, model=None, temperature=0.7, prompt_builder=None, retries=3, base_delay=2, allowed_email=None):
         prompt = prompt_builder(conversation) if prompt_builder else ""
         calls.append(prompt)
         text = outputs[min(len(calls) - 1, len(outputs) - 1)]

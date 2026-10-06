@@ -346,6 +346,8 @@ def update_account(
     escalation_behavior=None,
     conversation_goal=None,
     conversation_style=None,
+    persona_surname=None,
+    persona_email=None,
 ):
     with session_scope() as db:
         account = db.query(Account).filter(Account.id == account_id).first()
@@ -386,6 +388,11 @@ def update_account(
             account.conversation_goal = conversation_goal
         if conversation_style is not None:
             account.conversation_style = normalize_conversation_style(conversation_style)
+        # "" clears the field (back to legacy pool-surname / no-email behaviour).
+        if persona_surname is not None:
+            account.persona_surname = persona_surname.strip() or None
+        if persona_email is not None:
+            account.persona_email = persona_email.strip().lower() or None
 
         db.commit()
 
@@ -528,6 +535,8 @@ def _ensure_account_persona(db, account_or_id):
             "persona_partner_name": account.persona_partner_name,
             "persona_job": account.persona_job,
             "persona_partner_job": account.persona_partner_job,
+            "persona_surname": account.persona_surname,
+            "persona_email": account.persona_email,
             "home_city": account.home_city,
             "household_description": template.get("household_description"),
             "message_tone": template.get("message_tone"),
@@ -585,6 +594,8 @@ def serialize_account(account):
         "persona_partner_name": persona["persona_partner_name"] if persona else None,
         "persona_job": persona["persona_job"] if persona else None,
         "persona_partner_job": persona["persona_partner_job"] if persona else None,
+        "persona_surname": persona.get("persona_surname") if persona else None,
+        "persona_email": persona.get("persona_email") if persona else None,
         "persona_type": persona["persona_type"] if persona else None,
         "household_description": persona["household_description"] if persona else None,
         "message_tone": persona["message_tone"] if persona else None,

@@ -125,6 +125,11 @@ class Account(Base):
     persona_partner_name = Column(String, nullable=True)
     persona_job = Column(String, nullable=True)
     persona_partner_job = Column(String, nullable=True)
+    # Real surname / mailbox of the OpenRent profile, for accounts whose profile
+    # carries a real full name. NULL = legacy account: surname comes from the
+    # pool in prompts.persona_surnames and no email is ever given out.
+    persona_surname = Column(String, nullable=True)
+    persona_email = Column(String, nullable=True)
     home_city = Column(String, nullable=True)
     persona_type = Column(String, nullable=True)
     mobile_number = Column(String, nullable=True)

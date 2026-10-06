@@ -105,9 +105,11 @@ def persona_surnames(persona: dict | None) -> dict:
     )
     seed = int(hashlib.sha256(("surname|" + seed_src).encode("utf-8")).hexdigest(), 16)
     n = len(_SURNAME_POOL)
-    primary = _SURNAME_POOL[seed % n]
+    # An account whose OpenRent profile carries a real full name stores it, and
+    # it must win: a pool surname would contradict the name the landlord sees.
+    primary = (persona.get("persona_surname") or "").strip() or _SURNAME_POOL[seed % n]
     partner = _SURNAME_POOL[(seed // n) % n]
-    if partner == primary:
+    if partner.lower() == primary.lower():
         partner = _SURNAME_POOL[(seed // n + 1) % n]
     return {"primary": primary, "partner": partner}
 
@@ -608,7 +610,14 @@ def build_human_renter_reply_prompt(
             "- Do not hand out or invent a number of your own. If they ask for yours, it is fine "
             "to say you will keep things on OpenRent for now."
         )
-    if _mobile:
+    _email = (persona or {}).get("persona_email")
+    if _email:
+        _email_line = (
+            f"- Your email address is {_email}. If the landlord asks for your EMAIL (for example "
+            f"for a calendar invite, documents or referencing), give it plainly, once. Never "
+            f"volunteer it otherwise, and never write any other email address."
+        )
+    elif _mobile:
         _email_line = (
             f"- If the landlord asks for your EMAIL (for example for a calendar invite or "
             f"referencing), you do not have an email set up for this and you must NEVER invent "

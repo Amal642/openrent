@@ -146,6 +146,8 @@ class AccountCreatePayload(BaseModel):
     escalation_behavior: str | None = None
     conversation_goal: str | None = None
     conversation_style: str | None = None
+    persona_surname: str | None = None
+    persona_email: str | None = None
 
 
 class AccountUpdatePayload(BaseModel):
@@ -166,6 +168,8 @@ class AccountUpdatePayload(BaseModel):
     escalation_behavior: str | None = None
     conversation_goal: str | None = None
     conversation_style: str | None = None
+    persona_surname: str | None = None
+    persona_email: str | None = None
 
 
 class SimulationRunPayload(BaseModel):
@@ -669,6 +673,8 @@ def api_create_account(payload: AccountCreatePayload):
         escalation_behavior=payload.escalation_behavior,
         conversation_goal=payload.conversation_goal,
         conversation_style=payload.conversation_style,
+        persona_surname=payload.persona_surname,
+        persona_email=payload.persona_email,
     )
 
 
@@ -694,6 +700,8 @@ def api_update_account(account_id: int, payload: AccountUpdatePayload):
         escalation_behavior=payload.escalation_behavior,
         conversation_goal=payload.conversation_goal,
         conversation_style=payload.conversation_style,
+        persona_surname=payload.persona_surname,
+        persona_email=payload.persona_email,
     )
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")

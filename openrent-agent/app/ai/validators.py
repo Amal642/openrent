@@ -10,14 +10,15 @@ PHONE_LIKE_PATTERN = re.compile(
 # [text], {text}, or <text> notation in conversational OpenRent tenant replies.
 _PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]|\{[^}]+\}")
 
-# We never hand out an email address (no persona inbox exists), so ANY email in a
-# reply is either a fabrication ("eleanor@example.com") or the landlord's echoed
-# back — both are wrong. Reject it so it regenerates; the reply prompt redirects
-# email requests to WhatsApp instead.
+# Only an account with a real mailbox (persona_email) may hand one out, and only
+# that exact address. ANY other email in a reply is a fabrication
+# ("eleanor@example.com") or the landlord's echoed back, both wrong. Reject it so
+# it regenerates; without a persona_email the reply prompt redirects email
+# requests to WhatsApp instead.
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
-def is_valid_reply(reply):
+def is_valid_reply(reply, allowed_email=None):
 
     if not reply:
         return False
@@ -56,9 +57,11 @@ def is_valid_reply(reply):
     if _PLACEHOLDER_RE.search(reply):
         return False
 
-    # Reject any email address — we never give one out (see _EMAIL_RE note).
-    if _EMAIL_RE.search(reply):
-        return False
+    # Reject any email address except the account's own (see _EMAIL_RE note).
+    allowed = (allowed_email or "").strip().lower()
+    for match in _EMAIL_RE.finditer(reply):
+        if not allowed or match.group(0).lower() != allowed:
+            return False
 
     return True
 

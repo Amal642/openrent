@@ -358,6 +358,8 @@ def generate_reply(
             )
             return shared, None
 
+    persona_email = (persona or {}).get("persona_email")
+
     def build_prompt(conversation_text: str) -> str:
         # travel_city is pre-resolved for all stages by the caller; use it
         # directly so the origin city stays consistent across every reply.
@@ -384,6 +386,7 @@ def generate_reply(
         prompt_builder=build_prompt,
         retries=retries,
         base_delay=base_delay,
+        allowed_email=persona_email,
     )
     if not result.is_valid:
         return None, result.error or "invalid_ai_reply"
@@ -391,7 +394,7 @@ def generate_reply(
         result.reply,
         (persona or {}).get("mobile_number"),
     )
-    if not is_valid_reply(reply):
+    if not is_valid_reply(reply, allowed_email=persona_email):
         return None, "invalid_ai_reply"
 
     # Travel city consistency guard: if the AI slipped in a different city,
@@ -411,12 +414,13 @@ def generate_reply(
                 model=settings.OPENAI_REPLY_MODEL,
                 temperature=0.7,
                 prompt_builder=build_prompt,
+                allowed_email=persona_email,
             )
             if regen.is_valid:
                 candidate = remove_unapproved_phone_numbers(
                     regen.reply, (persona or {}).get("mobile_number")
                 )
-                if is_valid_reply(candidate):
+                if is_valid_reply(candidate, allowed_email=persona_email):
                     reply = candidate
 
     # Premature-withdrawal guard: the model backed out of viewings on a plain
@@ -437,13 +441,14 @@ def generate_reply(
                     model=settings.OPENAI_REPLY_MODEL,
                     temperature=0.7,
                     prompt_builder=lambda c: build_prompt(c) + _KEEP_VIEWING_NUDGE,
+                    allowed_email=persona_email,
                 )
                 if not regen.is_valid:
                     continue
                 candidate = remove_unapproved_phone_numbers(
                     regen.reply, (persona or {}).get("mobile_number")
                 )
-                if is_valid_reply(candidate) and not is_viewing_withdrawal(candidate):
+                if is_valid_reply(candidate, allowed_email=persona_email) and not is_viewing_withdrawal(candidate):
                     reply = candidate
                     break
             else:
@@ -468,6 +473,7 @@ def generate_reply_result(
     prompt_builder=None,
     retries: int = 3,
     base_delay: int = 2,
+    allowed_email: str | None = None,
 ):
     conversation = prompt_messages
     if not isinstance(prompt_messages, str):
@@ -496,7 +502,7 @@ def generate_reply_result(
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
             total_tokens = getattr(usage, "total_tokens", 0) or 0
 
-            if not is_valid_reply(completion):
+            if not is_valid_reply(completion, allowed_email=allowed_email):
                 logger.warning("Invalid AI reply generated")
                 return ReplyGenerationResult(
                     reply=None,

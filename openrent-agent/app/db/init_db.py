@@ -19,6 +19,8 @@ REQUIRED_COLUMNS = {
         "persona_partner_name": "VARCHAR",
         "persona_job": "VARCHAR",
         "persona_partner_job": "VARCHAR",
+        "persona_surname": "VARCHAR",
+        "persona_email": "VARCHAR",
         "home_city": "VARCHAR",
         "persona_type": "VARCHAR",
         "mobile_number": "VARCHAR",
