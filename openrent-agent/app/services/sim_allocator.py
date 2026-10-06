@@ -11,6 +11,7 @@ Entry point: run_allocation(dry_run=False)
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
@@ -33,6 +34,12 @@ from app.utils.logger import logger
 # owner into another account's area (2026-09-28: 28->Woolwich, 31->Acton,
 # 34->Lewisham) only created double coverage.
 EXHAUSTED_MAX_NEW_LISTINGS_7D = 7
+
+# A freshly assigned area has had no time to show supply (its 7-day count
+# starts at ~0), so it reads as "exhausted" the next morning. Leave an
+# account's areas alone until its newest active profile is this old; on
+# 2026-10-06 the dry run would have moved two 1-day-old accounts.
+REBALANCE_GRACE_DAYS = 7
 
 
 def _exhausted_locations(metrics: list[AreaMetrics]) -> set[str]:
@@ -62,10 +69,11 @@ def run_allocation(dry_run: bool = False) -> dict:
     with SessionLocal() as db:
         pool_accounts = _get_pool_accounts(db)
         rebalance_candidates = _get_rebalance_candidates(db, paused_locations)
+        owned = _owned_locations(db)
 
     # --- assign pool accounts ---
     for acc_id, email in pool_accounts:
-        ranked = _ranked_areas(metrics, area_defaults)
+        ranked = _ranked_areas(metrics, area_defaults, owned=owned)
         if not ranked:
             msg = "SIM pool has accounts waiting but no allocatable area currently has supply."
             if msg not in warnings:
@@ -104,6 +112,7 @@ def run_allocation(dry_run: bool = False) -> dict:
         )
 
         # Update in-memory count so the next SIM redistributes correctly
+        owned.add(best.location)
         best.active_accounts += 1
         best.current_account_gap -= 1
         best.score = _recompute_score(best)
@@ -115,7 +124,7 @@ def run_allocation(dry_run: bool = False) -> dict:
         old_locations = [p["location"] for p in candidate["profiles"]]
         old_profile_ids = [p["profile_id"] for p in candidate["profiles"]]
 
-        ranked = _ranked_areas(metrics, area_defaults)
+        ranked = _ranked_areas(metrics, area_defaults, owned=owned)
         if not ranked:
             skipped.append({"account": email, "reason": "All areas paused, cannot rebalance"})
             continue
@@ -150,6 +159,7 @@ def run_allocation(dry_run: bool = False) -> dict:
             f"from={old_locations} to={best.location} dry_run={dry_run}"
         )
 
+        owned.add(best.location)
         best.active_accounts += 1
         best.current_account_gap -= 1
         best.score = _recompute_score(best)
@@ -177,28 +187,52 @@ def _get_pool_accounts(db) -> list[tuple]:
     )).fetchall()
 
 
+def _owned_locations(db) -> set[str]:
+    """Locations an active account is already assigned to. Area metrics count
+    accounts from recent activity, so an owner assigned today does not show
+    up there yet; profiles are the source of truth for ownership."""
+    return {
+        row[0]
+        for row in db.execute(text(
+            "SELECT DISTINCT sp.location FROM search_profiles sp "
+            "JOIN accounts a ON a.id = sp.account_id "
+            "WHERE sp.active = true AND a.active = true AND a.deleted_at IS NULL"
+        )).fetchall()
+    }
+
+
 def _get_rebalance_candidates(db, paused_locations: set[str]) -> list[dict]:
-    """Active accounts where every active profile is in a paused area."""
+    """Active accounts where every active profile is in a paused area, skipping
+    accounts still inside the REBALANCE_GRACE_DAYS window."""
     if not paused_locations:
         return []
 
     rows = db.execute(text(
-        "SELECT a.id, a.email, sp.id as profile_id, sp.location "
+        "SELECT a.id, a.email, sp.id as profile_id, sp.location, sp.created_at "
         "FROM accounts a "
         "JOIN search_profiles sp ON sp.account_id = a.id "
         "WHERE a.active = true AND a.deleted_at IS NULL AND sp.active = true "
         "ORDER BY a.id"
     )).fetchall()
+    return _rebalance_candidates_from_rows(rows, paused_locations, datetime.utcnow())
 
+
+def _rebalance_candidates_from_rows(rows, paused_locations: set[str], now: datetime) -> list[dict]:
     account_profiles: dict[int, list] = defaultdict(list)
     account_emails: dict[int, str] = {}
+    newest: dict[int, datetime] = {}
     for row in rows:
-        acc_id, email, profile_id, location = row
+        acc_id, email, profile_id, location, created_at = row
         account_profiles[acc_id].append({"profile_id": profile_id, "location": location})
         account_emails[acc_id] = email
+        if created_at and (acc_id not in newest or created_at > newest[acc_id]):
+            newest[acc_id] = created_at
 
+    grace = timedelta(days=REBALANCE_GRACE_DAYS)
     candidates = []
     for acc_id, profiles in account_profiles.items():
+        if acc_id in newest and now - newest[acc_id] < grace:
+            continue
         if all(p["location"] in paused_locations for p in profiles):
             candidates.append({
                 "id": acc_id,
@@ -208,7 +242,9 @@ def _get_rebalance_candidates(db, paused_locations: set[str]) -> list[dict]:
     return candidates
 
 
-def _ranked_areas(metrics: list[AreaMetrics], allocatable: dict) -> list[AreaMetrics]:
+def _ranked_areas(
+    metrics: list[AreaMetrics], allocatable: dict, owned: set[str] | None = None
+) -> list[AreaMetrics]:
     """Allocatable areas eligible for a new SIM, best target first.
 
     Contention-aware placement. Two facts drive this:
@@ -233,11 +269,13 @@ def _ranked_areas(metrics: list[AreaMetrics], allocatable: dict) -> list[AreaMet
     recent supply, then spare capacity, then proven phone rate, then
     historical volume.
     """
+    owned = owned or set()
     eligible = [
         m for m in metrics
         if m.location in allocatable
         and m.total_listings >= MIN_TOTAL_LISTINGS_FOR_DECISION
         and m.active_accounts == 0
+        and m.location not in owned
     ]
     return sorted(
         eligible,

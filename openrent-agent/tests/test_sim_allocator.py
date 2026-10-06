@@ -100,3 +100,49 @@ def test_exhausted_requires_pause_and_near_zero_recent_supply():
     trickle = _area("Sidcup", total_listings=51, active_accounts=1, gap=-1, new_7d=3, status="pause")
     quiet_but_stocked = _area("Bexley", total_listings=45, active_accounts=1, gap=0, new_7d=0, status="maintain")
     assert _exhausted_locations([harvested, dry, trickle, quiet_but_stocked]) == {"Barking", "Sidcup"}
+
+
+# ── 2026-10-06: brand-new owners and the first week ──────────────────────────
+
+from datetime import datetime, timedelta  # noqa: E402
+
+from app.services.sim_allocator import (  # noqa: E402
+    REBALANCE_GRACE_DAYS,
+    _rebalance_candidates_from_rows,
+)
+
+
+def test_area_assigned_today_is_not_offered_to_another_account():
+    # Metrics count owners from recent activity, so a profile created today
+    # still shows active_accounts == 0. The profile must win.
+    herne = _area("Herne Hill", total_listings=300, active_accounts=0, gap=0, phone_rate=50)
+    dulwich = _area("East Dulwich", total_listings=200, active_accounts=0, gap=0, phone_rate=40)
+    ranked = _ranked_areas([herne, dulwich], _allocatable([herne, dulwich]), owned={"Herne Hill"})
+    assert [m.location for m in ranked] == ["East Dulwich"]
+
+
+def test_new_account_is_not_rebalanced_inside_grace_window():
+    now = datetime(2026, 10, 7, 6, 0)
+    rows = [
+        (39, "new@x", 1, "Green Street Green", now - timedelta(days=1)),
+        (13, "old@x", 2, "Chigwell", now - timedelta(days=30)),
+    ]
+    paused = {"Green Street Green", "Chigwell"}
+    ids = [c["id"] for c in _rebalance_candidates_from_rows(rows, paused, now)]
+    assert ids == [13]
+
+
+def test_account_becomes_eligible_after_grace_window():
+    now = datetime(2026, 10, 20, 6, 0)
+    rows = [(39, "new@x", 1, "Green Street Green", now - timedelta(days=REBALANCE_GRACE_DAYS + 1))]
+    ids = [c["id"] for c in _rebalance_candidates_from_rows(rows, {"Green Street Green"}, now)]
+    assert ids == [39]
+
+
+def test_one_fresh_profile_protects_the_whole_account():
+    now = datetime(2026, 10, 7, 6, 0)
+    rows = [
+        (24, "a@x", 1, "Acton", now - timedelta(days=40)),
+        (24, "a@x", 2, "Ealing", now - timedelta(hours=5)),
+    ]
+    assert _rebalance_candidates_from_rows(rows, {"Acton", "Ealing"}, now) == []
