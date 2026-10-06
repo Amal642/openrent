@@ -45,7 +45,8 @@ def run(monkeypatch):
         return True
 
     monkeypatch.setattr(aw, "is_operating_hours", lambda: True)
-    monkeypatch.setattr(aw, "_proxy_url_for_account", lambda a: None)
+    monkeypatch.setattr(aw, "_proxy_url_for_account", lambda a: "http://u:p@isp.decodo.com:10001")
+    monkeypatch.setattr(aw, "_proxy_check_is_fresh", lambda a: True)
     monkeypatch.setattr(aw, "launch_browser", fake_launch)
     monkeypatch.setattr(aw, "login", fake_login)
     monkeypatch.setattr(aw, "process_account_replies", fake_replies)
@@ -61,8 +62,9 @@ def run(monkeypatch):
     monkeypatch.setattr(aw.settings, "DISCOVERY_COOLDOWN_HOURS", 4)
     monkeypatch.setattr(aw.settings, "SCRAPER_DISCOVERY_COOLDOWN_HOURS", 10)
 
-    def _run(daily_limit, can_send=True):
+    def _run(daily_limit, can_send=True, proxy_url="http://u:p@isp.decodo.com:10001"):
         monkeypatch.setattr(aw, "can_send_message", lambda account_id: can_send)
+        monkeypatch.setattr(aw, "_proxy_url_for_account", lambda a: proxy_url)
         account = SimpleNamespace(id=99, email="x@y", daily_limit=daily_limit, proxy=None)
         asyncio.run(aw.run_account_worker(account))
         return calls
@@ -88,3 +90,9 @@ def test_normal_sender_searches_with_normal_cooldown_then_sends(run):
     calls = run(daily_limit=8, can_send=True)
     assert calls["discovery"] == [4, "scraped"]
     assert calls["outreach"] == 1
+
+
+def test_account_without_usable_proxy_never_runs(run):
+    # Never browse OpenRent from the server's own IP (2026-10-06 failover bug).
+    calls = run(daily_limit=8, proxy_url=None)
+    assert calls["replies"] == 0 and calls["discovery"] == [] and calls["outreach"] == 0

@@ -192,6 +192,15 @@ def delete_proxy(proxy_id: int):
         return {"deleted": True, "id": proxy_id}, None
 
 
+def proxy_row_is_usable(proxy) -> bool:
+    """A row that can actually carry traffic: a bare hostname and a real port.
+    Placeholder rows (empty host, port 0, or a URL pasted into host) resolve
+    to no proxy at all and must never be handed to an account."""
+    host = (getattr(proxy, "host", None) or "").strip()
+    port = getattr(proxy, "port", None) or 0
+    return bool(host) and "://" not in host and port > 0
+
+
 def find_replacement_proxy(exclude_proxy_id: int, prefer_type: str = "static"):
     """
     Pick a healthy, active, spare proxy to take over for a failing one.
@@ -207,15 +216,19 @@ def find_replacement_proxy(exclude_proxy_id: int, prefer_type: str = "static"):
     prefer_type = _normalize_proxy_type(prefer_type)
 
     with session_scope() as db:
-        candidates = (
-            db.query(_Proxy)
-            .filter(
-                _Proxy.id != exclude_proxy_id,
-                _Proxy.is_active == True,
-                or_(_Proxy.health_status == "ok", _Proxy.health_status == None),
+        candidates = [
+            c
+            for c in (
+                db.query(_Proxy)
+                .filter(
+                    _Proxy.id != exclude_proxy_id,
+                    _Proxy.is_active == True,
+                    or_(_Proxy.health_status == "ok", _Proxy.health_status == None),
+                )
+                .all()
             )
-            .all()
-        )
+            if proxy_row_is_usable(c)
+        ]
         if not candidates:
             return None
 

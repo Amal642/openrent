@@ -209,6 +209,24 @@ async def run_account_worker(account):
         )
 
         proxy_url = _proxy_url_for_account(account)
+        if not proxy_url:
+            # Never browse OpenRent from the server's own IP. On 2026-10-06
+            # the failover moved 13 accounts onto placeholder rows with no
+            # host, which resolve to "no proxy" rather than an error.
+            error = "No usable proxy assigned (refusing to run without one)"
+            logger.error(
+                f"NO_PROXY_REFUSED account_id={account.id} proxy_id={account.proxy_id}"
+            )
+            update_account_worker_state(
+                account.id,
+                "proxy_error",
+                phase="proxy_error",
+                error=error,
+                retry_reason=error,
+                retry_next_at=datetime.utcnow() + timedelta(minutes=10),
+            )
+            phase = "proxy_error"
+            return
         if proxy_url:
             if _proxy_check_is_fresh(account):
                 logger.info(f"Proxy check skipped (cached ok) for {account.email}")
