@@ -166,7 +166,7 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
                 logger.info(f"PRE_CANCEL_NUMBER_ASK thread_id={thread_id}")
                 await _send_pre_cancel_number_ask(
                     thread_id, messages, latest_landlord_message, page,
-                    travel_city=travel_city,
+                    travel_city=travel_city, account=account,
                 )
             else:
                 logger.info(

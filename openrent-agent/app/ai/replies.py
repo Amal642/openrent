@@ -15,6 +15,16 @@ from app.ai.prompts import (
     build_viewing_detection_prompt,
     names_generator,
     LANDLORD_NUMBER_CAPTURE_DESIGNS,
+    _human_reply_enabled,
+)
+from app.ai.number_redaction import (
+    GIVE as REDACTION_GIVE,
+    NO_MOBILE_LINE as REDACTION_NO_MOBILE_LINE,
+    REMIND as REDACTION_REMIND,
+    redacted_giveout_line,
+    redaction_state,
+    reply_redaction_violations,
+    strip_violating_sentences,
 )
 from app.ai.conversation_memory import (
     detect_screening_questions,
@@ -24,7 +34,7 @@ from app.ai.conversation_memory import (
     phone_shared_state,
     viewing_requested,
 )
-from app.ai.personas import TENANT_SENDERS, generate_phone_share_reply
+from app.ai.personas import TENANT_SENDERS, generate_phone_share_reply, tenant_shared_phone
 from app.ai.validators import is_valid_reply, remove_unapproved_phone_numbers
 from app.config import settings
 from app.utils.logger import logger
@@ -292,6 +302,93 @@ def _record_handoff_if_shared(thread_id, reply, mobile_number):
         )
 
 
+_REDACTION_NUDGE = (
+    "\n\nIMPORTANT: your previous draft asked for the landlord's number again or said you "
+    "have their number. Their number was blocked by OpenRent and never reached you. Write "
+    "the reply again without asking for their number in any wording and without saying you "
+    "have, saved or will pass on their number or that anyone will call or text them."
+)
+
+
+def _enforce_redacted_number_policy(
+    reply,
+    messages,
+    persona,
+    conversation_text,
+    build_prompt,
+    persona_email,
+    *,
+    thread_id=None,
+    phone_found=False,
+    conversation_design_id=None,
+):
+    """Output guard for a thread whose landlord number OpenRent redacted.
+
+    The prompt explains the case, but on prod the model still re-asked for the
+    number or replied "thanks, I've saved your number" (a lie that ends the lead).
+    So: regenerate up to twice on a violation, then drop the offending sentences;
+    and make sure a landlord whose blocked number is still unanswered actually
+    gets our WhatsApp. See app/ai/number_redaction.py.
+    """
+    mobile = (persona or {}).get("mobile_number")
+    state = redaction_state(messages, mobile)
+    if not reply or phone_found or not state:
+        return reply
+    tid_tag = f" thread_id={thread_id}" if thread_id else ""
+
+    violations = reply_redaction_violations(reply)
+    if violations:
+        logger.warning(
+            f"REDACTED_NUMBER_REPLY_VIOLATION{tid_tag} state={state} reasons={violations}"
+        )
+        was_withdrawal = is_viewing_withdrawal(reply)
+        for _attempt in range(2):
+            regen = generate_reply_result(
+                conversation_text,
+                model=settings.OPENAI_REPLY_MODEL,
+                temperature=0.7,
+                prompt_builder=lambda c: build_prompt(c) + _REDACTION_NUDGE,
+                allowed_email=persona_email,
+            )
+            if not regen.is_valid:
+                continue
+            candidate = remove_unapproved_phone_numbers(regen.reply, mobile)
+            if (
+                is_valid_reply(candidate, allowed_email=persona_email)
+                and not reply_redaction_violations(candidate)
+                and is_viewing_withdrawal(candidate) == was_withdrawal
+            ):
+                reply = candidate
+                logger.info(f"REDACTED_NUMBER_REPLY_REGENERATED{tid_tag}")
+                break
+        else:
+            reply = strip_violating_sentences(reply)
+            logger.warning(f"REDACTED_NUMBER_REPLY_STRIPPED{tid_tag} remaining={bool(reply)}")
+
+    # Arm B of the legacy playbook A/B withholds our number; with the human
+    # reply prompt on, every arm gives it, so only then is it appended.
+    may_give = mobile and (
+        conversation_design_id not in LANDLORD_NUMBER_CAPTURE_DESIGNS
+        or _human_reply_enabled(persona)
+    )
+    already_in_reply = mobile and tenant_shared_phone([{"sender": "us", "message": reply}], mobile)
+    if (
+        state in (REDACTION_GIVE, REDACTION_REMIND)
+        and may_give
+        and not already_in_reply
+        and not is_viewing_withdrawal(reply)
+    ):
+        line = redacted_giveout_line(mobile, seed=str(thread_id or conversation_text[:80]))
+        reply = f"{reply.rstrip()} {line}" if reply else line
+        logger.info(f"REDACTED_NUMBER_GIVEOUT_APPENDED{tid_tag} state={state}")
+    elif not reply:
+        if mobile and may_give:
+            reply = redacted_giveout_line(mobile, seed=str(thread_id or conversation_text[:80]))
+        else:
+            reply = REDACTION_NO_MOBILE_LINE
+    return reply
+
+
 def generate_reply(
     messages,
     stage=None,
@@ -453,6 +550,20 @@ def generate_reply(
                     break
             else:
                 logger.warning(f"PREMATURE_WITHDRAWAL_GUARD_EXHAUSTED{tid_tag}")
+
+    reply = _enforce_redacted_number_policy(
+        reply,
+        messages,
+        persona,
+        conversation,
+        build_prompt,
+        persona_email,
+        thread_id=thread_id,
+        phone_found=landlord_already_gave_number,
+        conversation_design_id=conversation_design_id,
+    )
+    if not reply:
+        return None, "invalid_ai_reply"
 
     # Deterministic guard: never let the reply carry a STALE relative day
     # word for the agreed viewing (e.g. "1pm tomorrow" on the viewing day).

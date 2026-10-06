@@ -1012,7 +1012,7 @@ async def process_account_replies(
                     travel_city_for_ask = get_travel_city(thread_id)
                     await _send_pre_cancel_number_ask(
                         thread_id, messages, latest_landlord_message, page,
-                        travel_city=travel_city_for_ask,
+                        travel_city=travel_city_for_ask, account=account,
                     )
                     continue
 

@@ -14,6 +14,7 @@ monkeypatch app.openrent.viewing_lifecycle.<name>, not process_replies.<name>.
 """
 from datetime import datetime, timedelta
 
+from app.ai.number_redaction import landlord_number_blocked, redacted_giveout_line
 from app.ai.personas import generate_phone_share_reply
 from app.ai.replies import (
     generate_cancel_viewing_message,
@@ -101,9 +102,32 @@ async def _cancel_viewing_and_handoff(
 
 async def _send_pre_cancel_number_ask(
     thread_id, messages, latest_landlord_message, page,
-    travel_city=None,
+    travel_city=None, account=None,
 ) -> bool:
-    """Send a natural phone-ask message one run before cancelling a viewing."""
+    """Send a natural phone-ask message one run before cancelling a viewing.
+
+    If the landlord already typed their number and OpenRent redacted it, asking
+    again only gets it redacted again (prod: "Could I get that number again?").
+    Then give our WhatsApp instead (once), or send nothing if we already did.
+    Either way the step is marked done (phone_requested_at) so the cancellation
+    timing that keys off it is unchanged.
+    """
+    if landlord_number_blocked(messages):
+        conversation = get_conversation_by_thread_id(thread_id)
+        if conversation is not None and getattr(conversation, "extracted_phone", None):
+            return False
+        sent = False
+        if account is not None and conversation is not None:
+            sent = await _try_giveout_salvage(
+                thread_id, conversation, account, messages,
+                latest_landlord_message, page, require_landlord_asked=False,
+            )
+        mark_phone_requested(thread_id)
+        logger.info(
+            f"PRE_CANCEL_NUMBER_ASK_SKIPPED_REDACTED thread_id={thread_id} giveout_sent={sent}"
+        )
+        return sent
+
     msg, err = generate_pre_cancel_number_ask(messages, place=travel_city)
     if not msg or err:
         logger.warning(f"PRE_CANCEL_NUMBER_ASK_GEN_FAILED thread_id={thread_id} error={err}")
@@ -156,10 +180,14 @@ async def _try_giveout_salvage(
     mobile = (persona or {}).get("mobile_number")
     if not mobile:
         return False
-    reply = generate_phone_share_reply(
-        persona,
-        landlord_attitude=getattr(conversation, "landlord_attitude", "responsive") or "responsive",
-    )
+    if landlord_number_blocked(messages):
+        # Say why: their number was blocked, so this is how to reach us.
+        reply = redacted_giveout_line(mobile, seed=str(thread_id))
+    else:
+        reply = generate_phone_share_reply(
+            persona,
+            landlord_attitude=getattr(conversation, "landlord_attitude", "responsive") or "responsive",
+        )
     if not reply:
         return False
     sent = await send_reply(page, reply)

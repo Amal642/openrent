@@ -86,6 +86,29 @@ def remove_unapproved_phone_numbers(reply, allowed_mobile_number=None):
 
     allowed_digits = normalize_phone(allowed_mobile_number)
 
+    # Shield the approved number first. PHONE_LIKE_PATTERN spans separators, so
+    # "07783129181. 6.30 on the 6th" or "07783129181 6 30pm" matched as ONE
+    # longer number and the approved number was deleted with it, leaving "my
+    # partner's WhatsApp is ." (seen on prod).
+    shielded = []
+    if allowed_digits:
+        national = _uk_canonical(allowed_digits)
+        sep = r"[\s().-]*"
+        if national.startswith("0"):
+            lead = r"(?:\+\s*44|0044|44)\s*(?:\(\s*0\s*\)\s*)?|0"
+            body = sep.join(re.escape(d) for d in national[1:])
+            approved_re = re.compile(rf"(?<![\d+])(?:{lead}){sep}{body}(?!\d)")
+        else:
+            approved_re = re.compile(
+                rf"(?<![\d+])\+?{sep.join(re.escape(d) for d in national)}(?!\d)"
+            )
+
+        def shield(match):
+            shielded.append(match.group(0))
+            return f"\x00{len(shielded) - 1}\x00"
+
+        reply = approved_re.sub(shield, reply)
+
     def replace(match):
 
         candidate = match.group(0).strip()
@@ -116,6 +139,12 @@ def remove_unapproved_phone_numbers(reply, allowed_mobile_number=None):
         r"[ \t]{2,}",
         " ",
         sanitized
+    )
+
+    sanitized = re.sub(
+        r"\x00(\d+)\x00",
+        lambda m: shielded[int(m.group(1))],
+        sanitized,
     )
 
     return sanitized.strip()

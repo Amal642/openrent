@@ -9,6 +9,11 @@ from app.ai.personas import (
     normalize_conversation_style,
     persona_summary,
 )
+from app.ai.number_redaction import (
+    parse_conversation_text,
+    prompt_instruction as redaction_prompt_instruction,
+    redaction_state,
+)
 
 _UK_TZ = ZoneInfo("Europe/London")
 
@@ -638,7 +643,9 @@ def build_human_renter_reply_prompt(
         "invite you to message, text or call them, mention their own number, or say OpenRent hides "
         "numbers. Tie the ask to what they offered (for example so they can send the video across, "
         "or so you can sort the viewing directly), and suggest WhatsApp so their number comes "
-        "through since OpenRent hides numbers typed into the chat.",
+        "through since OpenRent hides numbers typed into the chat. The one exception: if they "
+        "already typed their number and it came through blocked (\"(Number Removed)\"), never "
+        "ask for it again, because it would just be blocked again; give yours instead.",
         _give_ours,
         _email_line,
         "- Never volunteer your number before the landlord raises it, and never invent or give any "
@@ -647,33 +654,15 @@ def build_human_renter_reply_prompt(
         "will \"keep in touch here\"; just carry on. Only ever react to what the landlord actually "
         "raised, and do not re-ask the same turn or chase it pushily.",
     ])
-    # Deterministic reliability boost for the blocked-number case: the model tends
-    # to just answer the latest message, so a landlord whose number was redacted a
-    # few turns ago (shown as "(Number Removed)") otherwise gets no give-out unless
-    # pushed (the Gouldman case). Detect the exact marker in a landlord line, and
-    # only if we have not already put a number of our own into the thread.
-    _lines = (conversation or "").splitlines()
-    _mobile_digits = "".join(ch for ch in (_mobile or "") if ch.isdigit())
-    _landlord_blocked = any(
-        "number removed" in ln.lower()
-        for ln in _lines
-        if ln.strip().upper().startswith(("LANDLORD", "OWNER"))
-    )
-    _we_offered = any(
-        ("number removed" in ln.lower())
-        or (_mobile_digits and _mobile_digits in "".join(c for c in ln if c.isdigit()))
-        for ln in _lines
-        if ln.strip().upper().startswith(("US", "TENANT", "YOU"))
-    )
-    if _mobile and _landlord_blocked and not _we_offered:
-        number_policy += (
-            f"\n- RIGHT NOW: the landlord already tried to give you their number but OpenRent "
-            f"blocked it (it shows as \"(Number Removed)\") and you still do not have it, so their "
-            f"number never actually reached you. Give them your partner's WhatsApp number {_mobile} in "
-            f"this reply (your partner is sorting the viewings) so they can reach you both, then "
-            f"answer anything else they asked. This is not "
-            f"volunteering, they raised numbers first."
-        )
+    # Blocked-number case: the model tends to just answer the latest message, so a
+    # landlord whose number was redacted ("(Number Removed)") otherwise gets no
+    # give-out (the Gouldman case), or gets asked for the number again, or is told
+    # "I've saved your number". Detected in code (whole messages, so a redaction
+    # in a signature line counts) and handed to the model as an exact instruction;
+    # replies.generate_reply then enforces it on the output.
+    _redaction = redaction_state(parse_conversation_text(conversation), _mobile)
+    if _redaction:
+        number_policy += "\n" + redaction_prompt_instruction(_redaction, _mobile)
     origin = (place or "").strip()
     if origin:
         # One consistent, plausible origin (~1-2h away, set upstream) used both
