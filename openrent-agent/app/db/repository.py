@@ -17,6 +17,7 @@ from app.db.models import (
     Listing,
     Location,
     Message,
+    OpenRentBookingCancel,
     SearchProfile,
 )
 from app.db.status import HANDOFF_COMPLETE, VIEWING_CANCELLED, VIEWING_BOOKED, VIEWING_DISCUSSION
@@ -2068,6 +2069,59 @@ def mark_viewing_cancelled(
             )
 
             db.commit()
+
+
+# Results after which a thread's OpenRent booking needs no further attempts.
+BOOKING_CANCEL_FINAL_RESULTS = ("cancelled", "no_booking")
+BOOKING_CANCEL_MAX_ATTEMPTS = 3
+
+
+def record_booking_cancel_result(thread_id, result):
+    """Store the outcome of an OpenRent Cancel Viewing attempt for a thread."""
+    with session_scope() as db:
+        row = db.get(OpenRentBookingCancel, str(thread_id))
+        if row is None:
+            row = OpenRentBookingCancel(thread_id=str(thread_id), result=result, attempts=0)
+            db.add(row)
+        row.result = result
+        row.attempts = (row.attempts or 0) + 1
+        db.commit()
+
+
+def get_booking_withdrawal_candidates(account_id, limit=5):
+    """Threads of this account whose viewing we already cancelled (chat, WhatsApp
+    or an in-reply withdrawal) but whose OpenRent booking may still be live.
+
+    Only still-future viewings: once the time passes OpenRent shows the booking
+    as "Viewing Conducted" and the cancel link is gone. Threads already
+    withdrawn, without a booking, or out of attempts are skipped.
+    """
+    now = datetime.utcnow()
+    with session_scope() as db:
+        rows = (
+            db.query(Conversation.thread_id)
+            .join(Listing, Conversation.listing_id == Listing.id)
+            .join(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+            .outerjoin(
+                OpenRentBookingCancel,
+                OpenRentBookingCancel.thread_id == Conversation.thread_id,
+            )
+            .filter(
+                SearchProfile.account_id == account_id,
+                Conversation.viewing_cancelled == True,
+                Conversation.viewing_datetime != None,
+                Conversation.viewing_datetime > now + timedelta(minutes=30),
+                (OpenRentBookingCancel.thread_id == None)
+                | (
+                    ~OpenRentBookingCancel.result.in_(BOOKING_CANCEL_FINAL_RESULTS)
+                    & (OpenRentBookingCancel.attempts < BOOKING_CANCEL_MAX_ATTEMPTS)
+                ),
+            )
+            .order_by(Conversation.viewing_datetime.asc())
+            .limit(limit)
+            .all()
+        )
+        return [r[0] for r in rows]
 
 def mark_phone_requested(
     thread_id

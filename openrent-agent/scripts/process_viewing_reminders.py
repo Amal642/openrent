@@ -23,6 +23,7 @@ from app.openrent.viewing_lifecycle import (
     _send_pre_cancel_number_ask,
     _try_giveout_salvage,
 )
+from app.openrent.viewing_booking import withdraw_leftover_bookings
 from app.utils.human import random_sleep
 from app.utils.logger import logger
 
@@ -49,6 +50,14 @@ async def process_account_viewing_reminders(account, page, worker_id=None):
     behaviour is identical to what the reply loop used to do inline.
     """
     owner = worker_id or f"account-{account.id}"
+    await _process_due_cancellations(account, page, owner)
+    try:
+        await withdraw_leftover_bookings(account, page, owner)
+    except Exception as exc:
+        logger.warning(f"OPENRENT_BOOKING_LEFTOVERS_FAILED account_id={account.id} error={exc}")
+
+
+async def _process_due_cancellations(account, page, owner):
     due_viewings = get_due_viewing_cancellations(account_id=account.id)
 
     if not due_viewings:

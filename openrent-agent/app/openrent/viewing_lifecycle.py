@@ -35,6 +35,7 @@ from app.db.repository import (
 )
 from app.db.status import REPLY_DISABLED, VIEWING_CANCELLED
 from app.openrent.inbox import can_reply, send_reply
+from app.openrent.viewing_booking import cancel_openrent_booking
 from app.whatsapp.lines import pin_thread_giveout_number
 from app.utils.logger import logger
 from app.whatsapp.repository import record_handoff_intent
@@ -99,6 +100,9 @@ async def _cancel_viewing_and_handoff(
     mark_handoff_complete(thread_id)
     update_conversation_status(thread_id, VIEWING_CANCELLED)
     logger.info(f"HANDOFF_AFTER_CANCELLATION thread_id={thread_id}")
+    # The chat message alone leaves the OpenRent booking live, and a passed
+    # booking lets the landlord flag us as a no-show. Withdraw it too.
+    await cancel_openrent_booking(page, thread_id)
     return True
 
 

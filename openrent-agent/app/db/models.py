@@ -530,6 +530,20 @@ class AppSetting(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+# ---------------- OPENRENT BOOKING WITHDRAWALS ----------------
+
+class OpenRentBookingCancel(Base):
+    """Outcome of withdrawing a viewing through OpenRent's own Cancel Viewing
+    form, one row per thread (app/openrent/viewing_booking.py). Its own table so
+    no ALTER is needed on the hot conversations table."""
+    __tablename__ = "openrent_booking_cancels"
+
+    thread_id = Column(String, primary_key=True)
+    result = Column(String, nullable=False)
+    attempts = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # ---------------- TELEGRAM ALERTING ----------------
 
 class AlertSubscriber(Base):
