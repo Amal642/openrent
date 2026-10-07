@@ -228,3 +228,30 @@ def test_scraper_donor_gives_everything(db):
     listings, _ = repository.claim_overflow_listings(claimer, "w-c", limit=50)
 
     assert len(listings) == 5
+
+
+def test_own_queue_is_claimed_newest_first(db):
+    # 2026-10-07: claim_uncontacted_listings had no ORDER BY, so fresh listings
+    # waited behind week-old ones. Enquiries in a listing's first 3 days captured
+    # ~42% of numbers vs ~33% after.
+    with db() as s:
+        acc, prof = _account(s, "own@x", "Lewisham, London")
+        old = _listings(s, prof, 3, age_hours=24 * 8, prefix="O")
+        new = _listings(s, prof, 3, age_hours=2, prefix="N")
+
+    claimed = repository.claim_uncontacted_listings(acc, "w-own", limit=4)
+
+    assert [l.id for l in claimed] == new + old[:1]
+
+
+def test_own_queue_ties_prefer_the_higher_openrent_id(db):
+    seen = datetime.utcnow() - timedelta(hours=1)
+    with db() as s:
+        acc, prof = _account(s, "tie@x", "Lewisham, London")
+        for lid in ("999999", "3064996", "3065000"):
+            s.add(Listing(listing_id=lid, property_url=f"https://x/{lid}", search_profile_id=prof, first_seen=seen))
+        s.commit()
+
+    claimed = repository.claim_uncontacted_listings(acc, "w-tie", limit=3)
+
+    assert [l.listing_id for l in claimed] == ["3065000", "3064996", "999999"]

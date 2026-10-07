@@ -1307,6 +1307,17 @@ def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30)
                     | (Listing.processing_started_at < stale_before)
                 ),
             )
+            # Newest first, like overflow. Unordered, Postgres handed back old
+            # rows first, so fresh listings queued behind week-old ones (2026-10-07:
+            # median 18h from discovery to enquiry, 34% of enquiries to listings
+            # >7 days old; enquiries in a listing's first 3 days captured ~42% vs
+            # ~33% after). Ties: higher OpenRent id = newer listing; comparing by
+            # length first orders numeric ids correctly without a cast.
+            .order_by(
+                Listing.first_seen.desc(),
+                func.length(Listing.listing_id).desc(),
+                Listing.listing_id.desc(),
+            )
             .limit(limit)
             .with_for_update(of=Listing, skip_locked=True)
             .all()
