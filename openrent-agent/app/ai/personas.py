@@ -92,8 +92,10 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Sophie", "Hannah", "Amelia", "Leah", "Emma", "Chloe", "Jessica", "Natalie"],
-            "partner": ["James", "Daniel", "Oliver", "Sam", "Jack", "Liam", "Harry", "Josh"],
+            "primary": ["Sophie", "Hannah", "Amelia", "Leah", "Emma", "Chloe", "Jessica", "Natalie",
+                        "Lucy", "Ellie", "Megan", "Holly", "Abigail", "Rosie", "Imogen", "Phoebe"],
+            "partner": ["James", "Daniel", "Oliver", "Sam", "Jack", "Liam", "Harry", "Josh",
+                        "Callum", "Joe", "Kieran", "Max", "Alfie", "Charlie", "Reece", "Lewis"],
         },
         "jobs": {
             "primary": ["Marketing Manager", "Project Coordinator", "UX Designer", "HR Business Partner", "Brand Manager"],
@@ -144,8 +146,10 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Aisha", "Maya", "Priya", "Sarah", "Fatima", "Nadia", "Zara", "Jasmine"],
-            "partner": ["Adam", "Omar", "Daniel", "Imran", "Khalid", "Hassan", "Yusuf", "Tariq"],
+            "primary": ["Aisha", "Maya", "Priya", "Sarah", "Fatima", "Nadia", "Zara", "Jasmine",
+                        "Amira", "Leila", "Sana", "Mariam", "Noor", "Samira", "Yasmin", "Rania"],
+            "partner": ["Adam", "Omar", "Daniel", "Imran", "Khalid", "Hassan", "Yusuf", "Tariq",
+                        "Bilal", "Zain", "Faisal", "Rayan", "Sami", "Idris", "Kareem", "Nabil"],
         },
         "jobs": {
             "primary": ["NHS Nurse", "Radiographer", "Clinical Pharmacist", "Midwife", "Physiotherapist"],
@@ -196,8 +200,10 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Charlotte", "Rebecca", "Victoria", "Claire", "Katherine", "Louise", "Nicola", "Helen"],
-            "partner": ["Michael", "Ethan", "Alex", "Chris", "David", "Andrew", "Marcus", "Simon"],
+            "primary": ["Charlotte", "Rebecca", "Victoria", "Claire", "Katherine", "Louise", "Nicola", "Helen",
+                        "Joanna", "Caroline", "Fiona", "Kirsty", "Lauren", "Jennifer", "Natasha", "Philippa"],
+            "partner": ["Michael", "Ethan", "Alex", "Chris", "David", "Andrew", "Marcus", "Simon",
+                        "Gareth", "Stuart", "Richard", "Paul", "Mark", "Neil", "Graham", "Owen"],
         },
         "jobs": {
             "primary": ["Mechanical Engineer", "Management Consultant", "Solutions Architect", "Structural Engineer", "Business Consultant"],
@@ -221,8 +227,10 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Mary", "Aisha", "Priya", "Hannah", "Grace", "Rachel", "Lisa", "Nina"],
-            "partner": ["James", "Omar", "Daniel", "Sam", "Robert", "Kevin", "Patrick", "Marcus"],
+            "primary": ["Mary", "Aisha", "Priya", "Hannah", "Grace", "Rachel", "Lisa", "Nina",
+                        "Kelly", "Donna", "Joanne", "Stacey", "Leanne", "Michelle", "Tracey", "Gina"],
+            "partner": ["James", "Omar", "Daniel", "Sam", "Robert", "Kevin", "Patrick", "Marcus",
+                        "Lee", "Craig", "Gary", "Darren", "Wayne", "Shaun", "Dean", "Carl"],
         },
         "jobs": {
             "primary": ["IT Support Lead", "Product Manager", "Accountant", "Operations Manager", "Software Developer"],
@@ -247,8 +255,10 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Charlotte", "Rebecca", "Victoria", "Claire", "Katherine", "Alex", "Daniel", "Michael"],
-            "partner": ["James", "Andrew", "Marcus", "David", "Simon", "Laura", "Nicola", "Helen"],
+            "primary": ["Charlotte", "Rebecca", "Victoria", "Claire", "Katherine", "Alex", "Daniel", "Michael",
+                        "Priyanka", "Meera", "Anjali", "Elena", "Sofia", "Julia", "Clara", "Ines"],
+            "partner": ["James", "Andrew", "Marcus", "David", "Simon", "Laura", "Nicola", "Helen",
+                        "Raj", "Vikram", "Arjun", "Mateo", "Lukas", "Felix", "Oscar", "Hugo"],
         },
         "jobs": {
             "primary": ["Software Engineer", "Senior Software Engineer", "Product Manager", "Solutions Architect", "Data Scientist"],
@@ -273,8 +283,10 @@ PERSONA_TEMPLATES = {
             "landlord_number_boundary",
         ],
         "names": {
-            "primary": ["Eleanor", "Isabelle", "Charlotte", "Olivia", "Sophia", "Edward", "Henry", "Thomas"],
-            "partner": ["Henry", "William", "Alexander", "Benjamin", "Nicholas", "Emily", "Grace", "Alice"],
+            "primary": ["Eleanor", "Isabelle", "Charlotte", "Olivia", "Sophia", "Edward", "Henry", "Thomas",
+                        "Georgina", "Arabella", "Camilla", "Rosalind", "Beatrice", "Florence", "Matilda", "Henrietta"],
+            "partner": ["Henry", "William", "Alexander", "Benjamin", "Nicholas", "Emily", "Grace", "Alice",
+                        "Rupert", "Sebastian", "Jasper", "Toby", "Rory", "Giles", "Piers", "Ralph"],
         },
         "jobs": {
             "primary": ["Corporate Solicitor", "Commercial Solicitor", "Legal Counsel", "Associate Solicitor"],
