@@ -14,6 +14,7 @@ from sqlalchemy.orm import joinedload
 from app.db.models import Account
 from app.db.repository import ensure_account_persona, session_scope
 from app.proxy.check_proxy import check_proxy
+from scripts.persona_names import name_clashes
 from app.workers.account_worker import _proxy_url_for_account
 
 
@@ -59,6 +60,10 @@ async def main(ids):
             continue
         ensure_account_persona(i)
         await probe(accounts[i])
+    # Names go on the OpenRent profile once and are never renamed, so a clash
+    # must be caught here, before the account starts messaging.
+    for name, holders in sorted(name_clashes(ids).items()):
+        print(f"PERSONA_NAME_CLASH {name}: " + ", ".join(f"acct {a} {role}" for a, role, _ in holders))
 
 
 if __name__ == "__main__":
