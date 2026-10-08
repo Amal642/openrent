@@ -16,6 +16,18 @@ async def _is_authenticated(page):
     return await sign_in_btn.count() == 0
 
 
+# The account menu button in the header, only rendered for a signed-in user.
+LOGGED_IN_MARKER = "a.desktop-user-button"
+
+
+async def logged_in_marker_present(page) -> bool:
+    """Positive check that the page is signed in. Never raises."""
+    try:
+        return await page.locator(LOGGED_IN_MARKER).count() > 0
+    except Exception:
+        return False
+
+
 async def _captcha_suspected(page):
     # Match the actual challenge text, not the ambient reCAPTCHA widget that
     # OpenRent now embeds site-wide (~2026-09-17): the bare word "captcha"

@@ -15,6 +15,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 from app.alerts import health_checks, registry
 from app.alerts.manager import AlertManager
 from app.config import settings
+from app.services import page_health
 from app.utils.logger import logger
 
 
@@ -27,6 +28,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("commands", "Show available bot commands."),
     ("status", "Show alert bot health and active incidents."),
     ("resolve", "List or clear manually resolved incidents."),
+    ("resume", "Lift an automatic pause: /resume outreach or /resume replies."),
     ("unsubscribe", "Stop receiving alerts."),
 )
 
@@ -89,6 +91,12 @@ def _format_status(manager: AlertManager) -> str:
         f"Events today: {summary['events_today']}",
         f"Subscribers: {registry.count_authorized()}",
     ]
+    for scope in (page_health.OUTREACH, page_health.REPLIES):
+        state = page_health.breaker_state(scope)
+        if state:
+            lines.append(
+                f"PAUSED: {scope} until {state['until'][:16]} UTC ({state.get('reason', '')})"
+            )
     if summary["active_incidents"]:
         lines.append("Active incidents:")
         lines.extend(f"- {i}" for i in summary["active_incidents"])
@@ -124,7 +132,22 @@ def register_handlers(application: Application, manager: AlertManager) -> None:
             return
         await update.message.reply_text(_format_status(manager))
 
+    async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        subscriber = registry.get_subscriber(_chat_id(update))
+        if not subscriber or not subscriber.authorized:
+            await update.message.reply_text("Not authorized.")
+            return
+        scope = (context.args[0].lower() if context.args else "")
+        if scope not in (page_health.OUTREACH, page_health.REPLIES):
+            await update.message.reply_text("Usage: /resume outreach  or  /resume replies")
+            return
+        lifted = await asyncio.to_thread(page_health.clear_breaker, scope, True)
+        await update.message.reply_text(
+            f"{scope.capitalize()} resumed." if lifted else f"{scope.capitalize()} was not paused."
+        )
+
     application.add_handler(CommandHandler("start", _start_command))
+    application.add_handler(CommandHandler("resume", resume_command))
     application.add_handler(CommandHandler("commands", _commands_command))
     application.add_handler(CommandHandler("unsubscribe", _unsubscribe_command))
     application.add_handler(CommandHandler("resolve", resolve_command))

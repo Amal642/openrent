@@ -22,6 +22,7 @@ from app.db.repository import (
     is_outreach_due,
     set_next_outreach_at,
     landlord_already_contacted,
+    mark_listing_early_access,
 )
 
 from app.openrent.popups import (close_popups, handle_confirmation_popups)
@@ -32,7 +33,10 @@ from app.openrent.messaging import (
     get_message_link,
     send_initial_message,
     get_existing_thread_id,
+    EarlyAccessRestricted,
 )
+from app.services import page_health
+from app.db.repository import EARLY_ACCESS_CLAIM_LIMIT
 from app.openrent.listing_metadata import (
     MIN_ACCEPTED_TENANCY_MONTHS,
     extract_listing_metadata,
@@ -71,6 +75,17 @@ async def process_account_listings(
         )
         return
 
+    # Fleet-wide pause: the enquiry form has been failing on several accounts
+    # at once (OpenRent changed the page). Don't keep loading a broken form;
+    # the alert bot lifts this once the form works again.
+    breaker = page_health.breaker_state(page_health.OUTREACH)
+    if breaker:
+        logger.warning(
+            f"OUTREACH_PAUSED_BREAKER account_id={account.id} "
+            f"until={breaker.get('until')} reason={breaker.get('reason')!r}"
+        )
+        return
+
     # Outreach is paced separately from the worker cooldown so new initial
     # messages spread across the whole operating day (1-3h random gap)
     # instead of bursting out the daily quota in the first run or two.
@@ -85,7 +100,21 @@ async def process_account_listings(
 
     persona = ensure_account_persona(account.id)
     claim_owner = worker_id or f"account-{account.id}"
-    listings = claim_uncontacted_listings(
+
+    # Early-access listings other accounts were blocked from (Verified Tenants
+    # only). They are the freshest listings with the fewest competing
+    # enquiries, so an account not known to be blocked tries them first. Not
+    # sent this run = handed back to the owner like any overflow listing.
+    early_listings, overflow_origin = claim_overflow_listings(
+        account.id, claim_owner, limit=EARLY_ACCESS_CLAIM_LIMIT, early_access_only=True
+    )
+    if early_listings:
+        logger.info(
+            f"EARLY_ACCESS_CLAIMED account_id={account.id} claimed={len(early_listings)} "
+            f"donors={sorted({o['origin_account_id'] for o in overflow_origin.values()})}"
+        )
+
+    listings = early_listings + claim_uncontacted_listings(
         account.id,
         claim_owner,
         limit=20,
@@ -95,7 +124,6 @@ async def process_account_listings(
     # accounts that can't send them all (see claim_overflow_listings). Each
     # one is rent-checked against our persona's band once its page is open,
     # and anything not sent this run goes back to its donor.
-    overflow_origin = {}
     if not listings:
         listings, overflow_origin = claim_overflow_listings(account.id, claim_owner)
         if listings:
@@ -286,13 +314,25 @@ async def _process_claimed_listings(account, page, listings, persona, claim_owne
                 continue
 
             # Send — only mark contacted after OpenRent returns a thread URL.
-            final_url = await send_initial_message(
-                page=page,
-                message_url=full_url,
-                message_text=message_text,
-                metadata=metadata,
-                persona=persona,
-            )
+            try:
+                final_url = await send_initial_message(
+                    page=page,
+                    message_url=full_url,
+                    message_text=message_text,
+                    metadata=metadata,
+                    persona=persona,
+                )
+            except EarlyAccessRestricted:
+                # Not a failure: this account isn't a Verified Tenant. Leave
+                # the listing open for accounts that are (and for this one
+                # once early access ends).
+                logger.info(
+                    f"EARLY_ACCESS_BLOCKED listing={listing_ext_id} account_id={account.id} "
+                    "— left open for verified accounts"
+                )
+                mark_listing_early_access(listing_pk, account.id)
+                skipped_other += 1
+                continue
 
             thread_id = extract_thread_id(final_url)
             if not thread_id:
@@ -304,8 +344,13 @@ async def _process_claimed_listings(account, page, listings, persona, claim_owne
                     f"Initial send did not produce a thread for "
                     f"listing {listing_ext_id}; final_url={final_url}"
                 )
+                page_health.record_step(
+                    page_health.ENQUIRY_SUBMIT, False, f"no thread id after submit, url={final_url}"
+                )
                 mark_listing_failed(listing_pk, reason="no_thread_returned")
                 continue
+
+            page_health.record_step(page_health.ENQUIRY_SUBMIT, True)
 
             mark_listing_contacted(listing_pk, thread_id=thread_id)
             increment_message_count(account.id)

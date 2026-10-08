@@ -22,7 +22,7 @@ from app.utils.logger import logger
 
 # Sources whose failures self-heal (health-checked on a timer) get cleared
 # automatically on recovery. Everything else needs a human /resolve.
-AUTO_CLEAR_SOURCES = {"proxy", "whatsapp"}
+AUTO_CLEAR_SOURCES = {"proxy", "whatsapp", "page_health"}
 
 
 def resolution_mode_for(source: str) -> str:

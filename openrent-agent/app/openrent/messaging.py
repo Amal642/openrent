@@ -9,7 +9,29 @@ from datetime import (
 )
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
+from app.services import page_health
 from app.utils.logger import logger
+
+
+class EarlyAccessRestricted(Exception):
+    """OpenRent shows "You've selected an early access property. Enquiries are
+    restricted to Verified Tenants." instead of the enquiry form: this account
+    is not a Verified Tenant, so it cannot message this listing (yet). Not a
+    page fault: the listing stays open for verified accounts."""
+
+
+_EARLY_ACCESS_MARKERS = (
+    "early access property",
+    "enquiries are restricted to verified tenants",
+)
+
+
+async def is_early_access_page(page) -> bool:
+    try:
+        content = (await page.content()).lower()
+    except Exception:
+        return False
+    return any(marker in content for marker in _EARLY_ACCESS_MARKERS)
 
 AVAILABILITY_OPTIONS = [
     "Weekday evenings after 6pm and weekends work well for us.",
@@ -517,6 +539,10 @@ async def send_initial_message(
     logger.info(f"Opening message page: {message_url}")
     await page.goto(message_url, wait_until="domcontentloaded", timeout=30_000)
 
+    if await is_early_access_page(page):
+        logger.info(f"EARLY_ACCESS_RESTRICTED url={message_url}")
+        raise EarlyAccessRestricted("Early access property: Verified Tenants only")
+
     # ── Wait for form — selector-based, no networkidle ────────
     logger.info("Waiting for message form")
     try:
@@ -524,8 +550,12 @@ async def send_initial_message(
             state="visible", timeout=15_000
         )
     except Exception:
+        if await is_early_access_page(page):
+            logger.info(f"EARLY_ACCESS_RESTRICTED url={message_url}")
+            raise EarlyAccessRestricted("Early access property: Verified Tenants only")
         logger.error("Availability field not visible after 15s")
         await _save_form_debug(page, "availability_field_missing")
+        page_health.record_step(page_health.ENQUIRY_FORM, False, "#Availability not visible")
         raise Exception("Form did not load: #Availability not visible")
 
     try:
@@ -535,6 +565,7 @@ async def send_initial_message(
     except Exception:
         logger.error("Message textarea not visible after 15s")
         await _save_form_debug(page, "message_field_missing")
+        page_health.record_step(page_health.ENQUIRY_FORM, False, "#Message not visible")
         raise Exception("Form did not load: #Message not visible")
 
     # ── Optional screening form (type 2) ──────────────────────
@@ -571,6 +602,7 @@ async def send_initial_message(
         disabled = await btn.get_attribute("disabled")
         if disabled is not None:
             await _save_form_debug(page, "submit_button_disabled")
+            page_health.record_step(page_health.ENQUIRY_FORM, False, "submit button disabled")
             raise Exception("Submit button is disabled")
         await btn.click()
     else:
@@ -578,11 +610,14 @@ async def send_initial_message(
         fallback = await find_submit_button(page)
         if not fallback:
             await _save_form_debug(page, "submit_button_missing")
+            page_health.record_step(page_health.ENQUIRY_FORM, False, "submit button not found")
             raise Exception("Submit button not found")
         disabled = await fallback.get_attribute("disabled")
         if disabled is not None:
+            page_health.record_step(page_health.ENQUIRY_FORM, False, "submit button disabled")
             raise Exception("Submit button is disabled")
         await fallback.click()
+    page_health.record_step(page_health.ENQUIRY_FORM, True)
 
     # ── Post-submit: verify success ───────────────────────────
     # Wait up to 20 s for the page to navigate away from the message form.
@@ -634,6 +669,13 @@ async def send_initial_message(
             return f"/messages/{existing}"
 
         err_summary = "; ".join(errors) if errors else "no validation details captured"
+        if not errors:
+            # OpenRent's own refusals ("does not meet the requirements", "try
+            # again in a few hours") come with text. Silence means we could not
+            # read the result page at all.
+            page_health.record_step(
+                page_health.ENQUIRY_SUBMIT, False, "stayed on form, no message shown"
+            )
         raise Exception(
             f"Form submission did not navigate away from message page. "
             f"Errors: {err_summary}"

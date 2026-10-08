@@ -595,3 +595,18 @@ class AlertEvent(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     processed_at = Column(DateTime, nullable=True)
     outcome = Column(String, nullable=True)
+
+
+class StepHealthEvent(Base):
+    """One attempt at an OpenRent page step (login, inbox, enquiry form, reply
+    send...) and whether the page looked the way the code expects. Read by
+    the alert bot's page-health check to spot a site change across the fleet.
+    No foreign key on purpose: adding one would lock the hot accounts table."""
+    __tablename__ = "step_health_events"
+
+    id = Column(Integer, primary_key=True)
+    step = Column(String, nullable=False, index=True)
+    account_id = Column(Integer, nullable=True)
+    ok = Column(Boolean, nullable=False)
+    detail = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

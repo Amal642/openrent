@@ -6,6 +6,7 @@ from app.db.repository import (
     listing_exists,
     create_listing,
 )
+from app.services import page_health
 from app.utils.logger import logger
 
 # Matches OpenRent property URLs:
@@ -83,6 +84,7 @@ async def scrape_search_results(
             f"title={title!r} url={current_url}"
         )
         await _save_discovery_diagnostic(page, search_profile_id, "botwall")
+        page_health.record_step(page_health.DISCOVERY, False, f"bot wall: {bot_reason}")
         return 0
 
     if "openrent.co.uk" in current_url and "/properties-to-rent" not in current_url:
@@ -137,7 +139,12 @@ async def scrape_search_results(
             f"title={title!r} html_len={len(html)}"
         )
         await _save_discovery_diagnostic(page, search_profile_id, "zero")
+        page_health.record_step(
+            page_health.DISCOVERY, False, f"no listing links on {current_url} title={title!r}"
+        )
         return 0
+
+    page_health.record_step(page_health.DISCOVERY, True)
 
     new_count = 0
 

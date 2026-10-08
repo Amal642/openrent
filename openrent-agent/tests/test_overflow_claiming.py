@@ -205,14 +205,20 @@ def test_send_path_does_not_overflow_when_own_inventory_exists(monkeypatch):
     monkeypatch.setattr(pl, "is_outreach_due", lambda _id: True)
     monkeypatch.setattr(pl, "ensure_account_persona", lambda _id: {})
     monkeypatch.setattr(pl, "claim_uncontacted_listings", lambda *a, **k: [object()])
-    monkeypatch.setattr(pl, "claim_overflow_listings", lambda *a, **k: called.append(1) or ([], {}))
+    monkeypatch.setattr(
+        pl,
+        "claim_overflow_listings",
+        lambda *a, **k: called.append(k.get("early_access_only", False)) or ([], {}),
+    )
 
     async def ok(*a, **k):
         return 0, 0, 0, 0
     monkeypatch.setattr(pl, "_process_claimed_listings", ok)
 
     asyncio.run(pl.process_account_listings(Acc(), page=None, worker_id="w-30"))
-    assert called == []
+    # Only the early-access pass (listings other accounts are locked out of);
+    # never the regular surplus overflow.
+    assert called == [True]
 
 
 def test_scraper_donor_gives_everything(db):
@@ -255,3 +261,68 @@ def test_own_queue_ties_prefer_the_higher_openrent_id(db):
     claimed = repository.claim_uncontacted_listings(acc, "w-tie", limit=3)
 
     assert [l.listing_id for l in claimed] == ["3065000", "3064996", "999999"]
+
+
+# ---- Early access (2026-10-08) --------------------------------------------
+# OpenRent shows unverified accounts "You've selected an early access property.
+# Enquiries are restricted to Verified Tenants." 70 such listings were failed
+# for the whole fleet; now the blocked account is tagged and others can send.
+
+def test_early_access_tag_hides_listing_from_blocked_owner_only_for_retry_window(db):
+    with db() as s:
+        owner, prof = _account(s, "o@x", "Lewisham, London")
+        (pk,) = _listings(s, prof, 1)
+
+    repository.mark_listing_early_access(pk, owner)
+    repository.mark_listing_early_access(pk, 99)
+
+    with db() as s:
+        row = s.get(Listing, pk)
+        assert row.fail_reason == f"EARLY_ACCESS:,{owner},99,"
+        assert row.processing_failed is False
+    assert repository.claim_uncontacted_listings(owner, "w-o", limit=5) == []
+    assert {owner, 99} <= repository.known_unverified_account_ids()
+
+    with db() as s:
+        s.get(Listing, pk).last_processed_at = datetime.utcnow() - timedelta(
+            hours=repository.EARLY_ACCESS_RETRY_HOURS + 1
+        )
+        s.commit()
+    assert [l.id for l in repository.claim_uncontacted_listings(owner, "w-o", limit=5)] == [pk]
+
+
+def test_verified_account_takes_early_access_listing_even_from_healthy_donor(db):
+    with db() as s:
+        claimer, claimer_prof = _account(s, "c@x", "Lewisham, London")
+        donor, donor_prof = _account(s, "d@x", "Woolwich, Greater London")
+        blocked = _listings(s, donor_prof, 2, prefix="EA")
+        _listings(s, donor_prof, 2, prefix="N")   # well under KEEP: no normal surplus
+    for pk in blocked:
+        repository.mark_listing_early_access(pk, donor)
+
+    listings, origins = repository.claim_overflow_listings(
+        claimer, "w-c", limit=5, early_access_only=True
+    )
+
+    assert sorted(l.id for l in listings) == sorted(blocked)
+    assert all(o["origin_account_id"] == donor for o in origins.values())
+    # Regular overflow still respects the donor's keep-back.
+    assert repository.claim_overflow_listings(claimer, "w-c2", limit=5) == ([], {})
+
+
+def test_known_unverified_account_gets_no_early_access_listings(db):
+    with db() as s:
+        claimer, _ = _account(s, "c@x", "Lewisham, London")
+        _, donor_prof = _account(s, "d@x", "Woolwich, Greater London", failed=True)
+        _, other_prof = _account(s, "e@x", "Woolwich, Greater London")
+        blocked = _listings(s, donor_prof, 2, prefix="EA")
+        (claimer_seen,) = _listings(s, other_prof, 1, prefix="X")
+    for pk in blocked:
+        repository.mark_listing_early_access(pk, 555)
+    repository.mark_listing_early_access(claimer_seen, claimer)   # claimer hit the wall before
+
+    assert repository.claim_overflow_listings(
+        claimer, "w-c", limit=5, early_access_only=True
+    ) == ([], {})
+    # Normal overflow from the benched donor skips the early-access ones too.
+    assert repository.claim_overflow_listings(claimer, "w-c", limit=5) == ([], {})

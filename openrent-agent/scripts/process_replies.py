@@ -45,7 +45,8 @@ from app.openrent.inbox import (
     can_reply,
     get_latest_landlord_message,
     send_reply,
-    reveal_hidden_phone_number
+    reveal_hidden_phone_number,
+    SenderDetectionError,
 )
 from app.openrent.banner_parser import extract_thread_banners
 from app.openrent.popups import close_verified_tenant_popup
@@ -1838,6 +1839,12 @@ async def process_account_replies(
                 f"Reply pipeline completed for thread {thread_id}; "
                 f"sent={sent}"
             )
+
+        except SenderDetectionError as e:
+            # The page stopped marking our own messages. Replying now could
+            # answer our own last message, so leave the thread untouched; the
+            # page-health check alerts once this shows up across accounts.
+            logger.error(f"THREAD_SKIPPED_REASON thread_id={thread_id} reason=sender_detection_failed {e}")
 
         except Exception as e:
 

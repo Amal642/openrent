@@ -12,7 +12,8 @@ from app.browser.launcher import (
 )
 
 from app.browser.auth import (
-    login
+    login,
+    logged_in_marker_present,
 )
 
 from scripts.process_listings import (
@@ -45,6 +46,7 @@ from app.db.repository import (
     update_proxy_health,
 )
 from app.proxy.check_proxy import check_proxy
+from app.services import page_health
 from app.proxy.url import build_account_proxy_url
 
 from app.queue.queues import worker_queue
@@ -176,6 +178,7 @@ async def run_account_worker(account):
 
     worker_id = f"account-{account.id}-{uuid4().hex[:8]}"
     phase = "send_and_reply"
+    page_health.set_current_account(account.id)
 
     if not is_operating_hours():
         logger.info("Outside operating hours")
@@ -287,6 +290,9 @@ async def run_account_worker(account):
                 account
             )
         except Exception as exc:
+            # Network/proxy errors are the proxy monitor's job, not a page fault.
+            if "net::ERR_" not in str(exc):
+                page_health.record_step(page_health.LOGIN, False, str(exc)[:200])
             phase = "login_error"
             update_account_worker_state(
                 account.id,
@@ -295,6 +301,17 @@ async def run_account_worker(account):
                 error=str(exc),
             )
             raise
+
+        page_health.record_step(page_health.LOGIN, True)
+        # "Logged in" only means no Sign In link was found. If OpenRent renamed
+        # that link, a logged-out session would pass; check for the account
+        # menu that only a signed-in page has.
+        marker_ok = await logged_in_marker_present(page)
+        page_health.record_step(
+            page_health.AUTH_MARKER,
+            marker_ok,
+            None if marker_ok else f"signed-in account menu not found on {page.url}",
+        )
 
         # =====================================================
         # PHASE 1 — PROCESS ACTIVE CONVERSATIONS (REPLIES)

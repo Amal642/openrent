@@ -1287,8 +1287,76 @@ def get_uncontacted_listings(
         )
 
 
+# Early access. Some new listings show "Enquiries are restricted to Verified
+# Tenants" instead of the enquiry form. An account that hits that page is not a
+# Verified Tenant; the listing is tagged with its id (fail_reason
+# "EARLY_ACCESS:,27,43,") instead of being failed, so verified accounts can still
+# take it (claim_overflow_listings(early_access_only=True)) and the blocked
+# accounts only retry after EARLY_ACCESS_RETRY_HOURS, when early access may be
+# over. Before this, 70 such listings were failed for the whole fleet.
+EARLY_ACCESS_TAG = "EARLY_ACCESS:"
+EARLY_ACCESS_RETRY_HOURS = 24
+EARLY_ACCESS_MAX_AGE_DAYS = 3
+EARLY_ACCESS_CLAIM_LIMIT = 3
+UNVERIFIED_MEMORY_DAYS = 14
+
+
+def _early_access_tag_ids(fail_reason):
+    if not fail_reason or not fail_reason.startswith(EARLY_ACCESS_TAG):
+        return set()
+    return {int(x) for x in fail_reason[len(EARLY_ACCESS_TAG):].split(",") if x.strip().isdigit()}
+
+
+def _early_access_blocks(account_id, cutoff):
+    """SQL filter: True for listings this account may claim, i.e. NOT tagged
+    as early-access-blocked for it within the retry window."""
+    from sqlalchemy import or_
+
+    return or_(
+        ~func.coalesce(Listing.fail_reason, "").like(f"{EARLY_ACCESS_TAG}%,{int(account_id)},%"),
+        Listing.last_processed_at == None,  # noqa: E711
+        Listing.last_processed_at <= cutoff,
+    )
+
+
+def mark_listing_early_access(listing_id, account_id):
+    """Record that account_id hit the early-access page for this listing. The
+    listing stays open (not failed, not skipped) for other accounts."""
+    with session_scope() as db:
+        listing = db.query(Listing).filter(Listing.id == listing_id).first()
+        if not listing:
+            return
+        ids = _early_access_tag_ids(listing.fail_reason) | {int(account_id)}
+        listing.fail_reason = EARLY_ACCESS_TAG + "," + ",".join(str(i) for i in sorted(ids)) + ","
+        listing.processing_failed = False
+        listing.last_processed_at = datetime.utcnow()
+        listing.processing_owner = None
+        listing.processing_started_at = None
+        db.commit()
+
+
+def known_unverified_account_ids(days=UNVERIFIED_MEMORY_DAYS):
+    """Accounts that hit an early-access page recently, so are not Verified
+    Tenants. Derived from the listing tags; no account column needed."""
+    since = datetime.utcnow() - timedelta(days=days)
+    with session_scope() as db:
+        rows = (
+            db.query(Listing.fail_reason)
+            .filter(
+                Listing.fail_reason.like(f"{EARLY_ACCESS_TAG}%"),
+                Listing.last_processed_at >= since,
+            )
+            .all()
+        )
+    ids = set()
+    for (reason,) in rows:
+        ids |= _early_access_tag_ids(reason)
+    return ids
+
+
 def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30):
     stale_before = datetime.utcnow() - timedelta(minutes=stale_minutes)
+    early_access_cutoff = datetime.utcnow() - timedelta(hours=EARLY_ACCESS_RETRY_HOURS)
 
     with session_scope() as db:
         # Row-lock the claimed rows (SKIP LOCKED) so a concurrent overflow
@@ -1307,6 +1375,7 @@ def claim_uncontacted_listings(account_id, worker_id, limit=5, stale_minutes=30)
                     (Listing.processing_owner == None)
                     | (Listing.processing_started_at < stale_before)
                 ),
+                _early_access_blocks(account_id, early_access_cutoff),
             )
             # Newest first, like overflow. Unordered, Postgres handed back old
             # rows first, so fresh listings queued behind week-old ones (2026-10-07:
@@ -1349,7 +1418,13 @@ OVERFLOW_MAX_AGE_DAYS = 5       # older listings are likely let already
 OVERFLOW_CLAIM_LIMIT = 8        # enough candidates to find one contactable
 
 
-def claim_overflow_listings(account_id, worker_id, limit=OVERFLOW_CLAIM_LIMIT, stale_minutes=30):
+def claim_overflow_listings(
+    account_id,
+    worker_id,
+    limit=OVERFLOW_CLAIM_LIMIT,
+    stale_minutes=30,
+    early_access_only=False,
+):
     """Transfer and claim surplus listings from other same-region accounts.
 
     Returns ``(listings, origins)``. ``origins`` maps each claimed listing pk to
@@ -1357,22 +1432,45 @@ def claim_overflow_listings(account_id, worker_id, limit=OVERFLOW_CLAIM_LIMIT, s
     band, so the caller can hand it back (``return_overflow_listing``) if the
     real rent turns out to be outside the claimer persona's affordability band
     (rent is only known once the listing page is opened).
+
+    ``early_access_only``: take only fresh listings that other accounts were
+    blocked from as early access (see mark_listing_early_access). Their owner
+    cannot send them, so the donor keep-back does not apply. Returns nothing
+    for an account known to be unverified.
     """
     from sqlalchemy import or_, update
     from app.utils.logger import logger
 
     now = datetime.utcnow()
     stale_before = now - timedelta(minutes=stale_minutes)
-    fresh_after = now - timedelta(days=OVERFLOW_MAX_AGE_DAYS)
+    fresh_after = now - timedelta(
+        days=EARLY_ACCESS_MAX_AGE_DAYS if early_access_only else OVERFLOW_MAX_AGE_DAYS
+    )
+    early_access_cutoff = now - timedelta(hours=EARLY_ACCESS_RETRY_HOURS)
+    claimer_unverified = account_id in known_unverified_account_ids()
+    if early_access_only and claimer_unverified:
+        return [], {}
 
     def _open_listing_filters():
-        return (
+        filters = [
             Listing.message_sent == False,  # noqa: E712
             Listing.processing_failed == False,  # noqa: E712
             Listing.skip_reason == None,  # noqa: E711
             Listing.listing_archived == False,  # noqa: E712
             or_(Listing.processing_owner == None, Listing.processing_started_at < stale_before),  # noqa: E711
-        )
+            _early_access_blocks(account_id, early_access_cutoff),
+        ]
+        if early_access_only:
+            filters.append(Listing.fail_reason.like(f"{EARLY_ACCESS_TAG}%"))
+        elif claimer_unverified:
+            # Would only hit the same Verified Tenants wall again.
+            filters.append(
+                or_(
+                    ~func.coalesce(Listing.fail_reason, "").like(f"{EARLY_ACCESS_TAG}%"),
+                    Listing.last_processed_at <= early_access_cutoff,
+                )
+            )
+        return tuple(filters)
 
     with session_scope() as db:
         region_of = {loc.term_value: (loc.region or "South") for loc in db.query(Location).all()}
@@ -1421,7 +1519,10 @@ def claim_overflow_listings(account_id, worker_id, limit=OVERFLOW_CLAIM_LIMIT, s
         }
         surplus = {}
         for donor_id, open_count in donor_counts:
-            spare = open_count if donor_id in unavailable else open_count - OVERFLOW_DONOR_KEEP
+            if early_access_only or donor_id in unavailable:
+                spare = open_count
+            else:
+                spare = open_count - OVERFLOW_DONOR_KEEP
             if spare > 0:
                 surplus[donor_id] = spare
         if not surplus:
@@ -1856,6 +1957,20 @@ def _redaction_key(text):
     redacted edit compare equal."""
     keyed = _REDACTION_KEY_RE.sub("#", (text or "").lower())
     return re.sub(r"\s+", " ", keyed).strip()
+
+
+def get_outbound_message_texts(thread_id):
+    """Every message we stored as sent on this thread (initial enquiry,
+    replies, follow-ups), oldest first."""
+    with session_scope() as db:
+        rows = (
+            db.query(Message.content)
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .filter(Conversation.thread_id == str(thread_id), Message.direction == "outbound")
+            .order_by(Message.id)
+            .all()
+        )
+        return [content for (content,) in rows if content]
 
 
 def save_message_once(thread_id, direction, content, created_at=None):

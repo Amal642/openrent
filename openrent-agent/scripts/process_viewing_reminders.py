@@ -17,7 +17,12 @@ from app.db.repository import (
 )
 from app.db.init_db import init_db
 from app.db.status import AI_FAILED
-from app.openrent.inbox import extract_conversation, get_latest_landlord_message, open_thread
+from app.openrent.inbox import (
+    SenderDetectionError,
+    extract_conversation,
+    get_latest_landlord_message,
+    open_thread,
+)
 from app.openrent.viewing_lifecycle import (
     _cancel_viewing_and_handoff,
     _send_pre_cancel_number_ask,
@@ -184,6 +189,9 @@ async def _process_due_cancellations(account, page, owner):
                 )
 
             await random_sleep(2, 5)
+
+        except SenderDetectionError as exc:
+            logger.error(f"CANCELLATION_SKIPPED thread_id={thread_id} reason=sender_detection_failed {exc}")
 
         except Exception as exc:
             logger.exception(f"Cancellation failed for {thread_id}: {exc}")

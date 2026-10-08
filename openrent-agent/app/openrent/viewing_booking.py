@@ -23,6 +23,7 @@ from app.db.repository import (
 )
 from app.openrent.inbox import open_thread
 from app.openrent.popups import close_verified_tenant_popup
+from app.services import page_health
 from app.utils.human import random_sleep
 from app.utils.logger import logger
 
@@ -61,6 +62,10 @@ async def cancel_openrent_booking(page, thread_id) -> str:
     except Exception as exc:
         result = f"failed:{type(exc).__name__}"
         logger.warning(f"OPENRENT_BOOKING_CANCEL_ERROR thread_id={thread_id} error={exc}")
+    if result == "cancelled":
+        page_health.record_step(page_health.BOOKING_CANCEL, True)
+    elif result.startswith("failed:"):
+        page_health.record_step(page_health.BOOKING_CANCEL, False, f"thread {thread_id}: {result}")
     try:
         record_booking_cancel_result(thread_id, result)
     except Exception as exc:
