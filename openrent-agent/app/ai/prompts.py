@@ -9,6 +9,11 @@ from app.ai.personas import (
     normalize_conversation_style,
     persona_summary,
 )
+from app.ai.call_intent import (
+    call_state,
+    number_is_partners,
+    prompt_instruction as call_prompt_instruction,
+)
 from app.ai.number_redaction import (
     parse_conversation_text,
     prompt_instruction as redaction_prompt_instruction,
@@ -663,6 +668,19 @@ def build_human_renter_reply_prompt(
     _redaction = redaction_state(parse_conversation_text(conversation), _mobile)
     if _redaction:
         number_policy += "\n" + redaction_prompt_instruction(_redaction, _mobile)
+    # Landlord calling/texting the WhatsApp-only number we gave (app/ai/call_intent.py):
+    # detected in code, so the steer to a WhatsApp message only appears when they
+    # actually brought up calling or texting.
+    _parsed = parse_conversation_text(conversation)
+    _call = call_state(_parsed, _mobile)
+    if _call:
+        number_policy += "\n" + call_prompt_instruction(
+            _call,
+            _mobile,
+            partner_name=partner,
+            seed=conversation[:120],
+            partners=number_is_partners(_parsed, _mobile, partner),
+        )
     origin = (place or "").strip()
     if origin:
         # One consistent, plausible origin (~1-2h away, set upstream) used both

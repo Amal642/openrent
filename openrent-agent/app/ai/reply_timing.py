@@ -25,6 +25,7 @@ reply latency is unchanged; only the too-fast cases move to the next sweep.
 import hashlib
 from datetime import datetime
 
+from app.ai.call_intent import call_needs_fast_reply
 from app.ai.stages import _message_time, landlord_says_en_route
 
 
@@ -85,6 +86,10 @@ def reply_hold_remaining_seconds(messages, thread_id, now=None):
     """
     now = now or datetime.utcnow()
     if landlord_says_en_route(messages):
+        return 0.0
+    # They are trying to reach the WhatsApp-only number right now (a failed call,
+    # "calling you now"): a delayed answer loses them.
+    if call_needs_fast_reply(messages):
         return 0.0
     latest = _latest_landlord_message(messages)
     if latest is None:

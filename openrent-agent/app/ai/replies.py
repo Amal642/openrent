@@ -17,6 +17,7 @@ from app.ai.prompts import (
     LANDLORD_NUMBER_CAPTURE_DESIGNS,
     _human_reply_enabled,
 )
+from app.ai.call_intent import reply_agrees_to_call, strip_call_sentences
 from app.ai.number_redaction import (
     GIVE as REDACTION_GIVE,
     NO_MOBILE_LINE as REDACTION_NO_MOBILE_LINE,
@@ -389,6 +390,48 @@ def _enforce_redacted_number_policy(
     return reply
 
 
+_NO_CALL_NUDGE = (
+    "\n\nIMPORTANT: your previous draft agreed to a phone call, promised a call, or said you "
+    "look forward to their call. The number you gave is your partner's WhatsApp and nobody "
+    "can take or make phone calls on it. Write the reply again without agreeing to, promising "
+    "or inviting any phone call or text, and without saying it is \"WhatsApp only\". If they "
+    "want to reach your partner, a WhatsApp message is the way."
+)
+
+
+def _enforce_no_phone_calls(reply, conversation_text, build_prompt, persona, persona_email, thread_id=None):
+    """Our give-out lines take no calls or SMS, yet the model replied "I'll call you
+    at 5.30pm", "Looking forward to your call" (17 of our replies in 30 days to
+    2026-10-08). Regenerate up to twice, then drop the offending sentences."""
+    if not reply or not reply_agrees_to_call(reply):
+        return reply
+    tid_tag = f" thread_id={thread_id}" if thread_id else ""
+    logger.warning(f"PHONE_CALL_REPLY_VIOLATION{tid_tag} reply={reply[:120]!r}")
+    mobile = (persona or {}).get("mobile_number")
+    was_withdrawal = is_viewing_withdrawal(reply)
+    for _attempt in range(2):
+        regen = generate_reply_result(
+            conversation_text,
+            model=settings.OPENAI_REPLY_MODEL,
+            temperature=0.7,
+            prompt_builder=lambda c: build_prompt(c) + _NO_CALL_NUDGE,
+            allowed_email=persona_email,
+        )
+        if not regen.is_valid:
+            continue
+        candidate = remove_unapproved_phone_numbers(regen.reply, mobile)
+        if (
+            is_valid_reply(candidate, allowed_email=persona_email)
+            and not reply_agrees_to_call(candidate)
+            and is_viewing_withdrawal(candidate) == was_withdrawal
+        ):
+            logger.info(f"PHONE_CALL_REPLY_REGENERATED{tid_tag}")
+            return candidate
+    stripped = strip_call_sentences(reply)
+    logger.warning(f"PHONE_CALL_REPLY_STRIPPED{tid_tag} remaining={bool(stripped)}")
+    return stripped
+
+
 def generate_reply(
     messages,
     stage=None,
@@ -561,6 +604,12 @@ def generate_reply(
         thread_id=thread_id,
         phone_found=landlord_already_gave_number,
         conversation_design_id=conversation_design_id,
+    )
+    if not reply:
+        return None, "invalid_ai_reply"
+
+    reply = _enforce_no_phone_calls(
+        reply, conversation, build_prompt, persona, persona_email, thread_id=thread_id
     )
     if not reply:
         return None, "invalid_ai_reply"

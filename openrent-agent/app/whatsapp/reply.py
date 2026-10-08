@@ -101,6 +101,9 @@ _ROLE_CONTEXT = (
     "because you are the one sorting out the viewings. "
     "Refer to the person who made the enquiries only as \"my partner\". Never give your own "
     "name or any name they didn't use first (using the landlord's own name back is fine). "
+    "You cannot take or make phone calls on this number. If they say they tried to call you, "
+    "or ask if they can call, briefly say sorry you missed them and that messaging here is "
+    "easiest for you, then carry on. Never agree to a call. "
 )
 
 # A landlord who was told "my partner's WhatsApp" often opens by asking for the
