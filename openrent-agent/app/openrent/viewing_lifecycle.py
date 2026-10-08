@@ -49,15 +49,25 @@ _DEFAULT_CANCEL_MSG = (
 
 async def _cancel_viewing_and_handoff(
     thread_id, messages, latest_landlord_message, page,
-    persona=None, landlord_attitude=None,
+    persona=None, landlord_attitude=None, ignore_block=False,
 ):
-    """Send a viewing cancellation, mark the viewing cancelled, and complete handoff."""
+    """Send a viewing cancellation, mark the viewing cancelled, and complete handoff.
+
+    ignore_block: the sweep's imminent-viewing deadline. The "awaiting their
+    reply to our number ask" hold must not survive it: until 2026-10-08 the
+    sweep logged VIEWING_CANCEL_DEADLINE ... overriding, then this function
+    re-checked the hold and refused, so the viewing passed uncancelled and the
+    landlord could flag a no-show (9 viewings in 2 days)."""
     block_reason = get_automatic_cancellation_block_reason(thread_id)
-    if block_reason:
+    if block_reason and not ignore_block:
         logger.info(
             f"CANCELLATION_BLOCKED thread_id={thread_id} reason={block_reason}"
         )
         return False
+    if block_reason:
+        logger.info(
+            f"CANCELLATION_BLOCK_OVERRIDDEN thread_id={thread_id} reason={block_reason}"
+        )
 
     logger.info(f"VIEWING_CANCEL_TRIGGERED thread_id={thread_id}")
 

@@ -29,6 +29,9 @@ _PHONE_CANDIDATE_RE = re.compile(
     rf"|44{_PHONE_SEP}7(?:{_PHONE_SEP}\d){{9}}"
     # national 07… mobile
     rf"|0{_PHONE_SEP}7(?:{_PHONE_SEP}\d){{9}}"
+    # …typed with a letter o for the zero ("o7484318755", thread 47011441: the
+    # landlord's number sat in the chat and we cancelled the viewing anyway)
+    rf"|(?<![A-Za-z])[oO]{_PHONE_SEP}7(?:{_PHONE_SEP}\d){{9}}"
     r")(?!\d)"
 )
 # Digit fragment at the end / start of a message, for numbers split across
@@ -43,6 +46,7 @@ def _canonical_phone(raw):
     "+44 (0)7700 900123" -> "+447700900123", "0044 7911…" -> "+447911…",
     "07911 123 456" -> "07911123456", "447911123456" stays as is."""
     intl = raw.lstrip().startswith(("+", "00"))
+    raw = re.sub(r"^(\s*)[oO]", r"\g<1>0", raw)  # "o7…" -> "07…"
     digits = re.sub(r"\D", "", raw)
     if intl:
         if digits.startswith("0044"):

@@ -166,7 +166,8 @@ async def _process_due_cancellations(account, page, owner):
                 )
                 logger.info(f"VIEWING_CANCEL_NOW thread_id={thread_id} reason={hours_label}")
                 cancelled = await _cancel_viewing_and_handoff(
-                    thread_id, messages, latest_landlord_message, page
+                    thread_id, messages, latest_landlord_message, page,
+                    ignore_block=at_deadline,
                 )
                 if not cancelled:
                     logger.warning(f"VIEWING_CANCEL_FAILED thread_id={thread_id}")

@@ -327,10 +327,20 @@ def _parse_ai_viewing_datetime(dt_str):
     return None
 
 
+# A viewing can only be newly agreed or moved in a recent landlord message. On a
+# dead thread whose last landlord message is old and still "unanswered" (reply
+# box closed, e.g. "You didn't show up to the viewing"), the detector ran every
+# cycle and sometimes read an old "today" as TODAY: 17 threads from June-Sept had
+# their viewing moved to the current date, some day after day (46401639).
+VIEWING_DETECTION_MAX_MESSAGE_AGE = timedelta(days=2)
+
+
 def _should_run_viewing_detection(
     banners,
     conversation=None,
     has_new_landlord_message=True,
+    latest_landlord_at=None,
+    now=None,
 ) -> bool:
     """Decide whether to run AI viewing-detection this pass.
 
@@ -376,6 +386,14 @@ def _should_run_viewing_detection(
     # so the temperature=0 detector returns what the DB already holds. Skip.
     if not has_new_landlord_message:
         return False
+    # The landlord's newest message is old: nothing can have been agreed since.
+    # (Unknown timestamp -> keep the old behaviour and run.)
+    if latest_landlord_at is not None:
+        current = now or datetime.now(timezone.utc)
+        if latest_landlord_at.tzinfo is None:
+            latest_landlord_at = latest_landlord_at.replace(tzinfo=timezone.utc)
+        if current - latest_landlord_at > VIEWING_DETECTION_MAX_MESSAGE_AGE:
+            return False
     # Otherwise run — INCLUDING when a live "viewing confirmed" banner is present.
     # OpenRent does NOT update that banner when a viewing is rescheduled in
     # free-text, so a STALE confirmed banner must not suppress re-detection of a
@@ -648,6 +666,7 @@ async def process_account_replies(
                 banners,
                 conversation=_conv_pre,
                 has_new_landlord_message=_has_new_landlord_msg,
+                latest_landlord_at=_latest_message_by_sender(messages, {"landlord"})[1],
             ):
                 ai_viewing = ai_detect_viewing_arranged(messages)
                 if ai_viewing.get("viewing_arranged"):

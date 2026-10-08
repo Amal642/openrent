@@ -179,3 +179,58 @@ def test_never_asked_at_deadline_cancels_instead_of_asking(monkeypatch):
     calls = _run(monkeypatch, _conv(viewing_datetime=datetime.utcnow() + timedelta(hours=0.8)))
     assert len(calls["cancel"]) == 1
     assert calls["ask"] == []
+
+
+# --- 2026-10-08: the deadline override never reached the cancel itself. The
+# sweep logged VIEWING_CANCEL_DEADLINE ... overriding, then
+# _cancel_viewing_and_handoff re-checked the hold and refused (9 viewings passed
+# uncancelled in 2 days). The tests above fake the cancel, so they missed it. ---
+
+def test_deadline_passes_override_to_cancel(monkeypatch):
+    seen = {}
+    conv = _conv(
+        viewing_datetime=datetime.utcnow() + timedelta(hours=1.0),
+        phone_requested_at=datetime.utcnow() - timedelta(hours=2),
+    )
+    from scripts import process_viewing_reminders as module
+
+    async def cancel(*a, **k):
+        seen.update(k)
+        return True
+
+    _run(monkeypatch, conv, block_reason="awaiting_phone_request_response")
+    monkeypatch.setattr(module, "_cancel_viewing_and_handoff", cancel)
+    # re-run with the kwargs-capturing fake
+    monkeypatch.setattr(module, "get_due_viewing_cancellations", lambda account_id: [{
+        "thread_id": "t1", "viewing_datetime": conv.viewing_datetime, "viewing_confirmed": True,
+    }])
+    asyncio.run(module.process_account_viewing_reminders(SimpleNamespace(id=1, email="t@x"), object(), worker_id="w1"))
+    assert seen.get("ignore_block") is True
+
+
+def test_real_cancel_goes_through_hold_when_overridden(monkeypatch):
+    from app.openrent import viewing_lifecycle as vl
+
+    sent, done = [], []
+    monkeypatch.setattr(vl, "get_automatic_cancellation_block_reason", lambda _t: "awaiting_phone_request_response")
+    monkeypatch.setattr(vl, "generate_cancel_viewing_message", lambda _m: ("Sorry, need to cancel.", None))
+
+    async def send(page, text):
+        sent.append(text)
+        return True
+
+    async def booking(page, thread_id):
+        done.append("booking")
+        return "cancelled"
+
+    monkeypatch.setattr(vl, "send_reply", send)
+    monkeypatch.setattr(vl, "cancel_openrent_booking", booking)
+    for name in ("save_message", "update_last_processed_message", "mark_viewing_cancelled",
+                 "mark_handoff_complete", "update_conversation_status"):
+        monkeypatch.setattr(vl, name, lambda *a, **k: None)
+
+    blocked = asyncio.run(vl._cancel_viewing_and_handoff("t1", [], "hi", object()))
+    assert blocked is False and sent == []
+
+    ok = asyncio.run(vl._cancel_viewing_and_handoff("t1", [], "hi", object(), ignore_block=True))
+    assert ok is True and sent == ["Sorry, need to cancel."] and done == ["booking"]
