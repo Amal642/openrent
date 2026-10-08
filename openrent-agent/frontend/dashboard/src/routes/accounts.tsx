@@ -348,9 +348,8 @@ function AccountsPage() {
           </TableHeader>
           <TableBody>
             {filtered.map((a, i) => {
-              const pct = a.dailyMessageLimit
-                ? (a.messagesSentToday / a.dailyMessageLimit) * 100
-                : 0;
+              const limitToday = a.dailyLimitToday ?? a.dailyMessageLimit;
+              const pct = limitToday ? (a.messagesSentToday / limitToday) * 100 : 0;
               const stale = staleness(a);
               const staleLabel = STALE_LABEL[stale];
               return (
@@ -391,7 +390,7 @@ function AccountsPage() {
                     <div className="flex items-center gap-2">
                       <Progress value={pct} className="h-1.5 w-24" />
                       <span className="text-xs tabular-nums text-muted-foreground">
-                        {a.messagesSentToday}/{a.dailyMessageLimit}
+                        {a.messagesSentToday}/{limitToday}
                       </span>
                     </div>
                   </TableCell>

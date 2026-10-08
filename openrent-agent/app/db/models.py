@@ -597,6 +597,20 @@ class AlertEvent(Base):
     outcome = Column(String, nullable=True)
 
 
+class ListingOrigin(Base):
+    """The search profile that first discovered a listing, recorded the first
+    time the listing moves to another account (overflow / freshest-first
+    claiming). listings.search_profile_id follows the account that sends, so
+    without this the area stats would credit the sender's area with the find
+    and make the finder's area look emptier than it is. A separate table so
+    the hot listings table needs no ALTER."""
+    __tablename__ = "listing_origins"
+
+    listing_id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class StepHealthEvent(Base):
     """One attempt at an OpenRent page step (login, inbox, enquiry form, reply
     send...) and whether the page looked the way the code expects. Read by

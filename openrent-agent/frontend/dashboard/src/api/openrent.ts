@@ -62,6 +62,7 @@ type BackendAccount = {
   proxy_username?: string;
   proxy_password?: string;
   daily_limit?: number;
+  daily_limit_today?: number;
   messages_sent_today?: number;
   active?: boolean;
   created_at?: string;
@@ -266,6 +267,7 @@ function mapAccount(account: BackendAccount): Account {
     sessionStatus: asSessionStatus(account.session_status, workerStatus),
     workerStatus,
     dailyMessageLimit: account.daily_limit ?? 0,
+    dailyLimitToday: account.daily_limit_today ?? account.daily_limit ?? 0,
     messagesSentToday: account.messages_sent_today ?? 0,
     proxyServer: account.proxy_server,
     proxyUsername: account.proxy_username,

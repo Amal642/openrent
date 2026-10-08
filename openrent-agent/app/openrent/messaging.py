@@ -17,21 +17,49 @@ class EarlyAccessRestricted(Exception):
     """OpenRent shows "You've selected an early access property. Enquiries are
     restricted to Verified Tenants." instead of the enquiry form: this account
     is not a Verified Tenant, so it cannot message this listing (yet). Not a
-    page fault: the listing stays open for verified accounts."""
+    page fault: the listing stays open for verified accounts.
+
+    unlock_in_minutes: the free plan's countdown ("Unlock in 12 hours"), or
+    None when the page doesn't show one we can read."""
+
+    def __init__(self, message, unlock_in_minutes=None):
+        super().__init__(message)
+        self.unlock_in_minutes = unlock_in_minutes
 
 
 _EARLY_ACCESS_MARKERS = (
     "early access property",
     "enquiries are restricted to verified tenants",
 )
+_UNLOCK_RE = re.compile(
+    r"unlock in\s+(?:(\d+)\s*(?:hours?|hrs?)\b)?\s*(?:(\d+)\s*(?:minutes?|mins?)\b)?"
+)
+
+
+def parse_unlock_minutes(content: str):
+    """Minutes until an early-access listing opens to everyone, from the free
+    plan's "Unlock in 12 hours" line. None if absent or unreadable."""
+    text = re.sub(r"<[^>]+>", " ", content or "").lower()
+    match = _UNLOCK_RE.search(re.sub(r"\s+", " ", text))
+    if not match or not (match.group(1) or match.group(2)):
+        return None
+    return int(match.group(1) or 0) * 60 + int(match.group(2) or 0)
+
+
+async def early_access_unlock(page):
+    """(is_early_access, unlock_in_minutes) for the current page."""
+    try:
+        content = await page.content()
+    except Exception:
+        return False, None
+    lower = content.lower()
+    if not any(marker in lower for marker in _EARLY_ACCESS_MARKERS):
+        return False, None
+    return True, parse_unlock_minutes(content)
 
 
 async def is_early_access_page(page) -> bool:
-    try:
-        content = (await page.content()).lower()
-    except Exception:
-        return False
-    return any(marker in content for marker in _EARLY_ACCESS_MARKERS)
+    return (await early_access_unlock(page))[0]
 
 AVAILABILITY_OPTIONS = [
     "Weekday evenings after 6pm and weekends work well for us.",
@@ -539,9 +567,10 @@ async def send_initial_message(
     logger.info(f"Opening message page: {message_url}")
     await page.goto(message_url, wait_until="domcontentloaded", timeout=30_000)
 
-    if await is_early_access_page(page):
-        logger.info(f"EARLY_ACCESS_RESTRICTED url={message_url}")
-        raise EarlyAccessRestricted("Early access property: Verified Tenants only")
+    early, unlock_in = await early_access_unlock(page)
+    if early:
+        logger.info(f"EARLY_ACCESS_RESTRICTED url={message_url} unlock_in_minutes={unlock_in}")
+        raise EarlyAccessRestricted("Early access property: Verified Tenants only", unlock_in)
 
     # ── Wait for form — selector-based, no networkidle ────────
     logger.info("Waiting for message form")
@@ -550,9 +579,10 @@ async def send_initial_message(
             state="visible", timeout=15_000
         )
     except Exception:
-        if await is_early_access_page(page):
-            logger.info(f"EARLY_ACCESS_RESTRICTED url={message_url}")
-            raise EarlyAccessRestricted("Early access property: Verified Tenants only")
+        early, unlock_in = await early_access_unlock(page)
+        if early:
+            logger.info(f"EARLY_ACCESS_RESTRICTED url={message_url} unlock_in_minutes={unlock_in}")
+            raise EarlyAccessRestricted("Early access property: Verified Tenants only", unlock_in)
         logger.error("Availability field not visible after 15s")
         await _save_form_debug(page, "availability_field_missing")
         page_health.record_step(page_health.ENQUIRY_FORM, False, "#Availability not visible")

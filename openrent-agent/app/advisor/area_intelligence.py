@@ -17,7 +17,7 @@ from sqlalchemy.orm import joinedload
 from app.advisor.area_defaults import get_area_defaults
 from app.advisor.rules import RULES
 from app.db.connection import SessionLocal
-from app.db.models import Account, Conversation, Landlord, Listing, SearchProfile
+from app.db.models import Account, Conversation, Landlord, Listing, ListingOrigin, SearchProfile
 
 
 MIN_CONTACTED_FOR_RATE = 5
@@ -151,11 +151,21 @@ def _load_area_metrics(now: datetime | None = None) -> list[AreaMetrics]:
             )
             .all()
         )
+        # A listing another account took over is credited to the area that
+        # found it, not the sender's (see ListingOrigin).
+        location_by_profile = {p.id: p.location for p in profiles}
+        origin_location = {
+            listing_id: location_by_profile.get(profile_id)
+            for listing_id, profile_id in db.query(
+                ListingOrigin.listing_id, ListingOrigin.profile_id
+            ).all()
+        }
 
     for listing in listings:
         if not listing.search_profile:
             continue
-        metric = areas.get(listing.search_profile.location)
+        location = origin_location.get(listing.id) or listing.search_profile.location
+        metric = areas.get(location)
         if metric is None:
             continue
         _apply_listing(metric, listing, day_ago, week_ago)

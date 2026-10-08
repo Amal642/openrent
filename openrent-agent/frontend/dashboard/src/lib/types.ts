@@ -70,6 +70,8 @@ export interface Account {
   sessionStatus: SessionStatus;
   workerStatus: WorkerStatus;
   dailyMessageLimit: number;
+  /** Today's limit: the base limit, or 8-10 for accounts on the daily variation. */
+  dailyLimitToday?: number;
   messagesSentToday: number;
   proxyServer?: string;
   proxyUsername?: string;

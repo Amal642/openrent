@@ -208,7 +208,9 @@ def test_send_path_does_not_overflow_when_own_inventory_exists(monkeypatch):
     monkeypatch.setattr(
         pl,
         "claim_overflow_listings",
-        lambda *a, **k: called.append(k.get("early_access_only", False)) or ([], {}),
+        lambda *a, **k: called.append(
+            "early" if k.get("early_access_only") else "fresh" if k.get("freshest") else "surplus"
+        ) or ([], {}),
     )
 
     async def ok(*a, **k):
@@ -216,9 +218,9 @@ def test_send_path_does_not_overflow_when_own_inventory_exists(monkeypatch):
     monkeypatch.setattr(pl, "_process_claimed_listings", ok)
 
     asyncio.run(pl.process_account_listings(Acc(), page=None, worker_id="w-30"))
-    # Only the early-access pass (listings other accounts are locked out of);
-    # never the regular surplus overflow.
-    assert called == [True]
+    # Only the early-access and freshest-first passes; never the regular
+    # surplus overflow while we have our own listings.
+    assert called == ["early", "fresh"]
 
 
 def test_scraper_donor_gives_everything(db):

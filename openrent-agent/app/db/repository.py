@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import hashlib
 import os
 import random
 import re
@@ -15,6 +16,7 @@ from app.db.models import (
     Landlord,
     LeadSheetExport,
     Listing,
+    ListingOrigin,
     Location,
     Message,
     OpenRentBookingCancel,
@@ -618,6 +620,7 @@ def serialize_account(account):
         "proxy_password": account.proxy_password,
         "initial_message": account.initial_message,
         "daily_limit": account.daily_limit,
+        "daily_limit_today": daily_limit_today(account),
         "messages_sent_today": account.messages_sent_today,
         "messages_sent_reset_at": _utc(account.messages_sent_reset_at),
         "active": account.active,
@@ -1147,6 +1150,45 @@ OUTREACH_GAP_MIN_MINUTES = int(os.getenv("OUTREACH_GAP_MIN_MIN", "30"))
 OUTREACH_GAP_MAX_MINUTES = int(os.getenv("OUTREACH_GAP_MAX_MIN", "150"))
 
 
+# Daily limit variation. The same 8 enquiries every day on every account is a
+# pattern no real renter has. Accounts listed in DAILY_LIMIT_VARY_ACCOUNTS
+# (e.g. "39-45" or "39,40,41") send their base limit plus 0..DAILY_LIMIT_VARY_EXTRA
+# more each UK day, picked per account per day: 8, 9 or 10 with the default 8 +
+# 2. Never below the base. The pick is a hash of (account, date), so it is
+# stable across restarts and differs between accounts on the same day. Started
+# 2026-10-08 on the new accounts only; the older five stay at a flat 8 as the
+# comparison. Accounts with a limit of 0 (search-only) are never touched.
+def _vary_account_ids() -> set[int]:
+    ids: set[int] = set()
+    for part in os.getenv("DAILY_LIMIT_VARY_ACCOUNTS", "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            if "-" in part:
+                low, high = (int(x) for x in part.split("-", 1))
+                ids.update(range(low, high + 1))
+            else:
+                ids.add(int(part))
+        except ValueError:
+            continue
+    return ids
+
+
+def daily_limit_for_day(account_id, base_limit, day) -> int:
+    base = base_limit or 0
+    if base <= 0 or account_id not in _vary_account_ids():
+        return base
+    extra = max(int(os.getenv("DAILY_LIMIT_VARY_EXTRA", "2")), 0)
+    digest = hashlib.sha256(f"daily-limit|{account_id}|{day.isoformat()}".encode()).digest()
+    return base + int.from_bytes(digest[:4], "big") % (extra + 1)
+
+
+def daily_limit_today(account) -> int:
+    """How many initial enquiries this account may send today (UK day)."""
+    return daily_limit_for_day(account.id, account.daily_limit, uk_now().date())
+
+
 def set_next_outreach_at(account_id: int) -> None:
     from app.utils.scheduling import uk_now, OUTREACH_START, OUTREACH_END
     from app.utils.logger import logger
@@ -1158,7 +1200,7 @@ def set_next_outreach_at(account_id: int) -> None:
 
         now_uk = uk_now()
         remaining_quota = max(
-            (account.daily_limit or 0) - (account.messages_sent_today or 0), 0
+            daily_limit_today(account) - (account.messages_sent_today or 0), 0
         )
         end_uk = now_uk.replace(
             hour=OUTREACH_END.hour, minute=OUTREACH_END.minute,
@@ -1298,6 +1340,7 @@ EARLY_ACCESS_TAG = "EARLY_ACCESS:"
 EARLY_ACCESS_RETRY_HOURS = 24
 EARLY_ACCESS_MAX_AGE_DAYS = 3
 EARLY_ACCESS_CLAIM_LIMIT = 3
+EARLY_ACCESS_UNLOCK_MARGIN_MINUTES = 10
 UNVERIFIED_MEMORY_DAYS = 14
 
 
@@ -1309,7 +1352,10 @@ def _early_access_tag_ids(fail_reason):
 
 def _early_access_blocks(account_id, cutoff):
     """SQL filter: True for listings this account may claim, i.e. NOT tagged
-    as early-access-blocked for it within the retry window."""
+    as early-access-blocked for it within the retry window.
+
+    The window is measured from last_processed_at, which mark_listing_early_access
+    back-dates so the window closes when OpenRent says the listing unlocks."""
     from sqlalchemy import or_
 
     return or_(
@@ -1319,9 +1365,17 @@ def _early_access_blocks(account_id, cutoff):
     )
 
 
-def mark_listing_early_access(listing_id, account_id):
+def mark_listing_early_access(listing_id, account_id, unlock_in_minutes=None):
     """Record that account_id hit the early-access page for this listing. The
-    listing stays open (not failed, not skipped) for other accounts."""
+    listing stays open (not failed, not skipped) for other accounts.
+
+    unlock_in_minutes: OpenRent's own countdown ("Unlock in 12 hours"). The
+    blocked accounts may retry a few minutes after it, instead of after the
+    fixed EARLY_ACCESS_RETRY_HOURS, to enquire as soon as the listing opens."""
+    now = datetime.utcnow()
+    retry_at = now + timedelta(hours=EARLY_ACCESS_RETRY_HOURS)
+    if unlock_in_minutes is not None and 0 <= unlock_in_minutes < EARLY_ACCESS_RETRY_HOURS * 60:
+        retry_at = now + timedelta(minutes=unlock_in_minutes + EARLY_ACCESS_UNLOCK_MARGIN_MINUTES)
     with session_scope() as db:
         listing = db.query(Listing).filter(Listing.id == listing_id).first()
         if not listing:
@@ -1329,7 +1383,9 @@ def mark_listing_early_access(listing_id, account_id):
         ids = _early_access_tag_ids(listing.fail_reason) | {int(account_id)}
         listing.fail_reason = EARLY_ACCESS_TAG + "," + ",".join(str(i) for i in sorted(ids)) + ","
         listing.processing_failed = False
-        listing.last_processed_at = datetime.utcnow()
+        # Back-dated so the retry window (last_processed_at + RETRY_HOURS)
+        # ends at retry_at.
+        listing.last_processed_at = retry_at - timedelta(hours=EARLY_ACCESS_RETRY_HOURS)
         listing.processing_owner = None
         listing.processing_started_at = None
         db.commit()
@@ -1424,6 +1480,8 @@ def claim_overflow_listings(
     limit=OVERFLOW_CLAIM_LIMIT,
     stale_minutes=30,
     early_access_only=False,
+    freshest=False,
+    newer_than=None,
 ):
     """Transfer and claim surplus listings from other same-region accounts.
 
@@ -1437,6 +1495,11 @@ def claim_overflow_listings(
     blocked from as early access (see mark_listing_early_access). Their owner
     cannot send them, so the donor keep-back does not apply. Returns nothing
     for an account known to be unverified.
+
+    ``freshest``: take the region's newest listings regardless of which account
+    found them (no donor keep-back), only those discovered after
+    ``newer_than`` (the claimer's own newest, if any). Whoever is due to send
+    gets the freshest listing; nobody's send count changes.
     """
     from sqlalchemy import or_, update
     from app.utils.logger import logger
@@ -1462,6 +1525,8 @@ def claim_overflow_listings(
         ]
         if early_access_only:
             filters.append(Listing.fail_reason.like(f"{EARLY_ACCESS_TAG}%"))
+        if newer_than is not None:
+            filters.append(Listing.first_seen > newer_than)
         elif claimer_unverified:
             # Would only hit the same Verified Tenants wall again.
             filters.append(
@@ -1519,7 +1584,7 @@ def claim_overflow_listings(
         }
         surplus = {}
         for donor_id, open_count in donor_counts:
-            if early_access_only or donor_id in unavailable:
+            if early_access_only or freshest or donor_id in unavailable:
                 spare = open_count
             else:
                 spare = open_count - OVERFLOW_DONOR_KEEP
@@ -1588,6 +1653,9 @@ def claim_overflow_listings(
             )
             if result.rowcount != 1:
                 continue
+            # Remember who found it, once, so area stats credit the finder.
+            if db.get(ListingOrigin, listing_pk) is None:
+                db.add(ListingOrigin(listing_id=listing_pk, profile_id=donor_profile_id, created_at=now))
             taken_from[donor_id] = taken_from.get(donor_id, 0) + 1
             origins[listing_pk] = {
                 "origin_profile_id": donor_profile_id,
@@ -1812,7 +1880,7 @@ def can_send_message(account_id):
             account.messages_sent_reset_at = datetime.utcnow()
             db.commit()
 
-        return account.messages_sent_today < account.daily_limit
+        return account.messages_sent_today < daily_limit_today(account)
 
 
 def increment_message_count(account_id):

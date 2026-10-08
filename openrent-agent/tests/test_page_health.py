@@ -222,7 +222,7 @@ def test_early_access_listing_is_tagged_not_failed(monkeypatch):
         return {"rent_pcm": 1500, "bedrooms": 1}
 
     async def blocked(**k):
-        raise messaging.EarlyAccessRestricted("x")
+        raise messaging.EarlyAccessRestricted("x", 720)
 
     monkeypatch.setattr(pl, "account_stop_requested", lambda _id: False)
     monkeypatch.setattr(pl, "open_listing", anon)
@@ -237,13 +237,15 @@ def test_early_access_listing_is_tagged_not_failed(monkeypatch):
     monkeypatch.setattr(pl, "save_message_url", lambda *a: None)
     monkeypatch.setattr(pl, "generate_initial_property_message", lambda *a, **k: ("hi", None))
     monkeypatch.setattr(pl, "send_initial_message", blocked)
-    monkeypatch.setattr(pl, "mark_listing_early_access", lambda pk, acc: tagged.append((pk, acc)))
+    monkeypatch.setattr(
+        pl, "mark_listing_early_access", lambda pk, acc, unlock=None: tagged.append((pk, acc, unlock))
+    )
     monkeypatch.setattr(pl, "mark_listing_failed", lambda *a, **k: failed.append(a))
     monkeypatch.setattr(pl, "release_listing_claim", lambda *a: None)
 
     result = asyncio.run(pl._process_claimed_listings(Acc(), None, [L()], {}, "w-43", {}))
 
-    assert tagged == [(7, 43)]
+    assert tagged == [(7, 43, 720)]
     assert failed == []
     assert result == (0, 0, 1, 0)
 

@@ -37,6 +37,11 @@ from app.openrent.messaging import (
 )
 from app.services import page_health
 from app.db.repository import EARLY_ACCESS_CLAIM_LIMIT
+
+from datetime import datetime
+
+# Listings newer than the account's own newest that it may take per run.
+FRESH_CLAIM_LIMIT = 4
 from app.openrent.listing_metadata import (
     MIN_ACCEPTED_TENANCY_MONTHS,
     extract_listing_metadata,
@@ -114,10 +119,35 @@ async def process_account_listings(
             f"donors={sorted({o['origin_account_id'] for o in overflow_origin.values()})}"
         )
 
-    listings = early_listings + claim_uncontacted_listings(
+    own_listings = claim_uncontacted_listings(
         account.id,
         claim_owner,
         limit=20,
+    )
+
+    # Freshest first: listings in our region newer than our own newest, even
+    # if another account found them. Earlier enquiries get more replies
+    # (first 3 days ~42% vs ~33% after), and accounts with a local backlog
+    # were sending 10-27h-old listings while fresh ones sat elsewhere.
+    # Same one send per run; anything unsent goes back to its finder.
+    newest_own = max(
+        (l.first_seen for l in own_listings if getattr(l, "first_seen", None)), default=None
+    )
+    fresh_listings, fresh_origin = claim_overflow_listings(
+        account.id, claim_owner, limit=FRESH_CLAIM_LIMIT, freshest=True, newer_than=newest_own
+    )
+    if fresh_listings:
+        overflow_origin.update(fresh_origin)
+        logger.info(
+            f"FRESHER_CLAIMED account_id={account.id} claimed={len(fresh_listings)} "
+            f"own_newest={newest_own} "
+            f"donors={sorted({o['origin_account_id'] for o in fresh_origin.values()})}"
+        )
+
+    listings = early_listings + sorted(
+        fresh_listings + own_listings,
+        key=lambda l: getattr(l, "first_seen", None) or datetime.min,
+        reverse=True,
     )
 
     # No inventory of our own: take over surplus listings from same-region
@@ -322,15 +352,15 @@ async def _process_claimed_listings(account, page, listings, persona, claim_owne
                     metadata=metadata,
                     persona=persona,
                 )
-            except EarlyAccessRestricted:
+            except EarlyAccessRestricted as blocked:
                 # Not a failure: this account isn't a Verified Tenant. Leave
-                # the listing open for accounts that are (and for this one
-                # once early access ends).
+                # the listing open for accounts that are, and for this one
+                # once OpenRent's countdown says it unlocks.
                 logger.info(
                     f"EARLY_ACCESS_BLOCKED listing={listing_ext_id} account_id={account.id} "
-                    "— left open for verified accounts"
+                    f"unlock_in_minutes={blocked.unlock_in_minutes} — left open for verified accounts"
                 )
-                mark_listing_early_access(listing_pk, account.id)
+                mark_listing_early_access(listing_pk, account.id, blocked.unlock_in_minutes)
                 skipped_other += 1
                 continue
 
