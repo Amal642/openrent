@@ -5,7 +5,7 @@ have already asked once), generate_reply takes the deterministic phone-share
 shortcut: it hands out the husband's WhatsApp number, framed as WhatsApp only
 (the number is call/SMS-dead). On a real OpenRent thread that share must also
 record a WhatsAppHandoffIntent so a later inbound WhatsApp maps back to the
-property (see whatsapp.matcher._apply_handoff_prior).
+property (see whatsapp.matcher._apply_given_number_evidence).
 
 This path is NOT reachable from the sim lab (it routes build_reply_prompt only,
 never generate_reply), so these faithful tests drive generate_reply directly.

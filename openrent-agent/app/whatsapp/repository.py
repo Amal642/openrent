@@ -573,7 +573,7 @@ def record_handoff_intent(
 
     Called when the reply prompt hands out the partner's WhatsApp number so a
     later inbound WhatsApp from that landlord can be matched back to the correct
-    property/thread (see matcher._apply_handoff_prior). Best-effort: resolves the
+    property/thread (see matcher._apply_given_number_evidence). Best-effort: resolves the
     thread's Conversation -> Listing to snapshot the landlord name + address.
     Idempotent-ish: skips if an unconsumed intent for this thread already exists.
     """

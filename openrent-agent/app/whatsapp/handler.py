@@ -486,6 +486,9 @@ def _match_and_link(
         all_property_hints,
         line_number=line_number,
         persona_names=mentioned_persona_names(inbound_texts),
+        contact_phone=contact.phone_number,
+        inbound_texts=inbound_texts,
+        contact_id=contact.id,
     )
     best = candidates[0] if candidates else None
     match_status = _match_status(candidates, confidence)

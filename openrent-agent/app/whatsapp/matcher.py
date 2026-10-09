@@ -8,10 +8,11 @@ from difflib import SequenceMatcher
 from typing import Optional
 
 from openai import OpenAI
+from sqlalchemy import or_
 
 from app.config import settings
 from app.db.connection import SessionLocal
-from app.db.models import Account, Listing, SearchProfile
+from app.db.models import Account, Conversation, Listing, SearchProfile, WhatsAppContact
 from app.utils.logger import logger
 
 _client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=15.0)
@@ -466,8 +467,6 @@ LISTING_LINK_CONFIDENCE = 99.0
 # boost; it can tip a near-tie but never outranks a listing link.
 PERSONA_BOOST = 8.0
 PERSONA_BOOST_CAP = 97.0
-# Minimum address score for a handoff intent's property evidence to count.
-HANDOFF_MIN_PROPERTY_SCORE = 75.0
 
 
 def extract_listing_ids(text: str | None) -> list[str]:
@@ -509,12 +508,21 @@ def match_by_evidence(
     property_hints: list[str] | None,
     line_number: str | None = None,
     persona_names: list[str] | None = None,
+    *,
+    contact_phone: str | None = None,
+    inbound_texts: list[str] | None = None,
+    contact_id: int | None = None,
+    as_of=None,
 ) -> tuple[list[dict], float]:
     """Score listings against accumulated WhatsApp name and property evidence.
 
     line_number is OUR number the landlord wrote to (any format); when given,
     handoff priors for a different give-out number are ignored.
     persona_names: our persona the landlord named (see mentioned_persona_names).
+    contact_phone / inbound_texts / contact_id: the contact's own number and
+    messages, for the given-number evidence (see _apply_given_number_evidence).
+    as_of: the moment to judge from (default now); the replay harness passes the
+    contact's first message time so nothing learned later leaks in.
     """
     names = [n.strip() for n in (names or []) if n and n.strip()]
     property_hints = [p.strip() for p in (property_hints or []) if p and p.strip()]
@@ -525,6 +533,12 @@ def match_by_evidence(
 
     db = SessionLocal()
     try:
+        if inbound_texts:
+            # "Hi Jessica" made the extractor list our persona as the landlord's
+            # name; most of the replay's wrong links (Alex, Claire, Isabelle,
+            # Jessica, Olivia, Victoria) scored that name against landlords.
+            greeted = _greeted_persona_names(db, inbound_texts)
+            names = [n for n in names if (n.split() or [""])[0].casefold() not in greeted]
         # Only listings we messaged: a landlord can only have our WhatsApp number
         # if we contacted them. Scoring never-contacted listings produced
         # "matches" with no conversation (lead marked acquired, never exported).
@@ -598,8 +612,14 @@ def match_by_evidence(
         # the WhatsApp number to (a landlord just handed the number almost
         # certainly belongs to that thread). Feeds well-founded candidates to the
         # caller's threshold+gap logic WITHOUT changing it; no intents -> unchanged.
-        _apply_handoff_prior(db, candidates, names, property_hints, line_number)
+        # Given-number evidence first, then the persona boost, the same order
+        # the handoff prior and boost ran in (the boost reaches these threads).
+        pool_threads = _apply_given_number_evidence(
+            db, candidates, names, property_hints, inbound_texts or [], line_number,
+            as_of=as_of, contact_id=contact_id, boosted_personas=persona_names,
+        )
         _apply_persona_boost(db, candidates, persona_names)
+        _apply_phone_match(db, candidates, contact_phone, as_of=as_of, pool_threads=pool_threads)
         _apply_listing_links(db, candidates, link_ids)
 
         candidates.sort(key=lambda x: x["confidence"], reverse=True)
@@ -693,79 +713,485 @@ def _handoff_name_score(name: str | None, landlord_name: str | None) -> float:
     return _name_score(a, b) if a and b else 0.0
 
 
-def _apply_handoff_prior(db, candidates, names, property_hints, line_number=None):
-    """Boost/add candidates from recent, unconsumed WhatsApp handoff intents.
+# ---------------------------------------------------------------------------
+# Given-number evidence (2026-10-08).
+#
+# A landlord can only have our WhatsApp number if one of our threads gave it to
+# them, so the threads where we handed it over in the days before they wrote
+# are the real candidate pool. Within that pool the decisive evidence was being
+# ignored, which left real landlords SAVED_UNMATCHED (~1/day; 9 linked by hand
+# on 2026-10-08):
+#   * the address they give is often in the OpenRent chat ("Church Street,
+#     London, E16 2NB") while our stored listing address is only an area
+#     ("Church St, E16"), so the chat is compared too;
+#   * they name our persona or partner ("Harriet shared your number", "Hi
+#     George"), which narrows the pool to that account;
+#   * the landlord's number may already be on the thread (certain match);
+#   * a landlord who names a different district/street is ruled out;
+#   * the persona they name only breaks ties (timing was tried and dropped:
+#     it moved competitors past the old margins in the 2026-10-08 replay).
+# ---------------------------------------------------------------------------
+# 97% of linked landlords write within 7 days of the give-out (222 contacts,
+# 2026-10-08); a longer window only adds competing threads.
+GIVEN_NUMBER_WINDOW_DAYS = 7
+PHONE_MATCH_CONFIDENCE = 99.0
+GIVEN_NUMBER_MAX_CONFIDENCE = 97.0
 
-    With several give-out numbers, a landlord can only be writing in response
-    to a handoff of the number they wrote to: intents that recorded a different
-    shared_number are skipped. Legacy intents (no shared_number) or an unknown
-    line keep the old all-intents behaviour.
+# "<persona> shared/passed on/gave your number". Not "<name> from OpenRent":
+# that is how landlords introduce THEMSELVES ("Laura from OpenRent"), and the
+# 2026-10-08 replay showed it narrowing contacts to the wrong account.
+_REFERRAL_VERBS = (
+    r"(?:shared|passed(?:\s+on)?|provided|gave|given|forwarded|sent)\s+(?:me\s+|us\s+)?"
+    r"(?:your|this|the|his|her|their)\s+(?:whats\s*app\s+)?(?:number|contact|details|whats\s*app)"
+)
 
-    A landlord we handed the number to in the last 7 days is a strong prior for
-    that thread, so a name-only match here outweighs the generic name-only cap
-    (72). Confidences stay below certainty so the caller's threshold+gap logic
-    still resolves ambiguity (two similar recent handoffs -> stays UNMATCHED ->
-    asks "which property?"). Fail-safe: any error degrades to normal matching.
-    """
-    from datetime import datetime, timedelta
-    from app.db.models import WhatsAppHandoffIntent
-    try:
-        cutoff = datetime.utcnow() - timedelta(days=7)
-        intents = (
-            db.query(WhatsAppHandoffIntent)
-            .filter(
-                WhatsAppHandoffIntent.created_at >= cutoff,
-                WhatsAppHandoffIntent.matched_contact_id.is_(None),
-            )
-            .all()
+
+REFERRAL_STRONG, REFERRAL_WEAK = 2, 1
+
+
+def mentioned_account_ids(db, texts: list[str], exclude_names=None) -> set[int]:
+    """Accounts whose persona OR partner name the landlord used for us."""
+    return set(mentioned_account_strength(db, texts, exclude_names))
+
+
+def mentioned_account_strength(db, texts: list[str], exclude_names=None) -> dict[int, int]:
+    """{account_id: strength} for persona OR partner names the landlord used for
+    us. REFERRAL_STRONG for an explicit referral ("your partner Claire",
+    "Harriet shared your number"), REFERRAL_WEAK for a greeting ("Hi George").
+    Empty when none, or when names of more than two different people appear
+    (a vague or name-heavy message decides nothing)."""
+    blob = "\n".join(t for t in texts if t)
+    if not blob.strip():
+        return {}
+    rows = (
+        db.query(Account.id, Account.persona_name, Account.persona_partner_name)
+        .filter(Account.deleted_at.is_(None))
+        .all()
+    )
+    by_name: dict[str, set[int]] = {}
+    for acc_id, persona, partner in rows:
+        for nm in (persona, partner):
+            nm = (nm or "").strip()
+            if len(nm) >= 3:
+                by_name.setdefault(nm.casefold(), set()).add(acc_id)
+    # A landlord called Olivia writing about her own flat is not naming our Olivia.
+    own = {w.casefold() for n in (exclude_names or []) for w in re.findall(r"[A-Za-z]{3,}", n or "")}
+    found: dict[str, tuple[set[int], int]] = {}
+    for key, ids in by_name.items():
+        if key in own:
+            continue
+        n = re.escape(key)
+        strong = (
+            rf"\b(?:partner|wife|husband|other half|girlfriend|boyfriend|fianc[eé]e?)\s+(?:is\s+)?{n}\b",
+            rf"\b{n}\s+(?:has\s+|had\s+|just\s+)?{_REFERRAL_VERBS}\b",
+            rf"\b{n}(?:'s|\u2019s)\s+(?:partner|husband|wife)\b",
         )
-    except Exception as exc:
-        logger.warning(f"WHATSAPP_HANDOFF_PRIOR_SKIPPED error={exc}")
+        weak = (
+            rf"\b(?:is this|is that|are you|speak(?:ing)? (?:to|with)|hi|hello|hey|hiya|dear|morning|afternoon|evening)\s+{n}\b",
+        )
+        if any(re.search(p, blob, re.I) for p in strong):
+            found[key] = (ids, REFERRAL_STRONG)
+        elif any(re.search(p, blob, re.I) for p in weak):
+            found[key] = (ids, REFERRAL_WEAK)
+    if not found or len(found) > 2:
+        return {}
+    out: dict[int, int] = {}
+    for ids, strength in found.values():
+        for acc in ids:
+            out[acc] = max(out.get(acc, 0), strength)
+    return out
+
+
+def _phone_digits(phone: str | None) -> str:
+    digits = re.sub(r"\D", "", phone or "")
+    if digits.startswith("44"):
+        digits = "0" + digits[2:]
+    return digits
+
+
+def _apply_phone_match(db, candidates, contact_phone, *, as_of=None, pool_threads=None):
+    """The landlord's WhatsApp number is already the number we captured on one
+    OpenRent thread (before this contact wrote): that thread, for certain."""
+    from datetime import datetime
+
+    digits = _phone_digits(contact_phone)
+    if len(digits) < 10:
         return
-    if not intents:
+    now = as_of or datetime.utcnow()
+    # Stored captures are mostly "07…", some "+447…" / "447…".
+    forms = {digits, "+44" + digits[1:], "44" + digits[1:]}
+    rows = (
+        db.query(Conversation, Listing)
+        .join(Listing, Conversation.listing_id == Listing.id)
+        .filter(Conversation.extracted_phone.in_(list(forms)))
+        .filter(or_(Conversation.phone_found_at.is_(None), Conversation.phone_found_at < now))
+        .all()
+    )
+    hits = [(c, l) for c, l in rows if _phone_digits(c.extracted_phone) == digits]
+    if pool_threads is not None:
+        # Same landlord, several of our threads: only the one we gave the
+        # number to is the one they are writing about.
+        hits = [(c, l) for c, l in hits if c.thread_id in pool_threads]
+    if len(hits) != 1:
         return
+    conversation, listing = hits[0]
+    by_listing = {c["listing_id"]: c for c in candidates}
+    cand = by_listing.get(listing.id)
+    if cand is None:
+        cand = _candidate_for(listing, conversation.thread_id)
+        candidates.append(cand)
+    cand["confidence"] = PHONE_MATCH_CONFIDENCE
+    cand["reason"] = "phone"
+    for other in candidates:
+        if other is not cand:
+            other["confidence"] = min(other["confidence"], PHONE_MATCH_CONFIDENCE - 9)
+
+
+def _candidate_for(listing, thread_id):
+    return {
+        "listing_id": listing.id,
+        "listing_listing_id": listing.listing_id,
+        "thread_id": thread_id or listing.thread_id,
+        "landlord_name": listing.landlord_name,
+        "landlord_id": listing.landlord_id,
+        "property_address": listing.property_address,
+        "confidence": 0.0,
+        "name_score": 0.0,
+        "property_score": 0.0,
+        "matched_name": None,
+        "matched_property_hint": None,
+        "reason": "",
+    }
+
+
+def _given_number_pool(db, as_of, line_number, contact_id=None):
+    """(conversation, listing, account, given_at) for every thread where we
+    handed out a WhatsApp number in the window before as_of. Respects the line
+    when the handoff recorded which number it gave."""
+    from datetime import timedelta
+    from app.db.models import WhatsAppHandoffIntent
     from app.whatsapp.lines import national_digits
 
+    start = as_of - timedelta(days=GIVEN_NUMBER_WINDOW_DAYS)
+    end = as_of + timedelta(hours=1)
     line_digits = national_digits(line_number)
-    by_listing = {c["listing_id"]: c for c in candidates}
-    for intent in intents:
+
+    given: dict[str, object] = {}
+    with_intent: set[str] = set()
+    snapshot_names: dict[str, set[str]] = {}
+    wrong_line: set[str] = set()
+    taken = {
+        thread_id
+        for (thread_id,) in db.query(WhatsAppContact.thread_id).filter(
+            WhatsAppContact.thread_id.isnot(None),
+            WhatsAppContact.created_at < as_of,
+            WhatsAppContact.id != (contact_id or -1),
+        )
+    }
+    for intent in (
+        db.query(WhatsAppHandoffIntent)
+        .filter(WhatsAppHandoffIntent.created_at >= start, WhatsAppHandoffIntent.created_at <= end)
+        .all()
+    ):
+        if intent.matched_contact_id and intent.matched_contact_id != contact_id:
+            taken.add(intent.thread_id)  # that landlord already reached us
+            continue
         shared = national_digits(getattr(intent, "shared_number", None))
         if line_digits and shared and shared != line_digits:
+            wrong_line.add(intent.thread_id)
             continue
-        nm = max((_handoff_name_score(n, intent.landlord_name) for n in names), default=0.0)
-        pm = max((_property_score(h, intent.property_address) for h in property_hints), default=0.0)
-        # Property evidence only counts here at street level (>= 75): a
-        # different street in the same district scores 70 and must not lift a
-        # handoff over the listing whose street the landlord actually named
-        # (2026-10-02: London Road CR4 at 88.4 beat an exact Chestnut Grove CR4).
-        strong_pm = pm >= HANDOFF_MIN_PROPERTY_SCORE
-        if nm < 50 and not strong_pm:
+        if intent.thread_id:
+            prev = given.get(intent.thread_id)
+            given[intent.thread_id] = max(prev, intent.created_at) if prev else intent.created_at
+            with_intent.add(intent.thread_id)
+            if intent.landlord_name:
+                snapshot_names.setdefault(intent.thread_id, set()).add(intent.landlord_name)
+    for thread_id, shared_at in (
+        db.query(Conversation.thread_id, Conversation.our_number_shared_at)
+        .filter(Conversation.our_number_shared_at >= start, Conversation.our_number_shared_at <= end)
+        .all()
+    ):
+        if thread_id in wrong_line or thread_id in given:
             continue
-        if strong_pm and nm >= 50:
-            conf = min(97.0, 82.0 + pm * 0.12)
-        elif strong_pm:
-            conf = min(95.0, 80.0 + pm * 0.12)
+        given[thread_id] = shared_at
+    for thread_id in taken:
+        given.pop(thread_id, None)
+    if not given:
+        return []
+    rows = (
+        db.query(Conversation, Listing, Account)
+        .join(Listing, Conversation.listing_id == Listing.id)
+        .outerjoin(SearchProfile, Listing.search_profile_id == SearchProfile.id)
+        .outerjoin(Account, SearchProfile.account_id == Account.id)
+        .filter(Conversation.thread_id.in_(list(given)))
+        .all()
+    )
+    return [
+        (c, l, a, given[c.thread_id], c.thread_id in with_intent, snapshot_names.get(c.thread_id, set()))
+        for c, l, a in rows
+    ]
+
+
+def _chat_address_score(hint: str, chat: str) -> float:
+    """Address evidence from the landlord's own OpenRent messages. A long chat
+    "contains" most short hints word by word, so only a full postcode or every
+    distinctive street/building word of the hint counts."""
+    if not hint or not chat:
+        return 0.0
+    hint_norm, chat_norm = _norm(hint), _norm(chat)
+    postcode = re.search(r"\b([a-z]{1,2}\d[a-z\d]?)\s*(\d[a-z]{2})\b", hint_norm)
+    if postcode and (postcode.group(1) + postcode.group(2)) in chat_norm.replace(" ", ""):
+        return 96.0
+    # The whole "<name> <road/building word>" phrase must appear ("austin
+    # house", "kent road"): one loose word like "austin" matched other chats.
+    chat_text = " ".join(re.findall(r"[a-z0-9]+", chat_norm))
+    words = re.findall(r"[a-z0-9]+", hint_norm)
+    for i in range(1, len(words)):
+        def _name_word(w):
+            return w not in _GENERIC_ADDRESS_WORDS and not any(ch.isdigit() for ch in w)
+
+        if words[i] in _STREET_TYPES and _name_word(words[i - 1]):
+            start = i - 1
+            while start > 0 and _name_word(words[start - 1]):
+                start -= 1
+            phrase = " ".join(words[start:i + 1])
+            if re.search(rf"\b{re.escape(phrase)}\b", chat_text):
+                return 88.0
+    return 0.0
+
+
+# Roads, as opposed to buildings ("Austin House", "River Heights") and bare
+# places ("Sydenham"). A building sits ON a road, so "Christopher Bell Tower"
+# vs "Pancras Way" is the same place; only two different roads contradict.
+_THOROUGHFARES = {
+    "road", "rd", "street", "st", "avenue", "ave", "lane", "ln", "way", "drive", "dr",
+    "close", "crescent", "place", "pl", "grove", "terrace", "square", "sq", "walk",
+    "rise", "mews", "row", "gardens", "gdns", "hill", "gate", "green", "park",
+}
+
+
+def _names_a_road(text: str | None) -> bool:
+    for segment in _norm(text).split(","):
+        words = re.findall(r"[a-z0-9]+", segment)
+        for word, nxt in zip(words, words[1:]):
+            # "London Road" is a road; only a number or a unit word ("flat
+            # road") is not a road name.
+            if nxt in _THOROUGHFARES and word not in _UNIT_WORDS and not any(ch.isdigit() for ch in word):
+                return True
+    return False
+
+
+def _names_a_street(address: str | None) -> bool:
+    """True when a stored address names a street or building ("London Road,
+    CR4", "Proton Tower, E14"), not just an area ("Chiswick, W4", "St Johns
+    Wood, NW8": the "St" there is Saint, so only a segment that ENDS in a
+    street word counts)."""
+    for segment in _norm(address).split(","):
+        words = re.findall(r"[a-z0-9]+", segment)
+        if len(words) >= 2 and (words[-1] in _STREET_TYPES or words[-1] in {"tower", "building", "wharf"}):
+            return True
+    return False
+
+
+def _address_rules_out(hints, stored_address, chat: str = "") -> bool:
+    """The landlord's own address says this is NOT the listing: a different
+    postcode district, or our listing names a street and theirs is a
+    different one (and the street is not in their OpenRent chat either).
+    Vague hints ("the flat") and area-only listings rule nothing out."""
+    if not stored_address:
+        return False
+    stored_norm = _norm(stored_address)
+    stored_districts = set(_OUTWARD_RE.findall(stored_norm))
+    ruled_out = False
+    for hint in hints or []:
+        if not _hint_is_specific(hint):
+            continue
+        if (
+            _property_score(hint, stored_address) >= 75
+            or (chat and _chat_address_score(hint, chat) >= 88)
+        ):
+            return False  # some hint supports it
+        hint_districts = set(_OUTWARD_RE.findall(_norm(hint)))
+        if hint_districts and stored_districts and not (hint_districts & stored_districts):
+            ruled_out = True
+        elif _names_a_road(hint) and _names_a_road(stored_address):
+            ruled_out = True
+    return ruled_out
+
+
+def _landlord_chat_text(db, conversation_id, as_of) -> str:
+    from app.db.models import Message
+
+    rows = (
+        db.query(Message.content)
+        .filter(
+            Message.conversation_id == conversation_id,
+            Message.direction == "inbound",
+            Message.created_at < as_of,
+        )
+        .all()
+    )
+    return " ".join(content for (content,) in rows if content)
+
+
+def _apply_given_number_evidence(
+    db, candidates, names, property_hints, inbound_texts, line_number, *, as_of=None, contact_id=None,
+    boosted_personas=None,
+):
+    """Score the threads that gave this landlord our number. See the block
+    comment above. Only adds or raises candidates; a thread the landlord's own
+    address rules out is never lifted. Returns the pool's thread ids (None when
+    the pool could not be read)."""
+    from datetime import datetime
+
+    now = as_of or datetime.utcnow()
+    try:
+        pool = _given_number_pool(db, now, line_number, contact_id)
+    except Exception as exc:  # evidence is optional; never break matching
+        logger.warning(f"WHATSAPP_GIVEN_NUMBER_POOL_FAILED error={exc}")
+        return None
+    if not pool:
+        return set()
+    mentioned = mentioned_account_strength(db, inbound_texts, exclude_names=names)
+    boosted = {p.casefold() for p in (boosted_personas or [])}
+    # Greeted persona names were already removed in match_by_evidence.
+    landlord_names = names
+    by_listing = {c["listing_id"]: c for c in candidates}
+    for conversation, listing, account, given_at, has_intent, snapshots in pool:
+        strength = mentioned.get(account.id, 0) if account is not None else 0
+        # _apply_persona_boost already adds its +8 for this persona: counting it
+        # twice put several threads on the 97 cap together (2026-10-08 replay).
+        if account is not None and (account.persona_name or "").casefold() in boosted:
+            strength = 0
+        persona_hit = strength > 0
+        address = 0.0
+        if property_hints:
+            chat = _landlord_chat_text(db, conversation.id, now)
+            address = max(
+                max(_property_score(h, listing.property_address), _chat_address_score(h, chat))
+                for h in property_hints
+            )
+            if _address_rules_out(property_hints, listing.property_address, chat):
+                continue
+        # The landlord name as it was when we gave the number (the handoff
+        # snapshot the old prior scored) or as the listing shows it now.
+        stored_names = {listing.landlord_name, *snapshots} - {None}
+        name = max(
+            (_handoff_name_score(n, stored) for n in landlord_names for stored in stored_names),
+            default=0.0,
+        )
+        strong_address = address >= 75
+        # Real evidence is required: the address or the landlord's name. The
+        # persona only breaks ties between threads that have some.
+        # Threads with a recorded handoff keep the old prior's bar (name >= 50);
+        # the ones this widened pool adds (number given, no handoff recorded)
+        # need a solid name, so they don't bring in coin-flip competitors.
+        if not strong_address:
+            if has_intent and name < 50:
+                continue
+            # They named a specific address and it is not this listing's: a
+            # borderline name ("Lauren" ~ "Darren L." at 53, about "Malden Rd"
+            # vs Goosander Court NW9) must not carry it.
+            if address < 70 and any(_hint_is_specific(h) for h in property_hints) and name < 70:
+                continue
+            if not has_intent and not (name >= 90 or _same_first_name(landlord_names, listing.landlord_name)):
+                continue
+        # Same continuous scale as the handoff prior this replaces, so every
+        # case it already decided keeps its score (the 2026-10-08 replay showed
+        # bucketed scores flattening name quality into near-ties). What is new
+        # rides on top: the street/postcode found in their OpenRent chat counts
+        # as a strong address, an area-only listing in their district adds a
+        # little, and the persona the landlord names is a tie-breaker.
+        if strong_address and name >= 50:
+            conf = 82.0 + address * 0.12
+        elif strong_address:
+            conf = 80.0 + address * 0.12
         else:
-            conf = min(88.0, 70.0 + nm * 0.18)
-        existing = by_listing.get(intent.listing_id)
-        if existing:
-            if conf > existing["confidence"]:
-                existing["confidence"] = conf
-                existing["reason"] = "handoff"
-        else:
-            cand = {
-                "listing_id": intent.listing_id,
-                "listing_listing_id": None,
-                "thread_id": intent.thread_id,
-                "landlord_name": intent.landlord_name,
-                "landlord_id": None,
-                "property_address": intent.property_address,
-                "confidence": conf,
-                "name_score": nm,
-                "property_score": pm,
-                "matched_name": None,
-                "matched_property_hint": None,
-                "reason": "handoff",
-            }
+            conf = min(88.0, 70.0 + name * 0.18)
+            if address >= 70 and not _names_a_street(listing.property_address):
+                conf += 3.0
+        if name >= 50:
+            conf += _initial_agreement(landlord_names, listing.landlord_name)
+        # "Harriet shared your number" names who gave it: enough to separate
+        # two otherwise equal threads. A bare "Hi George" only nudges.
+        conf += 6.0 if strength >= REFERRAL_STRONG else 3.0 if persona_hit else 0.0
+        conf = min(GIVEN_NUMBER_MAX_CONFIDENCE, conf)
+        cand = by_listing.get(listing.id)
+        if cand is None:
+            cand = _candidate_for(listing, conversation.thread_id)
+            cand["property_score"], cand["name_score"] = address, name
             candidates.append(cand)
-            by_listing[intent.listing_id] = cand
+            by_listing[listing.id] = cand
+        if conf > cand["confidence"]:
+            cand["confidence"] = conf
+            cand["reason"] = "given_number" + ("+persona" if persona_hit else "")
+    return {row[0].thread_id for row in pool}
+
+
+def _persona_first_names(db) -> set[str]:
+    names = set()
+    for persona, partner in db.query(Account.persona_name, Account.persona_partner_name):
+        for n in (persona, partner):
+            if n and n.strip():
+                names.add(n.strip().split()[0].casefold())
+    return names
+
+
+_GREETING_RE = re.compile(
+    r"\b(?:hi|hello|hey|hiya|dear|morning|afternoon|evening|thanks|thank you|cheers)[,!\s]+([a-z]{3,})\b", re.I
+)
+_SELF_INTRO_RE = re.compile(
+    r"\b(?:this is|it'?s|it\u2019s|i'?m|i am|my name is|name'?s|from)\s+([a-z]{3,})\b", re.I
+)
+
+
+def _greeted_persona_names(db, texts) -> set[str]:
+    """Persona/partner first names the landlord addressed us by ("Hi Claire"),
+    minus any they also used for themselves ("It's Laura")."""
+    ours = _persona_first_names(db)
+    blob = "\n".join(t for t in texts or [] if t)
+    greeted = {m.casefold() for m in _GREETING_RE.findall(blob)} & ours
+    themselves = {m.casefold() for m in _SELF_INTRO_RE.findall(blob)}
+    return greeted - themselves
+
+
+def _same_first_name(names, landlord_name) -> bool:
+    """Exact first-name match ("Gill" / "Gill S."), not a fuzzy one ("Gill" /
+    "Gillian S." scored 82 and tied the right thread)."""
+    stored = re.findall(r"[A-Za-z]+", landlord_name or "")
+    if not stored:
+        return False
+    first = stored[0].casefold()
+    return any((re.findall(r"[A-Za-z]+", n or "") or [""])[0].casefold() == first for n in names or [])
+
+
+def _initial_agreement(names, landlord_name) -> float:
+    """OpenRent shows landlords as "First L." When the WhatsApp name has a
+    surname, its initial agreeing ("Allan Adams" / "Allan A.") separates
+    near-name ties (Allan vs Alan L. vs Gillian S.); disagreeing counts against."""
+    stored = re.findall(r"[A-Za-z]+", landlord_name or "")
+    if len(stored) < 2 or len(stored[-1]) != 1:
+        return 0.0
+    initial = stored[-1].casefold()
+    best = 0.0
+    for n in names or []:
+        parts = re.findall(r"[A-Za-z]+", n or "")
+        if len(parts) < 2 or parts[0].casefold() != stored[0].casefold():
+            continue
+        best = max(best, 3.0) if parts[-1][0].casefold() == initial else min(best, -5.0) if best <= 0 else best
+    return best
+
+
+def _hint_is_specific(hint: str) -> bool:
+    """A hint that names a road, a building, or a postcode district can rule a
+    listing out. "The flat", and area or town names ("Royal Victoria",
+    "Sydenham", "Luton"), cannot: our listing addresses are often an area or a
+    building, so a bare place name proves nothing against them."""
+    norm = _norm(hint)
+    if _OUTWARD_RE.search(norm):
+        return True
+    words = re.findall(r"[a-z0-9]+", norm)
+    return any(
+        nxt in _STREET_TYPES and word not in _UNIT_WORDS and not any(ch.isdigit() for ch in word)
+        for word, nxt in zip(words, words[1:])
+    )

@@ -236,7 +236,8 @@ def test_legacy_intents_without_number_still_count(wa_db):
         a, _ = _two_nicolas(session)
     repository.record_handoff_intent("T-A")  # recorded before multi-number
     candidates, _ = matcher.match_by_evidence(["Nicola"], [], line_number="447700900222")
-    assert any(c["listing_id"] == a and c["reason"] == "handoff" for c in candidates)
+    # The handoff prior became the given-number evidence (2026-10-08).
+    assert any(c["listing_id"] == a and c["reason"].startswith("given_number") for c in candidates)
 
 
 def test_reused_intent_gets_shared_number_backfilled(wa_db):

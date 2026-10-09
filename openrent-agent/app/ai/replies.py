@@ -281,7 +281,7 @@ def count_number_asks(messages):
 def _record_handoff_if_shared(thread_id, reply, mobile_number):
     """If we just shared the give-out WhatsApp number on a real OpenRent thread,
     record a handoff intent so a later inbound WhatsApp maps back to this
-    property/thread (see whatsapp.matcher._apply_handoff_prior).
+    property/thread (see whatsapp.matcher._apply_given_number_evidence).
 
     Detection is digit-normalised so number formatting never matters. Guarded on
     thread_id, so sim-lab / non-thread callers never record. Best-effort: a
