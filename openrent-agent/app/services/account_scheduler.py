@@ -157,15 +157,8 @@ def _select_accounts(accounts):
     return selected
 
 
-async def run_scheduler_cycle():
-    logger.info("Scheduler cycle started")
-    current_uk_time = uk_now()
-    logger.info(f"Current UK time: {current_uk_time.strftime('%Y-%m-%d %H:%M %Z')}")
-
-    if not is_operating_hours(current_uk_time):
-        logger.info("Outside operating hours. Skipping scheduler cycle.")
-        return
-
+def _plan_scheduler_cycle():
+    """Blocking DB pass: returns (account ids to start, free worker slots)."""
     reset_stale_workers()
 
     accounts = get_active_accounts()
@@ -197,6 +190,21 @@ async def run_scheduler_cycle():
 
     selected = _select_accounts(accounts)
     logger.info(f"QUEUED_ACCOUNTS={len(selected)} will_start={min(len(selected), available_slots)}")
+    return [account.id for account in selected], available_slots
+
+
+async def run_scheduler_cycle():
+    logger.info("Scheduler cycle started")
+    current_uk_time = uk_now()
+    logger.info(f"Current UK time: {current_uk_time.strftime('%Y-%m-%d %H:%M %Z')}")
+
+    if not is_operating_hours(current_uk_time):
+        logger.info("Outside operating hours. Skipping scheduler cycle.")
+        return
+
+    # Runs in a thread: this pass makes dozens of DB round-trips and used to
+    # freeze the API event loop for up to ~40s per cycle (dashboard timeouts).
+    selected_ids, available_slots = await asyncio.to_thread(_plan_scheduler_cycle)
 
     if available_slots == 0:
         logger.info("MAX_PARALLEL_WORKERS reached, no new accounts will be started this cycle")
@@ -205,21 +213,21 @@ async def run_scheduler_cycle():
     from app.workers.account_worker import start_account_worker
 
     launched = 0
-    for account in selected:
+    for account_id in selected_ids:
         if launched >= available_slots:
             logger.info(
                 f"MAX_PARALLEL_WORKERS={MAX_PARALLEL_WORKERS} reached, "
-                f"deferring {len(selected) - launched} remaining account(s)"
+                f"deferring {len(selected_ids) - launched} remaining account(s)"
             )
             break
 
-        logger.info(f"Queueing account {account.id}")
-        result = await start_account_worker(account.id)
+        logger.info(f"Queueing account {account_id}")
+        result = await start_account_worker(account_id)
         if result.get("queued"):
             launched += 1
         else:
             logger.info(
-                f"Scheduler skipped account {account.id}: "
+                f"Scheduler skipped account {account_id}: "
                 f"{result.get('reason') or 'not_queued'}"
             )
 

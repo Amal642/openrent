@@ -537,6 +537,12 @@ def _forget_worker(account_id):
 # =========================================================
 
 async def start_account_worker(account_id):
+    # The checks and enqueue below are all blocking DB/Redis calls; run them
+    # off the event loop so the API keeps answering while they run.
+    return await asyncio.to_thread(_start_account_worker_sync, account_id)
+
+
+def _start_account_worker_sync(account_id):
     from app.workers.rq_worker import run_account_worker_sync
 
     if not is_operating_hours():
