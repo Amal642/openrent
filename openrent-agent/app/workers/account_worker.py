@@ -109,19 +109,19 @@ def is_scraper_account(account) -> bool:
 
 
 async def _run_discovery(account, page, inventory, cooldown_hours):
-    """Phases 5-7: discovery, gated by inventory caps, the per-day budget and
-    the cooldown. Caps only suppress NEW discovery, never outreach."""
-    if inventory >= settings.HARD_CAP_INVENTORY:
+    """Phases 5-7: discovery, gated by the inventory hard cap, the per-day
+    budget and the cooldown. Caps only suppress NEW discovery, never outreach.
+    A scraper account skips the hard cap: senders overflow-claim its finds
+    freshest-first, so its older unclaimed listings never drain and the cap
+    would stop it searching for good (accts 25, 35, 38 on 2026-10-10)."""
+    if (
+        not is_scraper_account(account)
+        and inventory >= settings.HARD_CAP_INVENTORY
+    ):
         logger.info(
             f"INVENTORY_HARD_CAP_REACHED account_id={account.id} "
             f"available={inventory} cap={settings.HARD_CAP_INVENTORY} "
             f"discovery=disabled"
-        )
-    elif inventory >= settings.TARGET_INVENTORY:
-        logger.info(
-            f"INVENTORY_TARGET_REACHED account_id={account.id} "
-            f"available={inventory} target={settings.TARGET_INVENTORY} "
-            f"discovery=skipped"
         )
     else:
         # =====================================================

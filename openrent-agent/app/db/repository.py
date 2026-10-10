@@ -204,7 +204,22 @@ def proxy_row_is_usable(proxy) -> bool:
     return bool(host) and "://" not in host and port > 0
 
 
-def find_replacement_proxy(exclude_proxy_id: int, prefer_type: str = "static"):
+# Proxy split (user rule, 2026-10-10): a sending account shares its egress IP
+# with at most one other sender and never with a scraper (daily_limit 0,
+# restricted on OpenRent), so a restricted account can't taint a healthy one.
+MAX_SENDERS_PER_PROXY = 2
+
+
+def _is_scraper_limit(daily_limit) -> bool:
+    # Same rule as account_worker.is_scraper_account (NULL = default 8).
+    return daily_limit is not None and daily_limit <= 0
+
+
+def find_replacement_proxy(
+    exclude_proxy_id: int,
+    prefer_type: str = "static",
+    account_id: int | None = None,
+):
     """
     Pick a healthy, active, spare proxy to take over for a failing one.
     Prefers prefer_type (e.g. keep static accounts on static proxies),
@@ -212,6 +227,11 @@ def find_replacement_proxy(exclude_proxy_id: int, prefer_type: str = "static"):
     candidates of the preferred type, picks the least-loaded one (fewest
     accounts already assigned) to spread load. Returns the proxy id, or
     None if nothing suitable is available.
+
+    With account_id, the proxy split is enforced against the other ACTIVE
+    accounts on each candidate: a sender only goes to a proxy with no
+    scrapers and fewer than MAX_SENDERS_PER_PROXY senders; a scraper only
+    goes to a proxy with no senders.
     """
     from sqlalchemy import or_
     from app.db.models import Proxy as _Proxy, Account as _Account
@@ -238,6 +258,30 @@ def find_replacement_proxy(exclude_proxy_id: int, prefer_type: str = "static"):
         def _load(proxy_id: int) -> int:
             return db.query(_Account).filter(_Account.proxy_id == proxy_id).count()
 
+        if account_id is not None:
+            mover = db.query(_Account).filter(_Account.id == account_id).first()
+            mover_is_scraper = bool(mover) and _is_scraper_limit(mover.daily_limit)
+
+            def _fits(proxy_id: int) -> bool:
+                limits = [
+                    row.daily_limit
+                    for row in db.query(_Account.daily_limit).filter(
+                        _Account.proxy_id == proxy_id,
+                        _Account.id != account_id,
+                        _Account.active == True,
+                        _Account.deleted_at == None,
+                    )
+                ]
+                scrapers = sum(1 for lim in limits if _is_scraper_limit(lim))
+                senders = len(limits) - scrapers
+                if mover_is_scraper:
+                    return senders == 0
+                return scrapers == 0 and senders < MAX_SENDERS_PER_PROXY
+
+            candidates = [c for c in candidates if _fits(c.id)]
+            if not candidates:
+                return None
+
         preferred = [c for c in candidates if _normalize_proxy_type(c.proxy_type) == prefer_type]
         pool = preferred if preferred else candidates
         pool.sort(key=lambda c: _load(c.id))
@@ -263,7 +307,9 @@ def reassign_account_proxy(account_id: int, reason: str = "proxy_failure"):
         old_proxy = db.query(_Proxy).filter(_Proxy.id == old_proxy_id).first()
         prefer_type = _normalize_proxy_type(old_proxy.proxy_type if old_proxy else "static")
 
-    new_proxy_id = find_replacement_proxy(old_proxy_id, prefer_type=prefer_type)
+    new_proxy_id = find_replacement_proxy(
+        old_proxy_id, prefer_type=prefer_type, account_id=account_id
+    )
 
     if not new_proxy_id:
         logger.error(

@@ -80,7 +80,6 @@ class Settings:
     # searching their areas so sending accounts can overflow-claim the finds.
     # A longer cooldown keeps their runs from crowding the 2 worker slots.
     SCRAPER_DISCOVERY_COOLDOWN_HOURS = int(os.getenv("SCRAPER_DISCOVERY_COOLDOWN_HOURS", "10"))
-    TARGET_INVENTORY = int(os.getenv("TARGET_INVENTORY", "50"))
     HARD_CAP_INVENTORY = int(os.getenv("HARD_CAP_INVENTORY", "100"))
     SIMULATION_DEFAULT_TEMPERATURE = float(
         os.getenv("SIMULATION_DEFAULT_TEMPERATURE", "0.0")

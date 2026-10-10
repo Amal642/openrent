@@ -62,8 +62,9 @@ def run(monkeypatch):
     monkeypatch.setattr(aw.settings, "DISCOVERY_COOLDOWN_HOURS", 4)
     monkeypatch.setattr(aw.settings, "SCRAPER_DISCOVERY_COOLDOWN_HOURS", 10)
 
-    def _run(daily_limit, can_send=True, proxy_url="http://u:p@isp.decodo.com:10001"):
+    def _run(daily_limit, can_send=True, proxy_url="http://u:p@isp.decodo.com:10001", inventory=0):
         monkeypatch.setattr(aw, "can_send_message", lambda account_id: can_send)
+        monkeypatch.setattr(aw, "count_available_inventory", lambda account_id: inventory)
         monkeypatch.setattr(aw, "_proxy_url_for_account", lambda a: proxy_url)
         account = SimpleNamespace(id=99, email="x@y", daily_limit=daily_limit, proxy=None)
         asyncio.run(aw.run_account_worker(account))
@@ -96,3 +97,24 @@ def test_account_without_usable_proxy_never_runs(run):
     # Never browse OpenRent from the server's own IP (2026-10-06 failover bug).
     calls = run(daily_limit=8, proxy_url=None)
     assert calls["replies"] == 0 and calls["discovery"] == [] and calls["outreach"] == 0
+
+
+def test_sender_keeps_searching_above_old_50_target(run):
+    # The 50-listing target was removed on 2026-10-10.
+    calls = run(daily_limit=8, inventory=66)
+    assert calls["discovery"] == [4, "scraped"]
+
+
+def test_sender_still_stops_searching_at_hard_cap(run, monkeypatch):
+    monkeypatch.setattr(aw.settings, "HARD_CAP_INVENTORY", 100)
+    calls = run(daily_limit=8, inventory=100)
+    assert calls["discovery"] == []
+    assert calls["outreach"] == 1
+
+
+def test_scraper_ignores_inventory_caps(run, monkeypatch):
+    # Senders claim its finds freshest-first, so its old pile never drains;
+    # accts 25/35/38 sat at 52-66 and stopped searching for 4 days.
+    monkeypatch.setattr(aw.settings, "HARD_CAP_INVENTORY", 100)
+    calls = run(daily_limit=0, can_send=False, inventory=250)
+    assert calls["discovery"] == [10, "scraped"]
