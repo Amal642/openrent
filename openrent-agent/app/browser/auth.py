@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
 from app.browser.launcher import get_session_file, save_storage_state
 from app.db.repository import update_session_health
 from app.utils.logger import logger
@@ -65,14 +67,20 @@ async def _capture_page_diagnostics(page, email: str, reason: str):
 
 async def _dismiss_cookie_banner(page):
     """Best-effort dismissal of a cookie-consent overlay so it cannot cover the
-    login form. Never raises — a missing banner is the normal case."""
+    login form. Never raises — a missing banner is the normal case.
+
+    The page can hold both the bottom banner and the full-screen modal variant
+    with the same button names, one of them hidden, so click the first VISIBLE
+    match rather than the first match."""
     for name in ("Accept all", "Accept All", "Accept", "I Agree", "Allow all", "Got it"):
         try:
-            btn = page.get_by_role("button", name=name)
-            if await btn.count() > 0 and await btn.first.is_visible():
-                await btn.first.click(timeout=3000)
-                logger.info(f"COOKIE_BANNER_DISMISSED via '{name}'")
-                return
+            buttons = page.get_by_role("button", name=name)
+            for i in range(await buttons.count()):
+                btn = buttons.nth(i)
+                if await btn.is_visible():
+                    await btn.click(timeout=3000)
+                    logger.info(f"COOKIE_BANNER_DISMISSED via '{name}'")
+                    return
         except Exception:
             continue
 
@@ -206,8 +214,22 @@ async def login(page, context, account):
             f"Could not reset cookies before fresh login for {account.email}: {exc}"
         )
 
+    # OpenRent A/B-tests a full-screen cookie-consent modal (#cookie-consent-modal,
+    # static backdrop) on roughly a third of cookie-less visits, which includes
+    # every fresh login after clear_cookies() above. It intercepts the Sign In
+    # click until the 30s timeout, so dismiss it first. It can also open just
+    # after domcontentloaded, so if the click is still blocked, dismiss again
+    # and retry once.
+    await _dismiss_cookie_banner(page)
     sign_in_btn = page.get_by_role("link", name="Sign In")
-    await sign_in_btn.click()
+    try:
+        await sign_in_btn.click(timeout=8000)
+    except PlaywrightTimeoutError:
+        logger.info(
+            f"LOGIN_SIGN_IN_BLOCKED email={account.email} — dismissing cookie consent and retrying"
+        )
+        await _dismiss_cookie_banner(page)
+        await sign_in_btn.click()
 
     # A cookie-consent overlay can cover the login form and leave the email
     # field present-but-hidden — dismiss it before locating the field.
