@@ -213,14 +213,94 @@ def test_send_path_does_not_overflow_when_own_inventory_exists(monkeypatch):
         ) or ([], {}),
     )
 
+    monkeypatch.setattr(pl, "account_stop_requested", lambda _id: False)
+
     async def ok(*a, **k):
         return 0, 0, 0, 0
     monkeypatch.setattr(pl, "_process_claimed_listings", ok)
 
     asyncio.run(pl.process_account_listings(Acc(), page=None, worker_id="w-30"))
     # Only the early-access and freshest-first passes; never the regular
-    # surplus overflow while we have our own listings.
+    # surplus overflow while we have our own listings (refills come from the
+    # own queue first, which still has listings here).
     assert called == ["early", "fresh"]
+
+
+def _refill_harness(monkeypatch, batches_sent, own=(), fresh_batches=()):
+    """Drive process_account_listings with scripted batches. ``batches_sent``:
+    what each _process_claimed_listings call sends. ``fresh_batches``: pks the
+    successive freshest claims return (first one = the initial pass)."""
+    from scripts import process_listings as pl
+
+    class Acc:
+        id = 46
+        email = "p@x"
+
+    fresh_batches = list(fresh_batches)
+    claims, processed, returned = [], [], []
+
+    def overflow(*a, **k):
+        if k.get("early_access_only"):
+            return [], {}
+        kind = "fresh" if k.get("freshest") else "surplus"
+        claims.append(kind)
+        pks = fresh_batches.pop(0) if kind == "fresh" and fresh_batches else []
+        return ([type("L", (), {"id": pk, "first_seen": None})() for pk in pks],
+                {pk: {"origin_profile_id": 900 + pk, "origin_account_id": 37} for pk in pks})
+
+    sends = list(batches_sent)
+
+    async def process(_acc, _page, listings, *a, **k):
+        processed.append([l.id for l in listings])
+        return sends.pop(0), 0, len(listings), 0
+
+    monkeypatch.setattr(pl, "is_uk_outreach_window", lambda: True)
+    monkeypatch.setattr(pl, "can_send_message", lambda _id: True)
+    monkeypatch.setattr(pl, "is_outreach_due", lambda _id: True)
+    monkeypatch.setattr(pl, "ensure_account_persona", lambda _id: {})
+    monkeypatch.setattr(pl, "account_stop_requested", lambda _id: False)
+    monkeypatch.setattr(pl, "claim_uncontacted_listings", lambda *a, **k: list(own))
+    monkeypatch.setattr(pl, "claim_overflow_listings", overflow)
+    monkeypatch.setattr(pl, "return_overflow_listing",
+                        lambda pk, prof, owner, reason="": returned.append(pk))
+    monkeypatch.setattr(pl, "_process_claimed_listings", process)
+    asyncio.run(pl.process_account_listings(Acc(), page=None, worker_id="w-46"))
+    return claims, processed, returned
+
+
+def test_empty_batch_is_refilled_until_one_sends(monkeypatch):
+    # 2026-10-10 acct 46: 4 freshest claims were 3 agents + 1 contacted
+    # landlord, the run sent 0 and the account waited a whole cycle.
+    claims, processed, returned = _refill_harness(
+        monkeypatch, batches_sent=[0, 1], fresh_batches=[[1, 2, 3, 4], [5, 6, 7, 8]]
+    )
+    assert processed == [[1, 2, 3, 4], [5, 6, 7, 8]]
+    # Every overflow listing from both batches goes back if unsent.
+    assert sorted(returned) == [1, 2, 3, 4, 5, 6, 7, 8]
+
+
+def test_refill_stops_after_max_rounds(monkeypatch):
+    from scripts import process_listings as pl
+    batches = [[i * 10 + j for j in range(4)] for i in range(1, 6)]
+    _, processed, _ = _refill_harness(monkeypatch, batches_sent=[0] * 5, fresh_batches=batches)
+    assert len(processed) == pl.MAX_CLAIM_ROUNDS
+
+
+def test_no_refill_after_a_send(monkeypatch):
+    claims, processed, _ = _refill_harness(
+        monkeypatch, batches_sent=[1], fresh_batches=[[1, 2], [3, 4]]
+    )
+    assert processed == [[1, 2]]
+    assert claims == ["fresh"]
+
+
+def test_refill_without_own_inventory_falls_back_to_surplus(monkeypatch):
+    # Same order as the first pass: freshest, then other accounts' surplus.
+    claims, processed, _ = _refill_harness(
+        monkeypatch, batches_sent=[0], fresh_batches=[[1, 2]]
+    )
+    assert processed == [[1, 2]]
+    assert claims == ["fresh", "fresh", "surplus"]
 
 
 def test_scraper_donor_gives_everything(db):

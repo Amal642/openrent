@@ -42,6 +42,12 @@ from datetime import datetime
 
 # Listings newer than the account's own newest that it may take per run.
 FRESH_CLAIM_LIMIT = 4
+# A run sends at most one new enquiry. ~70% of claimed listings turn out to be
+# agents, already-contacted landlords or early access (only visible once the
+# page is open), so a 4-listing batch often has nothing sendable and the run
+# used to end with 0 sent, costing a whole worker cycle. Claim up to this many
+# batches per run before giving up.
+MAX_CLAIM_ROUNDS = 3
 from app.openrent.listing_metadata import (
     MIN_ACCEPTED_TENANCY_MONTHS,
     extract_listing_metadata,
@@ -177,10 +183,34 @@ async def process_account_listings(
 
     logger.info(f"MESSAGE_STAGE_STARTED account_id={account.id} candidates={len(listings)}")
 
+    had_own_inventory = bool(own_listings)
+    candidates = len(listings)
+    messages_sent = agent_skipped = skipped_other = not_contactable = 0
     try:
-        messages_sent, agent_skipped, skipped_other, not_contactable = await _process_claimed_listings(
-            account, page, listings, persona, claim_owner, overflow_origin
-        )
+        for claim_round in range(1, MAX_CLAIM_ROUNDS + 1):
+            sent, agents, other, blocked = await _process_claimed_listings(
+                account, page, listings, persona, claim_owner, overflow_origin
+            )
+            messages_sent += sent
+            agent_skipped += agents
+            skipped_other += other
+            not_contactable += blocked
+            if (
+                messages_sent
+                or claim_round == MAX_CLAIM_ROUNDS
+                or account_stop_requested(account.id)
+                or not can_send_message(account.id)
+            ):
+                break
+            listings, refill_origin = _claim_refill(account.id, claim_owner, had_own_inventory)
+            if not listings:
+                break
+            overflow_origin.update(refill_origin)
+            candidates += len(listings)
+            logger.info(
+                f"CANDIDATES_REFILLED account_id={account.id} round={claim_round + 1} "
+                f"claimed={len(listings)} — previous batch had nothing contactable"
+            )
     finally:
         for listing_pk, origin in overflow_origin.items():
             return_overflow_listing(
@@ -189,11 +219,28 @@ async def process_account_listings(
 
     logger.info(
         f"MESSAGES_SENT_THIS_RUN account_id={account.id} "
-        f"sent={messages_sent} candidates={len(listings)} "
+        f"sent={messages_sent} candidates={candidates} "
         f"agent_skipped={agent_skipped} not_contactable={not_contactable} "
         f"other_skipped={skipped_other}"
     )
     logger.info(f"MESSAGE_STAGE_FINISHED account_id={account.id}")
+
+
+def _claim_refill(account_id, claim_owner, had_own_inventory):
+    """Next batch after one where nothing could be messaged: own queue, then
+    the region's freshest, then (only for an account with no listings of its
+    own, as on the first pass) other accounts' surplus. Listings already tried
+    are excluded by the claim filters (skip_reason set, early-access tag for
+    this account, known rent outside our band)."""
+    listings = claim_uncontacted_listings(account_id, claim_owner, limit=FRESH_CLAIM_LIMIT)
+    if listings:
+        return listings, {}
+    listings, origin = claim_overflow_listings(
+        account_id, claim_owner, limit=FRESH_CLAIM_LIMIT, freshest=True
+    )
+    if listings or had_own_inventory:
+        return listings, origin
+    return claim_overflow_listings(account_id, claim_owner)
 
 
 async def _process_claimed_listings(account, page, listings, persona, claim_owner, overflow_origin):
