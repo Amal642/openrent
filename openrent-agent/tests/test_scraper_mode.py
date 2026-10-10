@@ -49,6 +49,13 @@ def run(monkeypatch):
     monkeypatch.setattr(aw, "_proxy_check_is_fresh", lambda a: True)
     monkeypatch.setattr(aw, "launch_browser", fake_launch)
     monkeypatch.setattr(aw, "login", fake_login)
+
+    async def fake_marker(page):
+        return True
+
+    # Page-health steps write to the real DB (prod when run on prod): stub them.
+    monkeypatch.setattr(aw, "logged_in_marker_present", fake_marker)
+    monkeypatch.setattr(aw.page_health, "record_step", lambda *a, **k: None)
     monkeypatch.setattr(aw, "process_account_replies", fake_replies)
     monkeypatch.setattr(aw, "process_account_viewing_reminders", fake_reminders)
     monkeypatch.setattr(aw, "process_account_listings", fake_outreach)
